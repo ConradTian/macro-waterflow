@@ -287,7 +287,7 @@ export async function startLesson(id, step = 0) {
   prevVis = null;
   if (L.scenario !== 'town') { ensureWorld('us'); restart(L, ov, L.startDate); }   // town lessons are rebuilt by replay in enterStep
   document.body.classList.add('lesson-on');
-  card.hidden = false; card.classList.remove('collapsed');
+  card.hidden = false; card.classList.remove('collapsed', 'tall');
   enterStep(Math.max(0, Math.min(step, L.steps.length - 1)));
 }
 
@@ -674,6 +674,7 @@ function onCardClick(e) {
   const b = e.target.closest('[data-act]'); if (!b || !cur) return;
   const a = b.dataset.act, { L } = cur, st = L.steps[cur.i];
   if (a === 'collapse') { card.classList.toggle('collapsed'); syncPad(); }
+  else if (a === 'expand') { card.classList.toggle('tall'); b.textContent = card.classList.contains('tall') ? '⤡' : '⤢'; syncPad(); }
   else if (a === 'exit') exitLesson();
   else if (a === 'menu') { openMenu(); }
   else if (a === 'prev') { if (cur.i > 0) enterStep(cur.i - 1); }
@@ -835,6 +836,7 @@ function draw() {
   card.innerHTML =
     `<div class="ls-top"><button type="button" class="ls-col" data-act="collapse" aria-label="折叠/展开">${card.classList.contains('collapsed') ? '▴' : '▾'}</button>` +
     `<button type="button" class="ls-ttl" data-act="menu">${esc(lessonLabel(L))} · ${esc(L.title)}</button><span class="ls-date">${snap.date}</span>` +
+    `<button type="button" class="ls-exp" data-act="expand" aria-label="放大/缩小教学卡">${card.classList.contains('tall') ? '⤡' : '⤢'}</button>` +
     `<a class="ls-free" href="${esc(freeUrl())}" target="_blank" rel="noopener">↗ 自由运行</a>` +
     `<button type="button" class="ls-exit" data-act="exit">退出教学</button></div>` +
     `<div class="ls-body">${body}</div>` +

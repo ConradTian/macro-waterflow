@@ -245,3 +245,21 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 
 /* the primary button of a step sits in the nav row, between 上一步 and 下一步 (always visible, no scrolling) */
 .ls-nav .ls-run { flex: 1; width: auto; min-width: 0; margin: 0; min-height: 40px; padding: 0 8px; font-size: 14px; }
+
+/* =====================================================================
+   PHONE lesson mode (<768px): the diagram shrinks to ~46dvh while a lesson is active so the card gets the rest above the tab bar
+   (card body ~250px instead of ~170px); a header button toggles the card to a tall sheet (~80dvh) that overlays the diagram.
+   The primary button lives in the nav row, so it is visible in both states.
+   ===================================================================== */
+.ls-exp { display: none; }
+@media (max-width: 767.98px) {
+  body.lesson-on .diagram { height: 46dvh; }
+  /* the card overlays the panel: do not let a tall card force the tab content (and so the tab bar) out of the screen */
+  body.lesson-on .tab-content { padding-bottom: calc(min(var(--ls-h, 0px), 100px) + 12px); }
+  .ls-exp { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 15px; cursor: pointer; padding: 0; }
+  .ls-card.tall .ls-exp { color: var(--accent); border-color: var(--accent); }
+  .ls-card .ls-date { display: none; }      /* the time bar already shows the date */
+  .ls-card.tall { max-height: calc(80dvh - var(--tb-h, 49px)); }
+  .ls-card .ls-free { padding: 6px 2px; }
+}

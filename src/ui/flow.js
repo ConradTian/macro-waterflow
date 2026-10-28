@@ -16,6 +16,10 @@ import { CONCEPTS } from '../data/concepts.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const VB_W = 390, VB_H = 472;
+// Phone (<768px): "main-trunk" mode. Same DOM, extra captions hidden by CSS (.ph-hide etc.) and the viewBox cropped below the spring sources.
+const PH_VB_H = 434;
+const PH_MQ = typeof matchMedia === 'function' ? matchMedia('(max-width: 767.98px)') : null;
+const isPhone = () => !!(PH_MQ && PH_MQ.matches);
 
 // engine valve table (dynamic: the diagram keeps working if the engine file is absent)
 let ENGINE_VALVES = null;
@@ -247,7 +251,7 @@ function valveIcon(parent, v) {
   el('rect', { class: 'hit', x: -14, y: -15, width: 28, height: 36, rx: 8 }, g);
   el('path', { class: 'stem', d: 'M0 0 V-8 M-5.5 -8 H5.5' }, g);
   el('path', { class: 'body', d: 'M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z' }, g);
-  txt(g, 0, 17, v.label, 'cap vl', 'middle');
+  txt(g, 0, 17, v.label, 'cap vl ph-hide', 'middle');
   return g;
 }
 
@@ -260,6 +264,9 @@ function build(host) {
     role: 'img', 'aria-label': '宏观水流示意图：泵（造水）、排水口（消水）、管道（搬水）、阀门、资产池与商品河道' }, document.createElement('div'));
   wrap.appendChild(svg);
   const R = { svg, wrap, pipes: {}, pools: {} };
+  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : VB_H}`); wrap.classList.toggle('phone', ph); };
+  syncPhone();
+  try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', syncPhone) : PH_MQ.addListener(syncPhone)); } catch (e) { /* ignore */ }
 
   /* ---- back layer: nodes, tanks, water ---- */
   const back = el('g', {}, svg);
@@ -344,8 +351,8 @@ function build(host) {
     el('path', { class: 'sign', d: 'M-3.2 0 H3.2' }, b);
     R.pipes.principalRepay.icon = g;
   }
-  txt(top, 40, 205, '货币', 'sub small', 'middle', 'repay');
-  txt(top, 40, 214, '注销', 'sub small', 'middle', 'repay');
+  txt(top, 40, 205, '货币', 'sub small ph-l1', 'middle', 'repay');
+  txt(top, 40, 214, '注销', 'sub small ph-l2', 'middle', 'repay');
   // central bank / government
   txt(top, 14, 24, '央行', 'ttl', 'start', 'centralBank');
   let g = termGroup(top, 'policyRate', [8, 28, 100, 22], 'centralBank', 'rate');
@@ -360,8 +367,8 @@ function build(host) {
   g = termGroup(top, 'M', null, 'iou');
   txt(g, 189, 131, '欠条箱', 'ttl small', 'start', 'iou');
   R.iouVal = txt(top, 246, 131, '', 'sub num', 'end', 'iou');
-  txt(top, 189, 145, '水是凭空来的，', 'cap', 'start', 'iou');
-  txt(top, 189, 157, '但不是白来的', 'cap', 'start', 'iou');
+  txt(top, 189, 145, '水是凭空来的，', 'cap ph-hide', 'start', 'iou');
+  txt(top, 189, 157, '但不是白来的', 'cap ph-hide', 'start', 'iou');
   // household / firm  (cover rect: the collateral loop passes BEHIND the household box)
   node(top, 76, 170, 194, 48, 'cover', 'household');
   R.hhTitle = txt(top, 84, 187, '', 'ttl hh', 'start', 'household', 'hh');
@@ -383,7 +390,7 @@ function build(host) {
   // spring captions
   for (const p of POOLS) {
     const cx = poolCx(p);
-    txt(top, cx, 438, p.spring ? '←' + p.spring.src : '无泉水', 'cap', 'middle', 'springs').setAttribute('data-owner', p.part);
+    txt(top, cx, 438, p.spring ? '←' + p.spring.src : '无泉水', 'cap ph-hide', 'middle', 'springs').setAttribute('data-owner', p.part);
   }
   // cash
   g = termGroup(top, 'cashAsset', [208, TANK_Y, 26, 40], 'cash');
@@ -405,8 +412,9 @@ function build(host) {
   txt(pill, 347, TANK_Y + 35, '水位', 'cap', 'middle');
   // spring chips etc are in chip layer; pool caption + legend + unit
   g = termGroup(top, 'assetReservoir', [6, 443, 378, 14], 'pool');
+  g.classList.add('ph-hide');
   txt(g, 10, 451, '资产池：买资产 = 买取水权，只抬水位', 'cap', 'start');
-  txt(top, 166, 451, '· 只有 Capex 才扩河道', 'cap', 'start', 'capex');
+  txt(top, 166, 451, '· 只有 Capex 才扩河道', 'cap ph-hide', 'start', 'capex');
   buildLegend(top);
   // valves last (on top)
   const valves = el('g', { class: 'valves' }, top);
@@ -420,8 +428,24 @@ function build(host) {
   // ripple strip + popover + zoom banner (HTML overlays)
   const strip = document.createElement('div'); strip.className = 'flow-ripple'; strip.hidden = true; host.appendChild(strip); R.strip = strip;
   const pop = document.createElement('div'); pop.className = 'flow-pop'; pop.hidden = true; host.appendChild(pop); R.pop = pop;
+  const lg = document.createElement('div'); lg.className = 'flow-legend'; lg.hidden = true; lg.innerHTML = legendHtml(); host.appendChild(lg); R.legend = lg;
   const zb = document.createElement('div'); zb.className = 'flow-zoomtag'; zb.hidden = true; host.appendChild(zb); R.zoomTag = zb;
   return R;
+}
+
+// phone: the legend row is hidden in the SVG; the 图例 button opens this sheet instead
+function legendHtml() {
+  const svg = inner => `<svg width="26" height="22" viewBox="-13 -11 26 22" aria-hidden="true">${inner}</svg>`;
+  const rows = [
+    [svg(`<circle r="8.5" style="fill:var(--surface);stroke:var(--c-fiscal);stroke-width:2.2"/><path d="M-4 0H4M0 -4V4" style="fill:none;stroke:var(--c-fiscal);stroke-width:2;stroke-linecap:round"/>`), '泵 = 造水', '放贷、QE、财政赤字'],
+    [svg(`<path d="M-8 -6 L8 -6 L2.5 1.5 L2.5 8 L-2.5 8 L-2.5 1.5 Z" style="fill:var(--surface);stroke:var(--c-repay);stroke-width:2;stroke-linejoin:round"/>`), '排水口 = 消水', '还本、QT、财政盈余'],
+    [svg(`<path d="M-10 0 H10" style="fill:none;stroke:var(--muted);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:5 3"/>`), '管道 = 搬水', '管越宽，本季流量越大'],
+    [svg(`<path d="M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z" style="fill:var(--surface-2);stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round"/><path d="M0 0 V-8 M-5 -8 H5" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round"/>`), '阀门 = 可拧', '点阀门图标：看是谁的阀门、怎么传导'],
+    [svg(`<path d="M-3 -8 v16 M-3 -5 h4 M-3 -1 h4 M-3 3 h4" style="fill:none;stroke:var(--muted);stroke-width:1.4"/>`), '水位 = 结果', '房价、物价、失业…不能直接拧'],
+  ];
+  return `<div class="fl-head"><b>图例</b><button type="button" class="fl-x" data-act="legend" aria-label="关闭">✕</button></div>` +
+    rows.map(([ic, t, d]) => `<div class="fl-row">${ic}<span><b>${t}</b><small>${d}</small></span></div>`).join('') +
+    `<div class="fl-note">带下划线的词可以点开看解释；点底部「本季水量」看泵入 / 排出明细。</div>`;
 }
 
 function buildLegend(top) {
@@ -493,7 +517,7 @@ const fmtSigned = (v, town) => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtMoney(Mat
 
 function placeChip(r, str) {
   const [x, y, anchor] = r.def.chip;
-  const w = Math.ceil(estW(str, 10)) + 10;
+  const w = Math.ceil(estW(str, isPhone() ? 10.8 : 10)) + 10;
   const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
   r.chipBg.setAttribute('x', x0); r.chipBg.setAttribute('y', y - 7.5); r.chipBg.setAttribute('width', w);
   r.chipHit.setAttribute('x', x0 - 4); r.chipHit.setAttribute('y', y - 13); r.chipHit.setAttribute('width', w + 8);
@@ -513,11 +537,16 @@ function setBudget(R, snap, town) {
   const cls = b.net > 1e-9 ? 'up' : b.net < -1e-9 ? 'down' : 'flat';
   const arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '＝';
   const drainTail = (dr.surplus > 0.0005 * ref(snap) ? ` + ${termBtn('', '盈余')} ${num(dr.surplus)}` : '') + (dr.qt > 0.0005 * ref(snap) ? ` + QT ${num(dr.qt)}` : '');
-  R.bar.className = 'flow-budget net-' + cls;
+  const open = R.bar.classList.contains('open');
+  R.bar.className = 'flow-budget net-' + cls + (open ? ' open' : '');
+  const pTot = pi.loans + pi.qe + pi.deficit, dTot = dr.repay + dr.surplus + dr.qt;
+  // phone: one compact line (tap = expand the breakdown); >=768px: .fb-mini is hidden and .fb-detail is the normal two rows
   R.bar.innerHTML =
-    `<div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">单位：${town ? '万元' : '十亿美元'} · 管宽 = 本季流量</span></div>` +
+    `<div class="fb-mini" role="button" tabindex="0" data-act="fb-toggle" aria-expanded="${open}"><span class="fb-mlab">本季水量</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span>` +
+    `<span class="fb-meq">= 泵入 ${num(pTot)} − 排出 ${num(dTot)}</span><span class="fb-caret" aria-hidden="true">▴</span><button type="button" class="fb-legbtn" data-act="legend">图例</button></div>` +
+    `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">单位：${town ? '万元' : '十亿美元'} · 管宽 = 本季流量</span></div>` +
     `<div class="fb-row fb-eq"><span class="fb-grp pump"><span class="fb-k">泵入</span> ${termBtn('newLoans', '放贷')} ${num(pi.loans)} + ${termBtn('qe', 'QE')} ${num(pi.qe)} + ${termBtn('fiscalInjection', '赤字')} ${num(pi.deficit)}</span>` +
-    `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '还本')} ${num(dr.repay)}${drainTail}</span></div>`;
+    `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '还本')} ${num(dr.repay)}${drainTail}</span></div></div>`;
 }
 
 function setTexts(R, snap, prevSnap, st) {
@@ -751,7 +780,24 @@ export function playValveRipple(valveId, opts = {}) {
 }
 
 function wireEvents(host, R) {
+  const closeBudget = () => { R.bar.classList.remove('open'); const m = R.bar.querySelector('.fb-mini'); if (m) m.setAttribute('aria-expanded', 'false'); };
+  const toggleLegend = () => {
+    const show = R.legend.hidden;
+    if (show) { closeBudget(); closeValvePopover(); R.legend.style.bottom = ((R.bar && R.bar.offsetHeight) || 0) + 6 + 'px'; }
+    R.legend.hidden = !show;
+  };
   host.addEventListener('click', e => {
+    const lgb = e.target.closest && e.target.closest('[data-act="legend"]');
+    if (lgb) { e.preventDefault(); toggleLegend(); return; }
+    const fbm = e.target.closest && e.target.closest('.fb-mini');
+    if (fbm) {
+      const on = !R.bar.classList.contains('open');
+      R.legend.hidden = true; closeValvePopover();
+      R.bar.classList.toggle('open', on); fbm.setAttribute('aria-expanded', String(on));
+      return;
+    }
+    if (!R.legend.hidden && !(e.target.closest && e.target.closest('.flow-legend'))) R.legend.hidden = true;
+    if (R.bar.classList.contains('open') && !(e.target.closest && e.target.closest('.flow-budget'))) closeBudget();
     const v = e.target.closest && e.target.closest('.valve[data-valve]');
     if (v && !v.classList.contains('mini')) {
       e.preventDefault();
@@ -770,7 +816,8 @@ function wireEvents(host, R) {
   });
   host.addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.valve[data-valve]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape') closeValvePopover();
+    if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini')) { e.preventDefault(); e.target.click(); }
   });
 }
 

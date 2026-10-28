@@ -357,3 +357,54 @@ button.term:hover { text-decoration-style: solid; }
   .icon-btn { min-width: 38px; }
   .teach-btn { min-width: 50px; padding: 0 8px; }
 }
+
+/* =====================================================================================================================
+   PHONE (<768px) "main-trunk" diagram (flow.js crops the viewBox to 434 high on phone).
+   Hidden here (DOM stays, hidden by class/CSS only): legend row (-> 图例 button + sheet), spring source captions, 买取水权 caption,
+   Capex caption, 欠条箱 sub-caption, valve text labels (the popover names the valve), QT / 盈余 drains while their flow is 0.
+   Remaining text is bumped to >= 10px; the water budget collapses to one tappable line.
+   >=768px: nothing below applies (the mini line / legend sheet are display:none).
+   ===================================================================================================================== */
+.fb-mini, .flow-legend { display: none; }
+@media (max-width: 767.98px) {
+  .flow-svg .ph-hide, .flow-svg .legend { display: none; }
+  .flow-svg [data-pipe="qt"].idle:not(.ls-hl-pipe):not(.lk-hl):not(.rp-on):not(.cc-hl),
+  .flow-svg [data-pipe="govSurplusDrain"].idle:not(.ls-hl-pipe):not(.lk-hl):not(.rp-on):not(.cc-hl) { display: none; }
+  .flow-svg .cap, .flow-svg .cap.pc, .flow-svg .sub.small, .flow-svg .rp-tag text { font-size: 10px; }
+  .flow-svg .chip text, .flow-svg .chip.minor text { font-size: 10.5px; }
+  .flow-svg .ph-l1 { transform: translateY(-1px); } .flow-svg .ph-l2 { transform: translateY(2px); }   /* 货币/注销: 10px text, give the 2 lines room */
+
+  /* compact water budget: one line, tap to expand the breakdown upwards (overlay, no layout shift) */
+  .flow-budget { position: relative; padding: 0; font-size: 12px; }
+  .flow-budget .fb-mini { display: flex; align-items: center; gap: 6px; padding: 3px 8px; min-height: 36px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  .flow-budget .fb-mlab { font-weight: 700; }
+  .flow-budget .fb-mini .fb-net { margin-left: 0; font-size: 13px; padding: 0 6px; }
+  .flow-budget .fb-meq { color: var(--muted); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .flow-budget .fb-meq b { color: var(--text); }
+  .flow-budget .fb-caret { margin-left: auto; color: var(--muted); font-size: 11px; transition: transform .2s; }
+  .flow-budget.open .fb-caret { transform: rotate(180deg); }
+  .flow-budget .fb-legbtn { flex: none; min-height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--accent); background: var(--surface);
+    color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .flow-budget .fb-detail { display: none; }
+  .flow-budget.open .fb-detail { display: block; position: absolute; left: 0; right: 0; bottom: 100%; z-index: 12; padding: 6px 10px 8px;
+    background: var(--surface-2); border-top: 1px solid var(--border); box-shadow: 0 -6px 14px rgba(0, 0, 0, .16); }
+  .flow-budget .fb-detail .fb-row { font-size: 12px; }
+  .flow-budget .fb-detail .fb-eq { font-size: 12px; }
+  .flow-budget .fb-detail .fb-net { font-size: 14px; }
+
+  /* legend sheet (replaces the legend row) */
+  .flow-legend { display: block; position: absolute; left: 8px; right: 8px; bottom: 44px; z-index: 18; background: var(--surface);
+    border: 1.5px solid var(--accent); border-radius: 14px; box-shadow: var(--shadow); padding: 6px 12px 10px; font-size: 13px; }
+  .flow-legend[hidden] { display: none; }
+  .flow-legend .fl-head { display: flex; justify-content: space-between; align-items: center; }
+  .flow-legend .fl-x { width: 36px; height: 32px; border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+  .flow-legend .fl-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--border); }
+  .flow-legend .fl-row svg { flex: none; }
+  .flow-legend .fl-row b { display: block; font-size: 13px; }
+  .flow-legend .fl-row small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+  .flow-legend .fl-note { margin-top: 4px; padding-top: 5px; border-top: 1px dashed var(--border); color: var(--muted); font-size: 11.5px; }
+}
+@media (max-width: 767.98px) {
+  /* valve popover: keep 看传导 / 去接管页拧它 reachable when the causal chain is long */
+  .flow-pop .fp-btns { position: sticky; bottom: -10px; margin: 0 -12px -10px; padding: 8px 12px 10px; background: var(--surface); border-top: 1px solid var(--border); }
+}

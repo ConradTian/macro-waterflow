@@ -147,3 +147,9 @@ button.tk-lr.go { color: var(--pn-accent); border-color: var(--pn-accent); curso
 .as-nums { flex-wrap: wrap; }
 .as-spring, .as-link { background: var(--surface-2, #eef1f6); border-radius: 8px; padding: 4px 8px; }
 .as-hint { margin: 6px 0 0; font-size: 11px; color: var(--pn-muted); }
+
+/* phone: the concept card is capped at ~60dvh and the backdrop is light, so the highlighted upper diagram stays visible */
+@media (max-width: 767.98px) {
+  .cc-card { max-height: 60dvh; }
+  .cc-backdrop { background: rgba(0, 0, 0, .12); }
+}
