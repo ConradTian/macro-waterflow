@@ -74,7 +74,7 @@ export function evolveTown(S0, S, extra) {
 export function zeroFlowsTown() {
   const k = ['newLoans', 'principalRepay', 'interestPaid', 'fiscalInjection', 'qe', 'toHousing', 'toFinancial', 'toEquity', 'toBond', 'toGold',
     'toConsumption', 'toCapex', 'toCash', 'wages', 'profits', 'taxes', 'spillToGoods', 'fiscalDrain', 'govSurplusDrain', 'qt', 'writeoff', 'bankRecap',
-    'rent', 'dividends', 'coupons'];
+    'rent', 'dividends', 'coupons', 'govPurchases', 'transfers'];
   return Object.fromEntries(k.map(x => [x, 0]));
 }
 

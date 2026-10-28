@@ -15,6 +15,8 @@
 // real rate path is flat, and lvrCap 2005Q1 where LVR binds; town: quarter 4) and records for every metric the first quarter after the turn
 // where it departs from the baseline by a MATERIAL amount (~1% relative / 17bp / 1pp). q+1 = the very quarter the valve is turned.
 // Mapping: q+1 -> 立刻 ; q+2..3 -> 1–2 季 ; q+4..6 -> 2–4 季 ; q+7.. -> 2–3 年.  engine_check re-measures and asserts the labels (deterministic).
+// (Lags below were first measured before the 2025 equity/inflation retune; the delayLabel values in the table are re-measured with tools/valve_probe.mjs after it,
+//  e.g. policyRate->newLoans 2–3 年 and ->housing 2–4 季 at the 2012Q1 near-zero-rate probe, qe->demandPressure 2–3 年, saveAdj->income/unemployment 1–2 季.)
 //   US  policyRate +1.5pp : mortgageNew q+1 | gov10y, bond, equity, newLoans q+2 | housing q+3 | mortgageEff q+4 (50% by q+6) | DSR first q+10
 //   US  qe on             : M, gov10y, bond q+1 | equity, newLoans q+2..3 | housing q+4 | demand pressure q+6 | inflation first q+7
 //   US  approval x0.7     : mortgageNew, newLoans, housing(-1%) q+1 | M q+2 | lvr q+3 | DSR q+10 | income q+12 (fiscal stabilisers offset)
@@ -34,8 +36,8 @@ export const VALVES = [
       { term: 'rates.gov10y', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '长端国债收益率跟着预期政策路径上移' },
       { term: 'assets.bond.price', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '收益率上升 → 长期国债价格下跌（久期约 8）' },
       { term: 'assets.equity.price', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '贴现率上升 → 股票估值回落' },
-      { term: 'flows.newLoans', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '借款成本上升 → 新增贷款（泵）减少' },
-      { term: 'assets.housing.price', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '新增购房资金减少 + 实际按揭利率上升 → 房价水位下降' },
+      { term: 'flows.newLoans', delayLabel: '2–3 年', delayLabelTown: '立刻', text: '借款成本上升 → 新增贷款（泵）减少' },
+      { term: 'assets.housing.price', delayLabel: '2–4 季', delayLabelTown: '立刻', text: '新增购房资金减少 + 实际按揭利率上升 → 房价水位下降' },
       { term: 'rates.mortgageEff', delayLabel: '2–4 季', delayLabelTown: '立刻', text: '存量房贷分批重定价（每季约 10%），平均房贷利率慢慢上行' },
       { term: 'household.dsr', delayLabel: '2–3 年', delayLabelTown: '立刻', text: '平均房贷利率上行 → 偿债率 DSR 上升' },
     ],
@@ -50,7 +52,7 @@ export const VALVES = [
       { term: 'assets.equity.price', delayLabel: '1–2 季', delayLabelTown: '1–2 季', text: '贴现率下降、资金外溢 → 股票估值上升' },
       { term: 'flows.newLoans', delayLabel: '1–2 季', delayLabelTown: '1–2 季', text: '房贷利率下降 → 新增贷款增加' },
       { term: 'assets.housing.price', delayLabel: '2–4 季', delayLabelTown: '2–4 季', text: '更便宜的房贷 + 更多购房资金 → 房价水位上升' },
-      { term: 'macro.demandPressure', delayLabel: '2–4 季', delayLabelTown: '2–3 年', text: '资产价格与信贷回升 → 需求压力上升' },
+      { term: 'macro.demandPressure', delayLabel: '2–3 年', delayLabelTown: '1–2 季', text: '资产价格与信贷回升 → 需求压力上升' },
     ],
   },
   {
@@ -61,7 +63,7 @@ export const VALVES = [
       { term: 'flows.newLoans', delayLabel: '立刻', delayLabelTown: '立刻', text: '审批倍数下降 → 新增贷款（泵）按比例减少' },
       { term: 'money.M', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '新水少了，存款 M 的增长放缓甚至下降' },
       { term: 'assets.housing.price', delayLabel: '立刻', delayLabelTown: '立刻', text: '购房资金减少 → 房价水位下降' },
-      { term: 'household.income', delayLabel: '2–3 年', delayLabelTown: '立刻', text: '信贷、Capex 收缩 → 需求与收入下降' },
+      { term: 'household.income', delayLabel: '2–4 季', delayLabelTown: '立刻', text: '信贷、Capex 收缩 → 需求与收入下降' },
     ],
   },
   {
@@ -69,10 +71,10 @@ export const VALVES = [
     min: 0.3, max: 0.9, step: 0.05, default: 0.55, unit: 'pct', read: s => s.household.lvr,
     chain: [
       { term: 'flows.newLoans', delayLabel: '立刻', delayLabelTown: '立刻', text: '贷款/房价上限降低 → 新增住房贷款被卡住' },
-      { term: 'household.lvr', delayLabel: '1–2 季', delayLabelTown: '1–2 季', text: '新增房贷变少 → 平均 LVR 下降' },
-      { term: 'assets.housing.price', delayLabel: '2–4 季', delayLabelTown: '1–2 季', text: '购房资金减少 → 房价水位下降' },
+      { term: 'household.lvr', delayLabel: '2–4 季', delayLabelTown: '1–2 季', text: '新增房贷变少 → 平均 LVR 下降' },
+      { term: 'assets.housing.price', delayLabel: '1–2 季', delayLabelTown: '1–2 季', text: '购房资金减少 → 房价水位下降' },
       { term: 'household.dsr', delayLabel: '2–4 季', delayLabelTown: '2–4 季', text: '债务增速放缓 → 偿债率 DSR 下降' },
-      { term: 'household.income', delayLabel: '2–4 季', delayLabelTown: '立刻', text: '信贷减少 → 需求与收入下降' },
+      { term: 'household.income', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '信贷减少 → 需求与收入下降' },
     ],
   },
   {
@@ -83,7 +85,7 @@ export const VALVES = [
       { term: 'money.M', delayLabel: '2–4 季', delayLabelTown: '立刻', text: '新水增加，存款 M 上升' },
       { term: 'assets.housing.price', delayLabel: '2–3 年', delayLabelTown: '2–3 年', text: '更多购房资金 → 房价水位上升' },
       { term: 'household.dsr', delayLabel: '2–3 年', delayLabelTown: '2–3 年', text: '债务累积 → 偿债率 DSR 上升' },
-      { term: 'bank.approval', delayLabel: '2–3 年', delayLabelTown: '2–3 年', text: 'DSR/LVR 走高、坏账上升 → 银行收紧审批（反馈）' },
+      { term: 'bank.approval', delayLabel: '2–3 年', delayLabelTown: '2–4 季', text: 'DSR/LVR 走高、坏账上升 → 银行收紧审批（反馈）' },
     ],
   },
   {
@@ -93,8 +95,8 @@ export const VALVES = [
       { term: 'household.savingRate', delayLabel: '立刻', delayLabelTown: '立刻', text: '储蓄率上升（存款留在账上，不再流向商品渠道）' },
       { term: 'household.consumption', delayLabel: '立刻', delayLabelTown: '立刻', text: '消费下降 → 商品渠道的水变少' },
       { term: 'macro.demandPressure', delayLabel: '立刻', delayLabelTown: '立刻', text: '总需求下降 → 需求压力下降、通胀回落' },
-      { term: 'household.income', delayLabel: '2–3 年', delayLabelTown: '立刻', text: '销售下降 → 企业收入与工资下降（节俭悖论）' },
-      { term: 'macro.unemployment', delayLabel: '2–3 年', delayLabelTown: '1–2 季', text: '需求不足 → 失业率上升' },
+      { term: 'household.income', delayLabel: '1–2 季', delayLabelTown: '立刻', text: '销售下降 → 企业收入与工资下降（节俭悖论）' },
+      { term: 'macro.unemployment', delayLabel: '1–2 季', delayLabelTown: '1–2 季', text: '需求不足 → 失业率上升' },
     ],
   },
   {

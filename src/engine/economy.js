@@ -6,7 +6,19 @@ import { computeLamps, detectRing, detectPauses, advanceCycles } from './regimes
 export const DT = 0.25;
 export const WS = 0.66;          // labour-income share of nominal GDP
 export const USTAR = 0.055;      // natural unemployment (neutral)
-export const TARGET = 0.02;      // inflation target
+export const TARGET = 0.02;
+const TRANSFER_SHARE = 0.35;       // share of baseline government outlays that are transfers to households
+const STIM_TRANSFER_SHARE = 0.95;  // share of a discretionary stimulus (adj>0) delivered as transfers/tax cuts/relief      // inflation target
+// ---- tuned constants (see tools/engine_check.mjs scorecard)
+const MORT_REPRICE = 0.0992;      // quarterly speed at which the effective mortgage rate converges to the new-loan rate
+const RATE_SENS = 0.589;        // sensitivity of household borrowing demand to the real mortgage rate
+const WEALTH_MPC = 0.0192;      // consumption out of quarterly change in housing + equity wealth
+const GAP_SLOPE = 0.212;        // Phillips-curve slope when demand exceeds capacity
+const EARN_EMA = 0.102;         // equity earnings index: EMA weight on current profit (investors price smoothed earnings)
+const ERP0 = 0.045, ERP_RP = 0.2, ERP_BAD = 0.171;  // equity risk premium = 4.5% + 0.2*(rp-4.5%) + 0.171*(bad loans-1.5%)
+const PE_FLOOR_DEN = 0.0375;    // floor of (yield + ERP - growth): caps the fundamental P/E near 27
+const PE_REV = 0.08, PE_MOM = 0.6;   // P/E reversion to fundamental / momentum of last change
+const PE_STEP = 0.17, PE_LO = 8, PE_HI = 40;   // per-quarter P/E move limit (+-17%) and P/E range
 const MORT_SHARE = 0.8;          // mortgage share of household debt
 const REG_TARGET = 0.075;        // capital ratio banks aim to hold (lending headroom)
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -416,7 +428,7 @@ export function settle(S0, K, ex, dec, env) {
   S.approval = dec.approval; S.capexMult = dec.capexMult; S.adj = dec.adj;
   const mAdj = 0.015 * (1 - S.approval) + 0.2 * Math.max(0, S0.bad - 0.02);
   S.mortNew = 0.75 * (S.gov10y + K.spread) + 0.25 * (S.policy + 0.035) + mAdj; // 25% floating-rate / short-reset share
-  S.mortEff = S0.mortEff + (dl ? 0.10 : 1) * (S.mortNew - S0.mortEff);
+  S.mortEff = S0.mortEff + (dl ? MORT_REPRICE : 1) * (S.mortNew - S0.mortEff);
   const firmNew = 0.5 * S.gov10y + 0.5 * S.policy + 0.02 + 0.1 * Math.max(0, S0.bad - 0.02);
   S.firmEff = S0.firmEff + (dl ? 0.15 : 1) * (firmNew - S0.firmEff);
   S.govEff = S0.govEff + (dl ? 0.06 : 1) * (S.gov10y - S0.govEff);
@@ -430,7 +442,7 @@ export function settle(S0, K, ex, dec, env) {
   // 3. credit: min(demand, LVR cap, DSR cap, capital cap) x approval
   const hpY = v0.hpYoY;
   const tractionLoss = env.en('hh_overhang') ? env.P('hh_overhang').traction * dec.ovh : 0;   // 悬压越大，利率传导越弱
-  const demHr = clamp(K.a0 + 0.25 * hpY - 0.65 * (1 - tractionLoss) * ((S.mortNew - S0.piE) - K.realMort0), 0.04, 0.15);
+  const demHr = clamp(K.a0 + 0.25 * hpY - RATE_SENS * (1 - tractionLoss) * ((S.mortNew - S0.piE) - K.realMort0), 0.04, 0.15);
   const demH = inc * demHr * dec.borrowMult * dt;
   const HV0prev = K.HV0 * S0.H / 100;
   const lvrMax = env.P('bank_lvr_cap').lvrMax + 0.10 * (S.approval - 1);
@@ -475,6 +487,13 @@ export function settle(S0, K, ex, dec, env) {
   const deficit_q = deficit_a * dt;
   S.Dg = S0.Dg + deficit_q + dec.recap;
   const fiscalInjection = Math.max(0, deficit_q) * K.fInj, fiscalDrain = Math.max(0, -deficit_q) * K.fInj;
+  // ACCOUNTING ONLY (no feedback): split of non-interest outlays into two branches for the diagram.
+  //   transfers      = households' branch (benefits, tax cuts, relief): 35% of baseline outlays + automatic stabiliser 0.4*(u-u*) (all benefits)
+  //                    + discretionary stance adj: 95% transfers when adj>0 (stimulus episodes: cheques, relief), 35% when adj<0 (cuts)
+  //   govPurchases   = primary outlays - transfers (orders to firms / goods channel)
+  const trBase = TRANSFER_SHARE * K.gr0 * S0.gdp, trAuto = 0.4 * (S0.u - USTAR) * S0.gdp, trDisc = (S.adj > 0 ? STIM_TRANSFER_SHARE : TRANSFER_SHARE) * S.adj * S0.gdp;
+  const transfers_a = clamp(trBase + trAuto + trDisc, 0, Math.max(0, primary_a));
+  const govPurchases_a = primary_a - transfers_a;
   S.taxes = taxes_a; S.govSpend = primary_a + interest_a; S.interest = interest_a; S.deficit = deficit_a;
 
   // 5. capex pipeline and capacity
@@ -515,7 +534,7 @@ export function settle(S0, K, ex, dec, env) {
   const intDebtQ = (S.mortEff + K.alphaH) * S0.Dh * dt + (S.firmEff + K.alphaF) * S0.Df * dt;
   const dsRatio = 4 * intDebtQ / S0.AD;
   const HVnew = null; // placeholder (computed after housing); wealth effect uses last quarter change to avoid simultaneity
-  const wealthSpend = 0.015 * (S0.HV + S0.eqCap - S0.wealthPrev);
+  const wealthSpend = WEALTH_MPC * (S0.HV + S0.eqCap - S0.wealthPrev);
   const spendRatio = 4 * (0.35 * consCredit + capex_q + primary_a * dt + wealthSpend) / S0.AD;
   const nxRatio = dec.nx;
   const d = (a, b) => (b == null ? 0 : a - b);
@@ -529,7 +548,7 @@ export function settle(S0, K, ex, dec, env) {
   const pressure = Dreal / capEff - 1;
   S.pressure = pressure;
   const oilPush = env.en('firm_oil_passthrough') ? env.P('firm_oil_passthrough').k * clamp(ex.oilYoY, env.P('firm_oil_passthrough').lo, env.P('firm_oil_passthrough').hi) : 0;
-  const gapTerm = pressure > 0 ? 0.22 * pressure + 5 * pressure * pressure : 0.12 * pressure;
+  const gapTerm = pressure > 0 ? GAP_SLOPE * pressure + 5 * pressure * pressure : 0.12 * pressure;
   const raw = S0.piE + gapTerm + oilPush;
   S.pi = 0.5 * S0.pi + 0.5 * raw;
   S.P = S0.P * (1 + S.pi * dt);
@@ -599,14 +618,16 @@ export function settle(S0, K, ex, dec, env) {
 
   // 11. equity, bond, gold, cash
   const profitQ = S.profit;
-  S.earnIdx = 0.7 * S0.earnIdx + 0.3 * profitQ / K.profit0;
-  const peF = 1 / Math.max(0.02, S.gov10y + S.rp - (S0.piE + 0.02));
-  const peRev = 0.12 * (peF - S0.pe);
-  const peMom = dl ? 0.35 * (S0.pe - S0.pePrev) : 0;
+  S.earnIdx = (1 - EARN_EMA) * S0.earnIdx + EARN_EMA * profitQ / K.profit0;
+  // equity risk premium: only a fraction of the credit-spread-like swings in `rp` reaches equities, plus a slow bank-stress term (bad loans peak late)
+  const erp = ERP0 + ERP_RP * (S.rp - 0.045) + ERP_BAD * Math.max(0, S.bad - 0.015);
+  const peF = 1 / Math.max(PE_FLOOR_DEN, S.gov10y + erp - (S0.piE + 0.02));
+  const peRev = PE_REV * (peF - S0.pe);
+  const peMom = dl ? PE_MOM * (S0.pe - S0.pePrev) : 0;
   const peFlow = K.kEqFlow * S0.pe * toEquity / S0.eqCap;
   const peNoise = S0.pe * 0.02 * noise.eq;
   S.pePrev = S0.pe;
-  S.pe = clamp(S0.pe + peRev + peMom + peFlow + peNoise, 6, 45);
+  S.pe = clamp(S0.pe + clamp(peRev + peMom + peFlow + peNoise, -PE_STEP * S0.pe, PE_STEP * S0.pe), PE_LO, PE_HI);
   S.eqPrice = 100 * S.earnIdx * S.pe / K.pe0;
   S.eqCap = K.mkt0 * S.eqPrice / 100;
   const eqPriceRet = S.eqPrice / S0.eqPrice - 1;
@@ -659,6 +680,8 @@ export function settle(S0, K, ex, dec, env) {
     fiscalDrain, govSurplusDrain: fiscalDrain, qt, writeoff, bankRecap: dec.recap,
     // cash-flow springs (pipes: only move water)
     rent: rent * dt, dividends: 0.02 * S0.eqCap * dt, coupons: interest_a * dt,
+    // fiscal branches (accounting only): govPurchases + transfers + coupons - taxes = deficit_q (full deficit; fiscalInjection = fInj * max(0, deficit_q) is the part counted as NEW water)
+    govPurchases: govPurchases_a * dt, transfers: transfers_a * dt,
   };
 
   // view for the next quarter / detectors
@@ -757,7 +780,7 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
     bank: { capitalRatio: S.E / (S.Dh + S.Df), approval: S.approval, badLoanRate: S.bad },
     household: { income: S.inc, dsr: S.dsr, lvr: S.lvr, consumption: (1 - S.sav) * S.inc, savingRate: S.sav },
     firm: { profit: S.profit, capex: S.capex, capexPipeline: S.pipeline.slice() },
-    gov: { spending: S.govSpend, taxes: S.taxes, deficit: S.deficit, interest: S.interest, interestToTax: S.i2t, debtGdp: S.Dg / S.gdp },
+    gov: { spending: S.govSpend, spendingGross: S.taxes + S.deficit, taxes: S.taxes, deficit: S.deficit, interest: S.interest, interestToTax: S.i2t, debtGdp: S.Dg / S.gdp },
     assets: {       // level = market value of the whole sub-pool (water volume), same units as M
       cash: { price: S.cashPrice, ret: cr, realRet: real(cr), level: S.M },
       bond: { price: bondPx, ret: br, realRet: real(br), yield: S.gov10y, level: K.bondShare * S.Dg * bondPx / 100, totalReturnIndex: S.bondTR, yieldParts: { ...S.yParts } },
@@ -785,5 +808,5 @@ function zeroFlows(S) {
   return { newLoans: nl, principalRepay: rep, interestPaid: 0.075 * B * DT, fiscalInjection: 0.5 * S.deficit * DT, qe: 0,
     toHousing: nl * 0.5, toFinancial: nl * 0.1, toEquity: nl * 0.06, toBond: nl * 0.03, toGold: nl * 0.01, toConsumption: nl * 0.25, toCapex: nl * 0.1, toCash: nl * 0.05,
     wages: WS * S.gdp * DT, profits: S.profit * DT, taxes: S.taxes * DT, spillToGoods: nl * 0.3, fiscalDrain: 0, govSurplusDrain: 0, qt: 0, writeoff: 0,
-    rent: 0, dividends: 0, coupons: S.interest * DT };
+    rent: 0, dividends: 0, coupons: S.interest * DT, govPurchases: 0, transfers: 0 };
 }

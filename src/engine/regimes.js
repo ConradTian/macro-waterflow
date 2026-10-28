@@ -84,10 +84,13 @@ export const LONG_LABEL = { 1: '① 堆债', 2: '② 缓冲池满', 5: '⑤ 降�
 export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 export const SHORT_LABEL = { expand: '扩张', B1: '过热 B1', B2: '缩水 B2', tight: '收紧·衰退', ease: '降息重启' };
 export const LONG_N = 6;                       // quarters of consecutive evidence to advance the long cycle
-export const SHORT_N = { B1: 2, B2: 2, tight: 2, ease: 2, expand: 3 };
+// tight needs 3 quarters of confirmation (a recession call is made late); B2 needs 2 - so when a credit/asset contraction and the unemployment
+// rise arrive together, the fork is called B2 (the bust came from credit/assets) before the dial settles on plain 收紧·衰退.
+// B1 may be re-labelled B2 if the 'overheating' boom breaks through credit/asset contraction (SHORT_NEXT.B1 lists B2 first).
+export const SHORT_N = { B1: 2, B2: 2, tight: 3, ease: 2, expand: 3 };
 export const WARMUP = 8;
 const SHORT_DWELL = 2;                         // min quarters in a short phase before it may move on
-const SHORT_NEXT = { expand: ['B2', 'B1', 'tight'], B1: ['tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+const SHORT_NEXT = { expand: ['B2', 'B1', 'tight'], B1: ['B2', 'tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
 
 // thresholds (one place, quoted in the UI through the evidence items)
 const LT = {
@@ -117,7 +120,7 @@ const LONG_NEXT = {
 };
 const SHORT_NEXT_TXT = {
   expand: `通胀 ≥ ${pc1(ST.infl)} 且加息 → B1；信贷脉冲 ≤ ${pp1(ST.ci)} → B2；失业率较低点升 ≥ ${pp1(ST.uRise)} → 收紧·衰退`,
-  B1: `失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
+  B1: `若信贷脉冲 ≤ ${pp1(ST.ci)} 且房价同比转弱（或 DSR 升）→ 改判 B2（缩水）；失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
   B2: `失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退`,
   tight: `央行较高点降息 ≥ ${pp1(ST.cut)}（或已近零）→ 降息重启`,
   ease: `信贷脉冲回正且失业率不再上升 → 扩张`,

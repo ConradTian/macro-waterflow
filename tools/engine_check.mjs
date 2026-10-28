@@ -176,10 +176,28 @@ function scorecard(data, hist) {
   const DS = hist.map(s => s.household.dsr);
   const iDs = DS.indexOf(Math.max(...sl(DS, '1995Q1', '2015Q4')));
   add('5b DSR peak date', D[iDs], '2006..2008', iDs >= idx('2006Q1') && iDs <= idx('2008Q4'));
+  const E = hist.map(s => s.assets.equity.price), eqChg = (a, b) => E[idx(b)] / E[idx(a)] - 1;
+  const eqDD = eqChg('2007Q4', '2009Q1'), eqUp = eqChg('2009Q1', '2021Q4');
+  let eqMaxQ = 0, eqMaxD = '';
+  for (let t = 1; t < E.length; t++) { const q = Math.abs(E[t] / E[t - 1] - 1); if (q > eqMaxQ) { eqMaxQ = q; eqMaxD = D[t]; } }
+  const eqEndR = E[E.length - 1] / S.equityIndex[E.length - 1] - 1;
+  add('6a equity 2007Q4->2009Q1', (eqDD * 100).toFixed(0) + '%', '-55%..-30%', eqDD >= -0.55 && eqDD <= -0.30);
+  add('6b equity 2009Q1->2021Q4', (eqUp * 100).toFixed(0) + '%', '+150%..+450%', eqUp >= 1.5 && eqUp <= 4.5);
+  add('6c max single-quarter equity move', (eqMaxQ * 100).toFixed(0) + '% ' + eqMaxD, '<= 25%', eqMaxQ <= 0.25);
+  add('6d end-2025 equity vs real', `${E[E.length - 1].toFixed(0)} vs ${S.equityIndex[E.length - 1].toFixed(0)}`, 'within +-50%', Math.abs(eqEndR) <= 0.5);
+  const piAvg = P.slice(idx('2005Q1'), idx('2007Q4') + 1).reduce((a, b) => a + b, 0) / 12;
+  add('7a CPI avg 2005-07', (piAvg * 100).toFixed(1) + '%', '<= 4.0%', piAvg <= 0.04);
+  const b2 = hist.findIndex((s, i) => s.cycles.short.phase === 'B2' && (i === 0 || hist[i - 1].cycles.short.phase !== 'B2') && i >= idx('2006Q3') && i <= idx('2009Q2'));
+  add('7b short cycle enters B2', b2 >= 0 ? D[b2] : 'never in window', '2006Q3..2009Q2', b2 >= 0);
   console.log('check'.padEnd(42) + 'value'.padEnd(34) + 'target'.padEnd(24) + 'result');
   for (const r of rows) console.log(r.name.padEnd(42) + String(r.val).padEnd(34) + String(r.target).padEnd(24) + (r.ok ? 'PASS' : 'FAIL'));
   console.log(`  ${rows.filter(r => r.ok).length}/${rows.length} pass`);
   assetSoftChecks(data, hist);
+  const uSoft = hist.map(s => s.macro.unemployment), u03 = uSoft[idx('2003Q1')], u2325 = Math.max(...uSoft.slice(idx('2023Q1')));
+  console.log(`
+SOFT macro checks (printed, not counted):
+  unemployment 2003Q1 ${(u03 * 100).toFixed(1)}% (real 5.9%): ${u03 <= 0.07 ? 'ok' : 'SOFT-MISS'}
+  max unemployment 2023-25 ${(u2325 * 100).toFixed(1)}% (real ~4%): ${u2325 <= 0.08 ? 'ok' : 'SOFT-MISS'}`);
   console.log('\nmodel/real    house        unemp%      infl%       DSR%        hhDebt/GDP%   policy%  newLoans  ciPP');
   const g = (a, t, k = 100, d = 1) => (a[t] == null ? ' - ' : (a[t] * k).toFixed(d));
   for (let t = 0; t < hist.length; t += 8) {
@@ -248,6 +266,38 @@ function experiments(data) {
   // 5. household behaviour off -> shallower
   const hhOff = run(sim => { for (const id of ['hh_overhang', 'hh_forced_sales', 'hh_deleverage', 'hh_chase']) sim.setRuleEnabled(id, false); }, 123);
   console.log(`  household rules OFF: trough 2007-12 ${(dd(hhOff) * 100).toFixed(1)}% (vs ON ${(dd(on) * 100).toFixed(1)}%)`);
+}
+
+// ---------------------------------------------------------------- numbers quoted in the cycle lessons (src/data/lessons.js 1-3)
+// Same protocol as the UI experiment step: baseline sim to `from`, apply the setup, run to `until`, metrics over the quarters after `from`.
+function lessonNumbers(US_Q) {
+  console.log('\n=== LESSON NUMBERS (quoted in src/data/lessons.js cycle lessons 1-3; update the lesson text when these move) ===');
+  const T = d => US_Q.dates.indexOf(d);
+  const exp = (from, until, setup) => {
+    const sim = createSim({ data: US_Q, mode: 'history' });
+    while (sim.t < T(from)) sim.step();
+    setup(sim);
+    while (sim.t < T(until)) sim.step();
+    return sim.history().slice(T(from) + 1, T(until) + 1);
+  };
+  const mx = (h, f) => Math.max(...h.map(f)), mn = (h, f) => Math.min(...h.map(f)), end = (h, f) => f(h[h.length - 1]);
+  const H = x => x.assets.housing.price;
+  const maxDD = h => { let pk = -Infinity, dd = 0; for (const x of h) { pk = Math.max(pk, H(x)); dd = Math.min(dd, H(x) / pk - 1); } return dd; };
+  // lesson 1: 1997Q1 -> 2006Q2, bank_loosen.max 1.0 / 1.25 (default) / 1.5
+  const l1 = [1.0, 1.25, 1.5].map(m => exp('1997Q1', '2006Q2', sim => sim.setRuleParam('bank_loosen', 'max', m)));
+  console.log('  lesson 1 (1997Q1->2006Q2)  bank_loosen.max 1.0 | 1.25 | 1.5:   house idx ' + l1.map(h => end(h, H).toFixed(0)).join(' | ') +
+    '   (text: ~185 | ~210 | ~196)   DSR ' + l1.map(h => (end(h, x => x.household.dsr) * 100).toFixed(1) + '%').join(' | '));
+  // lesson 2: 2003Q1 -> 2008Q1, real path vs frozen rate
+  const l2 = [() => {}, sim => { sim.setRuleEnabled('cb_real_path', false); sim.setRuleEnabled('cb_taylor', false); }].map(f => exp('2003Q1', '2008Q1', f));
+  console.log('  lesson 2 (2003Q1->2008Q1)  real | frozen:   house peak ' + l2.map(h => mx(h, H).toFixed(0)).join(' | ') + '   end house ' + l2.map(h => end(h, H).toFixed(0)).join(' | ') +
+    '   end mortgageEff ' + l2.map(h => (end(h, x => x.rates.mortgageEff) * 100).toFixed(1) + '%').join(' | ') + '   (text: peak ~210 | ~233, mortgage ~7.2% | ~5.8%, ~-8% 2006Q2->2008Q1 real)');
+  const r2 = l2[0], i06 = r2.findIndex(x => x.date === '2006Q2');
+  console.log('      real path: house 2006Q2 -> 2008Q1 ' + ((H(r2[r2.length - 1]) / H(r2[i06]) - 1) * 100).toFixed(1) + '%');
+  // lesson 3: 2006Q1 -> 2010Q4, bank tightening on / off
+  const l3 = [() => {}, sim => { sim.setRuleEnabled('bank_tighten_collateral', false); sim.setRuleEnabled('bank_tighten_losses', false); }].map(f => exp('2006Q1', '2010Q4', f));
+  console.log('  lesson 3 (2006Q1->2010Q4)  tightening ON | OFF:   max drawdown ' + l3.map(h => (maxDD(h) * 100).toFixed(1) + '%').join(' | ') + '   newLoans 2009Q1 ' + l3.map(h => h.find(x => x.date === '2009Q1').flows.newLoans.toFixed(0)).join(' | ') +
+    '   end house ' + l3.map(h => end(h, H).toFixed(0)).join(' | ') + '   min approval ' + l3.map(h => mn(h, x => x.bank.approval).toFixed(2)).join(' | ') + '   end DSR ' + l3.map(h => (end(h, x => x.household.dsr) * 100).toFixed(1) + '%').join(' | ') +
+    '   (text: dd ~-17% | ~-6%, newLoans ~116 | ~192)');
 }
 
 // ---------------------------------------------------------------- rule text generated from live params
@@ -374,7 +424,7 @@ function townChecks() {
 function cycleChecks(US_Q) {
   console.log('\n=== CYCLE DIALS: long (大周期) + short (小周期), timeline ===');
   const LORD = [1, 2, 5, 6, 7, 8];
-  const SNEXT = { expand: ['B1', 'B2', 'tight'], B1: ['tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+  const SNEXT = { expand: ['B1', 'B2', 'tight'], B1: ['B2', 'tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
   for (const mode of ['history', 'free']) {
     const h = runAll(US_Q, mode).sim.history();
     const lc = [], sc = [];
@@ -415,6 +465,7 @@ if (process.argv.includes('--score')) {
   const { US_Q } = await import(pathToFileURL(join(root, 'src/data/us-quarterly.js')).href);
   scorecard(US_Q, runAll(US_Q, 'history').sim.history());
   experiments(US_Q);
+  lessonNumbers(US_Q);
   if (!process.argv.includes('--nofree')) freeScore(runAll(US_Q, 'free').sim.history());
   process.exit(0);
 }
@@ -427,6 +478,7 @@ if (existsSync(real)) {
   scorecard(US_Q, check('real US_Q', US_Q, 'history'));
   freeScore(check('real US_Q', US_Q, 'free'));
   experiments(US_Q);
+  lessonNumbers(US_Q);
   takeoverTest('real', US_Q);
   ruleTextChecks(US_Q);
   valveTableChecks(US_Q);
