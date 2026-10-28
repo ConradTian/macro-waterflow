@@ -1,0 +1,31 @@
+// Shared helpers for tab modules (PANELS agent).
+export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export const pct = (v, d = 1) => (v == null || !isFinite(v) ? '—' : (v * 100).toFixed(d) + '%');
+export const spct = (v, d = 1) => (v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
+export const num = (v, d = 2) => (v == null || !isFinite(v) ? '—' : v.toFixed(d));
+export const PLAYERS = {
+  centralBank: { name: '央行', mark: '央', color: 'var(--c-fiscal, #7b4fb0)' },
+  government:  { name: '政府', mark: '政', color: 'var(--c-capex, #8a6d1d)' },
+  bank:        { name: '银行', mark: '银', color: 'var(--c-credit, #2b6cb0)' },
+  household:   { name: '家庭', mark: '家', color: 'var(--c-housing, #2f855a)' },
+  firm:        { name: '企业', mark: '企', color: 'var(--c-goods, #b7791f)' },
+  investor:    { name: '投资者', mark: '投', color: 'var(--c-financial, #0e7490)' },
+  foreign:     { name: '外国', mark: '外', color: 'var(--c-cash, #718096)' },
+};
+export const playerOf = id => PLAYERS[id] || { name: id, mark: '?', color: 'var(--muted, #888)' };
+export const LAMP = { green: '绿', yellow: '黄', red: '红' };
+export const LAMP_SYMBOL = { green: '●', yellow: '▲', red: '■' };   // shape + text, never colour only
+export const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+
+import { lineChart } from '../chart.js';
+/** Real (to now) / model / user comparison chart. modelFn maps a snapshot -> number. */
+export function compareChart(host, ctx, { title, realKey, modelFn, fmt, note, height = 150 }) {
+  const t = ctx.sim.t, dates = ctx.real.dates, n = dates.length;
+  const pad = arr => { const o = new Array(n).fill(null); arr.forEach((v, i) => { if (i < n) o[i] = v; }); return o; };
+  const series = [];
+  if (realKey && ctx.real.series[realKey]) series.push({ name: '真实', style: 'real', values: ctx.real.series[realKey].map((v, i) => (i <= t ? v : null)) });
+  series.push({ name: '模型', style: 'model', values: pad(ctx.sim.history('model').map(modelFn)) });
+  const uh = ctx.sim.history('user');
+  if (uh && uh.length) series.push({ name: '你的版本', style: 'user', values: pad(uh.map(modelFn)) });
+  lineChart(host, { series, dates, reservedFrom: ctx.real.reservedFrom, currentDate: dates[Math.min(t, n - 1)], fmt, title, note, height });
+}

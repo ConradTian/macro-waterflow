@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>panels preview</title>
+<link rel="stylesheet" href="../assets/css/panels.css">
+<style>body{margin:0;padding:8px 12px;width:366px;font-family:system-ui,"Microsoft YaHei",sans-serif;background:#f6f7f9;color:#1d2330}
+@media (prefers-color-scheme:dark){body{background:#12161d;color:#e6e9ef}}
+h1{font-size:15px;border-bottom:2px solid #888;margin:18px 0 4px}</style></head>
+<body>
+<div id="t1"><h1>流水账</h1><div></div></div>
+<div id="t2"><h1>周期</h1><div></div></div>
+<div id="t3"><h1>资产</h1><div></div></div>
+<div id="t4"><h1>接管</h1><div></div></div>
+<script type="module">
+import { createSim } from '../src/engine/mock-sim.js';
+import { US_Q } from '../src/data/us-quarterly.js';
+import { initConcepts, openConcept } from '../src/ui/concepts.js';
+import * as ledger from '../src/ui/tabs/ledger.js';
+import * as cycle from '../src/ui/tabs/cycle.js';
+import * as assets from '../src/ui/tabs/assets.js';
+import * as takeover from '../src/ui/tabs/takeover.js';
+const q = new URLSearchParams(location.search);
+const sim = createSim({ mode: 'history' });
+for (let i = 0; i < +(q.get('t') || 46); i++) sim.step();
+if (q.get('take') !== '0') sim.takeover('centralBank');
+if (sim.takenOver) { for (let i = 0; i < 3; i++) sim.step(); }
+initConcepts({ getSnap: () => sim.snapshot(), sim });
+const ctx = () => ({ sim, snap: sim.snapshot(), userSnap: sim.takenOver ? sim.snapshot('user') : null, real: US_Q, openTerm: openConcept });
+const only = q.get('only');
+[['t1', ledger], ['t2', cycle], ['t3', assets], ['t4', takeover]].forEach(([id, m]) => {
+  const host = document.querySelector('#' + id);
+  if (only && only !== id) { host.remove(); return; }
+  m.render(host.lastElementChild, ctx());
+});
+if (q.get('card')) { openConcept(q.get('card')); (q.get('then') || '').split(',').filter(Boolean).forEach(openConcept); }
+window.__done = true;
+</script></body></html>
