@@ -150,8 +150,12 @@ function mkEntry(S, player, ruleId, observe, ruleText, action, extra = {}) {
   return {
     date: dateOf(S, S.t + 1), player, observe, rule: ruleText ?? live, action,
     immediate: extra.immediate ?? r.immediate ?? '', delayed: extra.delayed ?? r.delayed ?? '',
+    // presentation only (ledger UI): which rule fired and the live value(s) that were compared with the rule's threshold(s)
+    ruleId: ruleId || undefined, ...(extra.cond ? { cond: extra.cond } : {}),
   };
 }
+// one compared condition: `value dir threshold` (decimals; fmt 'pct' | 'pp' | 'x' | 'num'); term = concept card id
+const cnd = (name, value, dir, threshold, fmt = 'pct', term) => ({ name, value, threshold, dir, fmt, ...(term ? { term } : {}) });
 
 export function ruleBasedPolicy(S, K, ex, env) {
   const v = S.v;
@@ -201,11 +205,13 @@ export function decideAll(S, K, ex, env) {
       const p = P('cb_qe');
       if (!qeOn && policy <= p.floorRate && (v.ci < 0 || v.pcg < 0.01) && (S.u > p.uOn || v.pressure < -0.03) && v.piY < 0.03) {
         qeOn = true;
-        entries.push(mkEntry(S, 'centralBank', 'cb_qe', `政策利率 ${pp(policy)} 已触底，信贷脉冲 ${pct(v.ci)}，失业率 ${pct(S.u)}`, null, `启动 QE：每年约 ${pct(p.sizeGdp)} GDP`));
+        entries.push(mkEntry(S, 'centralBank', 'cb_qe', `政策利率 ${pp(policy)} 已触底，信贷脉冲 ${pct(v.ci)}，失业率 ${pct(S.u)}`, null, `启动 QE：每年约 ${pct(p.sizeGdp)} GDP`,
+          { cond: [cnd('政策利率', policy, '<=', p.floorRate, 'pct', 'policyRate'), cnd('失业率', S.u, '>=', p.uOn, 'pct', 'unemployment'), cnd('通胀', v.piY, '<=', 0.03, 'pct', 'cpi')] }));
       } else if (qeOn && (v.piY > p.piOff || S.u < p.uOff || policy > 0.02)) {
         qeOn = false;
         entries.push(mkEntry(S, 'centralBank', 'cb_qe', `通胀 ${pct(v.piY)}，失业率 ${pct(S.u)}`, '通胀回升或失业回落 → 停止 QE', '停止 QE（不做 QT，存量保留）',
-          { immediate: '新增 QE 资金归零', delayed: '长端收益率压低效应随 GDP 增长逐渐稀释' }));
+          { immediate: '新增 QE 资金归零', delayed: '长端收益率压低效应随 GDP 增长逐渐稀释',
+            cond: [cnd('通胀', v.piY, '>=', p.piOff, 'pct', 'cpi'), cnd('失业率', S.u, '<=', p.uOff, 'pct', 'unemployment'), cnd('政策利率', policy, '>=', 0.02, 'pct', 'policyRate')] }));
       }
       dec.qeSize = qeOn ? p.sizeGdp * S.gdp * DT : 0;
     } else { qeOn = false; dec.qeSize = 0; }
@@ -226,7 +232,8 @@ export function decideAll(S, K, ex, env) {
         const p = P('gov_austerity');
         const na = Math.max(p.cut, adj - 0.005);
         if (na !== adj) {
-          entries.push(mkEntry(S, 'government', 'gov_austerity', `通胀 ${pct(v.piY)}，利息/税收 ${pct(S.i2t)}`, null, `财政注入 ${pct(adj)} → ${pct(na)} GDP`));
+          entries.push(mkEntry(S, 'government', 'gov_austerity', `通胀 ${pct(v.piY)}，利息/税收 ${pct(S.i2t)}`, null, `财政注入 ${pct(adj)} → ${pct(na)} GDP`,
+            { cond: [cnd('通胀', v.piY, '>=', p.pi, 'pct', 'cpi'), cnd('利息/税收', S.i2t, '>=', p.i2t, 'pct', 'interestToTax')] }));
           adj = na;
         }
         fired = true;
@@ -238,7 +245,8 @@ export function decideAll(S, K, ex, env) {
           // target scales with how deep the demand hole is (GFC-size hole -> ~6% GDP, lockdown-size hole -> up to max)
           const tgt = Math.min(p.max, p.gain * Math.max(0, -v.pressure - p.gapFree) + 0.5 * Math.max(0, S.u - uMin - p.du));
           const na = Math.max(adj, Math.min(tgt, adj + p.ramp));
-          if (na - adj > 0.001) entries.push(mkEntry(S, 'government', 'gov_stimulus', `失业率 ${pct(S.u)}（较近 2 年低点 +${pct(S.u - uMin)}），需求缺口 ${pct(v.pressure)}，目标注入 ${pct(tgt)} GDP`, null, `财政注入 ${pct(adj)} → ${pct(na)} GDP/年`));
+          if (na - adj > 0.001) entries.push(mkEntry(S, 'government', 'gov_stimulus', `失业率 ${pct(S.u)}（较近 2 年低点 +${pct(S.u - uMin)}），需求缺口 ${pct(v.pressure)}，目标注入 ${pct(tgt)} GDP`, null, `财政注入 ${pct(adj)} → ${pct(na)} GDP/年`,
+            { cond: [cnd('失业率较近 2 年低点', S.u - uMin, '>=', p.du, 'pp', 'unemployment'), cnd('需求缺口', v.pressure, '<=', p.gap, 'pct', 'outputGap')] }));
           adj = na;
         } else if (adj < 0) {
           adj = Math.min(0, adj + p.unwind);   // 紧缩结束后财政立场逐步回到中性
@@ -258,7 +266,8 @@ export function decideAll(S, K, ex, env) {
       const p = P('gov_bank_recap');
       if (v.capR < p.cap) {
         dec.recap = p.rate * (p.target - v.capR) * (S.Dh + S.Df);
-        entries.push(mkEntry(S, 'government', 'gov_bank_recap', `银行资本充足率 ${pct(v.capR)}，坏账率 ${pct(v.bad)}`, null, `政府注资银行 ${dec.recap.toFixed(0)} 亿美元（计入政府债务），目标资本充足率 ${pct(p.target)}`));
+        entries.push(mkEntry(S, 'government', 'gov_bank_recap', `银行资本充足率 ${pct(v.capR)}，坏账率 ${pct(v.bad)}`, null, `政府注资银行 ${dec.recap.toFixed(0)} 亿美元（计入政府债务），目标资本充足率 ${pct(p.target)}`,
+          { cond: [cnd('银行资本充足率', v.capR, '<=', p.cap, 'pct', 'bankCapital')] }));
       }
     }
   }
@@ -269,7 +278,7 @@ export function decideAll(S, K, ex, env) {
     const usr = ud('bank');
     if (usr && usr.approval != null) {
       ap = clamp(usr.approval, 0.3, 1.4);
-      entries.push(mkEntry(S, 'bank', 'bank_loosen', `房价同比 ${pct(v.hpYoY)}，坏账率 ${pct(v.bad)}，资本充足率 ${pct(v.capR)}`, '用户接管银行：手动设定审批倍数', `审批倍数 ${S.approval.toFixed(2)} → ${ap.toFixed(2)}`));
+      entries.push(mkEntry(S, 'bank', 'bank_loosen', `房价比一年前 ${pct(v.hpYoY)}，坏账率 ${pct(v.bad)}，资本充足率 ${pct(v.capR)}`, '用户接管银行：手动设定审批倍数', `审批倍数 ${S.approval.toFixed(2)} → ${ap.toFixed(2)}`));
     } else {
       const tl = en('bank_tighten_losses') && (v.bad > P('bank_tighten_losses').bad || v.capR < P('bank_tighten_losses').cap);
       const tc = en('bank_tighten_collateral') && (v.hpYoY < P('bank_tighten_collateral').hp || v.dd > P('bank_tighten_collateral').dd) && v.lvr > P('bank_tighten_collateral').lvr;
@@ -287,8 +296,13 @@ export function decideAll(S, K, ex, env) {
         if (v.capR < p.cap && na > ceil) { na = Math.max(ceil, ap - 0.06); rid = 'bank_rebuild_capital'; }
       }
       if (rid && Math.abs(na - ap) > 1e-9) {
-        const obs = `房价同比 ${pct(v.hpYoY)}，坏账率 ${pct(v.bad)}，资本充足率 ${pct(v.capR)}，平均 LVR ${pct(v.lvr)}`;
-        entries.push(mkEntry(S, 'bank', rid, obs, null, `审批倍数 ${ap.toFixed(2)} → ${na.toFixed(2)}`));
+        const obs = `房价比一年前 ${pct(v.hpYoY)}，坏账率 ${pct(v.bad)}，资本充足率 ${pct(v.capR)}，平均 LVR ${pct(v.lvr)}`;
+        const pb = P(rid);
+        const bc = rid === 'bank_tighten_losses' ? [cnd('坏账率', v.bad, '>=', pb.bad, 'pct', 'badLoans'), cnd('资本充足率', v.capR, '<=', pb.cap, 'pct', 'bankCapital')]
+          : rid === 'bank_tighten_collateral' ? [cnd('房价比一年前', v.hpYoY, '<=', pb.hp, 'pct', 'housePrice'), cnd('房价较峰值回撤', v.dd, '>=', pb.dd, 'pct', 'housePrice'), cnd('平均 LVR', v.lvr, '>=', pb.lvr, 'pct', 'lvr')]
+          : rid === 'bank_loosen' ? [cnd('房价比一年前', v.hpYoY, '>=', pb.hp, 'pct', 'housePrice'), cnd('坏账率', v.bad, '<=', pb.bad, 'pct', 'badLoans'), cnd('资本充足率', v.capR, '>=', pb.cap, 'pct', 'bankCapital')]
+          : [cnd('资本充足率', v.capR, '<=', pb.cap, 'pct', 'bankCapital')];
+        entries.push(mkEntry(S, 'bank', rid, obs, null, `审批倍数 ${ap.toFixed(2)} → ${na.toFixed(2)}`, { cond: bc }));
       }
       ap = na;
     }
@@ -321,8 +335,14 @@ export function decideAll(S, K, ex, env) {
     if (usr && usr.saveAdj != null) sa = clamp(usr.saveAdj, -0.05, 0.1);
     if (Math.abs(bm - 1) > 0.08 || sa) {
       const p = v.dsr > K.dsr0 + 0.03 || S.u > 0.075;
-      entries.push(mkEntry(S, 'household', usr ? 'hh_chase' : (ovhOn ? 'hh_overhang' : p && en('hh_deleverage') ? 'hh_deleverage' : 'hh_chase'),
-        `房价同比 ${pct(v.hpYoY)}，LVR ${pct(v.lvr)}，DSR ${pct(v.dsr)}，失业率 ${pct(S.u)}${ovhOn ? `，债务悬压 ${pct(ovh)}` : ''}`, usr ? '用户接管家庭' : null, `借款需求 ×${bm.toFixed(2)}${sa ? `，储蓄率 +${pct(sa)}` : ''}`));
+      const hrid = usr ? 'hh_chase' : (ovhOn ? 'hh_overhang' : p && en('hh_deleverage') ? 'hh_deleverage' : 'hh_chase');
+      let hc = null;
+      if (usr) hc = null;
+      else if (hrid === 'hh_overhang') { const q = P('hh_overhang'); hc = [cnd('LVR', v.lvr, '>=', q.lvr0, 'pct', 'lvr'), cnd('房价较峰值回撤', v.dd, '>=', q.dd, 'pct', 'housePrice'), cnd('DSR 高于起点', v.dsr - K.dsr0, '>=', q.dsr, 'pp', 'dsr')]; }
+      else if (hrid === 'hh_deleverage') { const q = P('hh_deleverage'); hc = [cnd('DSR 高于起点', v.dsr - K.dsr0, '>=', q.dsr, 'pp', 'dsr'), cnd('失业率', S.u, '>=', q.u, 'pct', 'unemployment')]; }
+      else { const q = P('hh_chase'); hc = v.hpYoY < q.down ? [cnd('房价比一年前', v.hpYoY, '<=', q.down, 'pct', 'housePrice')] : [cnd('房价比一年前', v.hpYoY, '>=', q.up, 'pct', 'housePrice')]; }
+      entries.push(mkEntry(S, 'household', hrid,
+        `房价比一年前 ${pct(v.hpYoY)}，LVR ${pct(v.lvr)}，DSR ${pct(v.dsr)}，失业率 ${pct(S.u)}${ovhOn ? `，债务悬压 ${pct(ovh)}` : ''}`, usr ? '用户接管家庭' : null, `借款需求 ×${bm.toFixed(2)}${sa ? `，储蓄率 +${pct(sa)}` : ''}`, hc ? { cond: hc } : {}));
     }
     dec.borrowMult = bm; dec.saveAdj = sa; dec.ovh = ovh;
   }
@@ -340,8 +360,12 @@ export function decideAll(S, K, ex, env) {
       if (cut) { const p = P('firm_capex_cut'); m = Math.max(p.min, m - p.step); rid = 'firm_capex_cut'; }
       else if (up) { const p = P('firm_capex_up'); m = Math.min(p.max, m + p.step); rid = 'firm_capex_up'; }
       else m = en('firm_capex_cut') || en('firm_capex_up') ? m + 0.1 * (1 - m) : 1;
-      if (rid && Math.abs(m - S.capexMult) > 1e-9)
-        entries.push(mkEntry(S, 'firm', rid, `需求缺口 ${pct(v.pressure)}，实际融资成本 ${pct(rFirmReal)}`, null, `Capex 倍数 ${S.capexMult.toFixed(2)} → ${m.toFixed(2)}`));
+      if (rid && Math.abs(m - S.capexMult) > 1e-9) {
+        const pf = P(rid);
+        const fc = rid === 'firm_capex_cut' ? [cnd('需求缺口', v.pressure, '<=', pf.p, 'pct', 'outputGap'), cnd('实际融资成本', rFirmReal, '>=', pf.rReal, 'pct', 'realRate'), cnd('企业坏账', S.badF, '>=', pf.bad, 'pct', 'badLoans')]
+          : [cnd('需求压力', v.pressure, '>=', pf.p, 'pct', 'outputGap'), cnd('实际融资成本', rFirmReal, '<=', pf.rReal, 'pct', 'realRate')];
+        entries.push(mkEntry(S, 'firm', rid, `需求缺口 ${pct(v.pressure)}，实际融资成本 ${pct(rFirmReal)}`, null, `Capex 倍数 ${S.capexMult.toFixed(2)} → ${m.toFixed(2)}`, { cond: fc }));
+      }
     }
     dec.capexMult = m;
   }
@@ -379,8 +403,10 @@ export function decideAll(S, K, ex, env) {
     dec.alloc.e = we / ws; dec.alloc.b = wb / ws; dec.alloc.g = wg / ws;
     dec.riskoff = riskoff;
     const rid = note.includes('inv_riskoff') ? 'inv_riskoff' : note[0];
-    if (rid) entries.push(mkEntry(S, 'investor', rid, `房价同比 ${pct(v.hpYoY)}，股价同比 ${pct(v.eqYoY)}，风险溢价 ${pct(S.rp)}，信贷脉冲 ${pct(v.ci)}，通胀预期 ${pct(S.piE)}`, usr ? '用户接管投资者：手动设定避险' : null,
-      `新增资金配置：房产 ${pct(dec.alloc.h)} / 金融资产 ${pct(dec.alloc.f)}（其中股票 ${pct(dec.alloc.e)} 国债 ${pct(dec.alloc.b)} 黄金 ${pct(dec.alloc.g)}）/ 现金 ${pct(dec.alloc.c)}${riskoff ? `；避险：现金份额上升，金融资产内部${inflCrisis ? '转向黄金（通胀型危机，国债不是避风港）' : '转向长期国债（飞向安全）'}` : ''}`));
+    const icond = usr ? null : rid === 'inv_riskoff' ? [cnd('风险溢价', S.rp, '>=', ro.rp, 'pct', 'riskPremium'), cnd('信贷脉冲', v.ci, '<=', ro.ci, 'pct', 'creditImpulse')]
+      : rid === 'inv_momentum' ? [cnd('房价比一年前', v.hpYoY, '>=', 0.08, 'pct', 'housePrice'), cnd('股价比一年前', v.eqYoY, '>=', 0.15, 'pct', 'equityAsset')] : null;
+    if (rid) entries.push(mkEntry(S, 'investor', rid, `房价比一年前 ${pct(v.hpYoY)}，股价比一年前 ${pct(v.eqYoY)}，风险溢价 ${pct(S.rp)}，信贷脉冲 ${pct(v.ci)}，通胀预期 ${pct(S.piE)}`, usr ? '用户接管投资者：手动设定避险' : null,
+      `新增资金配置：房产 ${pct(dec.alloc.h)} / 金融资产 ${pct(dec.alloc.f)}（其中股票 ${pct(dec.alloc.e)} 国债 ${pct(dec.alloc.b)} 黄金 ${pct(dec.alloc.g)}）/ 现金 ${pct(dec.alloc.c)}${riskoff ? `；避险：现金份额上升，金融资产内部${inflCrisis ? '转向黄金（通胀型危机，国债不是避风港）' : '转向长期国债（飞向安全）'}` : ''}`, icond ? { cond: icond } : {}));
   }
 
   // ---- foreign
@@ -391,7 +417,8 @@ export function decideAll(S, K, ex, env) {
       const p = P('foreign_funding');
       if (S.deficitGdp > p.def && v.piY > p.pi) {
         termAdd = p.add;
-        entries.push(mkEntry(S, 'foreign', 'foreign_funding', `财政赤字 ${pct(S.deficitGdp)} GDP，通胀 ${pct(v.piY)}`, null, `期限溢价 +${pp(p.add)}`));
+        entries.push(mkEntry(S, 'foreign', 'foreign_funding', `财政赤字 ${pct(S.deficitGdp)} GDP，通胀 ${pct(v.piY)}`, null, `期限溢价 +${pp(p.add)}`,
+          { cond: [cnd('财政赤字/GDP', S.deficitGdp, '>=', p.def, 'pct', 'fiscalInjection'), cnd('通胀', v.piY, '>=', p.pi, 'pct', 'cpi')] }));
       }
     }
     dec.nx = nx; dec.termAdd = termAdd;
@@ -690,9 +717,9 @@ export function settle(S0, K, ex, dec, env) {
   // ledger: exogenous shock events
   const entries = dec.entries.slice();
   if (ex.shock > 0.01 && S0.shock <= 0.01)
-    entries.push({ date: dateOf(S, S.t), player: 'firm', observe: `外生输入：真实实际 GDP 同比大幅收缩（冲击强度 ${pct(ex.shock)}）`, rule: '外生冲击（数据驱动）：产能受限 + 需求骤降', action: `有效产能 -${pct(S.capLoss)}，名义需求冲击 -${pct(1.5 * ex.shock)}`, immediate: '产出与就业下降', delayed: '产能恢复慢于需求时，价格压力上升' });
+    entries.push({ date: dateOf(S, S.t), player: 'firm', observe: `外生输入：真实实际 GDP 比一年前大幅收缩（冲击强度 ${pct(ex.shock)}）`, rule: '外生冲击（数据驱动）：产能受限 + 需求骤降', action: `有效产能 -${pct(S.capLoss)}，名义需求冲击 -${pct(1.5 * ex.shock)}`, immediate: '产出与就业下降', delayed: '产能恢复慢于需求时，价格压力上升', ruleId: 'shock_gdp' });
   if (Math.abs(ex.oilYoY) > 0.5 && Math.abs(S0.oilFlag || 0) < 0.5)
-    entries.push({ date: dateOf(S, S.t), player: 'foreign', observe: `外生输入：油价同比 ${ex.oilYoY > 0 ? '+' : ''}${pct(ex.oilYoY)}`, rule: '外生冲击（数据驱动）：油价', action: `供给侧价格推力 ${pp(oilPush)}`, immediate: '成本推动型通胀', delayed: '若央行加息过度，会压低需求而非产能' });
+    entries.push({ date: dateOf(S, S.t), player: 'foreign', observe: `外生输入：油价比一年前 ${ex.oilYoY > 0 ? '+' : ''}${pct(ex.oilYoY)}`, rule: '外生冲击（数据驱动）：油价', action: `供给侧价格推力 ${pp(oilPush)}`, immediate: '成本推动型通胀', delayed: '若央行加息过度，会压低需求而非产能', ruleId: 'shock_oil' });
   S.oilFlag = ex.oilYoY;
 
   // ---------------- snapshot pieces

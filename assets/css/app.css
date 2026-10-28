@@ -205,6 +205,18 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .seesaw .endl { fill: var(--c-repay); } .flow-svg .seesaw .endr { fill: var(--c-bond); }
 .flow-svg .plank { transition: transform .6s; }
 
+/* 洪痕 / high-water marks (flow.js buildMarks): dashed line at the highest level so far + year label; '.new' = the water is at its record */
+.flow-svg .hwm, .flow-svg .hwm * { pointer-events: none; }
+.flow-svg .hwm-line { fill: none; stroke: var(--text); stroke-opacity: .6; stroke-width: 1; stroke-dasharray: 3 2.5; }
+.flow-svg .hwm-trough { fill: none; stroke: var(--muted); stroke-opacity: .7; stroke-width: 1.2; stroke-dasharray: 1 2; stroke-linecap: round; }
+.flow-svg .hwm-lbl { fill: var(--text); fill-opacity: .85; font-size: 8.6px; font-weight: 600; font-variant-numeric: tabular-nums;
+  paint-order: stroke; stroke: var(--surface-2); stroke-opacity: .85; stroke-width: 2.6px; stroke-linejoin: round; }
+.flow-svg .hwm-g.new .hwm-line { stroke: var(--accent); stroke-opacity: .95; stroke-width: 1.6; }
+.flow-svg .hwm-g.dim .hwm-line { stroke-opacity: .4; }
+.flow-svg .hwm-g.dim.new .hwm-line { stroke-opacity: .65; }
+.flow-svg .hwm-g.new .hwm-lbl { fill: var(--accent); fill-opacity: 1; font-weight: 800; }
+@media (max-width: 767.98px) { .flow-svg .hwm-lbl { font-size: 10px; } }
+
 /* pipes */
 .flow-svg .bed { fill: none; stroke-linecap: butt; stroke-linejoin: round; opacity: .22; }
 .flow-svg .dash { fill: none; stroke-linecap: butt; stroke-linejoin: round; stroke-dasharray: 6 9;
@@ -244,6 +256,9 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .hit { fill: transparent; stroke: none; }
 .flow-svg g.term { cursor: pointer; }
 .flow-svg g.term text:first-of-type { text-decoration: underline dotted; text-underline-offset: 2px; }
+/* 欠条箱: 占 GDP reading (the number the long-cycle dial reads); on phones the two captions are hidden, so it moves up under the title */
+.flow-svg .cap.gdp { fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 767.98px) { .flow-svg .iou-gdp { transform: translateY(-14px); } }
 .flow-svg g.term:active .bg { fill: var(--surface-2); }
 .flow-svg .dangling { display: none; }
 

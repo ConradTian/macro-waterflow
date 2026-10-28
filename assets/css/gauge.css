@@ -1,0 +1,86 @@
+/* 水尺 / 对比尺 / 灯的横条 (src/ui/gauge.js). Tokens come from app.css; works in light + dark ([data-theme] and prefers-color-scheme). */
+.gg, .lb {
+  --g-text: var(--text, #1b2330); --g-muted: var(--muted, #5f6b7c); --g-border: var(--border, #d6dce6);
+  --g-surface: var(--surface, #fff); --g-surface2: var(--surface-2, #eef1f6);
+  --g-green: var(--lamp-green, #2a9547); --g-yellow: var(--lamp-yellow, #d9a000); --g-red: var(--lamp-red, #d33f3f);
+  --g-a: var(--c-credit, #1f6fc2); --g-b: var(--c-repay, #e0720f);
+  --g-water: var(--water, rgba(37, 120, 205, .38));
+  --g-pat: rgba(255, 255, 255, .6);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gg, :root:not([data-theme="light"]) .lb { --g-pat: rgba(0, 0, 0, .5); } }
+:root[data-theme="dark"] .gg, :root[data-theme="dark"] .lb { --g-pat: rgba(0, 0, 0, .5); }
+
+/* ---------- vertical 水尺 ---------- */
+.gg { margin: 10px 0; padding: 8px 10px 8px; border: 1px solid var(--g-border); border-radius: 10px; background: var(--g-surface); color: var(--g-text); }
+.gg-h { font-size: 13px; font-weight: 700; }
+.gg-h small { font-weight: 400; color: var(--g-muted); font-size: 12px; margin-left: 4px; }
+.gg-svg { display: block; width: 100%; max-width: 380px; height: auto; margin-top: 2px; font: 11.5px/1 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; overflow: visible; }
+.gg-b-green { fill: var(--g-green); } .gg-b-yellow { fill: var(--g-yellow); } .gg-b-red { fill: var(--g-red); }
+.gg-pat { fill: var(--g-pat); }
+.gg-bl { font-size: 9px; font-weight: 700; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, .45); stroke-width: 2px; }
+.gg-neutral { fill: var(--g-surface2); }
+.gg-water { fill: var(--g-water); }
+.gg-frame { fill: none; stroke: var(--g-muted); stroke-width: 1; }
+.gg-sc { fill: var(--g-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.gg-tk, .gg-zero { stroke: var(--g-muted); stroke-width: 1; }
+.gg-zero { stroke-dasharray: 2 2; }
+.gg-trail { fill: none; stroke: var(--g-text); stroke-opacity: .28; stroke-width: 1; stroke-dasharray: 2 2; }
+.gg-dot { fill: var(--g-text); stroke: var(--g-surface); stroke-width: 1; }
+.gg-mk-l { stroke: var(--g-muted); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.gg-lead { fill: none; stroke: var(--g-muted); stroke-width: 1; stroke-dasharray: 2 2; stroke-opacity: .8; }
+.gg-lead-now { stroke: var(--g-text); stroke-dasharray: none; stroke-opacity: 1; }
+.gg-now { fill: var(--g-text); }
+.gg-nowline { stroke: var(--g-text); stroke-width: 2.5; }
+.gg-now-t { fill: var(--g-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gg-hist-t { fill: var(--g-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.gg-lv { font-size: 12px; font-weight: 700; }
+.gg-lv-green { fill: var(--g-green); } .gg-lv-yellow { fill: var(--g-yellow); } .gg-lv-red { fill: var(--g-red); }
+.gg-note { font-size: 11px; color: var(--g-muted); line-height: 1.4; margin-top: 2px; }
+
+/* ---------- 对比尺 ---------- */
+.gg-pair { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--g-border); }
+.gg-ph { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+.gg-ph small { font-weight: 400; color: var(--g-muted); font-size: 11px; }
+.gg-prow { display: grid; grid-template-columns: minmax(5.5em, 10em) 1fr auto; align-items: center; gap: 6px; margin: 3px 0; font-size: 12.5px; }
+.gg-plab { line-height: 1.25; }
+.gg-pbar { position: relative; height: 14px; background: var(--g-surface2); border-radius: 3px; overflow: hidden; }
+.gg-pbar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.gg-p-a i { background: var(--g-a); } .gg-p-b i { background: var(--g-b); }
+.gg-p-a .gg-plab { border-left: 4px solid var(--g-a); padding-left: 5px; } .gg-p-b .gg-plab { border-left: 4px solid var(--g-b); padding-left: 5px; }
+.gg-lose i { opacity: .5; background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--g-pat) 3px 5px); }
+.gg-win .gg-plab, .gg-win .gg-pval { font-weight: 700; }
+.gg-win .gg-pbar { outline: 2px solid var(--g-text); outline-offset: -1px; }
+.gg-pval { font-variant-numeric: tabular-nums; text-align: right; min-width: 4.8em; font-weight: 500; }
+.gg-brk { position: absolute; left: 1px; top: -1px; z-index: 1; font-style: normal; font-size: 12px; color: var(--g-pat); line-height: 14px; }
+.gg-verdict { margin-top: 4px; font-size: 12.5px; font-weight: 700; }
+
+/* ---------- horizontal lamp bar ---------- */
+.lb { margin-top: 8px; color: var(--g-text); font-size: 11px; line-height: 1.2; }
+.lb-pw { position: relative; }
+.lb-p { position: absolute; top: 0; bottom: 0; width: 0; }
+.lb-pt { position: absolute; left: 0; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 14px; }
+.lb-pl .lb-pt { transform: translateX(-9px); } .lb-pr .lb-pt { transform: translateX(calc(-100% + 9px)); }
+.lb-p:not(.lb-dec) .lb-pt { font-weight: 500; color: var(--g-muted); }
+.lb-stem { position: absolute; left: 0; bottom: 4px; width: 0; border-left: 1px solid var(--g-text); opacity: .6; }
+.lb-ar { position: absolute; left: 0; bottom: -2px; transform: translateX(-50%); text-decoration: none; font-size: 10px; line-height: 10px; color: var(--g-text); }
+.lb-bar { position: relative; height: 14px; border-radius: 3px; overflow: hidden; background: var(--g-surface2); box-shadow: inset 0 0 0 1px var(--g-muted); }
+.lb-s { position: absolute; top: 0; bottom: 0; }
+.lb-s-green { background: var(--g-green); }
+.lb-s-yellow { background: var(--g-yellow) repeating-linear-gradient(45deg, transparent 0 3px, var(--g-pat) 3px 5px); }
+.lb-s-red { background: var(--g-red) radial-gradient(circle, var(--g-pat) 1.1px, transparent 1.4px) 0 0 / 5px 5px; }
+.lb-d { position: absolute; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--g-text); box-shadow: 0 0 0 1px var(--g-surface); }
+.lb-d2 { border-radius: 1px; transform: rotate(45deg); }
+.lb-tw { position: relative; height: 24px; margin-top: 1px; }
+.lb-t { position: absolute; transform: translateX(-50%); white-space: nowrap; color: var(--g-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.lb-t0 { top: 0; } .lb-t1 { top: 11px; }
+.lb-t::before { content: ""; position: absolute; left: 50%; top: -3px; height: 3px; border-left: 1px solid var(--g-muted); }
+.lb-t1::before { top: -14px; height: 14px; opacity: .45; }
+.lb-hw { position: relative; height: 14px; }
+.lb-hm { position: absolute; bottom: 0; width: 0; height: 0; margin-left: -4px; border: 4px solid transparent; border-top: 0; border-bottom: 5px solid #fff; filter: drop-shadow(0 0 1px #000); }
+.lb-h { position: absolute; top: 0; }
+.lb-h span { position: absolute; left: 0; top: 0; transform: translateX(-4px); white-space: nowrap; color: var(--g-muted); font-size: 10px; }
+.lb-h.lb-hr span { left: auto; right: 0; transform: translateX(4px); }
+
+/* phone: the lamp cards need the whole width for the bar */
+@media (max-width: 599px) { .pn-cycle .lp-grid { grid-template-columns: 1fr; } }
+.lp .lb { cursor: default; }

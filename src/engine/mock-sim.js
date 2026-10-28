@@ -46,7 +46,7 @@ function fakeSnap(t, branch = 'model', bump = 0) {
       probs: { [stage]: 0.6, [((stage % 8) + 1)]: 0.3 }, label: `${'①②③④⑤⑥⑦⑧'[stage - 1]} 示例阶段`,
       nextSignal: '若信贷脉冲转负 → 进入 ⑤' },
     ledger: [
-      { date: qLabel(t), player: 'bank', observe: `房价同比 ${(15 * w).toFixed(1)}%`, rule: '抵押品改善且资本充足 → 放宽住房信贷',
+      { date: qLabel(t), player: 'bank', observe: `房价比一年前 ${(15 * w).toFixed(1)}%`, rule: '抵押品改善且资本充足 → 放宽住房信贷',
         action: `审批倍数 ${(1 + 0.1 * w).toFixed(2)}`, immediate: '新存款增加，更多资金进入房地产', delayed: '家庭 DSR 上升' },
       { date: qLabel(t), player: 'centralBank', observe: `通胀 ${(2.5 + 1.5 * w).toFixed(1)}%`, rule: '真实历史路径',
         action: `政策利率 ${(3 + 2 * w).toFixed(2)}%`, immediate: '新贷款定价改变', delayed: '分批重定价后影响 DSR' },

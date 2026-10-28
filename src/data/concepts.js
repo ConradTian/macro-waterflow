@@ -48,6 +48,11 @@ export function makeCtx(snap, sim) {
   };
 }
 
+// private debt (household + firm) / annual nominal GDP, and its 3-year window (the long-cycle dial reads exactly these numbers)
+const pvtRatio = x => { const h = x?.debt?.household, f = x?.debt?.firm, g = x?.macro?.gdpNominal; return ok(h) && ok(f) && ok(g) && g > 0 ? (h + f) / g : null; };
+const govRatio = x => (ok(x?.gov?.debtGdp) ? x.gov.debtGdp : null);
+const win12 = (c, fn) => { const a = []; for (let k = 1; k <= 12; k++) { const q = c.past(k); const v = q ? fn(q) : null; if (ok(v)) a.push(v); } return a; };
+
 export const CONCEPTS = {
   // ---------- 利率与货币 ----------
   policyRate: {
@@ -248,7 +253,7 @@ export const CONCEPTS = {
       const a = s.bank?.approval, pa = p?.bank?.approval, bad = s.bank?.badLoanRate, hy = s.extra?.houseYoY;
       const t = a < 0.9 ? '偏紧' : a > 1.05 ? '偏松' : '接近中性';
       const dir = ok(pa) ? (a > pa + 0.005 ? '，比上季放松了' : a < pa - 0.005 ? '，比上季收紧了' : '，和上季差不多') : '';
-      return `现在 ×${X2(a)}（1=中性）${t}${dir}：坏账率 ${P(bad)}、房价同比 ${P(hy)}${hy < 0 && bad > 0.02 ? ' → 抵押品变差、银行在收紧' : hy > 0.05 ? ' → 抵押品变好、银行放得更松' : ''}。`;
+      return `现在 ×${X2(a)}（1=中性）${t}${dir}：坏账率 ${P(bad)}、房价比一年前 ${P(hy)}${hy < 0 && bad > 0.02 ? ' → 抵押品变差、银行在收紧' : hy > 0.05 ? ' → 抵押品变好、银行放得更松' : ''}。`;
     },
     water: '水泵的开度：抵押品好、资本足时开大，坏账多时关小。',
     formula: '审批 = 1 + a·(抵押品改善) + b·(资本充足) − c·(坏账率上升)',
@@ -304,6 +309,40 @@ export const CONCEPTS = {
     from: ['newLoans', 'principalRepay'], to: ['interestPaid', 'dsr', 'lvr'],
     logic: '家庭：借钱买房、消费 → 欠条累积成存量债务\n→ 每季必须付息、还本，抽走一部分收入\n→ 债务越多，对利率越敏感，DSR 越高（环 ② 到 ⑤ 的主线）。',
     live: 'debt.household', fmt: 'bn' },
+  pvtDebtGdp: {
+    name: '私人债务/GDP', short: '家庭加企业欠的总债，相当于一年 GDP 的多少倍：大周期表盘看的就是它升得多快、从高点退了多少。',
+    why: (s, p, c) => {
+      const r = pvtRatio(s);
+      if (!ok(r)) return '现在读不到私人债务和 GDP，这一项暂时没有数。';
+      const past = win12(c, pvtRatio), r12 = c.past(12) ? pvtRatio(c.past(12)) : null;
+      const hi = past.length ? Math.max(r, ...past) : null;
+      let t = `现在 ${P(r, 0)}：家庭 ${c.money(s.debt.household)} + 企业 ${c.money(s.debt.firm)}，除以全年 GDP ${c.money(s.macro.gdpNominal)}。`;
+      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}（大周期 ① 要 ≥ +2pp、② 要 ≥ +3pp 才算「债在堆」；⑦ 要 ≤ +2pp 才算「没再加杠杆」）。`;
+      if (ok(hi)) t += `\n较三年高点 ${PP(r - hi)}（⑤ 私人去杠杆要 ≤ −5pp：债比收入先缩下来）。`;
+      if (!ok(r12)) t += '\n还没有三年的历史，三年变化暂时算不出来。';
+      return t;
+    },
+    water: '欠条箱里的水位，不是看绝对多少，而是看它相对一年的水流（GDP）有多满、涨得多快。',
+    formula: '私人债务/GDP = (家庭债务 + 企业债务) / 名义 GDP；三年变化 = 今天 − 三年前；较高点 = 今天 − 近三年最高',
+    from: ['hhDebt', 'newLoans', 'principalRepay'], to: ['dsr', 'longCycle'],
+    logic: '银行：放贷 → 家庭和企业：欠条累积，债务增长快过收入\n→ 比值连续几年上升 = 大周期的「堆债」（环 ① ②）\n→ 还本多过借款、违约和核销让比值从高点回落 = 私人去杠杆（环 ⑤）\n→ 它比单季的信贷脉冲慢得多，所以用它来判断大周期，而不是小周期。',
+    live: null, fmt: 'pct', liveFn: s => pvtRatio(s) },
+  govDebtGdp: {
+    name: '政府债务/GDP', short: '政府欠的总债相当于一年 GDP 的多少：私人去杠杆之后，它升得快不快，决定大周期是否进入「政府接手」。',
+    why: (s, p, c) => {
+      const r = govRatio(s);
+      if (!ok(r)) return '现在读不到政府债务/GDP，这一项暂时没有数。';
+      const o = c.past(12), r12 = o ? govRatio(o) : null;
+      let t = `现在 ${P(r, 0)}（政府债务约 ${c.money(r * (s.macro?.gdpNominal ?? NaN))}）。`;
+      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}：⑥ 政府接手要它 ≥ +3pp（或赤字 ≥ 5% GDP）；⑦、⑧ 要它 ≤ +1pp，也就是不再快速加债。`;
+      else t += '\n还没有三年的历史，三年变化暂时算不出来。';
+      return t.replace('约 —', '数额未知');
+    },
+    water: '政府这口大水箱的水位：私人箱子往外舀水时，政府箱子往里加水，总水量才不塌。',
+    formula: '政府债务/GDP = 政府债务存量 / 名义 GDP；三年变化 = 今天 − 三年前',
+    from: ['fiscalInjection', 'qe', 'gMinusR'], to: ['interestToTax', 'longCycle'],
+    logic: '政府：私人部门去杠杆、税收下降 → 赤字扩大，借钱支出\n→ 政府债务/GDP 在几年里明显上升（环 ⑥）\n→ 之后增速放缓、g > r 让比值稳住甚至回落（环 ⑦ ⑧）\n→ 它是慢变量，所以只用来判断大周期。',
+    live: 'gov.debtGdp', fmt: 'pct' },
   dsr: {
     name: 'DSR 偿债率', short: '每赚 100 块要拿多少去还本付息。',
     why: (s, p, c) => {
@@ -326,7 +365,7 @@ export const CONCEPTS = {
     name: 'LVR 贷款价值比', short: '房贷余额占房价的比例，抵押品还剩多少安全垫。',
     why: (s, p, c) => {
       const l = s.household?.lvr, hy = s.extra?.houseYoY;
-      return `现在 ${P(l, 0)}：房价同比 ${P(hy)}，家庭债务 ${c.money(s.debt?.household)}。${hy < -0.02 ? '房价在跌，安全垫被削薄，LVR 被动升高。' : hy > 0.05 ? '房价在涨，安全垫变厚，LVR 被动降低。' : '房价平稳，LVR 变化不大。'}`;
+      return `现在 ${P(l, 0)}：房价比一年前 ${P(hy)}，家庭债务 ${c.money(s.debt?.household)}。${hy < -0.02 ? '房价在跌，安全垫被削薄，LVR 被动升高。' : hy > 0.05 ? '房价在涨，安全垫变厚，LVR 被动降低。' : '房价平稳，LVR 变化不大。'}`;
     },
     water: '堤岸高度与洪水的差距：房价下跌=堤岸被削低，LVR 上升。',
     formula: 'LVR = 房贷余额 / 房产价值',
@@ -471,7 +510,7 @@ export const CONCEPTS = {
     name: '房价', short: '房子的价格 = 租金现金流 ÷ 折现率，再被信贷放大。',
     why: (s, p, c) => {
       const px = s.assets?.housing?.price, hy = s.extra?.houseYoY;
-      return `现在指数 ${ok(px) ? px.toFixed(0) : '—'}${ok(hy) ? `，同比 ${hy >= 0 ? '+' : '−'}${Math.abs(hy * 100).toFixed(1)}%` : ''}：新房贷利率 ${P(s.rates?.mortgageNew, 2)}、审批 ×${X2(s.bank?.approval)}、本季流进房产 ${c.money(s.flows?.toHousing)}。`;
+      return `现在指数 ${ok(px) ? px.toFixed(0) : '—'}${ok(hy) ? `，比一年前 ${hy >= 0 ? '+' : '−'}${Math.abs(hy * 100).toFixed(1)}%` : ''}：新房贷利率 ${P(s.rates?.mortgageNew, 2)}、审批 ×${X2(s.bank?.approval)}、本季流进房产 ${c.money(s.flows?.toHousing)}。`;
     },
     water: '最大的蓄水湖：受购买力涌入、利率“重力”和抵押品回路三者共同决定水位。',
     formula: '房价 ≈ 租金 / (折现率 − 租金增长)；再加信贷放大',
@@ -561,8 +600,8 @@ export const CONCEPTS = {
     name: 'B2 资产与信用缩水', short: '岔路口之二：资产价格下跌，信贷收缩，通胀低甚至通缩。',
     why: (s) => {
       const on = s.ring?.fork === 'B2', hy = s.extra?.houseYoY, ci = s.lights?.credit?.value;
-      return on ? `现在处在 B2：房价同比 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}，抵押品缩水、信贷在收缩。`
-        : `现在没有处在 B2：房价同比 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 需要「房价跌 + LVR 升 + 信贷脉冲为负」。`;
+      return on ? `现在处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}，抵押品缩水、信贷在收缩。`
+        : `现在没有处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 需要「房价跌 + LVR 升 + 信贷脉冲为负」。`;
     },
     water: '湖水被抽干：抵押品缩水，银行关泵，水回不来。',
     formula: 'B2：房价↓ + LVR↑ + 信贷脉冲<0 + 低通胀',
@@ -651,7 +690,7 @@ export const CONCEPTS = {
 export const KEYWORDS = [
   ['政策利率', 'policyRate'], ['实际利率', 'realRate'], ['有效房贷利率', 'mortgageEff'], ['房贷利率', 'mortgageEff'],
   ['新贷款', 'newLoans'], ['还本', 'principalRepay'], ['付息', 'interestPaid'], ['信贷脉冲', 'creditImpulse'],
-  ['DSR', 'dsr'], ['LVR', 'lvr'], ['审批', 'bankApproval'], ['资本比率', 'bankCapital'], ['坏账', 'badLoans'],
+  ['私人债务/GDP', 'pvtDebtGdp'], ['政府债务/GDP', 'govDebtGdp'], ['DSR', 'dsr'], ['LVR', 'lvr'], ['审批', 'bankApproval'], ['资本比率', 'bankCapital'], ['坏账', 'badLoans'],
   ['财政注入', 'fiscalInjection'], ['QE', 'qe'], ['Capacity', 'capacity'], ['Capex', 'capex'], ['产出缺口', 'outputGap'],
   ['CPI', 'cpi'], ['通胀预期', 'inflationExp'], ['通胀', 'cpi'], ['失业率', 'unemployment'], ['折现率', 'discountRate'], ['风险溢价', 'riskPremium'],
   ['利息/税收', 'interestToTax'], ['租售比', 'rentYield'], ['房价/收入', 'priceToIncome'], ['房价', 'housePrice'], ['B1', 'B1'], ['B2', 'B2'], ['CF', 'cf'],

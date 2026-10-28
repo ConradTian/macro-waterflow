@@ -4,6 +4,8 @@ import { esc, pct, num, LAMP, LAMP_SYMBOL, compareChart } from './_util.js';
 import { term } from '../concepts.js';
 import { pctFmt } from '../chart.js';
 import { flash, LAMP_LINKS } from '../links.js';
+import { lampBarHtml } from '../gauge.js';
+import { fmtV, nextText, evidenceList, beginRows, initPins, applyUrlPin, wireEvidence } from './_cycle-ev.js';
 
 // own stylesheet (index.html links it too; this keeps free/ and any other host working)
 try {
@@ -28,7 +30,6 @@ const SHORT_NAME = { expand: '扩张', B1: '过热 B1', B2: '缩水 B2', tight: 
 const SHORT_GLYPH = { expand: '扩', B1: 'B1', B2: 'B2', tight: '紧', ease: '降' };
 
 /* ---------- small helpers ---------- */
-const fmtV = (v, f) => (v == null || !isFinite(v) ? '—' : f === 'x' ? v.toFixed(2) + '×' : (v * 100).toFixed(1) + (f === 'pp' ? 'pp' : '%'));
 const yr = d => String(d || '').slice(0, 4);
 const polar = (cx, cy, R, deg) => [cx + R * Math.cos(deg * Math.PI / 180), cy + R * Math.sin(deg * Math.PI / 180)];
 const f1 = n => (+n).toFixed(1);
@@ -112,33 +113,16 @@ function shortDial(S) {
     aria: `小周期，当前 ${S.label}${S.between ? `，在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间` : ''}` });
 }
 
-/* ---------- evidence ---------- */
-function evidenceRow(e) {
-  const nm = e.term ? term(e.term, e.name) : esc(e.name);
-  return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}"><span class="cy-mk" aria-hidden="true">${e.ok ? '✔' : '✖'}</span>` +
-    `<span class="cy-en">${nm}</span><span class="cy-vals"><b>${fmtV(e.value, e.fmt)}</b> <i>需 ${e.dir === '>=' ? '≥' : '≤'} ${fmtV(e.threshold, e.fmt)}</i></span>` +
-    `<span class="cy-sr">${e.ok ? '已达标' : '未达标'}</span></li>`;
-}
-function evidenceList(items) {
-  const out = []; const seen = new Set();
-  for (const e of items) {
-    if (!e.grp) { out.push(evidenceRow(e)); continue; }
-    if (seen.has(e.grp)) continue;
-    seen.add(e.grp);
-    const grp = items.filter(x => x.grp === e.grp);
-    out.push(grp.length > 1
-      ? `<li class="cy-or-box"><span class="cy-orcap">下面任一项达标即可</span><ul>${grp.map(evidenceRow).join('')}</ul></li>`
-      : evidenceRow(e));
-  }
-  return `<ul class="cy-evl">${out.join('')}</ul>`;
-}
+/* ---------- evidence (rows live in ./_cycle-ev.js: ruler + where to look + 盯住) ---------- */
 function pips(have, need) {
   let h = '';
   for (let i = 0; i < need; i++) h += `<i class="${i < have ? 'on' : ''}"></i>`;
   return `<span class="cy-pips" aria-hidden="true">${h}</span><span class="cy-pt">连续达标 ${have}/${need} 季</span>`;
 }
 
-function card(kind, snapSide, t) {
+const headLong = k => `${LONG_MARK[k]} ${LONG_NODE[k]}`;
+const headShort = k => SHORT_NAME[k];
+function card(kind, snapSide, t, ctx) {
   const isLong = kind === 'long';
   const C = snapSide;
   const since = C.since || { t: 0, date: '' };
@@ -147,11 +131,11 @@ function card(kind, snapSide, t) {
     ? `<div class="cy-between-note">◆ 在 ${isLong ? LONG_MARK[C.between[0]] : SHORT_NAME[C.between[0]]} 与 ${isLong ? LONG_MARK[C.between[1]] : SHORT_NAME[C.between[1]]} 之间：证据混合，还没连续达标，先不前进</div>` : '';
   let ev;
   if (isLong) {
-    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence)}`;
+    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence, { kind, ctx, mark: LONG_MARK[C.progress.target] })}`;
   } else {
     const groups = C.progress.map(p => {
       const items = C.evidence.filter(e => e.targetId === p.target);
-      return `<div class="cy-evh">→ <b>${esc(p.label)}</b>${pips(p.have, p.need)}</div>${evidenceList(items)}`;
+      return `<div class="cy-evh">→ <b>${esc(p.label)}</b>${pips(p.have, p.need)}</div>${evidenceList(items, { kind, ctx, mark: SHORT_NAME[p.target] })}`;
     }).join('');
     ev = groups;
   }
@@ -162,8 +146,8 @@ function card(kind, snapSide, t) {
     ${dial}
     <p class="cy-now"><b>${esc(C.label)}</b><span class="cy-since">自 ${esc(since.date)} 起 · 已 ${len} 季</span></p>
     ${betw}
-    <details class="cy-ev-wrap" data-k="ev-${kind}"><summary>证据：现值 vs 阈值</summary>${ev}</details>
-    <p class="cy-next"><b>下一个确认信号</b>：${esc(C.nextSignal || '—')}</p>
+    <details class="cy-ev-wrap" data-k="ev-${kind}"><summary>证据：现值 · 离门槛多远 · 去图里哪里看</summary><p class="cy-evhint">点任意一行：图里亮出它的位置，并打开说明卡。「盯住」：它达标时暂停提醒你。</p>${ev}</details>
+    <p class="cy-next">${esc(nextText(kind, C, isLong ? headLong : headShort).text || '—')}</p>
   </article>`;
 }
 
@@ -300,8 +284,9 @@ function lead(s) {
   if (!c) return `现在大概在 <b>${esc((s.ring || {}).label || '—')}</b>，下一个确认信号：<b>${esc((s.ring || {}).nextSignal || '—')}</b>`;
   const L = c.long, S = c.short;
   const lt = L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : `${esc(L.label)}`;
-  return `大周期：<b>${lt}</b>（${esc(yr(L.since.date))} 起）；小周期：<b>${esc(S.label)}</b>${S.between ? `（在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间）` : ''} → 下一个确认信号：<b>${esc(S.nextSignal || '—')}</b>` +
-    `<div class="cy-lead2">大周期下一步：${esc(L.nextSignal || '—')}</div>`;
+  const ln = nextText('long', L, headLong).text, sn = nextText('short', S, headShort).text;
+  return `<div class="cy-lead1"><b>大周期</b> ${lt}（${esc(yr(L.since.date))} 起）<span class="cy-lnext">${esc(ln)}</span></div>` +
+    `<div class="cy-lead1"><b>小周期</b> ${esc(S.label)}${S.between ? `（在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间）` : ''}<span class="cy-lnext">${esc(sn)}</span></div>`;
 }
 
 export function render(container, ctx) {
@@ -310,11 +295,14 @@ export function render(container, ctx) {
     const l = L[k] || {};
     return `<div class="lp lp-${l.level}" data-lamp="${k}" tabindex="0"><div class="lp-top"><span class="lp-sym" aria-hidden="true">${LAMP_SYMBOL[l.level] || '○'}</span>` +
       `${term(tid, name + '灯')}<b class="lp-lv">${LAMP[l.level] || '—'}</b></div>` +
-      `<div class="lp-val">${esc(l.label || '')} ${f(l.value)}</div><div class="lp-drv">驱动：${esc(l.driver || '—')}</div></div>`;
+      `<div class="lp-val">${esc(l.label || '')} ${f(l.value)}</div><div class="lp-drv">驱动：${esc(l.driver || '—')}</div>${lampBarHtml(k, s, ctx.sim)}</div>`;
   }).join('');
   let dials = '', trail = null;
   if (s.cycles) {
-    dials = `<div class="cy-dials">${card('long', s.cycles.long, s.t)}${card('short', s.cycles.short, s.t)}</div>`;
+    initPins(ctx); beginRows();
+    const mk = () => `<div class="cy-dials">${card('long', s.cycles.long, s.t, ctx)}${card('short', s.cycles.short, s.t, ctx)}</div>`;
+    dials = mk();
+    if (applyUrlPin(ctx)) { beginRows(); dials = mk(); }      // ?pin=... pinned a row after the first pass: draw it as pinned
     trail = trailBlock(ctx);
   } else dials = '<p class="pn-empty">（此版本引擎没有双周期检测）</p>';
   container.innerHTML = `<section class="pn-tab pn-cycle">
@@ -331,6 +319,7 @@ export function render(container, ctx) {
     d.addEventListener('toggle', () => { openMap[d.dataset.k] = d.open; });
   });
   if (trail) wireTrail(container, ctx, trail);
+  if (s.cycles) wireEvidence(container, ctx);
   container.querySelectorAll('.lp[data-lamp]').forEach(lp => {
     const go = ev => {
       if (ev.target.closest('.term')) return;

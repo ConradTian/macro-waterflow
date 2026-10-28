@@ -1,3 +1,3 @@
 <!doctype html><body style="margin:0;background:#888"><script>
-const q=new URLSearchParams(location.search);const w=q.get('w')||390,h=q.get('h')||844;q.delete('w');q.delete('h');
-document.write(`<iframe src="../?${q}" style="width:${w}px;height:${h}px;border:0;display:block"></iframe>`);</script></body>
+const q=new URLSearchParams(location.search);const w=q.get('w')||390,h=q.get('h')||844;const src=q.get('src')||'../';q.delete('w');q.delete('h');q.delete('src');
+document.write(`<iframe src="${src}?${q}" style="width:${w}px;height:${h}px;border:0;display:block"></iframe>`);</script></body>

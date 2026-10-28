@@ -14,20 +14,33 @@ export function computeLamps(v) {
   const credit = {
     level: ci < -0.015 ? 'red' : (ci < -0.003 || ci > 0.03) ? 'yellow' : 'green',
     value: ci, label: '信贷脉冲', driver: `净新增信贷/GDP 变化 ${pct(ci)}（新贷款-还本）`,
+    // bands/axis: colour thresholds + fixed display range for the UI gauges (src/ui/gauge.js); same units as `value`. Detection only.
+    bands: [{ lo: -Infinity, hi: -0.015, level: 'red' }, { lo: -0.015, hi: -0.003, level: 'yellow' }, { lo: -0.003, hi: 0.03, level: 'green' }, { lo: 0.03, hi: Infinity, level: 'yellow' }],
+    axis: [-0.04, 0.05],
   };
+  const d0 = v.dsr0;
   const debtService = {
     level: v.dsr >= v.dsr0 + 0.04 ? 'red' : v.dsr >= v.dsr0 + 0.02 ? 'yellow' : 'green',
     value: v.dsr, label: 'DSR 偿债率', driver: `家庭还本付息/收入 ${pct(v.dsr)}，坏账率 ${pct(v.bad)}`,
+    bands: [{ lo: -Infinity, hi: d0 + 0.02, level: 'green' }, { lo: d0 + 0.02, hi: d0 + 0.04, level: 'yellow' }, { lo: d0 + 0.04, hi: Infinity, level: 'red' }],
+    axis: [d0 - 0.02, d0 + 0.06],
   };
   const rp = v.realP;
   const policy = {
     level: (rp < -0.015 || rp > 0.04) ? 'red' : (rp < 0.002 || rp > 0.025) ? 'yellow' : 'green',
     value: rp, label: '实际政策利率', driver: `政策利率 ${pct(v.policy)} - 通胀 ${pct(v.piY)}`,
+    bands: [{ lo: -Infinity, hi: -0.015, level: 'red' }, { lo: -0.015, hi: 0.002, level: 'yellow' }, { lo: 0.002, hi: 0.025, level: 'green' }, { lo: 0.025, hi: 0.04, level: 'yellow' }, { lo: 0.04, hi: Infinity, level: 'red' }],
+    axis: [-0.04, 0.06],
   };
   const val = Math.max(v.PIrel, v.peRel);
+  const houseTop = v.PIrel >= v.peRel;
   const valuation = {
     level: val >= 1.35 ? 'red' : val >= 1.15 ? 'yellow' : 'green',
-    value: v.PI, label: '房价/收入', driver: `房价/收入 ${v.PI.toFixed(2)}（起点 4.00），股票 P/E 相对起点 ${v.peRel.toFixed(2)}x`,
+    value: v.PI, label: '房价/收入',
+    driver: `房价/收入 ${v.PI.toFixed(2)}（起点 4.00，相对起点 ${v.PIrel.toFixed(2)}x${houseTop ? '，决定颜色' : ''}），股票 P/E 相对起点 ${v.peRel.toFixed(2)}x${houseTop ? '' : '（决定颜色）'}`,
+    parts: { house: v.PIrel, equity: v.peRel },       // level = max of the two, in multiples of the start value
+    bands: [{ lo: -Infinity, hi: 1.15, level: 'green' }, { lo: 1.15, hi: 1.35, level: 'yellow' }, { lo: 1.35, hi: Infinity, level: 'red' }],   // RELATIVE units (x start), not the units of `value`
+    axis: [0.7, 1.8],
   };
   return { credit, debtService, policy, valuation };
 }
@@ -35,7 +48,7 @@ export function computeLamps(v) {
 const STAGES = ['', '① 借钱扩张', '② 资产缓冲池装满', '③ 岔路口（B1/B2）', '④ 降息尝试重启信用',
   '⑤ 私人借不动、转向还债', '⑥ 政府接手、央行支持', '⑦ 化债 / 金融压制', '⑧ 偿债压力下降、资产负债表修复'];
 const NEXT = {
-  1: '若房价同比 >5% 且信贷持续增长 → 进入 ②',
+  1: '若房价比一年前 >5% 且信贷持续增长 → 进入 ②',
   2: '若通胀 >3.5% 且政策利率上行 → B1；若房价转跌且信贷脉冲转负 → B2（均进入 ③）',
   3: '若降息后信贷仍不恢复 → ⑤；若降息重启信贷 → 回到 ①',
   4: '观察新贷款与 DSR：信贷回升 → ①；DSR 仍高、坏账上升 → ⑤',
@@ -120,7 +133,7 @@ const LONG_NEXT = {
 };
 const SHORT_NEXT_TXT = {
   expand: `通胀 ≥ ${pc1(ST.infl)} 且加息 → B1；信贷脉冲 ≤ ${pp1(ST.ci)} → B2；失业率较低点升 ≥ ${pp1(ST.uRise)} → 收紧·衰退`,
-  B1: `若信贷脉冲 ≤ ${pp1(ST.ci)} 且房价同比转弱（或 DSR 升）→ 改判 B2（缩水）；失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
+  B1: `若信贷脉冲 ≤ ${pp1(ST.ci)} 且房价比一年前转弱（或 DSR 升）→ 改判 B2（缩水）；失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
   B2: `失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退`,
   tight: `央行较高点降息 ≥ ${pp1(ST.cut)}（或已近零）→ 降息重启`,
   ease: `信贷脉冲回正且失业率不再上升 → 扩张`,
@@ -138,22 +151,22 @@ const holds = items => {
 
 function longEvidence(f) {
   return {
-    1: [item('私人债务/GDP 三年变化', f.pvtD12, LT.reUp, '>=', 'pp'), item('信贷增速', f.pcg, LT.pcg, '>=', 'pct', { term: 'creditImpulse' })],
-    2: [item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtUp, '>=', 'pp'), item('房价/收入（起点=1）', f.PIrel, LT.pi, '>=', 'x', { term: 'priceToIncome' })],
-    5: [item('私人债务/GDP 较三年高点', f.pvtDD, LT.pvtDown, '<=', 'pp'),
+    1: [item('私人债务/GDP 三年变化', f.pvtD12, LT.reUp, '>=', 'pp', { term: 'pvtDebtGdp' }), item('信贷增速', f.pcg, LT.pcg, '>=', 'pct', { term: 'creditImpulse' })],
+    2: [item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtUp, '>=', 'pp', { term: 'pvtDebtGdp' }), item('房价/收入（起点=1）', f.PIrel, LT.pi, '>=', 'x', { term: 'priceToIncome' })],
+    5: [item('私人债务/GDP 较三年高点', f.pvtDD, LT.pvtDown, '<=', 'pp', { term: 'pvtDebtGdp' }),
       item('银行坏账率', f.bad, LT.bad, '>=', 'pct', { term: 'badLoans', grp: 'a' }),
       item('政策利率（降息空间）', f.pol, LT.zb, '<=', 'pct', { term: 'policyRate', grp: 'a' })],
-    6: [item('政府债务/GDP 三年变化', f.govD12, LT.govUp, '>=', 'pp', { grp: 'a' }),
+    6: [item('政府债务/GDP 三年变化', f.govD12, LT.govUp, '>=', 'pp', { term: 'govDebtGdp', grp: 'a' }),
       item('财政赤字/GDP', f.defGdp, LT.deficit, '>=', 'pct', { term: 'fiscalInjection', grp: 'a' }),
       item('QE 存量/GDP', f.qeGdp, LT.qe, '>=', 'pct', { term: 'qe', grp: 'b' }),
       item('政策利率（零利率）', f.pol, LT.zb2, '<=', 'pct', { term: 'policyRate', grp: 'b' })],
     7: [item('实际政策利率', f.realP, LT.realP, '<=', 'pct', { term: 'realRate' }),
-      item('政府债务/GDP 三年变化', f.govD12, LT.flat, '<=', 'pp'),
-      item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtFlat, '<=', 'pp')],
+      item('政府债务/GDP 三年变化', f.govD12, LT.flat, '<=', 'pp', { term: 'govDebtGdp' }),
+      item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtFlat, '<=', 'pp', { term: 'pvtDebtGdp' })],
     8: [item('DSR 相对起点', f.dsrRel, LT.dsrLow, '<=', 'pp', { term: 'dsr' }),
       item('银行坏账率', f.bad, LT.badLow, '<=', 'pct', { term: 'badLoans' }),
       item('实际政策利率（压制结束）', f.realP, LT.realP, '>=', 'pct', { term: 'realRate' }),
-      item('政府债务/GDP 三年变化', f.govD12, LT.flat, '<=', 'pp'),
+      item('政府债务/GDP 三年变化', f.govD12, LT.flat, '<=', 'pp', { term: 'govDebtGdp' }),
       item('政府利息/税收', f.i2t, LT.i2t, '<=', 'pct', { term: 'interestToTax' })],
   };
 }
@@ -163,7 +176,7 @@ function shortEvidence(f) {
   return {
     B1: [item('通胀', f.piY, ST.infl, '>=', 'pct', { term: 'cpi' }), item('政策利率 4 季变化', f.dPol4, ST.hike, '>=', 'pp', { term: 'policyRate' })],
     B2: [item('信贷脉冲', f.ci, ST.ci, '<=', 'pp', { term: 'creditImpulse' }),
-      item('房价同比', f.hpYoY, ST.hp, '<=', 'pct', { term: 'housePrice', grp: 'a' }),
+      item('房价比一年前', f.hpYoY, ST.hp, '<=', 'pct', { term: 'housePrice', grp: 'a' }),
       item('DSR 相对起点', f.dsrRel, ST.dsr, '>=', 'pp', { term: 'dsr', grp: 'a' })],
     tight: recess,
     ease: [item('央行较 5 季高点降息', f.polDrop, ST.cut, '>=', 'pp', { term: 'policyRate', grp: 'a' }),

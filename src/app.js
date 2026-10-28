@@ -2,11 +2,12 @@
 // ENGINE SWAP: the orchestrator replaces the next import with './engine/sim.js'.
 import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
+import { renderHeadline } from './ui/headline.js';   // 本季看点 strip under the time bar
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 
-// ?theme=dark|light forces a theme (also handy for screenshots)
+// light theme by default (the html tag says data-theme="light"; the learner prefers it); ?theme=dark still forces dark
 if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
 
 // free-run subpage (free/index.html sets <body data-mode="free">; ?mode=free also works)
@@ -129,6 +130,21 @@ document.addEventListener('mw:lesson', async e => {
 });
 async function openCourseMenu() { try { (await loadLessons()).openMenu(); } catch (e) { console.error(e); showToast('教学模块加载失败', false); } }
 
+// pinned 周期-tab condition became met (src/ui/tabs/_cycle-ev.js): pause + toast through the same path as the key-node pauses.
+// Deferred one tick: the event fires inside sim.step(), before advance() has replaced `snap` (the toast prefixes the date).
+document.addEventListener('mw:pause', e => {
+  const msg = String(e.detail?.message || '');
+  if (!msg) return;
+  setTimeout(() => {
+    if (lessonQuiet) return;
+    const shown = !$('toast').hidden;                       // a key-node pause already showed a toast this same quarter: one toast, both messages
+    const wasPlaying = playing || (shown && resumeOnOk);
+    setPlaying(false);
+    if (shown) { $('toast-msg').textContent += '；' + msg; resumeOnOk = wasPlaying; }
+    else showToast(msg, wasPlaying);
+  }, 0);
+});
+
 /* ---------- toast ---------- */
 let resumeOnOk = false;
 function showToast(msg, resume) {
@@ -178,6 +194,7 @@ function renderAll() {
   $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
   $('btn-step').disabled = sim.done;
   renderFlow($('diagram'), snap, prevSnap);
+  try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   renderTab();
   if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers
 }

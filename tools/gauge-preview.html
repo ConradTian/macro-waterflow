@@ -1,0 +1,22 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>body{height:auto;overflow:visible}#box{padding:12px 16px}.card{margin:0 0 14px}h4{margin:10px 0 0;font-size:13px}</style></head><body>
+<div id="box"></div>
+<script type="module">
+// preview of gauge.js: ?t=56&ids=dsr,cpi,rentYield&mode=history|free|town&theme=dark&w=390&lamps=1
+import { createSim } from '../src/engine/sim.js';
+import { US_Q } from '../src/data/us-quarterly.js';
+import { gaugeHtml, lampBarHtml } from '../src/ui/gauge.js';
+const q = new URLSearchParams(location.search), t = +(q.get('t') || 56), mode = q.get('mode') || 'history';
+if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
+document.getElementById('box').style.width = (q.get('w') || 390) + 'px';
+const sim = mode === 'town' ? createSim({ scenario: 'town' }) : createSim({ data: US_Q, mode });
+while (sim.t < t) sim.step();
+const snap = sim.snapshot();
+const ids = (q.get('ids') || 'dsr,cpi,rentYield,outputGap,creditImpulse,newLoans,housePrice,equityAsset,lampValuation,gMinusR').split(',');
+let h = `<h4>${snap.date}</h4>`;
+if (q.get('lamps')) h += ['credit', 'debtService', 'policy', 'valuation'].map(k => `<div class="card lp lp-${snap.lights[k].level}" style="border:1px solid var(--border);padding:8px;border-radius:8px"><b>${k}</b> ${snap.lights[k].driver}${lampBarHtml(k, snap, sim)}</div>`).join('');
+else h += ids.map(id => `<h4>${id}</h4>` + gaugeHtml(id, snap, sim)).join('');
+document.getElementById('box').innerHTML = h;
+window.__done = true;
+</script></body></html>

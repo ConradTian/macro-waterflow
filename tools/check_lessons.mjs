@@ -12,6 +12,8 @@ import { LESSONS } from '../src/data/lessons.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
 import { CONCEPTS } from '../src/data/concepts.js';
 import { RULE_BY_ID } from '../src/engine/rules.js';
+import { createSim } from '../src/engine/sim.js';
+import { headlineItems } from '../src/ui/headline.js';
 import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr } from '../src/ui/lessons-town.js';
 
 const verbose = process.argv.includes('--verbose'), showText = process.argv.includes('--text');
@@ -26,9 +28,12 @@ const FLOW_TERMS = ['policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'p
 const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain'];
 const BLOCKS = ['alloc', 'budget', 'sources'];
-const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'rate', 'tn', 'num', 'str'];
+const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count'];
 const CYC = LESSONS.filter(l => l.id >= 1);
+const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
+const stripSim = createSim({ data: US_Q, mode: 'history' });
+const stripAt = date => { const t = US_Q.dates.indexOf(date); while (stripSim.t < t && !stripSim.done) stripSim.step(); return headlineItems(stripSim.snapshot('model', t), null, stripSim).map(i => i.text); };
 const lessonIds = new Set([...LESSONS.map(l => String(l.id)), ...ROLE_LESSONS.map(l => String(l.id))]);
 
 const specOk = s => typeof s === 'string' && AGGS.includes(s.split(':')[0]);
@@ -59,7 +64,7 @@ function evalCond(L, c, win) {
 }
 const condName = c => c.note || c.get;
 
-for (const L of CYC) {
+for (const L of [...ROUTINE, ...CYC]) {
   console.log(`\n=== lesson ${L.id} (${L.title}) ===`);
   const pos = lessonPositions(L);
   const w0 = `L${L.id} `;
@@ -98,6 +103,10 @@ for (const L of CYC) {
       }
     }
     if (st.type === 'reveal') ok(!st.question || st.answerHint, w + 'question has answerHint');
+    if (st.stripAt) {          // the 本季看点 strip really lists what the text says it lists
+      const got = stripAt(st.stripAt.date);
+      for (const h of st.stripAt.has) ok(got.includes(h), w + `strip at ${st.stripAt.date} lists "${h}" (got: ${got.join(' | ')})`);
+    }
     if (st.type === 'watch') ok(st.until, w + 'until');
     if (st.type === 'predict') {
       ok(st.until && st.q && st.options.length === 3, w + 'predict shape');
@@ -178,6 +187,8 @@ console.log('\n--- cross-lesson ---');
 ok(CYC.map(l => l.id).join() === '1,2,3,4,5,6,7', 'cycle lessons 1..7 all present');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
 ok(CYC.every((l, k) => k === CYC.length - 1 || l.steps[l.steps.length - 1].next === l.id + 1), 'each cycle lesson hands over to the next');
+ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
+ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
 ok(CYC[6].steps.some(s => s.freeLink) && CYC[6].mode === 'free', 'lesson 7 runs the free mode and has the free-run link');
 ok(LESSONS[0].id === 0 && LESSONS[0].available, 'lesson 0 still there');
 // the rule thresholds quoted via R() exist

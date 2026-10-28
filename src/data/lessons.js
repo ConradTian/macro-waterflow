@@ -220,6 +220,141 @@ export const LESSONS = [
 
 
   /* =====================================================================================================================
+   * 第 0.5 课「怎么看一个季度」(id '0b', kind 'routine'): runs on US data, after lesson 0 (the menu puts it in 入门).
+   * Teaches the 4-item quarterly routine that the 本季看点 strip (src/ui/headline.js) points at: 水 / 灯 / 规则 / 下一步.
+   * Extra step fields: strip:true  -> the strip under the time bar pulses when the step is entered (src/ui/lessons.js)
+   *                    stripAt:{date, has:[...]} -> never shown; tools/check_lessons.mjs verifies that headlineItems() lists these texts
+   * ===================================================================================================================== */
+  {
+    id: '0b', kind: 'routine', label: '第 0.5 课',
+    title: '怎么看一个季度',
+    oneLine: '每个季度只看四件事：水、灯、规则、下一步。在 2008 年第三季度走一遍。',
+    rulesOn: 'all',
+    startDate: '2008Q2', endDate: '2008Q4', mode: 'history', available: true,
+    pace: 1600,
+    steps: [
+      { type: 'intro', title: '先说结论',
+        text: [
+          '**每个季度，只看四件事：① 水　② 灯　③ 规则　④ 下一步。**',
+          '游戏每走一个季度，屏幕上有几十个数字在变。不用都看。屏幕顶上那一行「本季看点」，每个季度替你把变化挑出来：哪盏灯变色了、哪条规则新触发了、哪个周期往前走了。',
+          '下面分 6 步：① 水 ② 灯 ③ 规则 ④ 猜一猜 ⑤ 下一步 ⑥ 串起来。我们停在 2008 年第三季度，再多走一个季度。',
+        ],
+        strip: true, hl: ['newLoans'], concept: ['creditImpulse'] },
+
+      { type: 'watch', until: '2008Q3', title: '第 1 步：先看水', strip: true, glow: { parts: ['budget'] },
+        text: [
+          '第一个问题：**这个季度，水（货币）总量是多了还是少了？** 看图下面那一条「本季水量」。',
+          '2008Q3：泵入 = 放贷 {loans} + 赤字 {def}；排出 = 还本 {rep}；净变化 **+{net}**（十亿美元）。',
+          '注意：放贷（{loans}）比还本（{rep}）少，银行这一边在净抽水；是政府赤字（{def}）把总水量顶了上去。这就是 2008 年：私人部门在还债，政府在补水。',
+        ],
+        vals: [
+          { key: 'loans', get: 'end:budget.pumpedIn.loans', fmt: 'num' }, { key: 'def', get: 'end:budget.pumpedIn.deficit', fmt: 'num' },
+          { key: 'rep', get: 'end:budget.drainedOut.repay', fmt: 'num' }, { key: 'net', get: 'end:budget.net', fmt: 'num' },
+        ],
+        block: 'budget',
+        claims: [
+          { get: 'end:budget.net', gt: 0, note: '本季总水量变多' },
+          { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '放贷少于还本' },
+          { get: 'end:budget.pumpedIn.deficit', gt: 100, note: '赤字是主要的泵' },
+        ],
+        hl: ['newLoans', 'principalRepay', 'fiscalInjection'], concept: ['principalRepay', 'fiscalInjection'] },
+
+      { type: 'reveal', title: '第 2 步：再看灯', strip: true, tab: 'cycle', glow: { parts: ['poolEquity', 'poolHousing'] },
+        stripAt: { date: '2008Q3', has: ['估值灯 黄→绿'] },
+        text: [
+          '第二个问题：**四盏灯里，哪一盏这个季度变色了？** 四盏灯各管一件事：信贷灯看水管，偿债灯看还债压力，政策灯看利率松紧，估值灯看价格贵不贵。',
+        ],
+        question: '2008Q2 → 2008Q3，哪盏灯变了颜色？（不用算，看顶上「本季看点」的第一条。）',
+        answerHint: [
+          '**估值灯 黄→绿。** 股票 P/E（相对起点的倍数）从 {pe0} 降到 {pe1}，刚好跌破黄线 1.15（房价/收入 {h1}，早就在线下）。',
+          '其余三盏没变色：信贷灯一直是红的（信贷脉冲 {ci}，放贷少于还本），偿债灯、政策灯一直是黄的。',
+        ],
+        relation: '「灯变色」= 一个比值穿过了一条线。红黄绿的线，在「周期」页每盏灯下面的刻度上都画着。',
+        vals: [
+          { key: 'pe0', get: 'start:lights.valuation.parts.equity', fmt: 'n2', from: '2008Q2', until: '2008Q3' },
+          { key: 'pe1', get: 'end:lights.valuation.parts.equity', fmt: 'n3', from: '2008Q2', until: '2008Q3' },
+          { key: 'h1', get: 'end:lights.valuation.parts.house', fmt: 'n2', from: '2008Q2', until: '2008Q3' },
+          { key: 'ci', get: 'end:lights.credit.value', fmt: 'pct', from: '2008Q2', until: '2008Q3' },
+        ],
+        claims: [
+          { get: 'start:lights.valuation.parts.equity', from: '2008Q2', until: '2008Q3', gte: 1.15, note: 'Q2 估值灯黄（股票 P/E 高于 1.15 倍）' },
+          { get: 'end:lights.valuation.parts.equity', from: '2008Q2', until: '2008Q3', lt: 1.15, note: 'Q3 股票 P/E 跌回黄线下' },
+          { get: 'end:lights.valuation.parts.house', from: '2008Q2', until: '2008Q3', lt: 1.15, note: '房价/收入早就在黄线下' },
+          { get: 'end:lights.credit.value', from: '2008Q2', until: '2008Q3', lt: -0.015, note: '信贷灯红' },
+          { get: 'end:lights.policy.value', from: '2008Q2', until: '2008Q3', gte: -0.015, lt: 0.002, note: '政策灯黄' },
+        ],
+        concept: ['lampValuation', 'lampCredit'] },
+
+      { type: 'reveal', title: '第 3 步：看规则', strip: true, tab: 'ledger', glow: { parts: ['household'], pipes: ['principalRepay'] },
+        stripAt: { date: '2008Q3', has: ['外国「要求更高期限溢价」新触发'] },
+        text: [
+          '第三个问题：**谁的规则新触发了？** 每个角色每季度都按规则行动，流水账里每个角色一张卡。但大多数卡片只是在重复上一季。',
+          '所以流水账默认只显示「★ 新触发」和「做法变了」的卡片；点上面的「全部」才看全部。',
+        ],
+        question: '2008Q3 流水账里有好几张卡，几乎都在重复上一季。哪一张是这个季度才新触发的？',
+        answerHint: [
+          '**外国：要求更高的期限溢价。** 它的卡片右上角有「★ 新触发」，其余几张是「↻ 持续中」。',
+          `怎么读它的规则：赤字/GDP 高于 ${p0(R('foreign_funding', 'def'))} 且通胀高于 ${p0(R('foreign_funding', 'pi'))}。看卡片里的刻度条：竖线是阈值，圆点是现值。规则读到的通胀是 {inf}，刚刚越过竖线——所以这一季触发。`,
+        ],
+        relation: '「新触发」= 圆点这个季度才越过竖线。圆点早就在亮色那一边的，是「持续中」，先不用管。',
+        tryIt: '打开「流水账」，点一张卡，看水流图里它推动的水管亮起来。再点「全部」看看多出来的是哪些。',
+        vals: [{ key: 'inf', get: 'start:macro.inflation', fmt: 'pct', from: '2008Q2', until: '2008Q3' }],
+        claims: [
+          { get: 'start:macro.inflation', from: '2008Q2', until: '2008Q3', gte: R('foreign_funding', 'pi'), lt: R('foreign_funding', 'pi') + 0.005, note: '规则读到的通胀刚刚越过阈值' },
+        ],
+        concept: ['fiscalInjection', 'cpi'] },
+
+      { type: 'predict', until: '2008Q4', title: '第 4 步：猜一猜', strip: true, hl: ['policyRate'],
+        stripAt: { date: '2008Q4', has: ['政策灯 黄→红'] },
+        q: '现在是 2008Q3，政策灯是黄的：政策利率 {pol}，通胀 {pi}，实际政策利率（利率减通胀）{real}。央行还在降息。再过一个季度（2008Q4），政策灯会怎样？',
+        options: [
+          { t: '变绿：利率刚刚合适', ok: false, when: [{ get: 'end:lights.policy.value', gte: 0.002, lt: 0.025 }] },
+          { t: '变红：利率比通胀低得更多，太松了', ok: true, when: [{ get: 'end:lights.policy.value', lt: -0.015 }] },
+          { t: '还是黄', ok: false, when: [{ get: 'end:lights.policy.value', gte: -0.015, lt: 0.002 }] },
+        ],
+        vals: [
+          { key: 'pol', get: 'start:rates.policy', fmt: 'pct2' }, { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'real', get: 'start:rates.realPolicy', fmt: 'pct' },
+          { key: 'pol2', get: 'end:rates.policy', fmt: 'pct2' }, { key: 'pi2', get: 'end:macro.inflation', fmt: 'pct' }, { key: 'real2', get: 'end:rates.realPolicy', fmt: 'pct' },
+        ],
+        explain: [
+          '变红。央行把政策利率降到 {pol2}，可通胀还有 {pi2}，实际政策利率是 {real2}，穿过了红线（−1.5%）。本季看点里会写「政策灯 黄→红」。',
+          '灯红不一定是坏事，它只说「利率比通胀松得多」。放在 2008 年，意思是央行能做的几乎都做了——降息快没有空间了。下一步要看的就是这个。',
+        ],
+        claims: [{ get: 'start:lights.policy.value', gte: -0.015, lt: 0.002, note: '2008Q3 政策灯是黄的' }] },
+
+      { type: 'reveal', title: '第 5 步：下一步还差什么', strip: true, tab: 'cycle',
+        stripAt: { date: '2008Q4', has: ['政策灯 黄→红'] },
+        text: [
+          '第四个问题：**周期往下走一步，还差什么？** 打开「周期」页，每个表盘下面都写着「还差什么」；顶上「本季看点」的最后一行也会写。',
+          '小周期现在在「{ph}」。要回到「扩张」，要同时满足两条：信贷脉冲 ≥ {t0}（现在 {v0}），失业率 4 季变化 ≤ {t1}（现在 {v1}）。两条都差得远，这个周期还没走完。',
+          '大周期走得慢：下一站是 ⑤「降息失灵、私人去杠杆」，它的条件已经满足，但要连续 {need} 个季度才算数，现在是 {have}/{need}。再过一个季度，本季看点就会写「大周期 ②→⑤」。',
+        ],
+        relation: '读「下一步」的办法：差得远，就不用急；只差一个季度或一个条件，就盯紧下个季度。',
+        vals: [
+          { key: 'ph', get: 'start:cycles.short.label', fmt: 'str' },
+          { key: 't0', get: 'start:cycles.short.evidence.0.threshold', fmt: 'pp' }, { key: 'v0', get: 'start:cycles.short.evidence.0.value', fmt: 'pp' },
+          { key: 't1', get: 'start:cycles.short.evidence.1.threshold', fmt: 'pp' }, { key: 'v1', get: 'start:cycles.short.evidence.1.value', fmt: 'pp' },
+          { key: 'have', get: 'start:cycles.long.progress.have', fmt: 'idx' }, { key: 'need', get: 'start:cycles.long.progress.need', fmt: 'idx' },
+        ],
+        claims: [
+          { get: 'start:cycles.short.evidence.0.value', lt: 0, note: '信贷脉冲还是负的' },
+          { get: 'start:cycles.short.evidence.1.value', gt: 0.001, note: '失业率 4 季变化还在抬头' },
+          { get: 'start:cycles.long.progress.have', vs: { get: 'start:cycles.long.progress.need' }, gte: -1, lte: -1, note: '大周期还差 1 个季度' },
+        ],
+        concept: ['shortCycle', 'longCycle'] },
+
+      { type: 'chain', title: '第 6 步：把四件事串起来', strip: true,
+        text: ['每个季度按这个顺序看，一分钟够了。点任何一环，图里对应的地方会亮。'],
+        links: [
+          { text: '**水**：看「本季水量」——泵入（放贷 + 赤字 + QE）减排出（还本），总水量是多了还是少了', pipe: ['newLoans', 'principalRepay', 'fiscalInjection'], part: 'budget', term: 'creditImpulse' },
+          { text: '**灯**：看顶上「本季看点」——信贷、偿债、政策、估值，哪盏灯变色了', part: ['poolHousing', 'poolEquity'], hl: ['policyRate'], term: 'lampCredit' },
+          { text: '**规则**：只看流水账里「★ 新触发」的卡；读条件刻度，圆点这个季度才越过竖线，规则才触发', part: 'bank', pipe: 'newLoans', term: 'bankApproval' },
+          { text: '**下一步**：「周期」页写着还差什么——差得远就不用急，差一步就盯紧下个季度', part: 'centralBank', hl: ['policyRate'], term: 'shortCycle' },
+        ], next: 'role-bank' },
+    ],
+  },
+
+  /* =====================================================================================================================
    * Cycle lessons 1-7 (US data, scenario 'us'). LIVE NUMBERS: every model number quoted in a text is a {placeholder} filled at run
    * time from scratch simulations (see src/ui/lessons-town.js: vals / metrics[].key). `when` (predict options) and `claims` (any step)
    * are never shown to the learner: tools/check_lessons.mjs evaluates them against the engine so a retune cannot silently falsify a text.
@@ -252,8 +387,8 @@ export const LESSONS = [
 
       { type: 'watch', until: '1999Q2', title: '第 2 步：谁在拧银行闸门',
         text: [
-          '银行每季看两样东西：房价同比涨了多少、坏账多不多。',
-          `房价涨得快（同比 > ${p1(R('bank_loosen', 'hp'))}），说明手里的抵押品值钱了（LVR 变好）。坏账又低（< ${p1(R('bank_loosen', 'bad'))}）。`,
+          '银行每季看两样东西：房价比一年前涨了多少、坏账多不多。',
+          `房价涨得快（比一年前 > ${p1(R('bank_loosen', 'hp'))}），说明手里的抵押品值钱了（LVR 变好）。坏账又低（< ${p1(R('bank_loosen', 'bad'))}）。`,
           `于是触发规则：「放宽审批」。银行框里的小圆点向右移（审批倍数变大，每季加 ${R('bank_loosen', 'step').toFixed(2)}，上限 ×${R('bank_loosen', 'max').toFixed(2)}），新贷款变多。`,
           '看这个：审批 ×1.xx 往上走，蓝管跟着变粗，一直走到上限。',
         ],
@@ -263,12 +398,12 @@ export const LESSONS = [
 
       { type: 'watch', until: '2001Q2', title: '第 3 步：家庭也在追涨',
         text: [
-          `家庭看到房价同比涨了 ${p1(R('hh_chase', 'up'))} 以上，会外推：「还会涨」，于是借得更多。`,
+          `家庭看到房价比一年前涨了 ${p1(R('hh_chase', 'up'))} 以上，会外推：「还会涨」，于是借得更多。`,
           '银行愿意借，家庭又想借，两边一起把水抽进房产。',
           '代价在慢慢累积：每个季度要还的本和息（橙色管）越来越多，DSR 偿债率往上爬。',
         ],
         metrics: [{ label: '家庭 DSR', get: 'household.dsr', fmt: 'pct' }, { label: '房价指数', get: 'assets.housing.price', fmt: 'idx' }],
-        claims: [{ get: 'dpp:household.dsr', gt: 0.005, note: 'DSR 往上爬' }, { get: 'max:extra.houseYoY', gt: R('hh_chase', 'up'), note: '房价同比超过追涨线' }],
+        claims: [{ get: 'dpp:household.dsr', gt: 0.005, note: 'DSR 往上爬' }, { get: 'max:extra.houseYoY', gt: R('hh_chase', 'up'), note: '房价比一年前超过追涨线' }],
         hl: ['newLoans', 'principalRepay', 'interestPaid'], concept: ['dsr'] },
 
       { type: 'predict', until: '2006Q2', title: '第 4 步：猜一猜',
@@ -377,7 +512,7 @@ export const LESSONS = [
         ],
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢累积的。',
-          '等 DSR 升到够高、房价同比转弱，银行才触发收紧。',
+          '等 DSR 升到够高、房价比一年前转弱，银行才触发收紧。',
           '从 2004 年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价约 {fall}（从高点算最大回撤 {dd}），是温和回落，不是暴跌。',
         ],
         claims: [{ get: 'argmax:assets.housing.price', fmt: 'date', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' }],
@@ -411,7 +546,7 @@ export const LESSONS = [
           { text: '新房贷利率立刻上调，新贷款开始减少', pipe: 'newLoans', part: 'bank', term: 'newLoans' },
           { text: '大多数家庭借的是旧房贷：每季只有一小批重定价，实付利率慢慢爬', pipe: 'interestPaid', part: 'household', term: 'mortgageEff' },
           { text: '付息压力一点点累积，DSR 上升', pipe: ['principalRepay', 'interestPaid'], part: 'household', term: 'dsr' },
-          { text: '约两年后，房价同比转弱、银行收闸，房价才转跌', pipe: 'collateral', part: 'poolHousing', term: 'housePrice' },
+          { text: '约两年后，房价比一年前转弱、银行收闸，房价才转跌', pipe: 'collateral', part: 'poolHousing', term: 'housePrice' },
         ], next: 3 },
     ],
   },
@@ -433,16 +568,16 @@ export const LESSONS = [
 
       { type: 'watch', until: '2007Q4', title: '第 1 步：房价掉头',
         text: [
-          '加息的延迟到了：家庭的付息变重，借款需求先降，房价同比由正转负。',
+          '加息的延迟到了：家庭的付息变重，借款需求先降，房价比一年前由正转负。',
           '看这个：房产水位开始回落。',
         ],
-        metrics: [{ label: '房价指数', get: 'assets.housing.price', fmt: 'idx' }, { label: '房价同比', get: 'extra.houseYoY', fmt: 'pct' }, { label: '家庭 DSR', get: 'household.dsr', fmt: 'pct' }],
-        claims: [{ get: 'end:extra.houseYoY', lt: 0, note: '房价同比为负' }, { get: 'max:household.dsr', gt: 0.12, note: '付息变重（DSR 高）' }],
+        metrics: [{ label: '房价指数', get: 'assets.housing.price', fmt: 'idx' }, { label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }, { label: '家庭 DSR', get: 'household.dsr', fmt: 'pct' }],
+        claims: [{ get: 'end:extra.houseYoY', lt: 0, note: '房价比一年前为负' }, { get: 'max:household.dsr', gt: 0.12, note: '付息变重（DSR 高）' }],
         hl: ['assetReservoir', 'interestPaid'], concept: ['dsr'] },
 
       { type: 'watch', until: '2008Q4', title: '第 2 步：银行收闸',
         text: [
-          `银行看到两件事：房价同比低于 ${p0(R('bank_tighten_collateral', 'hp'))}（或较高点回撤超过 ${p0(R('bank_tighten_collateral', 'dd'))}），房贷的 LVR 超过 ${p0(R('bank_tighten_collateral', 'lvr'))}。`,
+          `银行看到两件事：房价比一年前低于 ${p0(R('bank_tighten_collateral', 'hp'))}（或较高点回撤超过 ${p0(R('bank_tighten_collateral', 'dd'))}），房贷的 LVR 超过 ${p0(R('bank_tighten_collateral', 'lvr'))}。`,
           '触发规则：「收紧住房信贷」。审批倍数下降，蓝管变细。',
           '新贷款少于还本，信贷脉冲转负：池子里流出的水比流进的多。',
         ],

@@ -21,6 +21,7 @@ import { CONCEPTS as CONC } from '../data/concepts.js';
 import { flash, clearFlash, ROLE_ORDER, ROLE_NAME, setAvailableRoles, isRoleLearned, markRoleLearned } from './links.js';
 import { compareChart } from './tabs/_util.js';
 import { pctFmt } from './chart.js';
+import { pulseHeadline, closeHeadline } from './headline.js';   // lesson step field strip:true -> the 本季看点 strip pulses
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
 import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep } from './lessons-town.js';
 
@@ -53,7 +54,7 @@ function loadRoles() {
     .catch(() => { ROLE_LESSONS = []; })
     .then(() => { setAvailableRoles(ROLE_LESSONS.filter(isAvail).map(l => l.role)); if (!cur && ctx) ctx.refresh(); });
 }
-const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : `第 ${L.id} 课`);
+const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : (L.label || `第 ${L.id} 课`));
 
 /* ---------- helpers ---------- */
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -201,7 +202,8 @@ function syncPad() {
 
 /* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
 // recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7
-const REC = { 0: 1, 'role:bank': 2, 'role:household': 3, 'role:centralBank': 4, 1: 5, 2: 6, 3: 7, 'role:government': 8, 4: 9, 'role:firm': 10, 5: 11, 'role:investor': 12, 6: 13, 7: 14 };
+const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7];
+const REC = Object.fromEntries(REC_ORDER.map((k, i) => [k, i + 1]));
 function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
   const ok = isAvail(L);
   const title = L ? L.title : fallbackTitle, one = L ? L.oneLine : fallbackOne;
@@ -220,7 +222,8 @@ export async function openMenu() {
   await rolesReady;
   const p = load();
   const L0 = lookup(0);
-  const intro = menuItem(L0, p, '0', 0, '第 0 课 搭出水流系统', '');
+  const intro = menuItem(L0, p, '0', 0, '第 0 课 搭出水流系统', '') +
+    LESSONS.filter(L => L.kind === 'routine').map(L => menuItem(L, p, String(L.id).replace(/^0b$/, '½'), L.id)).join('');
   const roles = ROLE_ORDER.map(r => {
     const L = ROLE_LESSONS.find(l => l.role === r);
     return menuItem(L, p, ROLE_NAME[r].slice(0, 1), 'role:' + r, `${ROLE_NAME[r]}课`, '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。');
@@ -228,7 +231,7 @@ export async function openMenu() {
   const cycles = LESSONS.filter(L => L.id >= 1).map(L => menuItem(L, p, String(L.id), L.id)).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
+    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
     `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
     `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
     `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
@@ -337,6 +340,8 @@ function continueEnter(i) {
   if (!town && (st.vals || st.type === 'experiment')) { try { ss.tbl = buildTable(ctx.real(), L, st, pos[i], st.slider ? st.slider.def : null); } catch (e) { ss.tbl = null; } }   // live numbers {key}
   setHl(st.hl);
   if (st.glow) setTimeout(() => { if (cur && cur.i === i) flash(st.glow, 3500); }, 450);
+  if (st.strip) setTimeout(() => { if (cur && cur.i === i) pulseHeadline(false); }, 700);   // point at the 本季看点 strip
+  else closeHeadline();
   const endNow = P.get('end') === '1';
   if (st.type === 'reveal') {
     ss.revealed = !st.question;

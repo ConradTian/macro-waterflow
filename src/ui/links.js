@@ -90,6 +90,7 @@ export function requestRoleLesson(role) { document.dispatchEvent(new CustomEvent
 // CONCEPT_TARGETS adds extras (`self`) and, for concepts with NO own element, `note` = where it shows up
 // (rendered on the card as 图上没有单独的部件，它体现在 ××).
 import { CONCEPTS } from '../data/concepts.js';
+import { EXTRA_NODES } from '../data/causal.js';
 
 const POOLS4 = ['n:poolBond', 'n:poolEquity', 'n:poolHousing', 'n:poolGold'];
 export const CONCEPT_TARGETS = {
@@ -112,6 +113,8 @@ export const CONCEPT_TARGETS = {
   // household
   income:          { self: ['n:household', 'p:wages'], note: '家庭方块和「工资」管道' },
   hhDebt:          { self: ['n:iou'], note: '「欠条箱」（家庭和企业欠银行的总账）' },
+  pvtDebtGdp:      { self: ['n:iou'], note: '欠条箱（占 GDP 的读数）' },
+  govDebtGdp:      { self: ['n:gov'], note: '政府方块里的「债务/GDP」' },
   dsr:             { self: ['n:household'], note: '家庭方块里的「DSR」' },
   lvr:             { self: ['p:collateral', 'v:lvrCap'] },
   // firm / macro
@@ -149,6 +152,8 @@ export const CONCEPT_TARGETS = {
 
 const diagramHost = () => document.getElementById('diagram');
 export const conceptSpecs = id => [`t:${id}`, `p:${id}`, `v:${id}`, ...((CONCEPT_TARGETS[id] || {}).self || [])];
+/** Specs of any causal-map node: a concept card (conceptSpecs) or an extra node of src/data/causal.js (its own `specs`). */
+export const nodeSpecs = id => (EXTRA_NODES[id] ? EXTRA_NODES[id].specs.slice() : conceptSpecs(id));
 
 function resolveSpec(host, spec) {
   const i = spec.indexOf(':'), k = spec.slice(0, i), v = spec.slice(i + 1);
@@ -165,6 +170,12 @@ function resolveSpec(host, spec) {
   return out;
 }
 const resolveMany = (host, specs) => { const s = new Set(); for (const sp of specs) for (const n of resolveSpec(host, sp)) s.add(n); return s; };
+
+/** The diagram elements (SVG + HTML) a causal-map node lights up: [] when the node has no part in the diagram. */
+export function nodeElements(id) {
+  const host = diagramHost();
+  return host ? [...resolveMany(host, nodeSpecs(id))] : [];
+}
 
 /** '' when the concept has its own element in the diagram (same data-term / pipe key / valve id); else the "体现在 ××" text. */
 export function conceptNote(id) {
@@ -216,12 +227,16 @@ function ensureObserver() {
   try { obs = new MutationObserver(schedule); obs.observe(host, { childList: true, subtree: true }); } catch (e) { obs = null; }
 }
 
-/** Mark SELF / FROM / TO for a concept card. Returns how many diagram elements each set has (0 = nothing to see). */
-export function showConcept(id) {
+/** Mark SELF / FROM / TO for a concept card. Returns how many diagram elements each set has (0 = nothing to see).
+ *  chain = optional { from: [node ids], to: [node ids] } (causal-map nodes, extra nodes allowed): replaces the card's own from/to lists
+ *  (the 传导链 block marks the whole main route instead of the direct neighbours). Without it the old behaviour stays. */
+export function showConcept(id, chain) {
   const c = CONCEPTS[id];
   if (!c) { clearConcept(); return { self: 0, from: 0, to: 0 }; }
   clearTimeout(flashTimer); flashEls = new Set();
-  cstate = { id, self: conceptSpecs(id), from: (c.from || []).flatMap(conceptSpecs), to: (c.to || []).flatMap(conceptSpecs) };
+  const fromIds = chain && Array.isArray(chain.from) ? chain.from : (c.from || []);
+  const toIds = chain && Array.isArray(chain.to) ? chain.to : (c.to || []);
+  cstate = { id, self: conceptSpecs(id), from: fromIds.flatMap(nodeSpecs), to: toIds.flatMap(nodeSpecs) };
   ensureObserver();
   paint();
   const host = diagramHost(), n = { self: 0, from: 0, to: 0 };
@@ -242,7 +257,7 @@ export function clearConcept() {
 export function flashConcept(id, ms = 1400) {
   const host = diagramHost();
   clearTimeout(flashTimer);
-  flashEls = host && CONCEPTS[id] ? resolveMany(host, conceptSpecs(id)) : new Set();
+  flashEls = host && (CONCEPTS[id] || EXTRA_NODES[id]) ? resolveMany(host, nodeSpecs(id)) : new Set();
   paint();
   if (flashEls.size) flashTimer = setTimeout(unflashConcept, ms);
   return flashEls.size;

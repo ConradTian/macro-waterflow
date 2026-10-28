@@ -126,6 +126,7 @@ export function fmtV(v, f) {
     case 'idx': return v.toFixed(0);
     case 'n1': return v.toFixed(1);
     case 'n2': return v.toFixed(2);
+    case 'n3': return v.toFixed(3);
     case 'rate': return (v * 100).toFixed(2) + '%';
     case 'tn': return (v / 1000).toFixed(1) + ' 万亿美元';
     default: return Math.round(v).toLocaleString('en-US');

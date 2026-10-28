@@ -25,7 +25,7 @@ function runAll(data, mode, takeoverAt, rate) {
 function walk(o, path, f) {
   if (typeof o === 'number') f(o, path);
   else if (Array.isArray(o)) o.forEach((x, i) => walk(x, path + '[' + i + ']', f));
-  else if (o && typeof o === 'object') for (const k of Object.keys(o)) walk(o[k], path + '.' + k, f);
+  else if (o && typeof o === 'object') for (const k of Object.keys(o)) { if (k === 'bands') continue; /* lamp bands carry intentional +-Infinity ends */ walk(o[k], path + '.' + k, f); }
 }
 const f1 = x => (x * 100).toFixed(1).padStart(6);
 

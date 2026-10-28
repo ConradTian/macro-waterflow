@@ -1,14 +1,16 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light">
 <title>自由运行 · 宏观水流模拟器</title>
 <link rel="stylesheet" href="../assets/css/app.css">
 <link rel="stylesheet" href="../assets/css/panels.css">
 <link rel="stylesheet" href="../assets/css/lessons.css">
+<link rel="stylesheet" href="../assets/css/cycle.css">
 <link rel="stylesheet" href="../assets/css/concept-hl.css">
+<link rel="stylesheet" href="../assets/css/headline.css">
 </head>
 <body data-mode="free">
 <!-- Free run: same app as ../index.html in mode "free" (central bank by its own rule, runs to 2050), no lessons. -->
@@ -24,6 +26,7 @@
       <a class="teach-btn" id="btn-teach" href="../" aria-label="回到教学版">教学版</a>
     </div>
     <div class="progress"><i id="progress-bar"></i></div>
+    <div class="headline" id="headline" aria-label="本季看点" hidden></div>
   </header>
 
   <main class="main">

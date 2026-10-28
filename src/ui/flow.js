@@ -190,6 +190,17 @@ function budgetOf(snap) {
 }
 const iouOf = snap => snap.iou?.bankTotal ?? ((snap.debt?.household ?? 0) + (snap.debt?.firm ?? 0));
 
+// 0..1 fill level of every tank whose level is drawn (4 asset pools, 欠条箱, cash). ONE mapping: the water and the 洪痕 marks both use it.
+function levelsOf(snap) {
+  const a = snap.assets || {};
+  const gdp = Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
+  const L = {};
+  for (const p of POOLS) L[p.id] = lvlOf(a[p.id]?.price ?? 100);
+  L.iou = clamp(iouOf(snap) / gdp / 2.4, 0.06, 0.98);
+  L.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / 1.4, 0.06, 0.98);
+  return L;
+}
+
 function targets(snap, prevSnap, st) {
   const f = flowsOf(snap, prevSnap), a = snap.assets || {};
   const r = ref(snap);
@@ -198,9 +209,10 @@ function targets(snap, prevSnap, st) {
   if (st.cap0 == null || snap.t === 0) st.cap0 = cap;
   const t = {};
   for (const p of PIPES) t['w.' + p.k] = p.kind === 'fb' ? 3 : (p.kind === 'spring' ? Math.min(pipeWidth(f[p.k] ?? 0, r * 0.35), 6) : pipeWidth(f[p.k] ?? 0, r));
-  for (const p of POOLS) t['lv.' + p.id] = lvlOf(a[p.id]?.price ?? 100);
-  t.iou = clamp(iouOf(snap) / gdp / 2.4, 0.06, 0.98);
-  t.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / 1.4, 0.06, 0.98);
+  const L = levelsOf(snap);
+  for (const p of POOLS) t['lv.' + p.id] = L[p.id];
+  t.iou = L.iou;
+  t.cash = L.cash;
   t.chLvl = clamp(0.5 + 6 * (snap.macro?.outputGap ?? 0), 0.12, 0.95);
   t.chW = 104 + 30 * clamp(Math.log(cap / st.cap0) / Math.log(2.5), 0, 1);
   const dy = (snap.rates?.gov10y ?? 0) - (prevSnap?.rates?.gov10y ?? snap.rates?.gov10y ?? 0);
@@ -364,12 +376,15 @@ function build(host) {
   }
   txt(top, 40, 205, '货币', 'sub small ph-l1', 'middle', 'repay');
   txt(top, 40, 214, '注销', 'sub small ph-l2', 'middle', 'repay');
+  buildMarks(R, top);   // 洪痕 (behind the texts, inside the top layer)
   // central bank / government
   txt(top, 14, 24, '央行', 'ttl', 'start', 'centralBank');
   let g = termGroup(top, 'policyRate', [8, 28, 100, 22], 'centralBank', 'rate');
   R.rate = txt(g, 14, 43, '', 'sub');
   txt(top, 254, 24, '政府', 'ttl', 'start', 'government', 'gov');
-  R.gov = txt(top, 254, 43, '', 'sub', 'start', 'government');
+  g = termGroup(top, 'govDebtGdp', null, 'government');
+  el('rect', { x: 250, y: 32, width: 100, height: 15, rx: 5, fill: 'transparent' }, g);   // touch target only
+  R.gov = txt(g, 254, 43, '', 'sub', 'start', 'government');
   g = termGroup(top, 'fiscalInjection', null, 'government', 'govGross');
   el('rect', { x: 286, y: 8, width: 64, height: 20, rx: 6, fill: 'transparent' }, g);   // touch target only (no tinted .hit box over the small text)
   R.govGross = txt(g, 346, 24, '', 'cap', 'end', 'government');
@@ -381,8 +396,13 @@ function build(host) {
   g = termGroup(top, 'M', null, 'iou');
   txt(g, 189, 131, '欠条箱', 'ttl small', 'start', 'iou');
   R.iouVal = txt(top, 246, 131, '', 'sub num', 'end', 'iou');
-  txt(top, 189, 145, '水是凭空来的，', 'cap ph-hide', 'start', 'iou');
-  txt(top, 189, 157, '但不是白来的', 'cap ph-hide', 'start', 'iou');
+  txt(top, 189, 141.5, '水是凭空来的，', 'cap ph-hide', 'start', 'iou');
+  txt(top, 189, 150.5, '但不是白来的', 'cap ph-hide', 'start', 'iou');
+  // 占 GDP: private debt / annual GDP (the number the long-cycle dial reads); tappable like the other readings. Phone: the captions are hidden, so it moves up (CSS .iou-gdp)
+  g = termGroup(top, 'pvtDebtGdp', null, 'iou');
+  g.setAttribute('class', 'term iou-gdp');
+  el('rect', { x: 186, y: 150, width: 62, height: 15, rx: 5, fill: 'transparent' }, g);
+  R.iouGdp = txt(g, 189, 160.5, '', 'cap gdp', 'start', 'iou');
   // household / firm  (cover rect: the collateral loop passes BEHIND the household box)
   node(top, 76, 170, 194, 48, 'cover', 'household');
   R.hhTitle = txt(top, 84, 187, '', 'ttl hh', 'start', 'household', 'hh');
@@ -456,6 +476,7 @@ function legendHtml() {
     [svg(`<path d="M-10 0 H10" style="fill:none;stroke:var(--muted);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:5 3"/>`), '管道 = 搬水', '管越宽，本季流量越大'],
     [svg(`<path d="M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z" style="fill:var(--surface-2);stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round"/><path d="M0 0 V-8 M-5 -8 H5" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round"/>`), '阀门 = 可拧', '点阀门图标：看是谁的阀门、怎么传导'],
     [svg(`<path d="M-3 -8 v16 M-3 -5 h4 M-3 -1 h4 M-3 3 h4" style="fill:none;stroke:var(--muted);stroke-width:1.4"/>`), '水位 = 结果', '房价、物价、失业…不能直接拧'],
+    [svg(`<path d="M-11 0 H11" style="fill:none;stroke:var(--text);stroke-opacity:.7;stroke-width:1.4;stroke-dasharray:3 2.5"/>`), '虚线 = 到现在为止的最高水位（洪痕）', '旁边写着是哪一年；水面涨到这条线就显示「新高」'],
   ];
   return `<div class="fl-head"><b>图例</b><button type="button" class="fl-x" data-act="legend" aria-label="关闭">✕</button></div>` +
     rows.map(([ic, t, d]) => `<div class="fl-row">${ic}<span><b>${t}</b><small>${d}</small></span></div>`).join('') +
@@ -481,6 +502,111 @@ function buildLegend(top) {
   txt(g, 282, y, '阀门 = 可拧', 'cap', 'start');
   el('path', { class: 'ruler', d: `M338 ${y - 8} v10 M338 ${y - 6} h3 M338 ${y - 3} h3 M338 ${y} h3` }, g);
   txt(g, 345, y, '水位 = 结果', 'cap', 'start');
+}
+
+/* =====================================================================================================================
+   洪痕 (high-water marks): per tank, the highest level reached SO FAR in the sim on screen (+ its year), and a faint 'trough' tick for 房产 / 股票.
+   Levels come from levelsOf() (same mapping as the water). History is scanned incrementally and cached per (sim, branch).
+   All marks live in ONE <g class="hwm"> inside the top layer (no new svg root children, no data-pipe); each mark carries its tank's data-part.
+   ===================================================================================================================== */
+const HWM_MIN_T = 3;            // fewer quarters of history than this: a 'peak' means nothing yet
+const HWM_NEW = 0.01;           // within 1% of the mark (level units) = 新高
+const HWM_ITEMS = [
+  ...POOLS.map(p => ({ key: p.id, cur: 'lv.' + p.id, part: 'pool ' + p.part, x: p.x, w: TANK_W, top: TANK_Y, h: TANK_H, label: true, trough: p.id === 'housing' || p.id === 'equity' })),
+  { key: 'cash', cur: 'cash', part: 'cash', x: 210, w: 22, top: TANK_Y, h: TANK_H, label: false, trough: false },   // 22 wide: line only
+  { key: 'iou', cur: 'iou', part: 'iou', x: 184, w: 66, top: 118, h: 48, label: true, trough: false },
+];
+const HWM_KEYS = HWM_ITEMS.map(i => i.key);
+
+function buildMarks(R, parent) {
+  const g = el('g', { class: 'hwm' }, parent);
+  R.hwm = {};
+  for (const it of HWM_ITEMS) {
+    const mg = part(el('g', { class: 'hwm-g hwm-' + it.key, display: 'none' }, g), it.part);
+    const tr = el('path', { class: 'hwm-trough', display: 'none' }, mg);
+    const line = el('path', { class: 'hwm-line' }, mg);
+    const lbl = el('text', { class: 'hwm-lbl', 'text-anchor': 'end', display: 'none' }, mg);
+    R.hwm[it.key] = { it, g: mg, tr, line, lbl };
+  }
+}
+
+const yearOf = s => { const d = String(s?.date ?? ''); return /^\d{4}/.test(d) ? d.slice(0, 4) : d; };   // '2006Q2' -> '2006'; town '第9季' stays
+function hwmFeed(k, L, lab) {
+  for (const key of HWM_KEYS) {
+    const v = L[key], o = k[key];
+    if (!o) k[key] = { max: v, lab, trough: v };
+    else if (v > o.max + 1e-9) { o.max = v; o.lab = lab; o.trough = v; }      // strictly higher = a new peak (the earliest year of a tie stays)
+    else if (v < o.trough) o.trough = v;
+  }
+}
+// Recompute st.marks for the snapshot on screen. Finalised quarters 0..t-1 are cached; quarter t (town actions rebuild it in place) is added on a copy.
+function updateMarks(st, snap) {
+  st.marks = null;
+  try {
+    const sim = currentSim(), t = snap.t;
+    if (!sim || typeof sim.history !== 'function' || !(t >= HWM_MIN_T)) return;
+    const br = snap.branch === 'user' ? 'user' : 'model';
+    const hist = sim.history(br);
+    if (!hist || hist.length <= t || !hist[0]) return;
+    let c = st.hwm;
+    const ok = c && c.sim === sim && c.br === br && c.n <= t && hist[0] === c.h0 && (c.n === 0 || hist[c.n - 1] === c.hn);
+    if (!ok) c = st.hwm = { sim, br, n: 0, h0: hist[0], hn: null, k: {} };       // new sim / reset / scenario switch / takeover branch change
+    for (; c.n < t; c.n++) { const s = hist[c.n]; hwmFeed(c.k, levelsOf(s), yearOf(s)); c.hn = s; }
+    const k = {};
+    for (const key of HWM_KEYS) k[key] = { ...c.k[key] };
+    const L = levelsOf(snap);
+    hwmFeed(k, L, yearOf(snap));
+    const M = {};
+    for (const key of HWM_KEYS) {
+      const o = k[key], prev = c.k[key].max;
+      M[key] = { level: o.max, prev, lab: o.lab, trough: o.trough, now: L[key], isNew: L[key] >= o.max - HWM_NEW, rides: L[key] > prev + 1e-9 };
+    }
+    st.marks = M;
+  } catch (e) { st.marks = null; }
+}
+
+function hwmObstacles(it, phone, town) {      // y bands that already carry text / drawings inside the tank
+  switch (it.key) {
+    case 'housing': return [[TANK_Y, TANK_Y + (town ? 47 : 35)]];
+    case 'bond': return [[TANK_Y, TANK_Y + 35], [349, 386]];                  // seesaw + its captions
+    case 'iou': return phone ? [[118, 151]] : [[118, 164]];                   // title + 占 GDP reading (phone) / the two captions + reading (>=768px: they fill the tank -> line only)
+    default: return [[TANK_Y, TANK_Y + 35]];                                  // pool name + value
+  }
+}
+function hwmSpot(it, y, fs, obs) {            // text baseline above the line, else below it, else null (tank too busy: line only)
+  const hgt = fs * 0.85, lo = it.top + 1, hi = it.top + it.h - 1;
+  const free = (a, b) => a >= lo && b <= hi && !obs.some(([o0, o1]) => a < o1 && b > o0);
+  if (free(y - 2.5 - hgt, y - 1.5)) return y - 2.5;
+  if (free(y + 1.5, y + 2.5 + hgt)) return y + 1.5 + hgt;
+  return null;
+}
+function applyMarks(R, st, cur) {
+  const M = st.marks, phone = isPhone(), fs = phone ? 10 : 9;
+  for (const key of HWM_KEYS) {
+    const o = R.hwm[key], it = o.it, m = M && M[key];
+    if (!m) { o.g.setAttribute('display', 'none'); continue; }
+    o.g.removeAttribute('display');
+    const base = it.top + it.h;
+    // a new high rides the rising water (never below the old mark); otherwise the line stands still
+    const lvl = m.rides ? Math.max(m.prev, cur[it.cur] ?? m.level) : m.level;
+    const y = +(base - it.h * lvl).toFixed(1);
+    o.line.setAttribute('d', `M${it.x} ${y} H${it.x + it.w}`);
+    o.g.classList.toggle('new', m.isNew);
+    // trough: lowest level since the peak, only when clearly below both the peak and the water now
+    const showTr = it.trough && !m.isNew && m.level - m.trough > 0.05 && Math.abs(m.now - m.trough) > 0.02;
+    if (showTr) {
+      const ty = +(base - it.h * m.trough).toFixed(1);
+      o.tr.setAttribute('d', `M${it.x + it.w - 14} ${ty} H${it.x + it.w}`); o.tr.removeAttribute('display');
+    } else o.tr.setAttribute('display', 'none');
+    const obs = hwmObstacles(it, phone, st.town);
+    o.g.classList.toggle('dim', obs.some(([o0, o1]) => y > o0 - 1 && y < o1 + 1));   // line runs through existing text: keep it faint
+    const spot = it.label ? hwmSpot(it, y, fs, obs) : null;
+    if (spot == null) { o.lbl.setAttribute('display', 'none'); continue; }
+    o.lbl.removeAttribute('display');
+    o.lbl.setAttribute('x', it.x + it.w - 2.5); o.lbl.setAttribute('y', spot.toFixed(1));
+    const str = m.isNew ? '新高' : m.lab;
+    if (o.lbl.textContent !== str) o.lbl.textContent = str;
+  }
 }
 
 /* =====================================================================================================================
@@ -597,6 +723,8 @@ function setTexts(R, snap, prevSnap, st) {
     R.pools[p.id].val.textContent = String(Math.round(px));
   }
   R.iouVal.textContent = fmtMoney(iouOf(snap), town);
+  { const gd = snap.macro?.gdpNominal, ratio = gd > 0 ? iouOf(snap) / gd : null;
+    R.iouGdp.textContent = ratio != null && isFinite(ratio) ? `占 GDP ${pct(ratio, 0)}` : ''; }
   R.cpi.textContent = `CPI ${pct(m.inflation ?? 0)}`;
   R.unemp.textContent = `失业 ${pct(m.unemployment ?? 0)}`;
   R.px.textContent = `物价 ${Math.round(m.priceLevel ?? 0)}`;
@@ -905,6 +1033,7 @@ export function renderFlow(host, snap, prevSnap) {
   st.snap = snap; st.prev = prevSnap || null;
   const tgt = targets(snap, prevSnap, st);
   setTexts(st.R, snap, prevSnap, st);
+  updateMarks(st, snap);
   syncDangling(host);
 
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -921,6 +1050,7 @@ export function renderFlow(host, snap, prevSnap) {
     for (const key of keys) cur[key] = lerp(st.from[key] ?? tgt[key], tgt[key], e);
     st.cur = cur;
     applyCur(st.R, cur);
+    applyMarks(st.R, st, cur);
     if (k < 1) st.raf = requestAnimationFrame(tick);
   };
   tick(st.t0);

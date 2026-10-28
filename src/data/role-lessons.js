@@ -186,7 +186,7 @@ export const ROLE_LESSONS = [
 
       { type: 'reveal', title: '它看得到什么，看不到什么', show: ['household'],
         text: [
-          '**看得到**：房价同比涨跌（抵押品）、自己的坏账率、资本充足率、房贷平均 LVR。',
+          '**看得到**：房价比一年前涨跌（抵押品）、自己的坏账率、资本充足率、房贷平均 LVR。',
           '**看不到**：每户人家将来会不会失业、央行下一步怎么走、房价明年涨还是跌。',
           '**管不了**：央行利率（水价）、家庭想不想借（需求）、房价本身。银行只能决定“批不批”。',
         ],
@@ -236,8 +236,8 @@ export const ROLE_LESSONS = [
         text: [
           '银行有四条规则，按这个顺序判断：',
           `① **先看亏损**（bank_tighten_losses）：坏账率 > ${p1(R('bank_tighten_losses', 'bad'))} 或资本充足率 < ${p1(R('bank_tighten_losses', 'cap'))}，每季收紧 ${x2(R('bank_tighten_losses', 'step'))}，最低到 ${x2(R('bank_tighten_losses', 'min'))}。`,
-          `② **再看抵押品**（bank_tighten_collateral）：房价同比 < ${p0(R('bank_tighten_collateral', 'hp'))}（或比近期峰值回撤 > ${p0(R('bank_tighten_collateral', 'dd'))}），并且平均 LVR > ${p0(R('bank_tighten_collateral', 'lvr'))}，每季收紧 ${x2(R('bank_tighten_collateral', 'step'))}。`,
-          `③ **最后才放宽**（bank_loosen）：房价同比 > ${p0(R('bank_loosen', 'hp'))}、坏账率 < ${p1(R('bank_loosen', 'bad'))}、资本充足率 > ${p0(R('bank_loosen', 'cap'))}，三个都满足，每季放宽 ${x2(R('bank_loosen', 'step'))}，最高 ${x2(R('bank_loosen', 'max'))}。`,
+          `② **再看抵押品**（bank_tighten_collateral）：房价比一年前 < ${p0(R('bank_tighten_collateral', 'hp'))}（或比近期峰值回撤 > ${p0(R('bank_tighten_collateral', 'dd'))}），并且平均 LVR > ${p0(R('bank_tighten_collateral', 'lvr'))}，每季收紧 ${x2(R('bank_tighten_collateral', 'step'))}。`,
+          `③ **最后才放宽**（bank_loosen）：房价比一年前 > ${p0(R('bank_loosen', 'hp'))}、坏账率 < ${p1(R('bank_loosen', 'bad'))}、资本充足率 > ${p0(R('bank_loosen', 'cap'))}，三个都满足，每季放宽 ${x2(R('bank_loosen', 'step'))}，最高 ${x2(R('bank_loosen', 'max'))}。`,
           `④ **先修资本**（bank_rebuild_capital）：资本低于 ${p1(R('bank_rebuild_capital', 'cap'))}，审批上限被压住，降息也不会自动恢复。`,
           '关闸比开闸快：收紧每步比放宽每步大。现在外面起了风：央行把水价拧到 9%，房价掉头。看流水账里银行的规则一条条出现。',
         ],
@@ -355,7 +355,7 @@ export const ROLE_LESSONS = [
         do: [{ reset: true }, { valve: 'policyRate', value: 0.09 }], after: [{ valve: 'policyRate', value: null }],
         text: [
           '家庭有五条规则，先说最重要的三条：',
-          `① **追涨 / 观望**（hh_chase）：房价同比 > ${p0(R('hh_chase', 'up'))}，外推上涨，借款需求上调；房价同比 < ${p0(R('hh_chase', 'down'))}，观望，借款需求下调。`,
+          `① **追涨 / 观望**（hh_chase）：房价比一年前 > ${p0(R('hh_chase', 'up'))}，外推上涨，借款需求上调；房价比一年前 < ${p0(R('hh_chase', 'down'))}，观望，借款需求下调。`,
           `② **去杠杆**（hh_deleverage）：DSR 比起点高 ${pp(R('hh_deleverage', 'dsr'))}以上，或失业率 > ${p1(R('hh_deleverage', 'u'))}，借款需求 ×${x2(R('hh_deleverage', 'borrow'))}，储蓄率加 ${pp(R('hh_deleverage', 'save'))}。`,
           '③ **债务悬压**（hh_overhang）：房价从峰值回撤、LVR 高、DSR 高，越多越重，家庭多年少借多存。悬压每季只衰减一点点，降息也很难把它重新点燃。',
           '另外两条：**被迫出售**（hh_forced_sales）和**通胀预期脱锚**（hh_infl_deanchor）。',
@@ -466,7 +466,7 @@ export const ROLE_LESSONS = [
           '企业有三条规则：',
           `① **扩张**（firm_capex_up）：需求压力 > ${p1(R('firm_capex_up', 'p'))} 且实际融资成本 < ${p1(R('firm_capex_up', 'rReal'))}，每季加码 ${x2(R('firm_capex_up', 'step'))}，上限 ${x2(R('firm_capex_up', 'max'))}。`,
           `② **收缩**（firm_capex_cut）：需求缺口 < ${p1(R('firm_capex_cut', 'p'))} 或实际融资成本 > ${p1(R('firm_capex_cut', 'rReal'))} 或企业坏账 > ${p1(R('firm_capex_cut', 'bad'))}，每季削减 ${x2(R('firm_capex_cut', 'step'))}，下限 ${x2(R('firm_capex_cut', 'min'))}。`,
-          `③ **油价传导**（firm_oil_passthrough）：这不是企业的“决定”，而是成本推价格：油价同比涨 100%，年化价格推力约 ${p1(R('firm_oil_passthrough', 'k'))}。`,
+          `③ **油价传导**（firm_oil_passthrough）：这不是企业的“决定”，而是成本推价格：油价比一年前涨 100%，年化价格推力约 ${p1(R('firm_oil_passthrough', 'k'))}。`,
           '现在让镇政府多花一笔钱，需求冲过产能。看流水账里企业的“扩张”规则一季一季地触发。',
         ],
         metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: 'Capex 倍数', get: 'extra.capexMult', fmt: 'n2' }],
@@ -648,7 +648,7 @@ export const ROLE_LESSONS = [
 
       { type: 'reveal', title: '它看得到什么，看不到什么', show: ['cash'],
         text: [
-          '**看得到**：房价同比、股价同比（动量）、风险溢价、信贷脉冲、房价与收入的比。',
+          '**看得到**：房价比一年前、股价比一年前（动量）、风险溢价、信贷脉冲、房价与收入的比。',
           '**看不到**：价格下个季度到底涨还是跌；别的投资者是不是也在同时逃。',
           '**管不了**：新水一共有多少（那是新贷款、财政注入、QE 决定的）；价格本身（价格是被流进来的水推出来的）。',
         ],
@@ -692,7 +692,7 @@ export const ROLE_LESSONS = [
         do: [{ reset: true }, { valve: 'policyRate', value: 0.09 }], after: [{ valve: 'policyRate', value: null }],
         text: [
           '投资者有几条规则：',
-          `① **追涨**（inv_momentum）：权重随近期涨幅放大。房价或股价同比越高，新水越往那边流；下跌时同样反过来。`,
+          `① **追涨**（inv_momentum）：权重随近期涨幅放大。房价或股价比一年前越高，新水越往那边流；下跌时同样反过来。`,
           `② **避险**（inv_riskoff）：风险溢价 > ${p0(R('inv_riskoff', 'rp'))} 或信贷脉冲 < ${p1(R('inv_riskoff', 'ci'))}，现金份额 ×3，房产/金融资产份额 ×0.7；国债（或通胀型危机时的黄金）份额放大。`,
           `③ **估值锚**（inv_valuation）：房价/收入比起点高出 ${p0(R('inv_valuation', 'ceil') - 1)} 以上，往回拉。另外还有股票估值、国债实际收益率、黄金信任度三条小规则。`,
           '现在央行把水价拧到 9%，信贷收缩。看流水账里“避险”出现，现金的份额升上来。',
