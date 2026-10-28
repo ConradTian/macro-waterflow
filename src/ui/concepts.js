@@ -1,10 +1,11 @@
 // Concept cards: bottom sheet (phone) / side card (wide). CONTRACT §5.
 import { CONCEPTS, KEYWORDS } from '../data/concepts.js';
+import { showConcept, clearConcept, flashConcept, unflashConcept, conceptNote } from './links.js';   // diagram highlight while a card is open
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let opts = { getSnap: () => null, getPrev: null, sim: null };
 let stack = [];
-let root = null, lastDate = null, timer = null;
+let root = null, lastDate = null, timer = null, navTimer = 0;
 
 export function term(id, label) {
   const c = CONCEPTS[id];
@@ -65,9 +66,21 @@ function liveHtml(c) {
   return `<div class="cc-live"><span class="cc-live-l">${esc(snap.date)} 当前值</span><b>${esc(fmtVal(v, c.fmt))}</b>${arrow}</div>`;
 }
 
-function links(label, ids) {
+function links(label, ids, role) {
   const items = (ids || []).filter(i => CONCEPTS[i]).map(i => term(i)).join(' ');
-  return items ? `<div class="cc-row"><span class="cc-k">${label}</span><div class="cc-links">${items}</div></div>` : '';
+  return items ? `<div class="cc-row cc-r-${role}"><span class="cc-k">${label}</span><div class="cc-links">${items}</div></div>` : '';
+}
+
+// "where is this on the left diagram" block: optional note (no own part) + the 3-style legend
+function whereHtml(id, n) {
+  const note = conceptNote(id);
+  const any = n.self + n.from + n.to > 0;
+  if (!note && !any) return '';
+  const lg = (cls, t) => `<span class="cc-lg"><i class="cc-sw ${cls}" aria-hidden="true"></i>${t}</span>`;
+  return `<div class="cc-where">` +
+    (note ? `<div class="cc-note">图上没有单独的部件，它体现在 ${esc(note)}</div>` : '') +
+    (any ? `<div class="cc-legend"><span class="cc-lg-k">左图：</span>${lg('self', '实线=它本身')}<b>·</b>${lg('from', '虚线=来源')}<b>·</b>${lg('to', '点线=去向')}</div>` : '') +
+    `</div>`;
 }
 
 function ensure() {
@@ -84,6 +97,11 @@ function ensure() {
     const crumb = e.target.closest('[data-cc-crumb]');
     if (crumb) { stack = stack.slice(0, +crumb.dataset.ccCrumb + 1); draw(); }
   });
+  // hovering / pressing a from/to link flashes just that target in the diagram
+  const lk = e => (e.target.closest ? e.target.closest('.cc-links .term') : null);
+  root.addEventListener('pointerover', e => { const b = lk(e); if (b) flashConcept(b.dataset.term, 1600); });
+  root.addEventListener('pointerout', e => { const b = lk(e); if (b && !b.contains(e.relatedTarget)) unflashConcept(); });
+  root.addEventListener('focusin', e => { const b = lk(e); if (b) flashConcept(b.dataset.term, 1600); });
   // swipe down on the grab handle / header to close
   const card = root.querySelector('.cc-card');
   let y0 = null;
@@ -117,16 +135,18 @@ function draw(keep) {
     ? `<nav class="cc-crumbs" aria-label="路径">${stack.map((s, i) => i === stack.length - 1
       ? `<span aria-current="true">${esc(CONCEPTS[s]?.name || s)}</span>`
       : `<button type="button" data-cc-crumb="${i}">${esc(CONCEPTS[s]?.name || s)}</button>`).join('<i>›</i>')}</nav>` : '';
+  const hl = showConcept(id);     // mark SELF / FROM / TO in the left diagram (the counts decide whether the legend is shown)
   r.querySelector('.cc-body').innerHTML =
     `<header class="cc-head">${stack.length > 1 ? '<button type="button" class="cc-btn" data-cc-back aria-label="返回上一张">‹ 返回</button>' : '<span></span>'}` +
     `<button type="button" class="cc-btn" data-cc-close aria-label="关闭">✕ 关闭</button></header>` +
     crumbs +
     `<h2 class="cc-title">${esc(c.name)}</h2>` +
     `<p class="cc-short">${esc(c.short)}</p>` +
+    whereHtml(id, hl) +
     liveHtml(c) +
     `<div class="cc-row"><span class="cc-k">水的比喻</span><p>${esc(c.water)}</p></div>` +
     `<div class="cc-row"><span class="cc-k">公式</span><pre class="cc-formula">${esc(c.formula)}</pre></div>` +
-    links('受谁影响（来自）', c.from) + links('影响谁（流向）', c.to) +
+    links('受谁影响（来自）', c.from, 'from') + links('影响谁（流向）', c.to, 'to') +
     `<div class="cc-row"><span class="cc-k">合理性</span><p>${esc(c.why)}</p></div>`;
   r.hidden = false;
   r.classList.add('open');
@@ -142,18 +162,21 @@ export function openConcept(id) {
 function back() { stack.pop(); if (stack.length) draw(); else close(); }
 export function close() {
   stack = [];
+  clearTimeout(navTimer); navTimer = 0;
+  clearConcept();
   if (root) { root.classList.remove('open'); root.hidden = true; }
 }
 export function refreshConcepts() { if (root && !root.hidden && stack.length) draw(true); }
 
 function ensureCss() {
-  if (document.querySelector('link[data-panels-css]')) return;
-  if ([...document.styleSheets].some(s => (s.href || '').includes('panels.css'))) return;
-  const l = document.createElement('link');
-  l.rel = 'stylesheet';
-  l.href = new URL('../../assets/css/panels.css', import.meta.url).href;
-  l.dataset.panelsCss = '1';
-  document.head.appendChild(l);
+  for (const f of ['panels.css', 'concept-hl.css']) {
+    if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) continue;
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = new URL('../../assets/css/' + f, import.meta.url).href;
+    l.dataset.css = f;
+    document.head.appendChild(l);
+  }
 }
 
 let installed = false;
@@ -166,11 +189,21 @@ export function initConcepts({ getSnap, getPrev, sim } = {}) {
     const el = e.target.closest && e.target.closest('[data-term]');
     if (!el) return;
     if (el.closest('.cc-root')) {
-      e.preventDefault(); openConcept(el.dataset.term); return;
+      e.preventDefault();
+      const id = el.dataset.term;
+      // a from/to link: flash its target in the diagram first, then navigate
+      if (el.closest('.cc-links') && flashConcept(id, 700) > 0) {   // (reduced motion: the flash is static emphasis, CSS drops the pulse)
+        clearTimeout(navTimer);
+        navTimer = setTimeout(() => { navTimer = 0; openConcept(id); }, 380);
+        return;
+      }
+      openConcept(id); return;
     }
     e.preventDefault();
     openConcept(el.dataset.term);
   });
+  // screenshot helper: ?term=<concept id> opens that card after boot (lessons.js does the same via openTerm; opening the same card twice is a no-op)
+  try { const qt = new URLSearchParams(location.search).get('term'); if (qt) setTimeout(() => openConcept(qt), 900); } catch (e) { /* ignore */ }
   // keep the live value fresh while the sim runs
   timer = setInterval(() => {
     const s = opts.getSnap();

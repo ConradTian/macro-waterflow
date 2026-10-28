@@ -234,3 +234,14 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 /* fallback zoom (when flow.js has no zoomOut) */
 #diagram.ls-xfade { opacity: .2; transition: opacity .45s ease; }
 #diagram { transition: opacity .45s ease; }
+.ls-note { margin: 2px 0 4px; font-size: 12px; color: var(--muted); }
+.ls-bud { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
+.ls-bud .net { margin-top: 2px; padding-top: 4px; border-top: 1px solid var(--border); }
+.ls-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 2px; }
+.ls-two > div { padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
+.ls-two h4 { margin: 0 0 3px; font-size: 13px; color: var(--accent); }
+.ls-two ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; }
+
+
+/* the primary button of a step sits in the nav row, between 上一步 and 下一步 (always visible, no scrolling) */
+.ls-nav .ls-run { flex: 1; width: auto; min-width: 0; margin: 0; min-height: 40px; padding: 0 8px; font-size: 14px; }

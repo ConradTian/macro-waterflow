@@ -357,7 +357,7 @@ function continueEnter(i) {
   ensureWorld(pos[i].world);
   if (town) {
     busy = true;
-    try { replayTown(sim(), L, i, pos); applyAll(sim(), st.do); } finally { busy = false; }
+    try { replayTown(sim(), L, i, pos); applyAll(sim(), st.do, L); } finally { busy = false; }
     ctx.refresh();
   } else seek(pos[i].from);
   ss.before = ctx.getSnap();                                // for the "之前 → 现在" readout (st.metrics)
@@ -537,7 +537,7 @@ function doTap() {
   const st = cur.L.steps[cur.i], s = sim();
   if (ss.done) return;
   const before = ctx.getSnap();
-  const results = tapEffects(st).map(d => applyOne(s, d));
+  const results = tapEffects(st).map(d => applyOne(s, d, cur.L));
   const bad = results.find(r => r && !r.ok);
   if (bad) { ss.err = bad.reason; draw(); return; }
   ss.err = null; ss.done = true; ss.revealed = true; ss.before = before;
@@ -546,10 +546,10 @@ function doTap() {
   const after = ctx.getSnap();
   if (st.type === 'action') {
     ss.water = waterLine(before, after);
-    const a = ss.results[0];
-    const kind = a && a.kind;
-    const pipes = st.pipes || (kind && ACTION_PIPES[kind]) || (a && a.pipes) || [];
-    const amt = a && a.pumped ? '+' + (+a.pumped).toFixed(0) : a && a.drained ? '−' + (+a.drained).toFixed(0) : '';
+    const act0 = tapEffects(st)[0], kind = act0 && act0.action && act0.action.type;
+    const pipes = st.pipes || (kind && ACTION_PIPES[kind]) || (ss.results[0] && ss.results[0].entry && ss.results[0].entry.pipes) || [];
+    const dM = after.money.M - before.money.M;
+    const amt = Math.abs(dM) > 1e-6 ? (dM > 0 ? '+' : '−') + Math.abs(dM).toFixed(0) : '';
     dropPipes(pipes, st.dropLabel === undefined ? amt : st.dropLabel);
     ss.timers = [setTimeout(() => { const fl = st.flash || (kind && ACTION_FLASH[kind]); if (fl) flash(fl, 2400); }, 1700)];
   } else {
@@ -574,12 +574,13 @@ function runTryStep() {
   const st = cur.L.steps[cur.i], i = cur.i, n = st.quarters || 6, eff = tryEffects(st);
   ss.ran = true; ss.arrived = false;
   busy = true;
-  try { replayTown(sim(), cur.L, i, cur.pos); applyAll(sim(), st.do); applyAll(sim(), eff); } finally { busy = false; }
+  try { replayTown(sim(), cur.L, i, cur.pos); applyAll(sim(), st.do, cur.L); applyAll(sim(), eff, cur.L); } finally { busy = false; }
   ctx.refresh();
+  ss.tTarget = sim().t + n;
   const mine = runTry(mkTown, cur.L, i, eff, n);
   const base = runTry(mkTown, cur.L, i, st.slider ? [] : arr(st.choices[0].do), n);
   ss.result = (st.metrics || []).map(m => ({ label: m.label, a: fmtV(aggregate(base, m.get), m.fmt), b: fmtV(aggregate(mine, m.get), m.fmt) }));
-  if (P.get('end') === '1' || P.get('run') === '1') { seekEnd(cur.pos[i].from + n); ss.arrived = true; } else playTo(cur.pos[i].from + n);
+  if (P.get('end') === '1' || P.get('run') === '1') { seekEnd(ss.tTarget); ss.arrived = true; } else playTo(ss.tTarget);
   draw();
 }
 
@@ -729,7 +730,7 @@ function draw() {
   if (st.type === 'intro') {
     body += paras + chips(st.concept);
   } else if (st.type === 'watch') {
-    body += paras + chips(st.concept) + readout(st, snap) + playLine();
+    body += paras + chips(st.concept) + readout(st, snap) + (st.block ? blockHtml(st.block, snap) : '') + playLine();
   } else if (st.type === 'reveal') {
     body += paras;
     if (st.question) body += `<p class="ls-q">${rich(st.question)}</p>`;
@@ -739,6 +740,7 @@ function draw() {
       if (st.answerHint) body += `<div class="ls-explain"><b class="g">答案</b> ${arr(st.answerHint).map(t => rich(t)).join(' ')}</div>`;
       if (st.relation) body += `<p class="ls-insight"><b>和前面的关系</b>　${arr(st.relation).map(t => rich(t)).join(' ')}</p>`;
       if (st.block === 'sources') body += sourcesBlock();
+      if (st.block) body += blockHtml(st.block, snap);
       if (st.tryIt) body += `<p class="ls-try"><b>试一试</b>　${rich(st.tryIt)}</p>`;
       body += chips(st.concept);
     }
@@ -756,8 +758,8 @@ function draw() {
       body += '<div class="ls-opts">' + st.choices.map((c, k) => `<button type="button" class="ls-opt${ss.val === k ? ' sel' : ''}" data-act="choice" data-i="${k}">${esc(c.label)}${k === 0 ? ' <small>（对照）</small>' : ''}</button>`).join('') + '</div>';
     }
     body += `<button type="button" class="btn primary ls-run" data-act="trun">${ss.ran ? '↺ 再跑一次' : `▶ 跑 ${st.quarters || 6} 季看看`}</button>`;
-    if (ss.ran && !(ss.arrived || snap.t >= dateT(pos[i].from) + (st.quarters || 6))) body += `<div class="ls-status">播放中…</div>`;
-    if (ss.result && (ss.arrived || snap.t >= dateT(pos[i].from) + (st.quarters || 6))) {
+    if (ss.ran && !(ss.arrived || snap.t >= (ss.tTarget ?? 1e9))) body += `<div class="ls-status">播放中…</div>`;
+    if (ss.result && (ss.arrived || snap.t >= (ss.tTarget ?? 1e9))) {
       body += `<table class="tbl ls-res"><tr><th></th><th>${esc(st.baseLabel || '不拧（按规则）')}</th><th>你的设置</th></tr>` +
         ss.result.map(r => `<tr><td>${esc(r.label)}</td><td>${r.a}</td><td><b>${r.b}</b></td></tr>`).join('') + '</table>' +
         (st.insight ? `<p class="ls-insight">${rich(st.insight)}</p>` : '');
@@ -800,7 +802,7 @@ function draw() {
         return `<button type="button" class="ls-opt${cls}" data-act="pick" data-i="${k}" ${ss.picked != null ? 'disabled' : ''}>${esc(o.t)}${mk}</button>`;
       }).join('') + '</div>';
     if (ss.picked != null) {
-      body += `<div class="ls-explain">${st.options[ss.picked].ok ? '<b class="g">猜对了。</b>' : '<b class="r">差一点。</b>'}${st.explain.map(t => `<p>${rich(t)}</p>`).join('')}</div>` + readout(st, snap) +
+      body += `<div class="ls-explain">${st.options[ss.picked].ok ? '<b class="g">猜对了。</b>' : '<b class="r">差一点。</b>'}${st.explain.map(t => `<p>${rich(t)}</p>`).join('')}</div>` + readout(st, snap) + (st.block ? blockHtml(st.block, snap) : '') +
         `<div class="ls-status">${snap.t >= dateT(pos[i].until) ? `已播放到 ${lab(pos[i].until)}` : `${ctx.isPlaying() ? '播放中' : '已暂停'} → ${lab(pos[i].until)}，看结果`}</div>`;
     } else canNext = false;
   } else if (st.type === 'experiment') {
@@ -824,6 +826,9 @@ function draw() {
     const nx = lookup(st.next);
     body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`;
   }
+  // the primary button (揭晓 / 做做看 / 拧一拧 / 跑 N 季 / 下一课) is pulled out of the scrolling body so it is always visible
+  let cta = '';
+  { const m = body.match(/<button type="button" class="btn primary ls-run"[^>]*>[\s\S]*?<\/button>/); if (m) { body = body.replace(m[0], ''); cta = m[0]; } }
   const oldBody = card.querySelector('.ls-body');
   const keepTop = oldBody && card.dataset.step === String(i) && card.dataset.lesson === String(L.id) ? oldBody.scrollTop : 0;
   card.dataset.step = String(i); card.dataset.lesson = String(L.id);
@@ -834,11 +839,47 @@ function draw() {
     `<button type="button" class="ls-exit" data-act="exit">退出教学</button></div>` +
     `<div class="ls-body">${body}</div>` +
     `<div class="ls-nav"><button type="button" class="btn" data-act="prev" ${i === 0 ? 'disabled' : ''}>‹ 上一步</button>` +
-    `<span class="ls-dots" aria-label="第 ${i + 1}/${n} 步">${dots}</span>` +
+    (cta || `<span class="ls-dots" aria-label="第 ${i + 1}/${n} 步">${dots}</span>`) +
     `<button type="button" class="btn primary" data-act="next" ${canNext ? '' : 'disabled'}>下一步 ›</button></div>`;
   const nb = card.querySelector('.ls-body'); if (nb && keepTop) nb.scrollTop = keepTop;
+  if (nb && st.type === 'try' && ss.result) { const tb = nb.querySelector('.ls-res'); if (tb) tb.scrollIntoView({ block: 'nearest' }); }
   if (st.type === 'takeover') renderTk();
   syncPad(); requestAnimationFrame(syncPad);
+}
+
+// small live tables used by reveal steps (st.block)
+const n1 = x => (+x).toFixed(1);
+function blockHtml(name, snap) {
+  if (name === 'households' && snap.town) {
+    const T = snap.town;
+    return `<table class="tbl ls-res ls-ro"><tr><th>谁</th><th>存款</th><th>欠条</th><th>房子</th></tr>${T.households.map(h => `<tr><td>${esc(h.name)}</td><td>${n1(h.deposit)}</td><td>${n1(h.debt)}</td><td>${h.houses} 套</td></tr>`).join('')}` +
+      `<tr><td>${esc(T.shop.name)}</td><td>${n1(T.shop.deposit)}</td><td>${n1(T.shop.debt)}</td><td>—</td></tr></table><p class="ls-note">单位：万元。几户的存款加上小卖部和银行口袋，就是小镇总水量 ${n1(snap.money.M)}。</p>`;
+  }
+  if (name === 'budget') {
+    const b = snap.budget, u = snap.scenario === 'town' ? '万元' : '十亿美元';
+    if (!b) return '';
+    const P = b.pumpedIn, D = b.drainedOut, net = b.net;
+    return `<div class="ls-bud"><div><b>泵入</b> 放贷 ${n1(P.loans)} + QE ${n1(P.qe)} + 赤字 ${n1(P.deficit)} = ${n1(P.loans + P.qe + P.deficit)}</div>` +
+      `<div><b>排出</b> 还本 ${n1(D.repay)} + 盈余 ${n1(D.surplus)} + QT ${n1(D.qt)} = ${n1(D.repay + D.surplus + D.qt)}</div>` +
+      `<div class="net">本季总水量变化 = <b>${net >= 0 ? '+' : '−'}${n1(Math.abs(net))}</b> ${u}　（${n1(b.M_before)} → ${n1(b.M_after)}）</div></div>`;
+  }
+  if (name.startsWith('ripple:')) {
+    const v = VALVES.find(x => x.id === name.slice(7)); if (!v) return '';
+    ss.chain = v.chain;
+    return `<div class="ls-note">${esc(v.label)}（${esc(v.chainWhen || '')}）：水按这个顺序往下传，每一环标着要等多久。点一环，图里对应处会亮。</div><ol class="ls-rip">${v.chain.map((l, k) => `<li><button type="button" data-act="rip" data-k="${k}"><i class="dl">${esc(l.delayLabel)}</i><span>${esc(l.text)}</span></button></li>`).join('')}</ol>`;
+  }
+  if (name === 'alloc') {
+    const f = snap.flows || {}, tot = (f.toHousing || 0) + (f.toEquity || 0) + (f.toBond || 0) + (f.toGold || 0) + (f.toCash || 0);
+    if (tot < 1e-6) return '<p class="ls-note">（这一季还没有新增资金流动，播放一两个季度就有了。）</p>';
+    const sh = [['房产', f.toHousing], ['股票', f.toEquity], ['国债', f.toBond], ['黄金', f.toGold], ['现金', f.toCash]];
+    return `<div class="ls-alloc"><div class="ls-note">本季新增资金的去向（占比）</div><div class="ls-srcs">${sh.map(([n, v]) => `<span class="ls-src"><b>${n}</b> ${(100 * (v || 0) / tot).toFixed(0)}%</span>`).join('')}</div></div>`;
+  }
+  if (name === 'valves') {
+    const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
+    return `<div class="ls-two"><div><h4>能拧的：阀门</h4><ul>${li(VALVES.map(v => v.label.replace(/^.*：/, '') + '（' + (v.label.split('：')[0]) + '）'))}</ul></div>` +
+      `<div><h4>只能看的：水位</h4><ul>${li(['房价（房产水位）', '股价（股票水位）', '国债价格', '金价', '物价（商品河道水位）', '失业率', '房贷利率（平均）'])}</ul></div></div>`;
+  }
+  return '';
 }
 
 // before -> now table for the numbers a step is about (st.metrics: [{label, get:'path', fmt}])
@@ -857,14 +898,14 @@ function tapBody(st, snap, paras, playLine) {
     return { html, canNext: false };
   }
   if (st.type === 'action') {
-    html += `<div class="ls-explain"><b class="g">流水账</b> ${ss.results.map(r => esc(r.text)).join('；')}</div>` +
+    html += `<div class="ls-explain"><b class="g">流水账</b> ${ss.results.map(r => esc(r.entry ? r.entry.action : '')).join('；')}</div>` +
       `<div class="ls-water">${esc(ss.water)}</div>`;
   } else {
     html += `<div class="ls-explain"><b class="g">已拧</b> ${esc(st.valveText || '')}</div>` +
       `<ol class="ls-rip">${(ss.chain || []).map((l, k) => `<li><button type="button" data-act="rip" data-k="${k}"><i class="dl">${esc(rippleLabel(l))}</i><span>${esc(l.text)}</span></button></li>`).join('')}</ol>`;
   }
   if (st.answerHint) html += `<div class="ls-explain"><b class="g">答案</b> ${arr(st.answerHint).map(t => rich(t)).join(' ')}</div>`;
-  html += readout(st, snap);
+  html += readout(st, snap) + (st.block ? blockHtml(st.block, snap) : '');
   if (st.relation) html += `<p class="ls-insight"><b>和前面的关系</b>　${arr(st.relation).map(t => rich(t)).join(' ')}</p>`;
   html += chips(st.concept);
   if (dateT(cur.pos[cur.i].until) > dateT(cur.pos[cur.i].from)) html += playLine();

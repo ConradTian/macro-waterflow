@@ -1,0 +1,83 @@
+/* Concept card -> diagram highlight (src/ui/links.js showConcept / flashConcept).
+   Three roles, told apart by PATTERN as well as colour:
+     .cc-self  solid line + strong glow      (the card's own part)
+     .cc-from  dashed line + soft glow       (受谁影响 = sources)
+     .cc-to    dotted line + glow            (影响谁   = destinations)
+   .cc-flash = a from/to link in the card is being hovered / tapped: just that target pulses.
+   Hidden (not yet revealed) parts stay hidden: body.parts-on sets visibility/display on them; nothing here overrides that. */
+
+:root {
+  --hl-self: #e11d48; --hl-from: #0891b2; --hl-to: #d97706;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --hl-self: #ff6b8a; --hl-from: #38bdf8; --hl-to: #fbbf24; }
+}
+:root[data-theme="dark"] { --hl-self: #ff6b8a; --hl-from: #38bdf8; --hl-to: #fbbf24; }
+
+/* per-role parameters, consumed by the rules below */
+.cc-hl.cc-self { --hc: var(--hl-self); --hd: none; --hw: 3.6; --hw2: 2.4; --hfill: .2; --ho: solid; --hglow: drop-shadow(0 0 2px var(--hl-self)) drop-shadow(0 0 6px var(--hl-self)); }
+.cc-hl.cc-from { --hc: var(--hl-from); --hd: 6 4; --hw: 2.6; --hw2: 2; --hfill: .1; --ho: dashed; --hglow: drop-shadow(0 0 4px var(--hl-from)); }
+.cc-hl.cc-to   { --hc: var(--hl-to); --hd: 1.5 4.5; --hw: 3; --hw2: 2.2; --hfill: .1; --ho: dotted; --hglow: drop-shadow(0 0 4px var(--hl-to)); }
+.cc-hl.cc-from.cc-to { --hc: var(--hl-from); --hd: 6 4 1.5 4; --hglow: drop-shadow(0 0 4px var(--hl-to)); }   /* both source and destination */
+
+/* ---------- boxes, tanks, river ---------- */
+.flow-svg rect.node.cc-hl.cc-hl { stroke: var(--hc); stroke-opacity: 1; stroke-width: var(--hw); stroke-dasharray: var(--hd); stroke-linecap: round; filter: var(--hglow); }
+.flow-svg rect.node.tank.cc-hl.cc-hl { stroke-width: calc(var(--hw) * 1px + 1px); }
+
+/* ---------- tappable text groups (term), valves ---------- */
+.flow-svg g.cc-hl:not(.chip) > rect.hit { fill: var(--hc); fill-opacity: var(--hfill); stroke: var(--hc); stroke-width: var(--hw2); stroke-dasharray: var(--hd); stroke-linecap: round; }
+.flow-svg g.cc-hl:not(.chip):not(.pump):not(.drain):not(.seesaw) { filter: var(--hglow); }
+.flow-svg g.cc-hl text { font-weight: 700; }          /* text keeps its own colour: coloured text on a tinted box is hard to read */
+
+/* ---------- chips (value labels on pipes) ---------- */
+.flow-svg g.chip.cc-hl rect.bg { stroke: var(--hc); stroke-width: var(--hw); stroke-dasharray: var(--hd); stroke-linecap: round; }
+.flow-svg g.chip.cc-hl { filter: var(--hglow); }
+
+/* ---------- pump / drain icons ---------- */
+.flow-svg g.pump.cc-hl .body, .flow-svg g.drain.cc-hl .body { stroke: var(--hc); stroke-width: 3.6; stroke-dasharray: var(--hd); stroke-linecap: round; }
+.flow-svg g.pump.cc-hl, .flow-svg g.drain.cc-hl { filter: var(--hglow); }
+
+/* ---------- pipes: a wide halo under the moving dashes (pattern = role) ---------- */
+.flow-svg .cc-halo { display: none; fill: none; pointer-events: none; }
+.flow-svg g.cc-hl > .cc-halo { display: inline; stroke: var(--hc); stroke-width: 15; stroke-opacity: .5; stroke-linecap: butt; stroke-linejoin: round; }
+.flow-svg g.cc-hl.cc-from > .cc-halo { stroke-width: 12; stroke-opacity: .6; stroke-dasharray: 8 6; }
+.flow-svg g.cc-hl.cc-to > .cc-halo { stroke-width: 11; stroke-opacity: .9; stroke-dasharray: .1 9; stroke-linecap: round; }
+.flow-svg g.cc-hl.cc-from.cc-to > .cc-halo { stroke-dasharray: 8 6 .1 6; stroke-linecap: round; }
+
+/* ---------- small decorations ---------- */
+.flow-svg path.capmark.cc-hl { fill: var(--hc); opacity: 1; stroke: var(--hc); stroke-width: 2; filter: var(--hglow); }
+.flow-svg g.seesaw.cc-hl { filter: var(--hglow); }
+.flow-svg g.seesaw.cc-hl path { stroke: var(--hc); }
+.flow-svg g.seesaw.cc-hl .endl, .flow-svg g.seesaw.cc-hl .endr { fill: var(--hc); }
+
+/* ---------- the water-budget bar is HTML: term buttons inside it ---------- */
+.flow-budget button.term.cc-hl { outline: 2.5px var(--ho) var(--hc); outline-offset: 2px; border-radius: 5px; font-weight: 700; color: var(--hc);
+  background: color-mix(in srgb, var(--hc) 14%, transparent); }
+
+/* ---------- flash: one link of the card is hovered / tapped ---------- */
+@keyframes cc-pop-s { 0%, 100% { stroke-width: var(--hw); } 50% { stroke-width: 8; } }
+@keyframes cc-pop-h { 0%, 100% { stroke-width: 15; } 50% { stroke-width: 24; } }
+@keyframes cc-pop-o { 0%, 100% { outline-width: 2.5px; } 50% { outline-width: 6px; } }
+.flow-svg .cc-flash.cc-hl { filter: drop-shadow(0 0 3px var(--hc)) drop-shadow(0 0 9px var(--hc)) drop-shadow(0 0 16px var(--hc)); }
+.flow-svg rect.node.cc-flash.cc-hl.cc-hl { stroke-width: 6; animation: cc-pop-s .45s ease-in-out 3; }
+.flow-svg g.cc-flash.cc-hl:not(.chip) > rect.hit { fill-opacity: .45; stroke-width: 4; }
+.flow-svg g.chip.cc-flash.cc-hl rect.bg { stroke-width: 5; }
+.flow-svg g.cc-flash.cc-hl > .cc-halo { stroke-opacity: 1; animation: cc-pop-h .45s ease-in-out 3; }
+.flow-svg g.pump.cc-flash.cc-hl .body, .flow-svg g.drain.cc-flash.cc-hl .body { stroke-width: 5; }
+.flow-budget button.term.cc-flash.cc-hl { animation: cc-pop-o .45s ease-in-out 3; background: color-mix(in srgb, var(--hc) 35%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .flow-svg rect.node.cc-flash.cc-hl.cc-hl, .flow-svg g.cc-flash.cc-hl > .cc-halo, .flow-budget button.term.cc-flash.cc-hl { animation: none; }
+}
+
+/* ---------- inside the card ---------- */
+.cc-where { margin: 6px 0 4px; display: grid; gap: 5px; }
+.cc-note { font-size: 13px; line-height: 1.45; padding: 6px 10px; border-radius: 8px; border-left: 4px solid var(--hl-self);
+  background: color-mix(in srgb, var(--hl-self) 9%, var(--pn-bg, transparent)); }
+.cc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12px; color: var(--pn-muted, #5b6575); }
+.cc-legend b { font-weight: 400; opacity: .5; }
+.cc-lg { white-space: nowrap; }
+.cc-sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--hl-self); vertical-align: middle; margin-right: 4px; }
+.cc-sw.from { border-top-style: dashed; border-top-color: var(--hl-from); }
+.cc-sw.to { border-top-width: 4px; border-top-style: dotted; border-top-color: var(--hl-to); }
+.cc-row.cc-r-from { border-left: 3px dashed var(--hl-from); padding-left: 8px; }
+.cc-row.cc-r-to { border-left: 3px dotted var(--hl-to); padding-left: 8px; }

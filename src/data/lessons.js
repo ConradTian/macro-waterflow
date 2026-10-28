@@ -1,4 +1,14 @@
-// Lessons as DATA (course agreed with the user: each lesson adds one player; all on real US quarters).
+// Lessons as DATA (course agreed with the user: lesson 0 + role lessons run in the 万元 TOWN, cycle lessons 1+ on real US quarters).
+//
+// TOWN lessons (scenario:'town', delays:false|true) use quarter NUMBERS instead of dates; a step has `quarters` (how many quarters it plays).
+//   action  { action:{type:'loan'|'buyHouse'|'repay'|'payInterest'|'spend'|'riskOff'|'saving',...}, button, text, question?, answerHint?, relation?, metrics?, show? }
+//   valve   { valve:id, value, quarters, keep?:false, button, ... }           turns a valve, plays the ripple + delay labels, plays `quarters`
+//   try     { valve+slider:{min,max,step,def,fmt,label} | choices:[{label,do:[..]}], quarters, metrics, insight }   sandbox, carries nothing on
+//   chain   { links:[{text, term?, pipe?, part?, hl?}], text, next? }         final causal chain; tapping a link lights its pipe
+//   zoom    { date, until?, text, block?:'sources', next?, showAll? }          zoomOut() animation, then the US sim from `date`
+//   any step: do:[effects] at entry, after:[effects] once over (effects: {action}|{valve,value}|{delays}|{rule,on}|{param,value}|{reset:true}); metrics:[{label,get,fmt}] -> 之前/现在 table
+//   reveal block: 'households' | 'budget' | 'valves' | 'sources'
+//
 //
 // Lesson   = { id, title, oneLine, rulesOn:[ruleId], startDate, endDate, mode:'history', available, steps:[...] }
 // Step     = { type, title, text:[paragraph...] (use **bold**; known keywords auto-link to concept cards),
@@ -30,90 +40,167 @@ export const LESSONS = [
   {
     id: 0,
     title: '搭出水流系统',
-    oneLine: '从一家银行和一个水池开始，一次只加一块，搭出整张水流图。',
-    rulesOn: 'all',               // full model runs underneath; only the picture is revealed piece by piece
-    startDate: '1996Q1', endDate: '2013Q4', mode: 'history', available: true,
-    pace: 1500,                   // ms per quarter at 1x: slow, so pipes can be watched
-    startParts: ['bank', 'pool'], // everything else (and all four tabs) is hidden until a 'reveal' step shows it
+    oneLine: '先在一个只有 5 户人家的小镇里，一次只做一件事，搭出整张水流图；最后放大到全美国。',
+    scenario: 'town',            // runs on the 万元 town sim (engine/town.js); the last step zooms to the real US sim
+    delays: false,               // no repricing lag etc.: one action shows its effect at once
+    rulesOn: 'all',
+    pace: 1600,                  // ms per quarter at 1x: slow, so pipes can be watched
+    mode: 'history', available: true,
+    startParts: ['bank', 'household', 'iou', 'poolHousing'],   // everything else is revealed step by step
+    // Step flow (each: phenomenon -> question -> reveal -> relation to what came before). Quarter 0 has no flows, so the first
+    // actions happen "right now" at 第0季; steps 7-9 start from a fresh town ({reset:true}) and let quarters pass.
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
           '**整张图只讲一件事：银行造水，借款人接水，水流向资产或商品，还本再把水收回。**',
-          '我们不一次全看。每一步先看现象，再问「为什么」，再亮出解释它的那一块。',
-          '现在图里只有银行和资产池。时间用真实的美国季度（从 1996Q1 开始）。',
+          '我们先不看美国。先看一个只有 5 户人家、1 家银行、1 个小卖部的小镇，钱用「万元」。',
+          '下面分 13 步：① 银行造水 ② 还本排水 ③ 家庭们 ④ 买房 ⑤ 小卖部 ⑥ 付息 ⑦ 央行闸门 ⑧ 政府水龙头 ⑨ Capex ⑩ 水量平衡 ⑪ 阀门与水位 ⑫ 因果链 ⑬ 放大到美国。',
+          '每一步：先看现象，再问「为什么」，再亮出解释它的那一块。',
         ],
-        hl: ['bankApproval', 'assetReservoir'] },
+        hl: ['newLoans'], concept: ['M'] },
 
-      { type: 'reveal', title: '第 1 步：银行造出新水', until: '1996Q4', show: [],
-        text: ['银行刚放出一笔贷款。看蓝色的「新贷款」管，水往下流，资产池的水位在动。'],
-        question: '这笔贷款的水，是从哪里来的？',
-        answerHint: '不是把别人的存款转借出去，而是在账户上直接记一笔新存款。贷款创造存款：多出来的这笔就是新水，叫货币总量 M。',
-        relation: '银行是水龙头，资产池是水最后聚集的地方。',
-        hl: ['newLoans', 'assetReservoir'], concept: ['M', 'newLoans'] },
+      { type: 'action', title: '第 1 步：银行造出新水', show: ['ledger'], tab: 'ledger',
+        text: [
+          '小镇里现在一共有 **110 万元**的水（所有人的存款加起来）。',
+          '小王想买房，手上只有 10 万元。他去镇银行，借了 **50 万元**。',
+        ],
+        question: '银行借给小王的 50 万，是从别人的存款里搬来的，还是凭空多出来的？',
+        action: { type: 'loan', who: '小王', amount: 50 }, button: '让小王借 50 万',
+        answerHint: ['凭空多出来的。银行不是搬水，而是在小王的账户上直接记一笔新存款，同时记一张欠条：小王欠银行 50。', '所以水和欠条是**一起出现**的。这个泵叫放贷泵：贷款创造新水。'],
+        relation: '这是整张图的起点。水不是白来的，每一份新水都对应一张欠条（图里的欠条箱）。',
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
+        hl: ['newLoans'], concept: ['M', 'newLoans'] },
 
-      { type: 'reveal', title: '第 2 步：水为什么不会一直涨', until: '1997Q4', show: ['repay'],
-        text: ['银行一直在放贷，新水不停地流进来。'],
-        question: '那为什么水位不会涨到溢出？',
-        answerHint: '借款要还。还本的那一刻，那笔存款被销毁，水从左边的排水口流走，叫货币注销。',
-        relation: '新贷款是进水，还本是出水。进水大于出水，水位涨；反过来就退潮。',
-        concept: ['principalRepay'] },
+      { type: 'action', title: '第 2 步：还本把水排走', show: ['repay'],
+        text: [
+          '几个月后，小王把其中 **10 万元**还给了银行。',
+          '看图：左边多了一个排水口。',
+        ],
+        question: '小王还的这 10 万，银行拿去干什么了？水还留在小镇里吗？',
+        action: { type: 'repay', who: '小王', amount: 10 }, button: '让小王还 10 万',
+        answerHint: ['不在了。还本的那一刻，这 10 万存款和对应的欠条**一起消失**。', '银行不是把水收进口袋，而是把它销毁。排水口就是销毁水的地方。'],
+        relation: '放贷泵造水，排水口毁水。一进一出：水位涨还是退，就看哪边更大。',
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }],
+        hl: ['principalRepay'], concept: ['principalRepay'] },
 
-      { type: 'reveal', title: '第 3 步：谁在借', until: '1998Q4', show: ['household', 'firm'],
-        text: ['水从银行流出来，又要流进资产池。中间一定有人把水接过去。'],
-        question: '谁是借款人？',
-        answerHint: '家庭和企业。家庭借来买房，企业借来投资和周转。',
-        relation: '借款人站在银行和资产池中间：银行放水，借款人接水，再把水送去别处。' },
+      { type: 'reveal', title: '第 3 步：水不是飘在空中的', show: ['household'], block: 'households',
+        text: [
+          '到现在我们一直在说「小王」。其实镇上有 5 户人家：**小王、老李、阿珍、大刘、小陈**，一共 10 套房。',
+        ],
+        question: '镇上这些水（存款），是平均分给 5 户的吗？',
+        answerHint: '不是。老李存款最多，还有 3 套房；小陈最少。每户有自己的存款、欠条和房子。图里的「家庭」框，就是这 5 户加在一起。',
+        relation: '前面的泵和排水口，都发生在某一户身上。图上的数字，是 5 户加总，一分不差。' },
 
-      { type: 'reveal', title: '第 4 步：钱花出去分两路', until: '1999Q4', show: ['channel', 'cash'],
-        text: ['借款人拿到钱，不会全放进资产池。'],
-        question: '钱花出去，会去哪？',
-        answerHint: '分两路：一路买房子股票，推高资产价格；一路买东西，流进右边的商品河道，推高物价。还有一小份留作现金。',
-        relation: '所以有两个水位：资产池的水位是资产价格，商品河道的水位是物价。它们不一定一起涨。',
-        hl: ['assetReservoir', 'goodsChannel'], concept: ['assetReservoir', 'goodsChannel', 'cpi'] },
+      { type: 'action', title: '第 4 步：用水买「取水权」', show: ['poolHousing'],
+        text: [
+          '小王手里现在有 50 万元存款。老李有一套房想卖，价格 **40 万元**。',
+          '小王把它买了下来。',
+        ],
+        question: '小王付给老李 40 万。镇上的水总量变了吗？房子的价格水位呢？',
+        action: { type: 'buyHouse', who: '小王', from: '老李' }, button: '让小王向老李买房',
+        answerHint: ['水总量没变：40 万只是从小王的口袋流到老李的口袋（水只换了主人）。', '但是买房的水流进了「房产」水池，房价水位涨了约 4%。买一套已经存在的房子，是买一份「取水权」，并没有多造出一间房。'],
+        relation: '放贷泵是造水；买房只是让水换主人，并推高房产水位。这是两件不同的事。',
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '房产水位（房价指数）', get: 'assets.housing.price', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }, { label: '老李的存款', get: 'town.households.1.deposit', fmt: 'n1' }],
+        hl: ['assetReservoir'], concept: ['assetReservoir', 'housePrice'] },
 
-      { type: 'reveal', title: '第 5 步：付息只是换主人', until: '2000Q4', show: ['interest'],
-        text: ['借款人每个季度还的，不只是本金。'],
-        question: '那利息呢？水去了哪，总水量变了吗？',
-        answerHint: '利息是借款人把水交给银行。水只是换了主人，总水量不变。',
-        relation: '还本让水消失；付息只让水换主人。两者别混在一起。',
+      { type: 'action', title: '第 5 步：水流进小卖部', show: ['channel'],
+        text: [
+          '小王口袋里还剩 10 万元。他去小卖部买了 **5 万元**的东西。',
+        ],
+        question: '这 5 万元去哪了？它和买房的 40 万有什么不同？',
+        action: { type: 'spend', who: '小王', amount: 5 }, button: '让小王去小卖部花 5 万',
+        answerHint: ['5 万元流进了右边的「商品河道」（小卖部）。买房的水流进房产水池，推的是房价；买东西的水流进商品河道，推的是物价。'],
+        relation: '所以有**两个水位**：房产水位（房价）和商品河道的水位（物价）。同一笔钱，流向不同，推高的东西不同。',
+        metrics: [{ label: '小卖部的存款（万元）', get: 'town.shop.deposit', fmt: 'n1' }, { label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }],
+        hl: ['goodsChannel', 'cpi'], concept: ['goodsChannel', 'cpi'] },
+
+      { type: 'action', title: '第 6 步：付息只是换主人', show: ['interest'],
+        text: [
+          '大刘欠银行 75 万元，这个季度要付 **2 万元**利息。',
+        ],
+        question: '利息付出去，小镇的总水量会少 2 万吗？',
+        action: { type: 'payInterest', who: '大刘', amount: 2 }, button: '让大刘付 2 万利息',
+        answerHint: ['不会。2 万元从大刘的口袋流进银行的口袋，水量不变，只是换了主人。', '只有**还本**才会让水消失。'],
+        relation: '还本 = 排水口，水消失；付息 = 普通水管，水换口袋。别混在一起。',
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '大刘的存款', get: 'town.households.3.deposit', fmt: 'n1' }, { label: '银行的口袋', get: 'town.bank.pocket', fmt: 'n1' }],
         hl: ['interestPaid'], concept: ['interestPaid'] },
 
-      { type: 'reveal', title: '第 6 步：谁决定水贵不贵', until: '2001Q4', show: ['centralBank'],
-        text: ['同样是借钱，有的年份借的人多，有的年份借的人少。看左上角的数字，它在变。'],
-        question: '是谁在调水价？',
-        answerHint: '央行。政策利率像一道闸门：利率低，水便宜，借的人多；利率高，水贵，借的人少。',
-        relation: '闸门先影响新贷款；已经借出去的旧贷款要等重定价，慢慢才变。所以加息不会马上见效。',
+      { type: 'valve', title: '第 7 步：央行拧水价闸门', show: ['centralBank', 'valves'], do: [{ reset: true }],
+        text: [
+          '小镇复原了，回到第 0 季。前面我们一件一件地做；现在让时间往前走。',
+          '镇上有一道闸门：央行的**政策利率**，现在是 4%。借钱的价格，由它定。',
+        ],
+        question: '央行把利率从 4% 拧到 7%，小镇的新贷款、房价会怎样？',
+        valve: 'policyRate', value: 0.07, quarters: 2, keep: false, button: '把利率拧到 7%',
+        answerHint: ['新贷款变少，房价水位回落。借钱贵了，借的人少了，流进房产的水也少了。', '小镇里先把「延迟」关掉，所以变化当季就看得到。现实里水要慢慢传下去，角色课里再打开。'],
+        relation: '放贷泵的水量，不只看银行肯不肯借，还看价格。价格这道闸门在央行手里。',
+        metrics: [{ label: '新房贷利率', get: 'rates.mortgageNew', fmt: 'pct' }, { label: '房产水位（房价指数）', get: 'assets.housing.price', fmt: 'n1' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
         hl: ['policyRate'], concept: ['policyRate'] },
 
-      { type: 'reveal', title: '第 7 步：私人不借了，水从哪来', from: '2008Q4', until: '2009Q4', show: ['government'],
-        text: ['时间跳到 2008 年底。新贷款变少，还本却还在继续。'],
-        question: '私人不借了，水从哪来？',
-        answerHint: '政府。财政注入（花得比收得多）是一个水龙头；央行买债（QE）是另一个。',
-        relation: '私人退潮时，政府的水龙头顶上去。代价是政府自己的债务上升。',
-        hl: ['fiscalInjection', 'qe'], concept: ['fiscalInjection', 'qe'] },
+      { type: 'valve', title: '第 8 步：政府是另一个水龙头', show: ['government'], do: [{ reset: true }],
+        text: [
+          '镇政府花得比收得多（赤字）的时候，多出来的部分是新水，叫**财政注入**：这是第二个泵。',
+          '反过来，收得比花得多（盈余），多出来的水被收走销毁：这是第二个排水口。',
+          '现在镇政府这个季度多花了相当于镇 GDP 5% 的钱。',
+        ],
+        question: '多花的钱会让物价和总水量怎样？',
+        valve: 'fiscalInjection', value: 0.05, quarters: 2, keep: false, button: '让政府多花 5%',
+        answerHint: ['多花的钱是新水：总水量增加，需求变大，物价被推高。', '代价是政府的债务变多。盈余刚好相反：税收大于花费，多出的水被销毁。'],
+        relation: '泵一共三个：银行放贷、央行 QE、政府赤字。排水口也三个：还本、政府盈余、QT。图上的泵和排水口，就这些。',
+        metrics: [{ label: '通胀', get: 'macro.inflation', fmt: 'pct' }, { label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '政府债务 / GDP', get: 'gov.debtGdp', fmt: 'pct' }],
+        hl: ['fiscalInjection'], concept: ['fiscalInjection'] },
 
-      { type: 'reveal', title: '第 8 步：河道能变宽吗', until: '2013Q4', show: ['capex'],
-        text: ['商品河道的宽度有上限。水一多，水位（物价）就被挤高。'],
-        question: '河道能变宽吗？',
-        answerHint: '能。企业投资（Capex）盖厂房、买设备，河道才变宽。但投资要隔好几个季度才见效。',
-        relation: '投资拓宽河道，有延迟。所以通胀常常慢半拍才回落。',
+      { type: 'valve', title: '第 9 步：只有 Capex 能拓宽河道', show: ['firm', 'capex'], do: [{ reset: true }],
+        text: [
+          '商品河道的宽度，是小镇一个季度最多能产出多少东西（产能）。刚才买房的钱，一分也没让河道变宽。',
+          '现在小卖部老板决定扩建店面：**Capex 加大 30%**。',
+        ],
+        question: '下一季，河道会变宽吗？',
+        valve: 'capexMult', value: 1.3, quarters: 4, keep: false, button: '让 Capex 加大 30%',
+        answerHint: ['不会马上。第 1 季只是「需求」变大：花出去的钱先成了别人的收入，物价压力上来。', '过了 2 个季度，河道才真的变宽。买房、买股票的水只推高资产水位，不拓宽河道。'],
+        relation: '「买资产」和「建产能」是两种不同的管道：前者只换主人、推水位；后者才让河道变宽，而且有延迟。',
+        metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '产能（河道宽度）', get: 'macro.capacityPotential', fmt: 'n1' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
         hl: ['capex', 'capacity'], concept: ['capex', 'capacity'] },
 
-      { type: 'reveal', title: '第 9 步：这些数字从哪来', show: ['ledger'], block: 'sources',
-        text: ['图上的数字，有的是真的，有的是模型算的。'],
-        question: '怎么分辨哪些是真实数据、哪些是模型？',
-        answerHint: '真实数据：政策利率（历史模式直接用）、房价、通胀、失业率等，来自 FRED、BIS、Case-Shiller。模型算出的：大多数水流（新贷款、还本、各条水管）和模型房价。',
-        relation: '图表里：实线 = 真实，虚线 = 模型，点线 = 你的版本；灰色区「保留样本·示意」= 2022 年后。',
-        tryIt: '流水账已解锁。点左上角 ▾ 收起本卡，再点流水账里任意一条记录：图里它推动的水管会亮 3 秒。',
-        tab: 'ledger' },
-
-      { type: 'recap', title: '总结',
-        lines: [
-          '银行放贷造出新水，还本把水注销；付息只让水换主人。',
-          '水分两路：资产价格和物价。央行调水价，政府在私人退潮时补水，投资拓宽河道，且有延迟。',
-          '每个角色都有自己的规则。下一课从银行开始，看它到底怎么决定闸门。',
+      { type: 'reveal', title: '第 10 步：水量平衡条', show: ['budget'], block: 'budget',
+        text: [
+          '图下面有一根水量平衡条。每个季度，小镇总水量的变化，只由两件事决定：',
+          '**泵入（放贷 + QE + 赤字）减去 排出（还本 + 盈余）**。',
+          '利息、买房、买东西、工资、税收、Capex……全是水管，只搬水，不改总量。',
         ],
-        concepts: ['M', 'newLoans', 'principalRepay', 'policyRate'], next: 'role:bank' },
+        question: '这个季度，小镇的水是涨了还是退了？怎么看出来的？',
+        answerHint: '看平衡条：左边是泵入，右边是排出，差就是本季总水量的变化。',
+        relation: '前面 9 步学的泵、排水口、水管，都能在这根条里找到自己的位置。' },
+
+      { type: 'reveal', title: '第 11 步：哪些能拧，哪些只能看', show: ['valves'], block: 'valves',
+        text: [
+          '这一路我们拧过几个阀门：政策利率、财政注入、Capex。',
+          '再看看房价、物价、失业率。你拧过它们吗？',
+        ],
+        question: '你能直接把房价拧到 100 吗？',
+        answerHint: '不能。房价、股价、物价、失业，都是**水位**，是水流进去、流出去之后的结果。你只能拧**阀门**，然后看水位怎么变。',
+        relation: '一个简单的区分：能用手拧的是阀门，只能看的是水位。拧了阀门，水位要过几个季度才跟着动。' },
+
+      { type: 'chain', title: '第 12 步：把整条因果链串起来',
+        text: ['今天的故事连成一条线。点任何一环，图里对应的水管会亮。'],
+        links: [
+          { text: '银行放贷泵造出新水，同时记下一张欠条', pipe: 'newLoans', part: 'iou', term: 'newLoans' },
+          { text: '新水变成购买力：买房，水流进房产水池，推高房价水位', pipe: 'toHousing', part: 'poolHousing', term: 'assetReservoir' },
+          { text: '买东西，水流进商品河道，推高物价水位', pipe: 'toConsumption', part: 'channel', term: 'goodsChannel' },
+          { text: '付息：水换主人；还本：水和欠条一起消失', pipe: ['interestPaid', 'principalRepay'], term: 'principalRepay' },
+          { text: '央行的闸门定水价，新贷款随价格增减', pipe: 'newLoans', part: 'centralBank', hl: ['policyRate'], term: 'policyRate' },
+          { text: '政府是另一个泵（赤字）和排水口（盈余）', pipe: 'fiscalInjection', part: 'government', term: 'fiscalInjection' },
+          { text: 'Capex 才能拓宽河道，而且要等几个季度', pipe: 'toCapex', part: 'capex', term: 'capex' },
+          { text: '总水量变化 = 泵入 − 排出（水量平衡条）', part: 'budget' },
+        ] },
+
+      { type: 'zoom', title: '第 13 步：同一张图，放大到全美国', date: '2006Q1', showAll: true, block: 'sources', next: 'role:bank',
+        text: [
+          '图没有变：还是这些泵、排水口、水管和阀门。变的只是尺度：5 户人家变成 **1.2 亿个家庭**，万元变成**十亿美元**。',
+          '小镇是我们编的，好让你一次只看一件事。美国这一边的数字，有的是真的，有的是模型算的：',
+        ],
+        relation: '从下一课开始，我们一个角色一个角色地看：先看银行，它到底怎么决定放多少水。',
+        concept: ['M'] },
     ],
   },
 
