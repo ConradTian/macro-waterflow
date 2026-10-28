@@ -1,0 +1,6 @@
+<!doctype html><body style="margin:0;background:#888"><script>
+// reveal test: ?vis=bank,poolHousing,budget ... forces body.parts-on + data-vis inside the app iframe (diagram dangling-pipe check)
+const q=new URLSearchParams(location.search);const w=q.get('w')||390,h=q.get('h')||844;const vis=(q.get('vis')||'').split(',').join(' ');
+document.write(`<iframe id="f" src="../?t=52&pause=1" style="width:${w}px;height:${h}px;border:0;display:block"></iframe>`);
+document.getElementById('f').onload=()=>setTimeout(()=>{const b=document.getElementById('f').contentDocument.body;b.classList.add('parts-on');b.dataset.vis=vis;},800);
+</script></body>

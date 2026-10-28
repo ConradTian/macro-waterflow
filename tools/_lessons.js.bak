@@ -1,0 +1,607 @@
+// Lesson runner + course menu. Driven by src/data/lessons.js (+ optional src/data/role-lessons.js).
+// App contract (see app.js): initLessons(ctx) where ctx = {
+//   sim():sim, real():US_Q, getSnap(), setPlaying(bool), isPlaying(), refresh(), openTerm(id), setQuiet(bool),
+//   setTickMs(ms), setTab(id) }
+// and the app calls onRender() after every renderAll().
+// Step types: intro watch predict experiment recap (see data/lessons.js header) + reveal + takeover.
+import { createSim } from '../engine/sim.js';
+import * as RULES from '../engine/rules.js';
+import { LESSONS } from '../data/lessons.js';
+import { linkify } from './concepts.js';
+import { CONCEPTS as CONC } from '../data/concepts.js';
+import { flash, clearFlash, ROLE_ORDER, ROLE_NAME, setAvailableRoles, isRoleLearned, markRoleLearned } from './links.js';
+import { compareChart } from './tabs/_util.js';
+import { pctFmt } from './chart.js';
+
+const P = new URLSearchParams(location.search);
+const KEY = 'mw.lessons.v1';
+const TAB_IDS = ['ledger', 'cycle', 'assets', 'takeover'];
+let ctx = null, menu = null, card = null;
+let cur = null;            // { L, i, pos:[{from,until}] }
+let ss = {};               // per-step state
+let target = null;         // t index the current step is playing towards
+let busy = false;          // true while we reset / fast-forward silently
+let ov = { params: {}, rules: {} };   // active experiment overrides
+let dirty = false;         // sim currently carries experiment overrides
+const touched = new Map(); // 'rule.key' -> default value (captured before first change)
+
+/* ---------- lesson registry (core lessons + optional role lessons) ---------- */
+let ROLE_LESSONS = [];
+let rolesReady = Promise.resolve();
+const isAvail = L => !!L && L.available !== false && Array.isArray(L.steps) && L.steps.length > 0;
+const all = () => [...LESSONS, ...ROLE_LESSONS];
+function lookup(id) {            // numeric/string id, or 'role:<playerId>'
+  if (id == null) return null;
+  const s = String(id);
+  if (s.startsWith('role:')) return ROLE_LESSONS.find(l => l.role === s.slice(5)) || null;
+  return all().find(l => String(l.id) === s) || null;
+}
+function loadRoles() {
+  rolesReady = import('../data/role-lessons.js')
+    .then(m => { ROLE_LESSONS = Array.isArray(m.ROLE_LESSONS) ? m.ROLE_LESSONS.filter(Boolean) : []; })
+    .catch(() => { ROLE_LESSONS = []; })
+    .then(() => { setAvailableRoles(ROLE_LESSONS.filter(isAvail).map(l => l.role)); if (!cur && ctx) ctx.refresh(); });
+}
+const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : `第 ${L.id} 课`);
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rich = s => linkify(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const arr = x => (x == null ? [] : Array.isArray(x) ? x : [x]);
+const dateT = d => (+d.slice(0, 4) - 1995) * 4 + (+d[5] - 1);
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+const sim = () => ctx.sim();
+const freeUrl = () => new URL('free/', location.href).href;
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { done: {}, step: {} }; } catch (e) { return { done: {}, step: {} }; } }
+function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* ignore */ } }
+function mark(fn) { const p = load(); p.done ||= {}; p.step ||= {}; fn(p); save(p); }
+
+/* ---------- sim control (rules / params / seek) ---------- */
+function setParam(s, rule, key, v) {
+  const k = rule + '.' + key;
+  if (!touched.has(k)) touched.set(k, RULES.RULE_BY_ID?.[rule]?.params?.[key]);
+  if (typeof s.setRuleParam === 'function') s.setRuleParam(rule, key, v);
+  else if (RULES.RULE_BY_ID?.[rule]?.params) RULES.RULE_BY_ID[rule].params[key] = v;   // fallback before engine API lands
+}
+const ruleOn = (L, id) => !Array.isArray(L.rulesOn) || L.rulesOn.includes(id);          // 'all' / undefined -> every rule on
+function applySetup(s, L, o) {
+  for (const r of s.rules) s.setRuleEnabled(r.id, ruleOn(L, r.id));
+  for (const [id, on] of Object.entries(o.rules || {})) s.setRuleEnabled(id, !!on);
+  for (const [k, def] of touched) {                       // restore anything not overridden, then apply overrides
+    const [rule, key] = k.split('.');
+    if (!(k in (o.params || {})) && def !== undefined) setParam(s, rule, key, def);
+  }
+  for (const [k, v] of Object.entries(o.params || {})) { const [rule, key] = k.split('.'); setParam(s, rule, key, v); }
+}
+function ffTo(s, date) {
+  const T = dateT(date);
+  while (s.t < T && !s.done) s.step();
+}
+// Experiment overrides (o) are applied from `ovFrom` on (default: lesson start), so the sim before that point is the plain model.
+function restart(L, o, date, ovFrom = L.startDate) {
+  const s = sim();
+  busy = true;
+  try {
+    s.reset(L.mode || 'history');
+    applySetup(s, L, { params: {}, rules: {} });
+    ffTo(s, L.startDate);
+    ffTo(s, ovFrom);
+    applySetup(s, L, o);
+    ffTo(s, date);
+  } finally { busy = false; }
+  dirty = !!(Object.keys(o.params || {}).length || Object.keys(o.rules || {}).length);
+  ctx.refresh();
+}
+function seek(date) {
+  const s = sim();
+  if (dirty || s.t > dateT(date)) { ov = { params: {}, rules: {} }; restart(cur.L, ov, date); return; }
+  busy = true; try { ffTo(s, date); } finally { busy = false; }
+  ctx.refresh();
+}
+
+/* scratch simulation: compute experiment metrics without disturbing the displayed one */
+function metricsFor(L, o, step) {
+  const s = createSim({ data: ctx.real(), mode: 'history' });
+  applySetup(s, L, { params: {}, rules: {} });
+  ffTo(s, step.from);
+  applySetup(s, L, o);
+  const t0 = s.t;
+  ffTo(s, step.until);
+  const hist = s.history().slice(t0 + 1);
+  const out = step.metrics.map(m => aggregate(hist, m.get));
+  applySetup(sim(), L, ov);                                 // undo param leakage (fallback mode mutates globals)
+  return out;
+}
+function aggregate(hist, spec) {                            // 'end:path' | 'max:path' | 'min:path' | 'sum:path'
+  const [agg, path] = spec.split(':');
+  const vals = hist.map(h => getPath(h, path)).filter(v => typeof v === 'number');
+  if (!vals.length) return null;
+  return agg === 'end' ? vals[vals.length - 1] : agg === 'max' ? Math.max(...vals) : agg === 'min' ? Math.min(...vals) : vals.reduce((a, b) => a + b, 0);
+}
+function fmtV(v, f) {
+  if (v == null) return '—';
+  switch (f) {
+    case 'pct': return (v * 100).toFixed(1) + '%';
+    case 'pct2': return (v * 100).toFixed(2) + '%';
+    case 'x2': return '×' + v.toFixed(2);
+    case 'idx': return v.toFixed(0);
+    default: return Math.round(v).toLocaleString('en-US');
+  }
+}
+
+/* ---------- highlights (class on [data-term] in the diagram, re-applied after each render) ---------- */
+let hlIds = [];
+function applyHl() {
+  const host = document.getElementById('diagram');
+  if (!host) return;
+  host.querySelectorAll('.ls-hl, .ls-hl-pipe').forEach(n => n.classList.remove('ls-hl', 'ls-hl-pipe'));
+  if (!cur || !hlIds.length) return;
+  const svg = host.querySelector('svg');
+  if (!svg) return;
+  hlIds.forEach(id => svg.querySelectorAll(`[data-term="${id}"]`).forEach(n => n.classList.add('ls-hl')));
+  // pipes: chip layer and pipe layer are built in the same order (flow.js build())
+  const kids = [...svg.children];
+  const pipes = kids[1] && [...kids[1].children], chips = kids[2] && [...kids[2].children];
+  if (pipes && chips && pipes.length === chips.length) chips.forEach((c, i) => { if (c.classList.contains('ls-hl')) pipes[i].classList.add('ls-hl-pipe'); });
+}
+function setHl(ids) { hlIds = ids || []; applyHl(); }
+
+/* ---------- progressive reveal: visible parts of the diagram + tabs ---------- */
+let prevVis = null;
+function computeVis(L, i, revealedNow) {
+  if (!L.startParts) return null;                           // default: everything visible
+  const s = new Set(L.startParts);
+  for (let k = 0; k <= i; k++) {
+    const st = L.steps[k];
+    if (st.type !== 'reveal') continue;
+    if (k < i || !st.question || revealedNow) arr(st.show).forEach(p => s.add(p));
+  }
+  return s;
+}
+function applyVis(set) {
+  const b = document.body;
+  if (!set) { b.classList.remove('parts-on'); delete b.dataset.vis; prevVis = null; return; }
+  const added = prevVis ? [...set].filter(p => !prevVis.has(p)) : [];
+  b.classList.add('parts-on');
+  b.dataset.vis = [...set].join(' ');
+  prevVis = new Set(set);
+  if (added.length) announce(added);
+}
+function announce(parts) {                                  // fade/pulse newly revealed parts once
+  const sel = parts.map(p => `.flow-svg [data-part~="${p}"], .tabbar [data-part="${p}"]`).join(',');
+  document.querySelectorAll(sel).forEach(n => n.classList.add('part-new'));
+  const diag = parts.filter(p => !TAB_IDS.includes(p));
+  if (diag.length) flash({ parts: diag }, 3000);
+  setTimeout(() => document.querySelectorAll('.part-new').forEach(n => n.classList.remove('part-new')), 1800);
+}
+function syncVis() {
+  applyVis(computeVis(cur.L, cur.i, !!ss.revealed));
+  if (cur.L.startParts) ctx.refresh();                      // tabs may have just (un)locked
+}
+
+/* ---------- progress positions ---------- */
+function positions(L) {
+  let end = L.startDate;
+  return L.steps.map(s => {
+    const from = s.from || end;
+    const until = s.until || from;
+    end = until;
+    return { from, until };
+  });
+}
+
+/* ---------- DOM ---------- */
+function ensureDom() {
+  if (menu) return;
+  menu = document.createElement('div');
+  menu.id = 'ls-menu'; menu.className = 'ls-menu'; menu.hidden = true;
+  menu.innerHTML = '<div class="ls-backdrop" data-act="menu-close"></div><aside class="ls-sheet" role="dialog" aria-label="教学课程"><div class="ls-grab"></div><div class="ls-sheet-body"></div></aside>';
+  document.body.appendChild(menu);
+  menu.addEventListener('click', onMenuClick);
+
+  card = document.createElement('section');
+  card.id = 'ls-card'; card.className = 'ls-card'; card.hidden = true;
+  card.setAttribute('aria-label', '教学卡片');
+  (document.querySelector('.panel') || document.body).appendChild(card);
+  card.addEventListener('click', onCardClick);
+  card.addEventListener('input', onCardInput);
+  if (window.ResizeObserver) new ResizeObserver(syncPad).observe(card);
+  addEventListener('resize', syncPad);
+}
+function syncPad() {
+  // the card lives inside .panel (below the diagram), so CSS alone docks it above the tab bar
+  const tb = document.getElementById('tabbar');
+  if (tb && tb.offsetHeight) document.documentElement.style.setProperty('--tb-h', tb.offsetHeight + 'px');
+  const h = card && !card.hidden ? card.offsetHeight : 0;
+  document.documentElement.style.setProperty('--ls-h', h + 'px');
+}
+
+/* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
+const REC = { 0: 1, 'role:bank': 2, 'role:household': 3, 1: 4 };    // recommended order hint (not enforced)
+function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
+  const ok = isAvail(L);
+  const title = L ? L.title : fallbackTitle, one = L ? L.oneLine : fallbackOne;
+  const id = L ? L.id : '';
+  let st;
+  if (!ok) st = '<span class="ls-st soon">即将开放</span>';
+  else if (p.done[id] || (L.role && isRoleLearned(L.role))) st = '<span class="ls-st done">已完成 ✓</span>';
+  else if (p.step[id] > 0) st = `<span class="ls-st doing">进行中 · 第 ${p.step[id] + 1}/${L.steps.length} 步</span>`;
+  else st = '<span class="ls-st">未开始</span>';
+  const rec = REC[key] ? `<span class="ls-rec">推荐 ${REC[key]}</span>` : '';
+  return `<li><button type="button" class="ls-item" data-act="start" data-id="${esc(id)}" ${ok ? '' : 'disabled'}>` +
+    `<span class="ls-no">${esc(badge)}</span><span class="ls-it"><b>${esc(title)}${rec}</b><small>${esc(one)}</small>${st}</span></button></li>`;
+}
+export async function openMenu() {
+  ensureDom();
+  await rolesReady;
+  const p = load();
+  const L0 = lookup(0);
+  const intro = menuItem(L0, p, '0', 0, '第 0 课 搭出水流系统', '');
+  const roles = ROLE_ORDER.map(r => {
+    const L = ROLE_LESSONS.find(l => l.role === r);
+    return menuItem(L, p, ROLE_NAME[r].slice(0, 1), 'role:' + r, `${ROLE_NAME[r]}课`, '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。');
+  }).join('');
+  const cycles = LESSONS.filter(L => L.id >= 1).map(L => menuItem(L, p, String(L.id), L.id)).join('');
+  menu.querySelector('.ls-sheet-body').innerHTML =
+    `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
+    `<p class="ls-lead">全都用真实的美国季度数据。推荐顺序：第 0 课 → 银行 → 家庭 → 周期第 1 课（不强制，想看哪课点哪课）。</p>` +
+    `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
+    `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
+    `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
+    `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>`;
+  menu.hidden = false;
+  requestAnimationFrame(() => menu.classList.add('open'));
+}
+export function closeMenu() { if (menu) { menu.classList.remove('open'); menu.hidden = true; } }
+function onMenuClick(e) {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'menu-close') closeMenu();
+  else if (b.dataset.act === 'start' && !b.disabled) startLesson(b.dataset.id, 0);
+}
+
+/* ---------- lesson lifecycle ---------- */
+export async function startLesson(id, step = 0) {
+  await rolesReady;
+  const L = lookup(id);
+  if (!isAvail(L)) return;
+  ensureDom(); closeMenu();
+  if (cur) leaveStep();
+  ctx.setPlaying(false); ctx.setQuiet(true); ctx.setTickMs(L.pace || 1000);
+  cur = { L, i: 0, pos: positions(L) };
+  ov = { params: {}, rules: {} };
+  prevVis = null;
+  restart(L, ov, L.startDate);
+  document.body.classList.add('lesson-on');
+  card.hidden = false; card.classList.remove('collapsed');
+  enterStep(Math.max(0, Math.min(step, L.steps.length - 1)));
+}
+
+export function exitLesson() {
+  if (!cur) return;
+  leaveStep();
+  const date = ctx.getSnap().date;
+  const s = sim();
+  const L = cur.L;
+  cur = null; target = null; hlIds = []; applyHl(); clearFlash();
+  applyVis(null);
+  ov = { params: {}, rules: {} };
+  busy = true;
+  try { s.reset(L.mode || 'history'); applySetup(s, { rulesOn: 'all' }, ov); ffTo(s, date); } finally { busy = false; }
+  dirty = false;
+  ctx.setTickMs(1000);
+  ctx.refresh(); ctx.setQuiet(false);
+  card.hidden = true; document.body.classList.remove('lesson-on'); syncPad();
+  ctx.setPlaying(true);
+}
+
+// clean up whatever the step we are leaving had switched on (takeover branch)
+function leaveStep() {
+  if (ss.tkOn) { try { const s = sim(); if (typeof s.takeover === 'function') s.takeover(null); } catch (e) { /* ignore */ } }
+  ss.tkOn = false;
+}
+
+function enterStep(i) {
+  leaveStep();
+  const { L, pos } = cur;
+  const st = L.steps[i];
+  cur.i = i; ss = {}; target = null;
+  mark(p => { p.step[L.id] = i; if (st.type === 'recap') p.done[L.id] = true; });
+  if (st.type === 'recap' && L.role) markRoleLearned(L.role);
+  seek(pos[i].from);
+  setHl(st.hl);
+  const endNow = P.get('end') === '1';
+  if (st.type === 'reveal') {
+    ss.revealed = !st.question;
+    if (st.question && P.get('ans') != null && !cur.__ans) { cur.__ans = true; ss.revealed = true; }
+  }
+  syncVis();
+  if (st.type === 'reveal' && ss.revealed && st.tab) ctx.setTab(st.tab);
+  if (st.type === 'experiment') ss.val = st.slider ? st.slider.def : +(P.get('choice') || 0);   // ?choice=1 picks option 2 (screenshots)
+  if (st.type === 'takeover') { ss.val = st.decision.default; beginTakeover(st); }
+  if (st.type === 'predict') {
+    if (P.get('ans') != null && !cur.__ans) { cur.__ans = true; answer(+P.get('ans')); return; }
+  } else if (st.type === 'watch' || (st.type === 'reveal' && st.until)) {
+    if (endNow) { seek(pos[i].until); } else playTo(pos[i].until);
+  } else if (st.type === 'experiment' && P.get('run') === '1') { runExperiment(); return; }
+  else if (st.type === 'takeover' && P.get('run') === '1') { runTakeover(); return; }
+  draw();
+}
+function playTo(date) {
+  if (dateT(date) <= sim().t) return;
+  target = dateT(date);
+  if (P.get('pause') !== '1') setTimeout(() => { if (cur && target != null) ctx.setPlaying(true); }, 350);
+}
+
+/* called by the app after each render */
+export function onRender() {
+  if (!cur || busy) return;
+  syncPad();
+  applyHl();
+  const snap = ctx.getSnap();
+  const dEl = card.querySelector('.ls-date');
+  if (dEl) dEl.textContent = snap.date;
+  if (cur.L.steps[cur.i].type === 'takeover') renderTk();
+  if (target != null && snap.t >= target) {
+    target = null;
+    ctx.setPlaying(false);
+    ss.arrived = true;
+    const st = cur.L.steps[cur.i];
+    if (st.type === 'experiment') showResult();
+    draw();
+  }
+}
+
+/* ---------- step actions ---------- */
+function answer(idx) {
+  const st = cur.L.steps[cur.i];
+  ss.picked = idx;
+  setHl(st.hl);
+  playTo(cur.pos[cur.i].until);
+  if (P.get('end') === '1') seek(cur.pos[cur.i].until);
+  draw();
+}
+function revealNow() {
+  const st = cur.L.steps[cur.i];
+  ss.revealed = true;
+  syncVis();
+  if (st.tab) ctx.setTab(st.tab);
+  draw();
+}
+function expOverrides() {
+  const st = cur.L.steps[cur.i];
+  if (st.slider) {
+    const s = st.slider;
+    return { params: { [s.rule + '.' + s.key]: ss.val }, rules: {} };
+  }
+  const c = st.choices[ss.val];
+  return { params: { ...(c.set.params || {}) }, rules: { ...(c.set.rules || {}) } };
+}
+function runExperiment() {
+  const st = cur.L.steps[cur.i];
+  ov = expOverrides();
+  ss.ran = true; ss.arrived = false; ss.result = null;
+  restart(cur.L, ov, st.from, st.from);
+  if (P.get('end') === '1' || P.get('run') === '1') { busy = true; ffTo(sim(), st.until); busy = false; ctx.refresh(); ss.arrived = true; showResult(); }
+  else playTo(st.until);
+  draw();
+}
+function showResult() {
+  const st = cur.L.steps[cur.i];
+  const mine = metricsFor(cur.L, ov, st);
+  const base = metricsFor(cur.L, { params: {}, rules: {} }, st);
+  ss.result = st.metrics.map((m, k) => ({ label: m.label, a: fmtV(base[k], m.fmt), b: fmtV(mine[k], m.fmt) }));
+}
+
+/* ---------- takeover step: user plays one role for a window ---------- */
+const DEFAULT_COMPARE = {
+  centralBank: [{ title: '政策利率', realKey: 'policyRate', get: 'rates.policy', fmt: 'pct' }, { title: '房价指数', realKey: 'houseIndex', get: 'assets.housing.price' }],
+  bank:        [{ title: '审批倍数', get: 'bank.approval' }, { title: '新贷款（十亿美元/季）', get: 'flows.newLoans' }],
+  household:   [{ title: '家庭 DSR', realKey: 'hhDsr', get: 'household.dsr', fmt: 'pct' }, { title: '房价指数', realKey: 'houseIndex', get: 'assets.housing.price' }],
+  firm:        [{ title: 'Capex（十亿美元/季）', get: 'flows.toCapex' }, { title: '通胀', realKey: 'cpiYoY', get: 'macro.inflation', fmt: 'pct' }],
+  government:  [{ title: '政府债务/GDP', realKey: 'govDebtGdp', get: 'gov.debtGdp', fmt: 'pct' }, { title: '失业率', realKey: 'unemployment', get: 'macro.unemployment', fmt: 'pct' }],
+  investor:    [{ title: '房价指数', realKey: 'houseIndex', get: 'assets.housing.price' }, { title: '股价指数', realKey: 'equityIndex', get: 'assets.equity.price' }],
+  foreign:     [{ title: '通胀', realKey: 'cpiYoY', get: 'macro.inflation', fmt: 'pct' }, { title: '名义 GDP', realKey: 'gdpNominal', get: 'macro.gdpNominal' }],
+};
+function beginTakeover(st) {
+  const s = sim();
+  ss.tkOn = false;
+  try {
+    if (typeof s.takeover !== 'function') return;
+    s.takeover(st.role);
+    if (typeof s.setDecision === 'function') s.setDecision(st.role, { [st.decision.key]: ss.val });
+    ss.tkOn = true;
+  } catch (e) { /* unsupported role: ignore */ }
+}
+function runTakeover() {
+  const st = cur.L.steps[cur.i];
+  ss.ran = true; ss.arrived = false;
+  restart(cur.L, { params: {}, rules: {} }, st.from);
+  beginTakeover(st);
+  if (P.get('end') === '1' || P.get('run') === '1') { busy = true; ffTo(sim(), st.until); busy = false; ctx.refresh(); ss.arrived = true; }
+  else playTo(st.until);
+  draw();
+}
+// window metrics: model branch vs user branch over from..until
+function tkMetrics(st) {
+  const s = sim(), T0 = dateT(cur.pos[cur.i].from), T1 = dateT(cur.pos[cur.i].until);
+  const m = s.history('model').slice(T0 + 1, T1 + 1), u = s.history('user').slice(T0 + 1, T1 + 1);
+  if (!u.length) return null;
+  return st.metrics.map(x => ({ label: x.label, a: fmtV(aggregate(m, x.get), x.fmt), b: fmtV(aggregate(u, x.get), x.fmt) }));
+}
+function tkFmt(st, v) {
+  const d = st.decision, f = d.fmt || (/rate/i.test(d.key) ? 'pct2' : /mult|approval|ratio/i.test(d.key) ? 'x2' : 'num');
+  return f === 'num' ? (+v).toFixed(d.step && d.step < 1 ? 2 : 0) : fmtV(v, f);
+}
+function renderTk() {
+  const st = cur.L.steps[cur.i];
+  const hosts = card.querySelectorAll('.ls-tkc');
+  if (!hosts.length) return;
+  const s = sim(), real = ctx.real();
+  const T0 = dateT(cur.pos[cur.i].from), T1 = dateT(cur.pos[cur.i].until);
+  const off = Math.max(0, T0 - 8), end = Math.min(real.dates.length, T1 + 1);
+  const series = {};
+  for (const k of Object.keys(real.series)) series[k] = real.series[k].slice(off, end);
+  const shim = {
+    sim: { t: s.t - off, history: b => s.history(b).slice(off) },
+    real: { dates: real.dates.slice(off, end), series, reservedFrom: real.reservedFrom },
+  };
+  const specs = st.compare || DEFAULT_COMPARE[st.role] || [];
+  hosts.forEach((h, k) => {
+    const c = specs[k]; if (!c) return;
+    compareChart(h, shim, { title: c.title, realKey: c.realKey, modelFn: x => getPath(x, c.get), fmt: c.fmt === 'pct' ? pctFmt : undefined, height: 130 });
+  });
+}
+
+function onCardInput(e) {
+  if (e.target.matches('[data-slider]')) {
+    ss.val = parseFloat(e.target.value);
+    const st = cur.L.steps[cur.i];
+    const out = card.querySelector('.ls-val'); if (out) out.textContent = fmtV(ss.val, st.slider.fmt);
+  } else if (e.target.matches('[data-tk]')) {
+    const st = cur.L.steps[cur.i];
+    ss.val = parseFloat(e.target.value);
+    const out = card.querySelector('.ls-val'); if (out) out.textContent = tkFmt(st, ss.val);
+    try { const s = sim(); if (ss.tkOn && typeof s.setDecision === 'function') s.setDecision(st.role, { [st.decision.key]: ss.val }); } catch (err) { /* ignore */ }
+  }
+}
+function onCardClick(e) {
+  const b = e.target.closest('[data-act]'); if (!b || !cur) return;
+  const a = b.dataset.act, { L } = cur, st = L.steps[cur.i];
+  if (a === 'collapse') { card.classList.toggle('collapsed'); syncPad(); }
+  else if (a === 'exit') exitLesson();
+  else if (a === 'menu') { openMenu(); }
+  else if (a === 'prev') { if (cur.i > 0) enterStep(cur.i - 1); }
+  else if (a === 'next') { if (cur.i < L.steps.length - 1) enterStep(cur.i + 1); }
+  else if (a === 'pick') { if (ss.picked == null) answer(+b.dataset.i); }
+  else if (a === 'reveal') revealNow();
+  else if (a === 'choice') { ss.val = +b.dataset.i; draw(); }
+  else if (a === 'run') runExperiment();
+  else if (a === 'tkrun') runTakeover();
+  else if (a === 'play') { if (ctx.isPlaying()) ctx.setPlaying(false); else { if (target == null) { target = dateT(cur.pos[cur.i].until); } ctx.setPlaying(true); } draw(); }
+  else if (a === 'replay') { const i = cur.i, keep = ss.revealed; enterStep(i); if (keep && !ss.revealed) revealNow(); }
+  else if (a === 'nextlesson') { const n = lookup(st.next); if (isAvail(n)) startLesson(n.id, 0); else { exitLesson(); openMenu(); } }
+}
+
+/* ---------- card rendering ---------- */
+function chips(ids) {
+  const list = (ids || []).filter(id => CONC[id]);
+  if (!list.length) return '';
+  return `<div class="ls-read"><span>看概念卡</span>${list.map(id => `<button type="button" class="term" data-term="${esc(id)}">${esc(CONC[id].name)}</button>`).join(' ')}</div>`;
+}
+const SRC_LABEL = [[/BIS/, 'BIS'], [/Case-Shiller/, 'Case-Shiller'], [/Freddie/, 'Freddie Mac'], [/Shiller/, 'Shiller'], [/gold/i, '公开金价'], [/FRED|FEDFUNDS|DGS10|CPI|UNRATE|GDP|TOTBKCR|DCOIL|GFDEGDQ/, 'FRED']];
+const REAL_SERIES = [['policyRate', '政策利率'], ['mortgageRate', '房贷利率'], ['cpiYoY', '通胀'], ['unemployment', '失业率'], ['houseIndex', '房价指数'], ['hhDsr', '家庭 DSR'], ['gdpNominal', '名义 GDP']];
+function sourcesBlock() {
+  const meta = ctx.real()?.meta?.sources || {};
+  const rows = REAL_SERIES.map(([k, name]) => {
+    const t = meta[k] || '';
+    const lab = (SRC_LABEL.find(([re]) => re.test(t)) || [0, '公开数据'])[1];
+    return `<span class="ls-src"><b>${esc(name)}</b> ${esc(lab)}</span>`;
+  }).join('');
+  const sw = (dash, w) => `<svg width="30" height="8" aria-hidden="true"><line x1="1" x2="29" y1="4" y2="4" stroke="currentColor" stroke-width="${w}" stroke-dasharray="${dash}"/></svg>`;
+  return `<div class="ls-tbl"><div class="ls-tblh">真实数据（来自哪里）</div><div class="ls-srcs">${rows}</div>` +
+    `<div class="ls-tblh">模型算出来的</div><div class="ls-srcs"><span class="ls-src">新贷款、还本、付息等各条水管</span><span class="ls-src">模型房价、审批倍数、各角色的行动</span></div>` +
+    `<div class="ls-tblh">图表怎么区分</div><div class="ls-legend"><span>${sw('', 1.8)} 实线 = 真实</span><span>${sw('6 3', 1.8)} 虚线 = 模型</span><span>${sw('1.5 3', 2.2)} 点线 = 你的版本</span><span class="ls-grey">灰色区 = 2022 后·保留样本·示意</span></div></div>`;
+}
+
+function draw() {
+  if (!cur) return;
+  const { L, i, pos } = cur, st = L.steps[i], n = L.steps.length;
+  const snap = ctx.getSnap();
+  const dots = L.steps.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'done' : ''}"></i>`).join('');
+  let body = `<h3 class="ls-stitle">${esc(st.title || '')}</h3>`;
+  const paras = arr(st.text).map(t => `<p>${rich(t)}</p>`).join('');
+  const playLine = () => {
+    const playing = ctx.isPlaying();
+    return `<div class="ls-status">${ss.arrived || snap.t >= dateT(pos[i].until) ? `已播放到 ${pos[i].until}` : `${playing ? '播放中' : '已暂停'} → ${pos[i].until}`}` +
+      `<span class="ls-mini"><button type="button" class="btn" data-act="play">${playing ? '⏸ 暂停' : '▶ 播放'}</button><button type="button" class="btn" data-act="replay">↺ 重播</button></span></div>`;
+  };
+  let canNext = i < n - 1;
+  if (st.type === 'intro') {
+    body += paras + chips(st.concept);
+  } else if (st.type === 'watch') {
+    body += paras + chips(st.concept) + playLine();
+  } else if (st.type === 'reveal') {
+    body += paras;
+    if (st.question) body += `<p class="ls-q">${rich(st.question)}</p>`;
+    if (st.question && !ss.revealed) {
+      body += `<button type="button" class="btn primary ls-run" data-act="reveal">想好了，揭晓</button>`;
+    } else {
+      if (st.answerHint) body += `<div class="ls-explain"><b class="g">答案</b> ${arr(st.answerHint).map(t => rich(t)).join(' ')}</div>`;
+      if (st.relation) body += `<p class="ls-insight"><b>和前面的关系</b>　${arr(st.relation).map(t => rich(t)).join(' ')}</p>`;
+      if (st.block === 'sources') body += sourcesBlock();
+      if (st.tryIt) body += `<p class="ls-try"><b>试一试</b>　${rich(st.tryIt)}</p>`;
+      body += chips(st.concept);
+    }
+    if (st.until && st.until !== pos[i].from) body += playLine();
+  } else if (st.type === 'takeover') {
+    const d = st.decision;
+    body += paras +
+      `<div class="ls-ctl"><label>${esc(d.label || '你的决定')} <b class="ls-val">${tkFmt(st, ss.val)}</b></label>` +
+      `<input type="range" data-tk min="${d.min}" max="${d.max}" step="${d.step}" value="${ss.val}"><div class="ls-range"><span>${tkFmt(st, d.min)}</span><span>默认 ${tkFmt(st, d.default)}</span><span>${tkFmt(st, d.max)}</span></div></div>` +
+      `<button type="button" class="btn primary ls-run" data-act="tkrun">${ss.ran ? '↺ 再跑一次' : `▶ 用我的决定跑 ${pos[i].from} → ${pos[i].until}`}</button>` +
+      (ss.ran ? `<div class="ls-status">${ss.arrived || snap.t >= dateT(pos[i].until) ? `已播放到 ${pos[i].until}` : `播放中 → ${pos[i].until}`}</div>` : '') +
+      `<div class="ls-tkcs">${(st.compare || DEFAULT_COMPARE[st.role] || []).map(() => '<div class="ls-tkc"></div>').join('')}</div>`;
+    if (ss.ran && (ss.arrived || snap.t >= dateT(pos[i].until)) && st.metrics) {
+      const rows = tkMetrics(st);
+      if (rows) body += `<table class="tbl ls-res"><tr><th></th><th>模型（按规则）</th><th>你的版本</th></tr>` +
+        rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.a}</td><td><b>${r.b}</b></td></tr>`).join('') + '</table>' +
+        (st.insight ? `<p class="ls-insight">${rich(st.insight)}</p>` : '');
+    }
+  } else if (st.type === 'predict') {
+    body += `<p class="ls-q">${rich(st.q)}</p><div class="ls-opts">` +
+      st.options.map((o, k) => {
+        const cls = ss.picked == null ? '' : o.ok ? ' ok' : k === ss.picked ? ' bad' : ' dim';
+        const mk = ss.picked == null ? '' : o.ok ? '<em>✓</em>' : k === ss.picked ? '<em>✗</em>' : '';
+        return `<button type="button" class="ls-opt${cls}" data-act="pick" data-i="${k}" ${ss.picked != null ? 'disabled' : ''}>${esc(o.t)}${mk}</button>`;
+      }).join('') + '</div>';
+    if (ss.picked != null) {
+      body += `<div class="ls-explain">${st.options[ss.picked].ok ? '<b class="g">答对了。</b>' : '<b class="r">差一点。</b>'}${st.explain.map(t => `<p>${rich(t)}</p>`).join('')}</div>` +
+        `<div class="ls-status">${snap.t >= dateT(pos[i].until) ? `已播放到 ${pos[i].until}` : `${ctx.isPlaying() ? '播放中' : '已暂停'} → ${pos[i].until}，看结果`}</div>`;
+    } else canNext = false;
+  } else if (st.type === 'experiment') {
+    body += paras;
+    if (st.slider) {
+      const s = st.slider;
+      body += `<div class="ls-ctl"><label>${esc(s.label)} <b class="ls-val">${fmtV(ss.val, s.fmt)}</b></label>` +
+        `<input type="range" data-slider min="${s.min}" max="${s.max}" step="${s.step}" value="${ss.val}"><div class="ls-range"><span>${fmtV(s.min, s.fmt)}</span><span>默认 ${fmtV(s.def, s.fmt)}</span><span>${fmtV(s.max, s.fmt)}</span></div></div>`;
+    } else {
+      body += '<div class="ls-opts">' + st.choices.map((c, k) => `<button type="button" class="ls-opt${ss.val === k ? ' sel' : ''}" data-act="choice" data-i="${k}">${esc(c.label)}${k === 0 ? ' <small>（默认）</small>' : ''}</button>`).join('') + '</div>';
+    }
+    body += `<button type="button" class="btn primary ls-run" data-act="run">${ss.ran ? '↺ 再跑一次' : '▶ 用这个设置重跑'}</button>`;
+    if (ss.ran && !ss.result) body += `<div class="ls-status">播放中 → ${pos[i].until}</div>`;
+    if (ss.result) {
+      body += `<table class="tbl ls-res"><tr><th></th><th>默认</th><th>你的设置</th></tr>` +
+        ss.result.map(r => `<tr><td>${esc(r.label)}</td><td>${r.a}</td><td><b>${r.b}</b></td></tr>`).join('') + '</table>' +
+        `<p class="ls-insight">${rich(st.insight)}</p>`;
+    }
+  } else if (st.type === 'recap') {
+    body += `<ol class="ls-lines">${arr(st.lines).map(t => `<li>${rich(t)}</li>`).join('')}</ol>` + chips(st.concepts);
+    const nx = lookup(st.next);
+    body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`;
+  }
+  card.innerHTML =
+    `<div class="ls-top"><button type="button" class="ls-col" data-act="collapse" aria-label="折叠/展开">${card.classList.contains('collapsed') ? '▴' : '▾'}</button>` +
+    `<button type="button" class="ls-ttl" data-act="menu">${esc(lessonLabel(L))} · ${esc(L.title)}</button><span class="ls-date">${snap.date}</span>` +
+    `<a class="ls-free" href="${esc(freeUrl())}" target="_blank" rel="noopener">↗ 自由运行</a>` +
+    `<button type="button" class="ls-exit" data-act="exit">退出教学</button></div>` +
+    `<div class="ls-body">${body}</div>` +
+    `<div class="ls-nav"><button type="button" class="btn" data-act="prev" ${i === 0 ? 'disabled' : ''}>‹ 上一步</button>` +
+    `<span class="ls-dots" aria-label="第 ${i + 1}/${n} 步">${dots}</span>` +
+    `<button type="button" class="btn primary" data-act="next" ${canNext ? '' : 'disabled'}>下一步 ›</button></div>`;
+  if (st.type === 'takeover') renderTk();
+  syncPad(); requestAnimationFrame(syncPad);
+}
+
+/* ---------- entry ---------- */
+export function initLessons(c) {
+  ctx = c;
+  ensureDom();
+  loadRoles();
+  if (P.has('lesson')) {
+    const raw = P.get('lesson');
+    startLesson(/^\d+$/.test(raw) ? +raw : raw, parseInt(P.get('step') || '0', 10));
+  }
+  if (P.get('menu') === '1') openMenu();                 // screenshot helpers: ?menu=1, &term=dsr
+  if (P.get('term')) setTimeout(() => ctx.openTerm(P.get('term')), 300);
+}

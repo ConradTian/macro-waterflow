@@ -1,0 +1,236 @@
+/* 教学模式：课程菜单 + 底部教学卡 + 图中高亮 */
+
+/* ---------- highlight in the water diagram (class added by lessons.js) ---------- */
+.flow-svg g.ls-hl > rect.hit { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-width: 1.6;
+  animation: ls-pulse 1.2s ease-in-out infinite; }
+.flow-svg g.ls-hl text { fill: var(--accent); font-weight: 700; }
+.flow-svg g.chip.ls-hl rect.bg { stroke: var(--accent); stroke-width: 2.4; }
+.flow-svg g.ls-hl-pipe .bed { opacity: .6; }
+.flow-svg g.ls-hl-pipe .dash { filter: drop-shadow(0 0 2.5px var(--accent)); }
+@keyframes ls-pulse { 0%, 100% { fill-opacity: .08; stroke-opacity: .5; } 50% { fill-opacity: .26; stroke-opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .flow-svg g.ls-hl > rect.hit { animation: none; } }
+
+/* leave room under the tab content for the docked card */
+body.lesson-on .tab-content { padding-bottom: calc(var(--ls-h, 0px) + 12px); }
+
+/* ---------- docked lesson card ---------- */
+.panel { position: relative; }
+.ls-card { position: absolute; left: 0; right: 0; bottom: var(--tb-h, calc(49px + var(--safe-b, 0px))); z-index: 80;
+  max-height: calc(100% - var(--tb-h, 49px) - 4px); display: flex; flex-direction: column; box-sizing: border-box; max-width: 100vw;
+  background: var(--surface); color: var(--text); border-top: 2px solid var(--accent);
+  border-radius: 14px 14px 0 0; box-shadow: 0 -4px 18px rgba(0, 0, 0, .22); }
+.ls-card[hidden] { display: none; }
+.ls-card * { box-sizing: border-box; overflow-wrap: anywhere; }
+.ls-top { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; border-bottom: 1px solid var(--border); flex: none; }
+.ls-col { width: 36px; height: 36px; border: 0; background: none; font-size: 18px; color: var(--muted); cursor: pointer; flex: none; }
+.ls-ttl { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; font-size: 13px; font-weight: 700;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.ls-date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.ls-exit { flex: none; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-2); font-size: 12px; cursor: pointer; }
+.ls-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 14px 4px; font-size: 14px; line-height: 1.55;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.ls-body p { margin: 4px 0; }
+.ls-stitle { margin: 2px 0 2px; font-size: 15px; color: var(--accent); }
+.ls-q { font-weight: 700; }
+.ls-nav { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 8px;
+  border-top: 1px solid var(--border); }
+.ls-nav .btn { min-height: 40px; padding: 0 12px; font-size: 14px; }
+.ls-nav .btn:disabled { opacity: .4; }
+.ls-dots { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.ls-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.ls-dots i.done { background: var(--muted); }
+.ls-dots i.on { background: var(--accent); transform: scale(1.3); }
+.ls-card.collapsed .ls-body { display: none; }
+.ls-card.collapsed .ls-nav { border-top: 0; padding-top: 2px; }
+
+.ls-read { margin: 6px 0 2px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+.ls-status { margin: 8px 0 2px; padding: 6px 8px; font-size: 13px; color: var(--muted); background: var(--surface-2); border-radius: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ls-mini { display: flex; gap: 6px; }
+.ls-mini .btn { min-height: 34px; padding: 0 10px; font-size: 13px; }
+
+.ls-opts { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.ls-opt { min-height: 44px; text-align: left; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface-2); font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.ls-opt.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ls-opt.ok { border-color: var(--lamp-green); background: color-mix(in srgb, var(--lamp-green) 16%, var(--surface)); }
+.ls-opt.bad { border-color: var(--lamp-red); background: color-mix(in srgb, var(--lamp-red) 14%, var(--surface)); }
+.ls-opt.dim { opacity: .55; }
+.ls-opt em { font-style: normal; font-weight: 700; }
+.ls-explain { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.ls-explain .g { color: var(--lamp-green); } .ls-explain .r { color: var(--lamp-red); }
+
+.ls-ctl { margin: 8px 0 4px; }
+.ls-ctl label { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.ls-ctl input[type=range] { width: 100%; min-height: 32px; margin: 4px 0 0; accent-color: var(--accent); }
+.ls-range { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.ls-run { width: 100%; margin: 8px 0 4px; min-height: 44px; }
+.ls-res { margin: 8px 0 4px; }
+.ls-res td:nth-child(n+2), .ls-res th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.ls-insight { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+.ls-lines { margin: 4px 0; padding-left: 20px; }
+.ls-lines li { margin: 4px 0; }
+
+@media (min-width: 768px) {
+  .ls-card { max-height: 45%; border-radius: 14px 14px 0 0; }   /* iPad: never cover more than ~45% of the right panel so the ledger stays visible */
+}
+
+/* ---------- course menu: bottom sheet (phone) / side panel (>=768px) ---------- */
+.ls-menu[hidden] { display: none; }
+.ls-menu { position: fixed; inset: 0; z-index: 900; }
+.ls-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .38); }
+.ls-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 82dvh; max-width: 100vw; display: flex; flex-direction: column;
+  box-sizing: border-box; background: var(--surface); color: var(--text); border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
+  transform: translateY(40px); opacity: 0; transition: transform .22s, opacity .22s; }
+.ls-menu.open .ls-sheet { transform: none; opacity: 1; }
+.ls-grab { width: 44px; height: 5px; border-radius: 3px; background: var(--border); margin: 8px auto 0; flex: none; }
+.ls-sheet-body { overflow-y: auto; overflow-x: hidden; padding: 4px 16px calc(16px + var(--safe-b, 0px)); }
+.ls-sheet * { box-sizing: border-box; overflow-wrap: anywhere; }
+.ls-head { display: flex; align-items: center; justify-content: space-between; }
+.ls-head h2 { margin: 6px 0; font-size: 18px; }
+.ls-x { width: 44px; height: 44px; border: 0; background: none; font-size: 18px; color: var(--muted); cursor: pointer; }
+.ls-lead { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.ls-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ls-item { width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 10px 12px; min-height: 56px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.ls-item:disabled { opacity: .55; cursor: default; background: var(--surface-2); }
+.ls-no { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700;
+  display: grid; place-items: center; font-size: 14px; }
+.ls-item:disabled .ls-no { background: var(--muted); }
+.ls-it { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ls-it b { font-size: 15px; }
+.ls-it small { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.ls-st { font-size: 12px; color: var(--muted); }
+.ls-st.done { color: var(--lamp-green); font-weight: 600; }
+.ls-st.doing { color: var(--accent); font-weight: 600; }
+.ls-st.soon { font-style: italic; }
+@media (min-width: 768px) {
+  .ls-backdrop { background: rgba(0, 0, 0, .2); }
+  .ls-sheet { left: auto; top: 0; width: 400px; max-height: none; border-radius: 0; transform: translateX(30px); }
+  .ls-menu.open .ls-sheet { transform: none; }
+  .ls-grab { display: none; }
+}
+
+/* =====================================================================
+   Progressive reveal: while a lesson declares startParts, body.parts-on is set and
+   body[data-vis="bank pool ..."] lists what is visible. Everything with data-part
+   (diagram elements, tab buttons) that is not listed is hidden / locked.
+   ===================================================================== */
+body.parts-on .flow-svg [data-part] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .5s ease, visibility 0s linear .5s; }
+body.parts-on[data-vis~="bank"] .flow-svg [data-part~="bank"],
+body.parts-on[data-vis~="pool"] .flow-svg [data-part~="pool"],
+body.parts-on[data-vis~="repay"] .flow-svg [data-part~="repay"],
+body.parts-on[data-vis~="household"] .flow-svg [data-part~="household"],
+body.parts-on[data-vis~="firm"] .flow-svg [data-part~="firm"],
+body.parts-on[data-vis~="channel"] .flow-svg [data-part~="channel"],
+body.parts-on[data-vis~="cash"] .flow-svg [data-part~="cash"],
+body.parts-on[data-vis~="centralBank"] .flow-svg [data-part~="centralBank"],
+body.parts-on[data-vis~="government"] .flow-svg [data-part~="government"],
+body.parts-on[data-vis~="capex"] .flow-svg [data-part~="capex"],
+body.parts-on[data-vis~="interest"] .flow-svg [data-part~="interest"],
+body.parts-on[data-vis~="poolHousing"] .flow-svg [data-part~="poolHousing"],
+body.parts-on[data-vis~="poolEquity"] .flow-svg [data-part~="poolEquity"],
+body.parts-on[data-vis~="poolBond"] .flow-svg [data-part~="poolBond"],
+body.parts-on[data-vis~="poolGold"] .flow-svg [data-part~="poolGold"],
+body.parts-on[data-vis~="iou"] .flow-svg [data-part~="iou"],
+body.parts-on[data-vis~="springs"] .flow-svg [data-part~="springs"],
+body.parts-on[data-vis~="valves"] .flow-svg [data-part~="valves"]
+  { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .5s ease, visibility 0s; }
+/* v2 parts: pool = group of the 4 sub-pools (poolHousing poolEquity poolBond poolGold); budget = 水量平衡条 + legend; iou = 欠条箱; springs; valves */
+body.parts-on .flow-budget[data-part] { display: none; }
+body.parts-on[data-vis~="budget"] .flow-budget[data-part] { display: block; animation: part-in .6s ease-out; }
+body.parts-on[data-vis~="budget"] .flow-svg [data-part~="budget"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .5s ease, visibility 0s; }
+body.parts-on .flow-svg .dangling { display: none; }
+
+body.parts-on .tabbar [data-part] { opacity: .35; pointer-events: none; position: relative; }
+body.parts-on .tabbar [data-part]::after { content: "锁"; font-size: 9px; margin-left: 3px; vertical-align: super; color: var(--muted); }
+body.parts-on[data-vis~="ledger"] .tabbar [data-part="ledger"],
+body.parts-on[data-vis~="cycle"] .tabbar [data-part="cycle"],
+body.parts-on[data-vis~="assets"] .tabbar [data-part="assets"],
+body.parts-on[data-vis~="takeover"] .tabbar [data-part="takeover"]
+  { opacity: 1; pointer-events: auto; }
+body.parts-on[data-vis~="ledger"] .tabbar [data-part="ledger"]::after,
+body.parts-on[data-vis~="cycle"] .tabbar [data-part="cycle"]::after,
+body.parts-on[data-vis~="assets"] .tabbar [data-part="assets"]::after,
+body.parts-on[data-vis~="takeover"] .tabbar [data-part="takeover"]::after
+  { content: none; }
+
+/* newly revealed part: fade in once (JS adds .part-new for ~1.8 s) */
+@keyframes part-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes part-glow { 0% { stroke: var(--accent); stroke-width: 5; } 100% { stroke-width: 1.2; } }
+.flow-svg .part-new { animation: part-in .7s ease-out; }
+.flow-svg rect.node.part-new { animation: part-in .7s ease-out, part-glow 1.6s ease-out; }
+.tabbar .part-new { animation: part-in .7s ease-out; box-shadow: inset 0 -3px 0 var(--accent); }
+.ls-locked { text-align: center; padding: 24px 16px; }
+
+/* link highlight (links.js flash): ledger entry / lamp / newly revealed part -> diagram */
+.flow-svg rect.node.lk-hl { stroke: var(--accent); stroke-width: 3; animation: lk-pulse 1s ease-in-out infinite; }
+.flow-svg rect.lk-hl:not(.node):not(.water) { stroke: var(--accent); stroke-width: 2.5; }
+.flow-svg text.lk-hl, .flow-svg g.lk-hl text { fill: var(--accent); font-weight: 700; }
+.flow-svg g.lk-hl rect.hit { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-width: 1.4; }
+.flow-svg g.chip.lk-hl rect.bg { stroke: var(--accent); stroke-width: 2.6; }
+.flow-svg g.lk-hl .bed { opacity: .75; }
+.flow-svg g.lk-hl .dash { filter: drop-shadow(0 0 3px var(--accent)); }
+.flow-svg circle.lk-hl { stroke: var(--accent); stroke-width: 3; }
+@keyframes lk-pulse { 0%, 100% { stroke-opacity: .55; } 50% { stroke-opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .flow-svg rect.node.lk-hl { animation: none; } .flow-svg .part-new { animation: none; } }
+
+/* reveal / takeover step bodies */
+.ls-q::before { content: "问"; display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: var(--accent); color: #fff; font-size: 12px; }
+.ls-explain b.g { margin-right: 4px; }
+.ls-tbl { margin: 8px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 12.5px; }
+.ls-tblh { font-weight: 700; margin: 6px 0 3px; color: var(--muted); }
+.ls-tblh:first-child { margin-top: 0; }
+.ls-srcs { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.ls-src { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); white-space: nowrap; }
+.ls-src b { font-weight: 600; margin-right: 3px; }
+.ls-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ls-legend svg { vertical-align: middle; margin-right: 3px; color: var(--text); }
+.ls-grey { padding: 0 8px; background: color-mix(in srgb, var(--muted) 20%, transparent); border-radius: 4px; }
+.ls-tkcs { display: grid; gap: 6px; margin-top: 6px; }
+@media (min-width: 768px) { .ls-tkcs { grid-template-columns: 1fr 1fr; } }
+.ls-tkc .pn-chart { margin: 0; }
+
+/* card header: free-run link */
+.ls-free { flex: none; font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; padding: 6px 4px; }
+
+/* course menu sections */
+.ls-sec { margin: 14px 0 6px; font-size: 14px; color: var(--accent); }
+.ls-sec small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.ls-rec { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  color: var(--accent); border: 1px solid var(--accent); vertical-align: 1px; }
+.ls-free-link { display: block; margin: 16px 0 4px; padding: 12px; text-align: center; border: 1px dashed var(--border);
+  border-radius: 12px; color: var(--accent); text-decoration: none; font-weight: 600; }
+body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ls-try { margin: 6px 0; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--accent); }
+.ls-try b { color: var(--accent); }
+
+/* =====================================================================
+   Town lessons: action / valve / try / chain / zoom steps
+   ===================================================================== */
+.ls-water { margin: 4px 0; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); font-weight: 700; font-size: 13.5px; }
+.ls-ro td:nth-child(n+2), .ls-ro th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.ls-rip { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ls-rip button { width: 100%; display: flex; gap: 8px; align-items: baseline; text-align: left; padding: 5px 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-2); font-size: 13px; line-height: 1.4; cursor: pointer; color: var(--text); }
+.ls-rip button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ls-rip .dl { flex: none; min-width: 3.6em; text-align: center; font-style: normal; font-size: 11.5px; font-weight: 700; padding: 1px 6px;
+  border-radius: 999px; background: var(--accent); color: #fff; }
+.ls-chain { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.ls-chain li { position: relative; padding-bottom: 14px; }
+.ls-chain li:last-child { padding-bottom: 0; }
+.ls-chain li:not(:last-child)::after { content: "↓"; position: absolute; left: 14px; bottom: -1px; font-size: 14px; line-height: 14px; color: var(--accent); font-weight: 700; }
+.ls-link { width: 100%; display: flex; gap: 8px; align-items: flex-start; text-align: left; padding: 7px 10px; border-radius: 10px; min-height: 40px;
+  border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; line-height: 1.45; cursor: pointer; color: var(--text); }
+.ls-link i { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-style: normal; font-weight: 700; font-size: 12px; display: grid; place-items: center; margin-top: 1px; }
+.ls-link.on { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.ls-chain-hint { margin: 8px 0 2px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ls-chain-hint .btn { min-height: 34px; padding: 0 12px; font-size: 13px; }
+
+/* water droplets running along a pipe (circles inside the diagram svg) */
+.flow-svg .ls-drop { fill: var(--accent); stroke: #fff; stroke-width: 1.4; filter: drop-shadow(0 0 3px var(--accent)); pointer-events: none; }
+.flow-svg .ls-drop-lab { fill: var(--accent); font-size: 13px; font-weight: 800; paint-order: stroke; stroke: var(--surface, #fff); stroke-width: 3px; pointer-events: none; }
+/* fallback zoom (when flow.js has no zoomOut) */
+#diagram.ls-xfade { opacity: .2; transition: opacity .45s ease; }
+#diagram { transition: opacity .45s ease; }

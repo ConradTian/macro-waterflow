@@ -11,6 +11,8 @@
   --c-goods: #2a9547;
   --c-capex: #b08900;
   --c-cash: #78879a;
+  --c-bond: #5b6bd0;     /* 长期国债 */
+  --c-gold: #d1a300;     /* 黄金 */
   --lamp-green: #2a9547; --lamp-yellow: #d9a000; --lamp-red: #d33f3f;
   --water: rgba(37, 120, 205, .38);
   --shadow: 0 2px 10px rgba(20, 30, 50, .14);
@@ -28,7 +30,7 @@
     --text: #e6ebf2; --muted: #9aa7b8; --border: #2f3a49; --accent: #6ea4ff;
     --c-credit: #5aa7ee; --c-repay: #f09a45; --c-fiscal: #c08be0;
     --c-housing: #d49a64; --c-financial: #4cc9b4; --c-goods: #5fcf82;
-    --c-capex: #e3bd3a; --c-cash: #9aa8ba;
+    --c-capex: #e3bd3a; --c-cash: #9aa8ba; --c-bond: #8f9cf0; --c-gold: #f0c93a;
     --lamp-green: #4cc977; --lamp-yellow: #ecbd2f; --lamp-red: #ef6b6b;
     --water: rgba(80, 150, 230, .45);
     --shadow: 0 2px 12px rgba(0, 0, 0, .5);
@@ -40,7 +42,7 @@
   --text: #e6ebf2; --muted: #9aa7b8; --border: #2f3a49; --accent: #6ea4ff;
   --c-credit: #5aa7ee; --c-repay: #f09a45; --c-fiscal: #c08be0;
   --c-housing: #d49a64; --c-financial: #4cc9b4; --c-goods: #5fcf82;
-  --c-capex: #e3bd3a; --c-cash: #9aa8ba;
+  --c-capex: #e3bd3a; --c-cash: #9aa8ba; --c-bond: #8f9cf0; --c-gold: #f0c93a;
   --lamp-green: #4cc977; --lamp-yellow: #ecbd2f; --lamp-red: #ef6b6b;
   --water: rgba(80, 150, 230, .45);
   --shadow: 0 2px 12px rgba(0, 0, 0, .5);
@@ -81,9 +83,8 @@ button { font: inherit; color: inherit; }
 .banner-x { width: 44px; min-height: 40px; background: none; border: 0; color: var(--muted); cursor: pointer; }
 
 .main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.diagram { flex: none; height: min(calc(100vw * 390 / 390), 43dvh); background: var(--surface);
+.diagram { flex: none; height: min(calc(100vw * 1.38), 56dvh); background: var(--surface);
   border-bottom: 1px solid var(--border); display: flex; justify-content: center; }
-.diagram svg { height: 100%; width: auto; max-width: 100%; display: block; }
 
 .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .tab-content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 12px var(--gutter);
@@ -99,7 +100,8 @@ button { font: inherit; color: inherit; }
   .main { display: grid; grid-template-columns: minmax(400px, 46%) 1fr; }
   .diagram { height: auto; align-self: stretch; border-bottom: 0; align-items: flex-start;
     border-right: 1px solid var(--border); padding: 8px; max-height: 100%; }
-  .diagram svg { width: 100%; height: auto; max-height: calc(100dvh - 100px); }
+  .flow-wrap { height: auto; }
+  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - 190px); }
   .tab-content { padding: 16px 24px; }
   .timebar { padding-left: 24px; padding-right: 24px; }
   .banner { padding-left: 24px; }
@@ -161,27 +163,62 @@ button.term:hover { text-decoration-style: solid; }
 .toast-msg { flex: 1; font-size: 14px; }
 @media (min-width: 768px) { .toast { left: auto; right: 24px; width: 420px; bottom: 24px; } }
 
-/* ---------- water diagram (flow.js) ---------- */
-.flow-svg { font-family: inherit; user-select: none; -webkit-user-select: none; }
+/* ---------- water diagram v2 (flow.js) ---------- */
+.diagram { position: relative; }
+.flow-wrap { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+.flow-wrap > .flow-svg { flex: 1 1 auto; min-height: 0; width: 100%; height: auto; max-width: 100%; display: block; }
+.flow-svg { font-family: inherit; user-select: none; -webkit-user-select: none; transform-origin: 50% 40%; }
 .flow-svg text { fill: var(--text); font-size: 11px; }
-.flow-svg .sub { fill: var(--muted); font-size: 10px; }
-.flow-svg .ttl { font-size: 12.5px; font-weight: 700; }
+.flow-svg .sub { fill: var(--muted); font-size: 10.5px; }
+.flow-svg .sub.small { font-size: 9px; }
+.flow-svg .sub.num { fill: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.flow-svg .ttl { font-size: 13px; font-weight: 700; }
+.flow-svg .ttl.small { font-size: 11px; }
+.flow-svg .ttl.pname { font-size: 10.5px; }
+.flow-svg .ttl.hh.long { font-size: 11.5px; }
+.flow-svg .cap { fill: var(--muted); font-size: 8.6px; }
+.flow-svg .cap.pc { fill: var(--pc); font-weight: 700; font-size: 9px; }
+.flow-svg .cap.vl { fill: var(--accent); font-weight: 600; }
 .flow-svg .node { fill: var(--surface); stroke: var(--border); stroke-width: 1.2; }
 .flow-svg .node.soft { fill: var(--surface-2); }
+.flow-svg .node.tank { fill: var(--surface-2); stroke: var(--muted); stroke-opacity: .55; }
 .flow-svg .frame { fill: none; stroke: var(--border); stroke-dasharray: 3 3; }
 .flow-svg .water { fill: var(--water); }
 .flow-svg .water.goods { fill: var(--c-goods); fill-opacity: .35; }
-.flow-svg .gauge-bg { fill: var(--surface-2); stroke: var(--border); }
-.flow-svg .gauge-mid { stroke: var(--muted); stroke-width: 1; }
-.flow-svg .gauge-mark { fill: var(--accent); }
-.flow-svg .caption { fill: var(--muted); font-size: 9.5px; }
+.flow-svg .water.housing { fill: var(--c-housing); fill-opacity: .42; }
+.flow-svg .water.equity { fill: var(--c-financial); fill-opacity: .42; }
+.flow-svg .water.bond { fill: var(--c-bond); fill-opacity: .42; }
+.flow-svg .water.gold { fill: var(--c-gold); fill-opacity: .5; }
+.flow-svg .water.cash { fill: var(--c-cash); fill-opacity: .45; }
+.flow-svg .water.debt { fill: var(--c-credit); fill-opacity: .28; }
+.flow-svg .ticks path { stroke: var(--muted); stroke-opacity: .6; stroke-width: 1; }
+.flow-svg .link { stroke: var(--c-credit); stroke-width: 1.4; stroke-dasharray: 2 2; fill: none; }
+.flow-svg .caption { fill: var(--muted); font-size: 9px; }
+.flow-svg .lvlpill rect { fill: none; stroke: var(--muted); stroke-opacity: .6; stroke-dasharray: 2 2; }
+.flow-svg .capmark { fill: var(--c-capex); opacity: .75; transition: transform .6s; }
+.flow-svg .emptyspring circle { fill: none; stroke: var(--muted); stroke-dasharray: 2 2.5; }
+.flow-svg .emptyspring path { stroke: var(--muted); stroke-width: 1; opacity: .6; }
+.flow-svg .src { fill: var(--pc); }
+.flow-svg .src.bond { fill: var(--c-bond); } .flow-svg .src.equity { fill: var(--c-financial); } .flow-svg .src.housing { fill: var(--c-housing); }
+.flow-svg .seesaw path { stroke: var(--muted); stroke-width: 2; fill: none; stroke-linecap: round; }
+.flow-svg .seesaw .pivot { fill: var(--muted); stroke: none; }
+.flow-svg .seesaw .endl { fill: var(--c-repay); } .flow-svg .seesaw .endr { fill: var(--c-bond); }
+.flow-svg .plank { transition: transform .6s; }
 
+/* pipes */
 .flow-svg .bed { fill: none; stroke-linecap: butt; stroke-linejoin: round; opacity: .22; }
 .flow-svg .dash { fill: none; stroke-linecap: butt; stroke-linejoin: round; stroke-dasharray: 6 9;
   animation: flowdash linear infinite; }
 .flow-svg .dash.slow { stroke-dasharray: 3 6; }
+.flow-svg .buy .dash { stroke-dasharray: 1.5 7.5; stroke-linecap: round; }        /* buying existing assets = buying water rights: dotted, only moves water */
+.flow-svg .capex .dash { stroke-dasharray: 9 4; }                                  /* Capex = building: bold bricks */
+.flow-svg .capex .bed { opacity: .38; }
+.flow-svg .fb .bed { opacity: .12; }
+.flow-svg .fb .dash { stroke-dasharray: 4 5; stroke-width: 2 !important; animation-direction: normal; }
+.flow-svg .spring .dash { stroke-dasharray: 3 5; }
 .flow-svg .idle .dash { animation: none; opacity: .25; }
 .flow-svg .idle .arrow { opacity: 0; }
+.flow-svg .drain.idle .drops, .flow-svg .pump.idle .imp { animation-play-state: paused; opacity: .5; }
 @keyframes flowdash { to { stroke-dashoffset: -15; } }
 @media (prefers-reduced-motion: reduce) { .flow-svg .dash { animation: none; } }
 
@@ -190,14 +227,133 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .fiscal { --pc: var(--c-fiscal); }
 .flow-svg .housing { --pc: var(--c-housing); }
 .flow-svg .financial { --pc: var(--c-financial); }
+.flow-svg .equity { --pc: var(--c-financial); }
+.flow-svg .bond { --pc: var(--c-bond); }
+.flow-svg .gold { --pc: var(--c-gold); }
 .flow-svg .goods { --pc: var(--c-goods); }
 .flow-svg .capex { --pc: var(--c-capex); }
 .flow-svg .cash { --pc: var(--c-cash); }
+.flow-svg .fb { --pc: var(--c-credit); }
 .flow-svg .bed, .flow-svg .dash { stroke: var(--pc); }
 .flow-svg .arrow { fill: var(--pc); }
 .flow-svg .chip rect.bg { fill: var(--surface); fill-opacity: .94; stroke: var(--pc); stroke-width: 1.2; }
+.flow-svg .chip.fb rect.bg { stroke-dasharray: 3 2; }
 .flow-svg .chip text { font-size: 10px; font-weight: 600; }
+.flow-svg .chip.minor text { font-size: 9.5px; font-weight: 500; }
+.flow-svg .chip.off { display: none; }
 .flow-svg .hit { fill: transparent; stroke: none; }
 .flow-svg g.term { cursor: pointer; }
 .flow-svg g.term text:first-of-type { text-decoration: underline dotted; text-underline-offset: 2px; }
 .flow-svg g.term:active .bg { fill: var(--surface-2); }
+.flow-svg .dangling { display: none; }
+
+/* pumps: circle + spinning impeller + "+" badge.  drains: funnel + falling drops + "-" badge.  (kinds must be unmistakable) */
+.flow-svg .pump .body { fill: var(--surface); stroke: var(--pc); stroke-width: 2.2; }
+.flow-svg .pump .blade { fill: var(--pc); fill-opacity: .8; }
+.flow-svg .pump .hub { fill: var(--surface); }
+.flow-svg .pump .imp { transform-box: fill-box; transform-origin: center; animation: spin var(--spin, 1.6s) linear infinite; }
+.flow-svg .pump.main .body { stroke-width: 2.6; fill: color-mix(in srgb, var(--pc) 12%, var(--surface)); }
+.flow-svg .badge circle { fill: var(--pc); }
+.flow-svg .badge .sign { stroke: #fff; stroke-width: 1.8; fill: none; stroke-linecap: round; }
+.flow-svg .drain .body { fill: color-mix(in srgb, var(--pc) 18%, var(--surface)); stroke: var(--pc); stroke-width: 2; stroke-linejoin: round; }
+.flow-svg .drain .drops path { stroke: var(--pc); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-dasharray: 2 2; animation: drip .9s linear infinite; }
+.flow-svg .drain.main .body { stroke-width: 2.4; }
+.flow-svg .pump.mini .body, .flow-svg .drain.mini .body { stroke-width: 1.4; }
+.flow-svg .pump.mini .sign { stroke: var(--pc); stroke-width: 1.6; fill: none; stroke-linecap: round; }
+.flow-svg .drain.mini .body { fill: var(--surface); }
+.flow-svg .legend .pipeline { stroke: var(--muted); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 5 3; }
+.flow-svg .legend .ruler { stroke: var(--muted); stroke-width: 1.2; fill: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes drip { to { stroke-dashoffset: -4; } }
+@media (prefers-reduced-motion: reduce) { .flow-svg .pump .imp, .flow-svg .drain .drops path { animation: none; } }
+
+/* valves: bow-tie icon with handle; levels are tanks / rulers, never this shape */
+.flow-svg .valve { cursor: pointer; }
+.flow-svg .valve .body { fill: color-mix(in srgb, var(--accent) 18%, var(--surface)); stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; }
+.flow-svg .valve .stem { stroke: var(--accent); stroke-width: 1.8; fill: none; stroke-linecap: round; }
+.flow-svg .valve:hover .body, .flow-svg .valve.sel .body { fill: var(--accent); }
+.flow-svg .valve.sel .cap { font-weight: 800; }
+.flow-svg .valve:focus-visible { outline: none; }
+.flow-svg .valve:focus-visible .body { stroke-width: 3; }
+.flow-svg .valve.mini { pointer-events: none; }
+.flow-svg .pump.ls-hl-pipe .body, .flow-svg .drain.ls-hl-pipe .body, .flow-svg .pump.lk-hl .body, .flow-svg .drain.lk-hl .body { stroke: var(--accent); stroke-width: 3.4; }
+.flow-svg .valve.lk-hl .body { fill: var(--accent); }
+.flow-budget.lk-hl { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ripple (propagation) */
+.flow-svg .rp-on .bed { opacity: .7 !important; }
+.flow-svg .rp-on .dash { filter: drop-shadow(0 0 3px var(--accent)); }
+.flow-svg rect.node.rp-on, .flow-svg rect.tank.rp-on { stroke: var(--accent); stroke-width: 3; }
+.flow-svg g.rp-on text { fill: var(--accent); font-weight: 700; }
+.flow-svg .valve.rp-on .body { fill: var(--accent); }
+.flow-svg .rp-now { animation: rp-pulse .7s ease-in-out 3; }
+.flow-svg rect.node.rp-now { animation: lk-pulse .7s ease-in-out 3; }
+.flow-svg .rp-tag rect { fill: var(--accent); }
+.flow-svg .rp-tag text { fill: #fff; font-size: 9.5px; font-weight: 700; }
+@keyframes rp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* town -> US zoom: names cross-fade, unit label morphs, layout unchanged */
+.flow-svg .lbl { transition: opacity .35s ease; }
+.flow-svg.zoom-out .lbl { opacity: 0; }
+.flow-svg.zoom-out { animation: zoomout .7s ease-in forwards; }
+.flow-svg.zoom-in { animation: zoomin .8s ease-out; }
+@keyframes zoomout { to { transform: scale(1.06); opacity: .88; } }
+@keyframes zoomin { from { transform: scale(1.06); opacity: .88; } to { transform: none; opacity: 1; } }
+.flow-zoomtag { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; text-align: center;
+  background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; padding: 8px 14px; box-shadow: var(--shadow); font-size: 13px; }
+.flow-zoomtag b { display: block; color: var(--accent); } .flow-zoomtag span { color: var(--muted); font-size: 12px; }
+.flow-zoomtag[hidden] { display: none; }
+
+/* water budget bar (fixed under the diagram) */
+.flow-budget { flex: none; border-top: 1px solid var(--border); background: var(--surface-2); padding: 5px 10px 6px; font-size: 12.5px; line-height: 1.4;
+  font-variant-numeric: tabular-nums; }
+.flow-budget .fb-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+.flow-budget .fb-lab { font-weight: 700; }
+.flow-budget .fb-net { margin-left: auto; font-size: 15px; font-weight: 800; padding: 0 8px; border-radius: 8px; border: 1.5px solid currentColor; }
+.flow-budget .fb-net.up { color: var(--c-credit); } .flow-budget .fb-net.down { color: var(--c-repay); } .flow-budget .fb-net.flat { color: var(--muted); }
+.flow-budget .fb-unit { color: var(--muted); font-size: 11px; transition: opacity .35s; }
+.flow-wrap.zoom-out .fb-unit { opacity: 0; }
+.flow-budget .fb-eq { margin-top: 2px; font-size: 12px; }
+.flow-budget .fb-grp { white-space: nowrap; }
+.flow-budget .fb-grp.pump .fb-k { color: var(--c-fiscal); font-weight: 700; }
+.flow-budget .fb-grp.drain .fb-k { color: var(--c-repay); font-weight: 700; }
+.flow-budget .fb-minus { font-weight: 800; color: var(--muted); }
+.flow-budget button.term { font-size: inherit; }
+@media (max-width: 420px) { .flow-budget { font-size: 11.5px; padding: 4px 8px 5px; } .flow-budget .fb-eq { font-size: 11px; } .flow-budget .fb-net { font-size: 13px; } }
+
+/* valve popover + ripple strip (HTML overlays inside .diagram) */
+.flow-pop { position: absolute; z-index: 20; background: var(--surface); border: 1.5px solid var(--accent); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 10px 12px 10px; font-size: 13px; max-height: 88%; overflow-y: auto; }
+.flow-pop[hidden], .flow-ripple[hidden] { display: none; }
+.flow-pop h4 { margin: 0 0 2px; font-size: 15px; }
+.flow-pop .fp-kind { font-size: 11px; color: var(--accent); font-weight: 700; }
+.flow-pop .fp-val { margin: 2px 0; } .flow-pop .fp-val b { font-size: 15px; }
+.flow-pop .fp-when { color: var(--muted); font-size: 11.5px; margin-bottom: 6px; }
+.flow-pop .fp-x { position: absolute; top: 2px; right: 2px; width: 36px; height: 36px; border: 0; background: none; font-size: 16px; color: var(--muted); cursor: pointer; }
+.flow-pop .fp-chain { list-style: none; margin: 4px 0 8px; padding: 0; counter-reset: fp; }
+.flow-pop .fp-chain li { display: flex; gap: 6px; align-items: baseline; padding: 3px 0; border-top: 1px dashed var(--border); font-size: 12px; }
+.flow-pop .dl, .flow-ripple .dl { flex: none; font-style: normal; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 8px; padding: 0 6px; min-width: 44px; text-align: center; }
+.flow-pop .fp-btns { display: flex; gap: 8px; flex-wrap: wrap; } .flow-pop .btn { min-height: 38px; padding: 0 12px; font-size: 13px; }
+.flow-ripple { position: absolute; left: 6px; right: 6px; bottom: 56px; z-index: 15; background: color-mix(in srgb, var(--surface) 95%, transparent);
+  border: 1.5px solid var(--accent); border-radius: 12px; padding: 5px 10px 6px; font-size: 12px; box-shadow: var(--shadow);
+  opacity: 0; transition: opacity .25s; pointer-events: none; }
+.flow-ripple.on { opacity: 1; }
+.flow-ripple .rp-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.flow-ripple .rp-head { font-weight: 800; color: var(--accent); font-size: 11.5px; }
+.flow-ripple .rp-dots { display: inline-flex; gap: 3px; } .flow-ripple .rp-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.flow-ripple .rp-dots i.on { background: var(--accent); }
+.flow-ripple .rp-cur { display: flex; gap: 6px; align-items: baseline; margin-top: 2px; font-size: 12.5px; }
+.flow-ripple .rp-wait { color: var(--muted); }
+.flow-budget.rp-on { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---------- fixed 教学 button (top-right of the time bar) ---------- */
+.teach-btn { flex: none; min-width: 56px; height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--accent);
+  background: var(--surface); color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+.teach-btn:active { background: var(--surface-2); }
+@media (max-width: 420px) {
+  .timebar { gap: 5px; padding-left: 10px; padding-right: 10px; }
+  .date { font-size: 22px; letter-spacing: 0; }
+  .icon-btn { min-width: 38px; }
+  .teach-btn { min-width: 50px; padding: 0 8px; }
+}

@@ -1,13 +1,16 @@
 // App shell: time bar, play loop, fixed water diagram, 4 tabs, pause toast.
 // ENGINE SWAP: the orchestrator replaces the next import with './engine/sim.js'.
 import { createSim } from './engine/sim.js';
-import { renderFlow, setFlowDuration } from './ui/flow.js';
+import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 
 // ?theme=dark|light forces a theme (also handy for screenshots)
 if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
+
+// free-run subpage (free/index.html sets <body data-mode="free">; ?mode=free also works)
+const MODE = (document.body.dataset.mode === 'free' || params.get('mode') === 'free') ? 'free' : 'history';
 
 const TABS = [
   { id: 'ledger', label: '流水账' },
@@ -18,15 +21,19 @@ const TABS = [
 const SPEEDS = [1, 2, 4];
 
 let sim, real = null;
+let mainSim = null, mainReal = null;   // TOWN-LESSONS hook: the US sim/data stay here while a lesson swaps the town sim in (ctx.setSim)
 let snap = null, prevSnap = null;
-let playing = false, speed = 1, timer = 0;
+let playing = false, speed = 1, timer = 0, tickMs = 1000;
 let activeTab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'ledger';
 const tabMods = {}; // id -> module | null (failed)
 
 /* ---------- data + sim ---------- */
 async function boot() {
   try { real = (await import('./data/us-quarterly.js')).US_Q; } catch (e) { real = null; }
-  sim = createSim({ data: real, mode: 'history' });
+  // DIAGRAM v2 screenshot helper: ?scenario=town boots the 万元 town economy (lessons switch scenarios themselves)
+  sim = params.get('scenario') === 'town' ? createSim({ mode: MODE, scenario: 'town' }) : createSim({ data: real, mode: MODE });
+  mainSim = sim; mainReal = real;                    // TOWN-LESSONS hook (see ctx.setSim in loadLessons)
+  setFlowContext({ sim: () => sim, setTab, openTerm: id => openTerm(id) });   // DIAGRAM v2 hook: valve popover reads sim.valves, 去接管 button switches tab
   const skip = parseInt(params.get('t') || '0', 10);
   for (let i = 0; i < skip && !sim.done; i++) sim.step();
   snap = sim.snapshot();
@@ -36,7 +43,15 @@ async function boot() {
   wireControls();
   await installConcepts();
   renderAll();
-  if (params.get('pause') !== '1') setTimeout(() => setPlaying(true), 600);
+  if (MODE === 'free') {                            // free-run subpage: full interface, no lessons
+    if (params.get('pause') !== '1') setTimeout(() => setPlaying(true), 600);
+    return;
+  }
+  if (params.has('lesson')) await loadLessons();   // LESSONS: ?lesson=0&step=N jumps straight into a lesson (screenshots)
+  else {
+    loadLessons().catch(() => {});                 // preload: role-lesson availability feeds the 接管 tab links
+    if (params.get('pause') !== '1') setTimeout(() => setPlaying(true), 600);
+  }
 }
 
 async function installConcepts() {
@@ -60,27 +75,59 @@ function setPlaying(on) {
   playing = on && !sim.done;
   $('btn-play').textContent = playing ? '⏸' : '▶';
   clearTimeout(timer);
-  if (playing) timer = setTimeout(tick, 1000 / speed);
+  if (playing) timer = setTimeout(tick, tickMs / speed);
 }
 function tick() {
   if (!playing) return;
   advance();
   if (sim.done) setPlaying(false);
-  else if (playing) timer = setTimeout(tick, 1000 / speed);
+  else if (playing) timer = setTimeout(tick, tickMs / speed);
 }
 function advance() {
   if (sim.done) return;
   prevSnap = snap;
   sim.step();
   snap = sim.snapshot();
-  setFlowDuration($('diagram'), Math.min(800, 850 / speed));
+  setFlowDuration($('diagram'), Math.min(800, tickMs * 0.85 / speed));
   renderAll();
-  if (snap.pauses && snap.pauses.length) {
+  if (snap.pauses && snap.pauses.length && !lessonQuiet) {
     const wasPlaying = playing;
     setPlaying(false);
     showToast(snap.pauses.map(p => p.message).join('；'), wasPlaying);
   }
 }
+
+/* ---------- LESSONS glue (src/ui/lessons.js owns the logic; this is only the hook surface) ---------- */
+let lessonsMod = null, lessonQuiet = false;
+async function loadLessons() {
+  if (lessonsMod) return lessonsMod;
+  lessonsMod = await import('./ui/lessons.js');
+  lessonsMod.initLessons({
+    sim: () => sim, real: () => real, getSnap: () => snap,
+    setPlaying, isPlaying: () => playing, openTerm,
+    setQuiet: q => { lessonQuiet = q; if (q) hideToast(); },          // suppress key-node pause toasts during a lesson
+    refresh: () => { snap = sim.snapshot(); prevSnap = null; renderAll(); },
+    setTickMs: ms => { tickMs = ms || 1000; if (playing) setPlaying(true); },   // ms per quarter at 1x (lessons play slowly)
+    setTab,
+    // TOWN-LESSONS hook: show another sim (the town) in the same diagram; setSim(null) restores the US sim
+    setSim: (s, r) => { sim = s || mainSim; real = s ? (r || mainReal) : mainReal; snap = sim.snapshot(); prevSnap = null; renderAll(); },
+  });
+  return lessonsMod;
+}
+function setTab(id) {
+  if (!TABS.some(t => t.id === id)) return;
+  activeTab = id; $('tab-content').scrollTop = 0; renderTabbar(); renderTab();
+}
+// a lesson with startParts hides what is not yet revealed: body.parts-on + body[data-vis="bank pool ledger"]
+function tabLocked(id) {
+  const b = document.body;
+  return b.classList.contains('parts-on') && !(' ' + (b.dataset.vis || '') + ' ').includes(' ' + id + ' ');
+}
+// start a lesson from anywhere (e.g. the 接管 tab: detail = { id } or { role })
+document.addEventListener('mw:lesson', async e => {
+  try { const m = await loadLessons(); await m.startLesson(e.detail.role ? 'role:' + e.detail.role : e.detail.id, 0); } catch (err) { console.error(err); }
+});
+async function openCourseMenu() { try { (await loadLessons()).openMenu(); } catch (e) { console.error(e); showToast('教学模块加载失败', false); } }
 
 /* ---------- toast ---------- */
 let resumeOnOk = false;
@@ -101,13 +148,8 @@ function wireControls() {
     if (playing) setPlaying(true);
   };
   $('toast-ok').onclick = () => { hideToast(); if (resumeOnOk) setPlaying(true); };
-  $('banner-go').onclick = () => { showToast('教学模式开发中', false); resumeOnOk = false; };
-  $('banner-x').onclick = () => {
-    $('banner').hidden = true;
-    try { sessionStorage.setItem('bannerOff', '1'); } catch (e) { /* ignore */ }
-  };
-  try { if (sessionStorage.getItem('bannerOff')) $('banner').hidden = true; } catch (e) { /* ignore */ }
-  if (params.get('banner') === '0') $('banner').hidden = true;
+  const teach = $('btn-teach');                       // fixed 教学 button (top-right) -> course menu
+  if (teach && MODE !== 'free') teach.onclick = () => openCourseMenu();
 }
 
 function buildTabbar() {
@@ -115,8 +157,8 @@ function buildTabbar() {
   bar.innerHTML = '';
   for (const t of TABS) {
     const b = document.createElement('button');
-    b.textContent = t.label; b.dataset.tab = t.id; b.setAttribute('role', 'tab');
-    b.onclick = () => { activeTab = t.id; $('tab-content').scrollTop = 0; renderTabbar(); renderTab(); };
+    b.textContent = t.label; b.dataset.tab = t.id; b.dataset.part = t.id; b.setAttribute('role', 'tab');
+    b.onclick = () => setTab(t.id);
     bar.appendChild(b);
   }
   renderTabbar();
@@ -128,15 +170,16 @@ function renderTabbar() {
 /* ---------- rendering ---------- */
 function renderAll() {
   $('date').textContent = snap.date;
-  const free = sim.mode === 'free';
+  const free = MODE === 'free';
   const badge = $('mode-badge');
-  badge.textContent = (free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '');
+  badge.textContent = (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '');
   badge.classList.toggle('user', !!sim.takenOver);
-  const last = real?.dates ? real.dates.length - 1 : free ? 223 : 123;
+  const last = free ? 223 : real?.dates ? real.dates.length - 1 : 123;
   $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
   $('btn-step').disabled = sim.done;
   renderFlow($('diagram'), snap, prevSnap);
   renderTab();
+  if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers
 }
 
 async function renderTab() {
@@ -148,6 +191,10 @@ async function renderTab() {
   }
   const mod = tabMods[id];
   const keep = box.scrollTop;
+  if (tabLocked(id)) {
+    box.innerHTML = '<div class="card muted ls-locked"><b>这一块还没出场</b><p>教学会一块一块地解锁。跟着下面的教学卡往下走。</p></div>';
+    return;
+  }
   if (!mod || typeof mod.render !== 'function') {
     box.innerHTML = '<div class="card muted">（面板开发中）</div>';
     return;

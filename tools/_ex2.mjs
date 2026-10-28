@@ -1,0 +1,11 @@
+import { run, mk, row } from './_explore.mjs';
+console.log('### bank approval 0.4 (delays off)');
+run('approval .4', s => s.setValve('approval', 0.4), 6);
+console.log('### bank approval .4 delays on');
+run('approval .4', s => s.setValve('approval', 0.4), 6, {delays:true});
+console.log('### 3 buyHouse then loosen?');
+run('3 buys', s => { s.townAction({type:'loan', who:'小王', amount:120}); s.townAction({type:'buyHouse', who:'小王', from:'老李'}); s.townAction({type:'buyHouse', who:'小王', from:'老李'});s.townAction({type:'buyHouse', who:'小王', from:'老李'}); }, 6);
+console.log('### policyRate .07 delays on');
+run('rate 7%', s => s.setValve('policyRate', 0.07), 8, {delays:true});
+console.log('### policyRate .07 delays off');
+run('rate 7%', s => s.setValve('policyRate', 0.07), 4);

@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/app.css"><link rel="stylesheet" href="../assets/css/panels.css"><link rel="stylesheet" href="../assets/css/cycle.css">
+<style>body{height:auto;overflow:visible}#box{padding:12px 16px}</style></head><body>
+<div id="box"></div>
+<script type="module">
+// standalone render of the 周期 tab (no diagram) so a tall tab can be screenshotted: ?t=60&mode=history&theme=dark&w=390
+import { createSim } from '../src/engine/sim.js';
+import { US_Q } from '../src/data/us-quarterly.js';
+import { render } from '../src/ui/tabs/cycle.js';
+import { initConcepts } from '../src/ui/concepts.js';
+const q = new URLSearchParams(location.search), t = +(q.get('t') || 60), mode = q.get('mode') || 'history';
+if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
+document.getElementById('box').style.width = (q.get('w') || 390) + 'px';
+const sim = createSim({ data: US_Q, mode });
+while (sim.t < t) sim.step();
+initConcepts({ sim, getSnap: () => sim.snapshot() });
+const ctx = { sim, snap: sim.snapshot(), userSnap: null, real: US_Q, openTerm() {} };
+render(document.getElementById('box'), ctx);
+window.__done = true;
+</script></body></html>

@@ -2,6 +2,7 @@
 import { esc, pct, num, PLAYERS, playerOf, compareChart } from './_util.js';
 import { pctFmt } from '../chart.js';
 import { linkify, term } from '../concepts.js';
+import { ROLE_ORDER, ROLE_NAME, isRoleLearned, roleHasLesson, requestRoleLesson } from '../links.js';
 
 let rate = null;        // user's pending policy rate (decimal)
 const OPEN = ['centralBank'];
@@ -33,6 +34,16 @@ function table(ctx) {
     return `<tr><th>${name}</th><td>${real == null ? '—' : f(real)}</td><td>${mod == null ? '—' : f(mod)}</td><td>${usr == null ? '—' : f(usr)}${dtxt}</td></tr>`;
   }).join('');
   return `<table class="tk-table"><thead><tr><th></th><th>真实</th><th>模型</th><th>你的版本</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+// per-role "已学 ✓ / 先学这一课 →" (role lessons live in src/data/role-lessons.js; learned flag in localStorage)
+function learnRow() {
+  const items = ROLE_ORDER.map(r => {
+    if (isRoleLearned(r)) return `<span class="tk-lr done"><b>${ROLE_NAME[r]}</b> 已学 ✓</span>`;
+    if (roleHasLesson(r)) return `<button type="button" class="tk-lr go" data-learn="${r}"><b>${ROLE_NAME[r]}</b> 先学这一课 →</button>`;
+    return '';
+  }).join('');
+  return items ? `<small>角色课：</small>${items}` : '';
 }
 
 function rulesHtml(sim) {
@@ -82,11 +93,13 @@ export function render(container, ctx) {
   container.innerHTML = `<section class="pn-tab pn-takeover">
     <p class="pn-lead">${taken ? `你正在扮演 <b>${playerOf(taken).name}</b>。` : '选一个角色接管，一次只能一个。'}</p>
     <div class="pn-chips" role="group" aria-label="选择角色">${picks}</div>
+    <div class="tk-learn" aria-label="角色课进度">${learnRow()}</div>
     ${taken ? '<button type="button" class="tk-exit" id="tk-exit">退出接管</button>' : ''}
     ${main}
     <h3 class="pn-h">规则清单 <small>可逐条开关，看效果</small></h3><div class="tk-rules">${rulesHtml(sim)}</div></section>`;
 
   const redo = () => render(container, ctx);
+  container.querySelectorAll('[data-learn]').forEach(b => b.addEventListener('click', () => requestRoleLesson(b.dataset.learn)));
   container.querySelectorAll('[data-pick]:not([disabled])').forEach(b => b.addEventListener('click', () => { rate = null; sim.takeover(b.dataset.pick); redo(); }));
   const take = container.querySelector('#tk-take');
   if (take) take.addEventListener('click', () => { rate = null; sim.takeover('centralBank'); redo(); });
