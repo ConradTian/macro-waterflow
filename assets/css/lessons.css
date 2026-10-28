@@ -263,3 +263,12 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
   .ls-card.tall { max-height: calc(80dvh - var(--tb-h, 49px)); }
   .ls-card .ls-free { padding: 6px 2px; }
 }
+
+/* cycle lessons 4-7: all-choices comparison table + the "open free run" button */
+.ls-res.ls-all { width: 100%; font-size: 13px; }
+.ls-res.ls-all th, .ls-res.ls-all td { padding: 5px 6px; }
+.ls-res.ls-all th { font-weight: 600; white-space: normal; line-height: 1.2; }
+.ls-res.ls-all td:first-child { white-space: normal; text-align: left; }
+.ls-res.ls-all .me { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ls-freebtn { display: block; margin: 10px 0 4px; text-align: center; text-decoration: none; border: 1px dashed var(--accent); color: var(--accent); border-radius: 10px; padding: 10px; font-weight: 600; }
+@media (max-width: 480px) { .ls-res.ls-all { font-size: 12px; } .ls-res.ls-all th, .ls-res.ls-all td { padding: 4px 3px; } }

@@ -22,7 +22,7 @@ import { flash, clearFlash, ROLE_ORDER, ROLE_NAME, setAvailableRoles, isRoleLear
 import { compareChart } from './tabs/_util.js';
 import { pctFmt } from './chart.js';
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
-import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry } from './lessons-town.js';
+import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep } from './lessons-town.js';
 
 const P = new URLSearchParams(location.search);
 const KEY = 'mw.lessons.v1';
@@ -59,11 +59,9 @@ const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : `第 ${
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rich = s => linkify(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const arr = x => (x == null ? [] : Array.isArray(x) ? x : [x]);
-const dateT = d => (typeof d === 'number' ? d : (+d.slice(0, 4) - 1995) * 4 + (+d[5] - 1));   // town steps use quarter numbers
 const lab = d => (typeof d === 'number' ? `第${d}季` : d);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const usBase = L => L.startDate || (cur && cur.pos.find(p => p.world === 'us')?.from) || '1995Q1';
-const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 const sim = () => ctx.sim();
 const freeUrl = () => new URL('free/', location.href).href;
 
@@ -114,37 +112,10 @@ function seek(date) {
   ctx.refresh();
 }
 
-/* scratch simulation: compute experiment metrics without disturbing the displayed one */
+/* scratch simulation: compute experiment metrics without disturbing the displayed one (shared code: lessons-town.js) */
 function metricsFor(L, o, step) {
-  const s = createSim({ data: ctx.real(), mode: 'history' });
-  applySetup(s, L, { params: {}, rules: {} });
-  ffTo(s, step.from);
-  applySetup(s, L, o);
-  const t0 = s.t;
-  ffTo(s, step.until);
-  const hist = s.history().slice(t0 + 1);
-  const out = step.metrics.map(m => aggregate(hist, m.get));
-  applySetup(sim(), L, ov);                                 // undo param leakage (fallback mode mutates globals)
-  return out;
-}
-function aggregate(hist, spec) {                            // 'end:path' | 'max:path' | 'min:path' | 'sum:path'
-  const [agg, path] = spec.split(':');
-  const vals = hist.map(h => getPath(h, path)).filter(v => typeof v === 'number');
-  if (!vals.length) return null;
-  return agg === 'end' ? vals[vals.length - 1] : agg === 'max' ? Math.max(...vals) : agg === 'min' ? Math.min(...vals) : vals.reduce((a, b) => a + b, 0);
-}
-function fmtV(v, f) {
-  if (v == null) return '—';
-  switch (f) {
-    case 'pct': return (v * 100).toFixed(1) + '%';
-    case 'pct2': return (v * 100).toFixed(2) + '%';
-    case 'x2': return '×' + v.toFixed(2);
-    case 'idx': return v.toFixed(0);
-    case 'n1': return v.toFixed(1);
-    case 'n2': return v.toFixed(2);
-    case 'rate': return (v * 100).toFixed(2) + '%';
-    default: return Math.round(v).toLocaleString('en-US');
-  }
+  const r = scratchRun(ctx.real(), L, o, step.from, step.until);
+  return step.metrics.map(m => aggregate(r.hist, m.get, r.base));
 }
 
 /* ---------- highlights (class on [data-term] in the diagram, re-applied after each render) ---------- */
@@ -229,7 +200,8 @@ function syncPad() {
 }
 
 /* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
-const REC = { 0: 1, 'role:bank': 2, 'role:household': 3, 1: 4 };    // recommended order hint (not enforced)
+// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7
+const REC = { 0: 1, 'role:bank': 2, 'role:household': 3, 'role:centralBank': 4, 1: 5, 2: 6, 3: 7, 'role:government': 8, 4: 9, 'role:firm': 10, 5: 11, 'role:investor': 12, 6: 13, 7: 14 };
 function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
   const ok = isAvail(L);
   const title = L ? L.title : fallbackTitle, one = L ? L.oneLine : fallbackOne;
@@ -256,7 +228,7 @@ export async function openMenu() {
   const cycles = LESSONS.filter(L => L.id >= 1).map(L => menuItem(L, p, String(L.id), L.id)).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序：第 0 课 → 银行 → 家庭 → 周期第 1 课（不强制）。</p>` +
+    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
     `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
     `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
     `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
@@ -361,7 +333,10 @@ function continueEnter(i) {
     ctx.refresh();
   } else seek(pos[i].from);
   ss.before = ctx.getSnap();                                // for the "之前 → 现在" readout (st.metrics)
+  ss.tbl = null;
+  if (!town && (st.vals || st.type === 'experiment')) { try { ss.tbl = buildTable(ctx.real(), L, st, pos[i], st.slider ? st.slider.def : null); } catch (e) { ss.tbl = null; } }   // live numbers {key}
   setHl(st.hl);
+  if (st.glow) setTimeout(() => { if (cur && cur.i === i) flash(st.glow, 3500); }, 450);
   const endNow = P.get('end') === '1';
   if (st.type === 'reveal') {
     ss.revealed = !st.question;
@@ -451,6 +426,7 @@ function showResult() {
   const mine = metricsFor(cur.L, ov, st);
   const base = metricsFor(cur.L, { params: {}, rules: {} }, st);
   ss.result = st.metrics.map((m, k) => ({ label: m.label, a: fmtV(base[k], m.fmt), b: fmtV(mine[k], m.fmt) }));
+  try { ss.tbl = buildTable(ctx.real(), cur.L, st, cur.pos[cur.i], st.slider ? ss.val : null); } catch (e) { /* keep the previous table */ }
 }
 
 /* ---------- town steps: action / valve (tap), try (sandbox), chain (tappable links), droplets ---------- */
@@ -717,7 +693,8 @@ function sourcesBlock() {
 
 function draw() {
   if (!cur) return;
-  const { L, i, pos } = cur, st = L.steps[i], n = L.steps.length;
+  const { L, i, pos } = cur, n = L.steps.length;
+  const st = fillStep(L.steps[i], ss.tbl);                   // {key} placeholders -> live numbers
   const snap = ctx.getSnap();
   const dots = L.steps.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'done' : ''}"></i>`).join('');
   let body = `<h3 class="ls-stitle">${esc(st.title || '')}</h3>`;
@@ -770,6 +747,7 @@ function draw() {
     body += `<ol class="ls-chain">${st.links.map((l, k) => `<li><button type="button" class="ls-link" data-act="link" data-k="${k}"><i>${k + 1}</i><span>${rich(l.text).replace(/<\/?button[^>]*>/g, '')}</span></button></li>`).join('')}</ol>` +
       `<div class="ls-chain-hint">点任何一环，图里对应的水管就会亮。<button type="button" class="btn" data-act="chainplay">▶ 依次点亮</button></div>`;
     if (st.next) { const nx = lookup(st.next); body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`; }
+    else if (L.id === 7) body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">回到课程菜单</button>`;
   } else if (st.type === 'zoom') {
     body += paras;
     if (ss.zooming) body += `<p class="ls-status">放大看……小镇的名字淡出，万元换成十亿美元。</p>`;
@@ -818,15 +796,21 @@ function draw() {
     body += `<button type="button" class="btn primary ls-run" data-act="run">${ss.ran ? '↺ 再跑一次' : '▶ 用这个设置重跑'}</button>`;
     if (ss.ran && !ss.result) body += `<div class="ls-status">播放中 → ${lab(pos[i].until)}</div>`;
     if (ss.result) {
-      body += `<table class="tbl ls-res"><tr><th></th><th>默认</th><th>你的设置</th></tr>` +
-        ss.result.map(r => `<tr><td>${esc(r.label)}</td><td>${r.a}</td><td><b>${r.b}</b></td></tr>`).join('') + '</table>' +
-        `<p class="ls-insight">${rich(st.insight)}</p>`;
+      if (st.compareAll && ss.tbl && st.metrics.every(m => m.key)) {
+        body += `<table class="tbl ls-res ls-all"><tr><th></th>${st.choices.map((c, k) => `<th class="${k === ss.val ? 'me' : ''}">${esc(c.short || c.label)}</th>`).join('')}</tr>` +
+          st.metrics.map(m => `<tr><td>${esc(m.label)}</td>${st.choices.map((c, k) => `<td class="${k === ss.val ? 'me' : ''}">${k === ss.val ? '<b>' : ''}${fmtV(ss.tbl.raw[m.key + '.' + k], m.fmt)}${k === ss.val ? '</b>' : ''}</td>`).join('')}</tr>`).join('') + '</table>';
+      } else {
+        body += `<table class="tbl ls-res"><tr><th></th><th>默认</th><th>你的设置</th></tr>` +
+          ss.result.map(r => `<tr><td>${esc(r.label)}</td><td>${r.a}</td><td><b>${r.b}</b></td></tr>`).join('') + '</table>';
+      }
+      body += arr(st.insight).map(t => `<p class="ls-insight">${rich(t)}</p>`).join('');
     }
   } else if (st.type === 'recap') {
     body += `<ol class="ls-lines">${arr(st.lines).map(t => `<li>${rich(t)}</li>`).join('')}</ol>` + chips(st.concepts);
     const nx = lookup(st.next);
     body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`;
   }
+  if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开自由运行 ↗（新窗口，自己玩）</a>`;
   // the primary button (揭晓 / 做做看 / 拧一拧 / 跑 N 季 / 下一课) is pulled out of the scrolling body so it is always visible
   let cta = '';
   { const m = body.match(/<button type="button" class="btn primary ls-run"[^>]*>[\s\S]*?<\/button>/); if (m) { body = body.replace(m[0], ''); cta = m[0]; } }
