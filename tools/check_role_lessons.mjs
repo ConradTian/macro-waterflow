@@ -186,7 +186,7 @@ const okIdx = st => st.options.findIndex(o => o.ok);
   console.log('\n--- centralBank predict:', st.q);
   const x = runStep(L, i);
   const a = x.first.rates, b = x.last.rates, dP = b.policy - a.policy, dE = b.mortgageEff - a.mortgageEff;
-  console.log(`  delays on: policy ${f1(a.policy)} -> ${f1(b.policy)}; mortgageNew ${f1(a.mortgageNew)} -> ${f1(b.mortgageNew)}; mortgageEff ${f1(a.mortgageEff)} -> ${f1(b.mortgageEff)} (+${(dE * 100).toFixed(2)}pp)`);
+  console.log(`  delays on: policy ${f1(a.policy)} -> ${f1(b.policy)}; mortgageNew ${f1(a.mortgageNew)} -> ${f1(b.mortgageNew)}; mortgageEff ${f1(a.mortgageEff)} -> ${f1(b.mortgageEff)} (${(dE * 100).toFixed(2)}pp)`);
   const truth = dP > 0.029 && dE < 0.5 * dP ? 1 : dE >= 0.9 * dP ? 0 : -1;
   ok(truth === okIdx(st), `model says option ${truth}, lesson marks ${okIdx(st)}`);
   ok(Math.abs(dP - 0.03) < 1e-6 && x.s.delays === true, 'question text: policy +3 points, delays on');
@@ -215,7 +215,7 @@ const okIdx = st => st.options.findIndex(o => o.ok);
   const us = createSim({ data: US_Q, mode: 'history' }); while (us.t < T(zm.until)) us.step();
   const ua = us.history()[T(zm.date)], ub = us.history()[T(zm.until)];
   const dPu = ub.rates.policy - ua.rates.policy, dEu = ub.rates.mortgageEff - ua.rates.mortgageEff;
-  console.log(`  zoom US ${zm.date}->${zm.until}: policy ${f1(ua.rates.policy)} -> ${f1(ub.rates.policy)}, mortgageEff +${(dEu * 100).toFixed(2)}pp`);
+  console.log(`  zoom US ${zm.date}->${zm.until}: policy ${f1(ua.rates.policy)} -> ${f1(ub.rates.policy)}, mortgageEff ${(dEu * 100).toFixed(2)}pp`);
   ok(Math.abs(ua.rates.policy - 0.01) < 0.005 && Math.abs(ub.rates.policy - 0.05) < 0.01 && dEu < 0.5 * dPu, 'zoom text: policy ~1% -> ~5% while the effective mortgage rate rises < half as much');
 }
 

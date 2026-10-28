@@ -68,7 +68,7 @@ try {
   ok((await text('#ls-card .ls-ttl')).includes('银行'), 'next lesson = bank role lesson: ' + await text('#ls-card .ls-ttl'));
   ok(await ev(`document.querySelector('#date').textContent`) === '第0季', 'bank lesson runs in the town');
   // try-step click-through in the bank lesson
-  await send('Page.navigate', { url: 'http://localhost:8160/?pause=1&lesson=role-bank&step=7' }); await sleep(2500);
+  await send('Page.navigate', { url: 'http://localhost:8160/?lesson=role-bank&step=7' }); await sleep(2500);
   await click('#ls-card .ls-nav [data-act=trun]'); await sleep(500);
   await sleep(14000);
   ok(await ev(`document.querySelectorAll('#ls-card table.ls-res tr').length >= 4`), 'try step shows a comparison table');

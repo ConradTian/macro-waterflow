@@ -842,7 +842,7 @@ function draw() {
     (cta || `<span class="ls-dots" aria-label="第 ${i + 1}/${n} 步">${dots}</span>`) +
     `<button type="button" class="btn primary" data-act="next" ${canNext ? '' : 'disabled'}>下一步 ›</button></div>`;
   const nb = card.querySelector('.ls-body'); if (nb && keepTop) nb.scrollTop = keepTop;
-  if (nb && st.type === 'try' && ss.result) { const tb = nb.querySelector('.ls-res'); if (tb) tb.scrollIntoView({ block: 'nearest' }); }
+  if (nb && (st.type === 'try' || st.type === 'experiment' || st.type === 'takeover') && (ss.result || ss.arrived)) { const tb = nb.querySelector('.ls-res'); if (tb) tb.scrollIntoView({ block: 'nearest' }); }
   if (st.type === 'takeover') renderTk();
   syncPad(); requestAnimationFrame(syncPad);
 }
