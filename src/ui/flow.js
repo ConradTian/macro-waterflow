@@ -62,10 +62,13 @@ const poolCx = p => p.x + TANK_W / 2;
 // minor: chip is only shown when the flow is non-zero.
 const PIPES = [
   { k: 'qe',              part: 'centralBank', cls: 'fiscal',  kind: 'pump',  label: 'QE',      term: 'qe',              pts: [[18, 52], [18, 274]],                         chip: [18, 150, 'middle'], from: 'centralBank', to: 'poolBond' },
-  { k: 'fiscalInjection', part: 'government',  cls: 'fiscal',  kind: 'pump',  label: '财政注入', term: 'fiscalInjection', pts: [[320, 52], [320, 170]],                       chip: [320, 125, 'middle'], from: 'government', to: 'firm' },
-  { k: 'taxes',           part: 'government',  cls: 'cash',    kind: 'pipe',  label: '税收',                               pts: [[378, 274], [378, 52]],                       chip: [384, 152, 'end'], from: 'channel', to: 'government' },
+  // fiscal: pump + short trunk (the NEW water N), then two branches: orders -> firm (govPurchases), transfers / tax cuts / relief -> household (transfers)
+  { k: 'fiscalInjection', part: 'government',  cls: 'fiscal',  kind: 'pump',  label: '注入', term: 'fiscalInjection', pts: [[320, 52], [320, 108]],                       chip: [320, 94, 'middle'], from: 'government', to: 'firm' },
+  { k: 'govPurchases',    part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '订单', term: 'govPurchases',    pts: [[320, 108], [320, 170]],                      chip: [320, 160, 'middle'], from: 'government', to: 'firm' },
+  { k: 'transfers',       part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '转移', term: 'transfers',       pts: [[320, 108], [320, 124], [254, 124], [254, 170]], chip: [290, 124, 'middle'], from: 'government', to: 'household' },
+  { k: 'taxes',           part: 'government',  cls: 'cash',    kind: 'pipe',  label: '税收',                               pts: [[378, 274], [378, 52]],                       chip: [384, 138, 'end'], from: 'channel', to: 'government' },
   { k: 'newLoans',        part: 'bank',        cls: 'credit',  kind: 'pump',  label: '放贷',   term: 'newLoans',        pts: [[150, 112], [150, 170]],                      chip: [150, 124, 'middle'], from: 'bank', to: 'household' },
-  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '付息',     term: 'interestPaid',    pts: [[262, 170], [262, 112]],                      chip: [268, 146, 'start'], from: 'household', to: 'bank' },
+  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '付息',     term: 'interestPaid',    pts: [[262, 170], [262, 112]],                      chip: [268, 144, 'start'], from: 'household', to: 'bank' },
   { k: 'principalRepay',  part: 'repay',       cls: 'repay',   kind: 'drain', label: '还本',     term: 'principalRepay',  pts: [[76, 194], [56, 194]],                        chip: [40, 229, 'middle'], from: 'household', to: 'repay' },
   { k: 'toBond',          part: 'pool poolBond',    cls: 'bond',    kind: 'buy', label: '国债', term: 'assetReservoir',   pts: [[82, 218], [82, 244], [33, 244], [33, 274]], chip: [33, 262, 'middle'], from: 'household', to: 'poolBond' },
   { k: 'toEquity',        part: 'pool poolEquity',  cls: 'equity',  kind: 'buy', label: '股票', term: 'assetReservoir',   pts: [[100, 218], [100, 274]],                      chip: [101, 232, 'middle'], from: 'household', to: 'poolEquity' },
@@ -92,7 +95,7 @@ const PIPES = [
 const PUMP_ICONS = [
   { k: 'newLoans',        x: 150, y: 151, main: true },
   { k: 'qe',              x: 18,  y: 80 },
-  { k: 'fiscalInjection', x: 320, y: 90 },
+  { k: 'fiscalInjection', x: 320, y: 72 },
 ];
 const DRAIN_ICONS = [
   { k: 'qt',              x: 90,  y: 82, label: 'QT', lx: 90, ly: 103 },
@@ -156,7 +159,7 @@ const dashPeriod = (f, r) => (f < r * 0.0007 ? 0 : 15 / (14 + 46 * Math.sqrt(f /
 const lvlOf = p => 0.1 + 0.86 * clamp((Math.log(Math.max(p, 1) / 100) + 0.8) / (Math.log(10) + 0.8), 0, 1);
 
 // flows with fallbacks for older snapshots
-function flowsOf(snap) {
+function flowsOf(snap, prevSnap) {
   const f = { ...(snap.flows || {}) };
   const a = snap.assets || {};
   if (f.toEquity == null && f.toBond == null && f.toGold == null) {
@@ -167,6 +170,14 @@ function flowsOf(snap) {
   if (f.dividends == null) f.dividends = a.equity?.level != null ? a.equity.level * 0.02 / 4 : 0;
   if (f.coupons == null) f.coupons = (snap.gov?.interest ?? 0) / 4;
   f.qt = f.qt || 0; f.govSurplusDrain = f.govSurplusDrain ?? f.fiscalDrain ?? 0; f.collateral = 0;
+  // fiscal branches. The diagram draws the NEW water N (= fiscalInjection) and where it goes. The engine fields govPurchases / transfers are the GROSS
+  // outlays (orders vs transfers to households): N is split in their proportion. Fallback (older snapshots): 50/50, 60/40 toward households when unemployment rises.
+  const N = f.fiscalInjection || 0;
+  const gp = snap.flows?.govPurchases, tr = snap.flows?.transfers;
+  let shT = 0.5;
+  if (gp != null && tr != null && gp + tr > 1e-9) shT = tr / (gp + tr);
+  else if (prevSnap && (snap.macro?.unemployment ?? 0) > (prevSnap.macro?.unemployment ?? 0) + 1e-6) shT = 0.6;
+  f.transfers = N * shT; f.govPurchases = N * (1 - shT);
   return f;
 }
 function budgetOf(snap) {
@@ -180,7 +191,7 @@ function budgetOf(snap) {
 const iouOf = snap => snap.iou?.bankTotal ?? ((snap.debt?.household ?? 0) + (snap.debt?.firm ?? 0));
 
 function targets(snap, prevSnap, st) {
-  const f = flowsOf(snap), a = snap.assets || {};
+  const f = flowsOf(snap, prevSnap), a = snap.assets || {};
   const r = ref(snap);
   const gdp = Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
   const cap = snap.macro?.capacity ?? 100;
@@ -359,6 +370,9 @@ function build(host) {
   R.rate = txt(g, 14, 43, '', 'sub');
   txt(top, 254, 24, '政府', 'ttl', 'start', 'government', 'gov');
   R.gov = txt(top, 254, 43, '', 'sub', 'start', 'government');
+  g = termGroup(top, 'fiscalInjection', null, 'government', 'govGross');
+  el('rect', { x: 286, y: 8, width: 64, height: 20, rx: 6, fill: 'transparent' }, g);   // touch target only (no tinted .hit box over the small text)
+  R.govGross = txt(g, 346, 24, '', 'cap', 'end', 'government');
   // bank
   R.bankTitle = txt(top, 120, 80, '银行', 'ttl', 'start', 'bank', 'bank');
   g = termGroup(top, 'bankApproval', [114, 84, 90, 24], 'bank', 'approval');
@@ -550,7 +564,7 @@ function setBudget(R, snap, town) {
 }
 
 function setTexts(R, snap, prevSnap, st) {
-  const f = flowsOf(snap), a = snap.assets || {}, m = snap.macro || {};
+  const f = flowsOf(snap, prevSnap), a = snap.assets || {}, m = snap.macro || {};
   const town = isTownSnap(snap) && !st.zoomed;
   st.town = town;
   const r = ref(snap);
@@ -573,6 +587,8 @@ function setTexts(R, snap, prevSnap, st) {
   // main drain icon follows principalRepay (icon registered above)
   R.rate.textContent = `政策利率 ${pct(snap.rates?.policy ?? 0, 2)}`;
   R.gov.textContent = `债务/GDP ${pct(snap.gov?.debtGdp ?? 0, 0)}`;
+  { const gq = snap.gov?.spendingGross != null ? snap.gov.spendingGross * 0.25 : (f.taxes ?? 0) + (snap.gov?.deficit ?? 0) * 0.25;   // quarterly gross outlays = taxes + deficit
+    R.govGross.textContent = `总支出 ${town ? fmtMoney(gq, town) : Math.round(gq)}`; }
   R.bank.textContent = `审批 ×${(snap.bank?.approval ?? 1).toFixed(2)}`;
   R.hh.textContent = `DSR ${pct(snap.household?.dsr ?? 0)}`;
   R.firm.textContent = `利润 ${fmtMoney(snap.firm?.profit ?? 0, town)}`;
@@ -628,6 +644,8 @@ export function syncDangling(host) {
    ===================================================================================================================== */
 let CTX = {};   // { sim: () => sim, setTab(id), openTerm(id) }  -- set by app.js (optional)
 export function setFlowContext(c) { CTX = c || {}; }
+/** The sim that is on screen right now (US or the town; concept cards need it for "2 years ago" lookups). */
+export function currentSim() { try { return (CTX.sim && CTX.sim()) || null; } catch (e) { return null; } }
 
 function valveInfo(id) {
   const ev = ENGINE_VALVES && ENGINE_VALVES.find(v => v.id === id);
@@ -864,7 +882,12 @@ export function renderFlow(host, snap, prevSnap) {
     wireEvents(host, R);
     // lesson highlight (.ls-hl on a chip) also lights the pump / drain icon of that pipe
     try {
-      new MutationObserver(() => { for (const p of PIPES) { const r = R.pipes[p.k]; if (r.icon) r.icon.classList.toggle('ls-hl-pipe', r.chip.classList.contains('ls-hl')); } })
+      new MutationObserver(() => {
+        for (const p of PIPES) { const r = R.pipes[p.k]; if (r.icon) r.icon.classList.toggle('ls-hl-pipe', r.chip.classList.contains('ls-hl')); }
+        // the two fiscal branches share the trunk's lesson highlight (lessons highlight 'fiscalInjection' only)
+        const on = R.pipes.fiscalInjection.chip.classList.contains('ls-hl');
+        for (const k of ['govPurchases', 'transfers']) { const r = R.pipes[k]; r.chip.classList.toggle('ls-hl', on); r.g.classList.toggle('ls-hl-pipe', on); }
+      })
         .observe(R.svg.children[2], { subtree: true, attributes: true, attributeFilter: ['class'] });
     } catch (e) { /* ignore */ }
     // screenshot helpers: ?valve=policyRate opens its popover, ?ripple=policyRate plays the ripple, ?zoom=1 plays zoomOut

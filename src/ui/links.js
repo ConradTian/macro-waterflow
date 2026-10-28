@@ -42,7 +42,7 @@ export function linksForEntry(e) {
 }
 
 /* ---------- flash highlight in the diagram ---------- */
-const PIPE_ALIAS = { toFinancial: ['toEquity', 'toBond', 'toGold'] };
+const PIPE_ALIAS = { toFinancial: ['toEquity', 'toBond', 'toGold'], fiscalInjection: ['fiscalInjection', 'govPurchases', 'transfers'] };   // the fiscal trunk and its two branches light up together
 let timer = 0, lit = [], endCb = null;
 export function clearFlash() {
   clearTimeout(timer);
@@ -102,6 +102,9 @@ export const CONCEPT_TARGETS = {
   creditImpulse:   { self: ['p:newLoans', 'p:principalRepay'], note: '「放贷」与「还本」两根管道的差' },
   assetReservoir:  { self: POOLS4 },
   goodsChannel:    { self: ['n:channel'] },
+  fiscalInjection: { self: ['n:govGross', 'v:fiscalInjection'] },        // the pump + trunk (t:/p: auto); the two branches show as 去向
+  govPurchases:    { self: ['p:govPurchases'] },
+  transfers:       { self: ['p:transfers'] },
   // bank
   bankApproval:    { self: ['v:approval'] },
   bankCapital:     { self: ['n:bank'], note: '银行方块（资本厚度没有单独画出）' },
