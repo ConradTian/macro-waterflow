@@ -84,8 +84,10 @@ export function lampsAt(snap, iso) {
   if (num(m.unemployment)) {
     const us = uStarFor(cp, snap.t), d = m.unemployment - us;
     const level = d < 0.01 ? 'green' : d <= 0.03 ? 'yellow' : 'red';
-    // known US unemployment gaps (MODEL_GAPS in tabs/_util.js): say so on the lamp itself. 2006Q1–2008Q2 = t 44–53, 2023–25 = t 112–123
-    const GAP_NOTE = [[44, 53, '2006–08 模型失业率偏高（6–10%），真实约 4.5–5%'], [112, 123, '2023–25 模型里出现了一次衰退，真实没有，真实失业率约 4%']];
+    // known US unemployment gaps (MODEL_GAPS in tabs/_util.js): say so on the lamp itself.
+    // 2006Q1–2008Q2 = t 44–53, 2009Q3–2013Q4 = t 58–75, 2024Q1–2025Q4 = t 116–123 (US recalibration 2026-10-29, real fiscal path)
+    const GAP_NOTE = [[44, 53, '2006–08 模型失业率偏高（6–9%），真实约 4.5–5%'], [58, 75, '2009–13 模型失业率回落太快，真实更高（约 9–10%，2013 年还有 7–8%）'],
+      [116, 123, '2024–25 模型失业率升到约 7%（增长几乎停住），真实约 4%']];
     const gn = iso === 'USA' ? GAP_NOTE.find(([a, b]) => snap.t >= a && snap.t <= b) : null, gap = !!gn;
     out.push({ id: 'drought', name: '干涸', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河道闲着：人和工厂没活干。` +
       (gap ? `【模型偏差：${gn[2]}】` : '') });

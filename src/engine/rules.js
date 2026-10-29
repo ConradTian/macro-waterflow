@@ -28,6 +28,9 @@ const RAW = [
     paramDoc: { floorRate: '政策利率低于此值才考虑 QE', uOn: '失业率高于此值（或缺口深）才启动 QE', uOff: '失业率低于此值停止 QE', piOff: '通胀高于此值停止 QE', sizeGdp: 'QE 规模（年化，占 GDP 比例）' },
     immediate: '央行买债，存款 M 增加，长端收益率下降', delayed: '资产价格上升；若私人信贷不恢复则传导偏弱' },
   // ---- 政府
+  // only acts where the country has the fiscal data and cp.fiscalRealPath (USA); elsewhere the fiscal rules below always run
+  { id: 'gov_real_path', player: 'government', enabled: true, tpl: () => '历史模式：财政赤字沿用真实数据（外生输入，自动稳定器按模型的失业率另算）；关闭后改用下面的财政规则（加码 / 紧缩）',
+    params: {}, paramDoc: {}, immediate: '财政净注入随真实赤字变化，M 随之变化', delayed: '政府债务/GDP 与利息负担跟着真实赤字走' },
   { id: 'gov_stimulus', player: 'government', enabled: true,
     tpl: p => `失业率较近 2 年低点上升 >${pp(p.du)} 或需求缺口 <${pc(p.gap)} → 财政注入目标 = ${n2(p.gain)}×(缺口深度-${pc(p.gapFree)}) + 0.5×失业超出，每季最多加码 ${pc(p.ramp)}、上限 ${pc(p.max)}（占 GDP）；景气恢复后每季收回 ${pc(p.unwind)}`,
     params: { du: 0.025, gap: -0.04, ramp: 0.03, max: 0.12, unwind: 0.004, gain: 1.88, gapFree: 0.02 },

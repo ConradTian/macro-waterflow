@@ -60,7 +60,10 @@ import { RULE_BY_ID } from '../engine/rules.js';
 // mounts an interactive panel (src/ui/lessons.js; contract tools/D-CONTRACT.md 「接线」).
 import { LESSON_FX } from './lesson-fx.js';
 import { LESSON_INVESTOR } from './lesson-investor.js';
-const R =(id, k) => RULE_BY_ID[id].params[k];
+import { COUNTRY_PARAMS } from './country-params.js';
+// rule params quoted in the texts: the USA's live values (RULE_DEFS defaults + the USA overrides in country-params.js). The town lesson 0
+// quotes none of the overridden rules, so this is also right there.
+const R = (id, k) => COUNTRY_PARAMS.USA.rules?.[id]?.[k] ?? RULE_BY_ID[id].params[k];
 const p0 = x => Math.round(x * 100) + '%';
 const p1 = x => (Math.round(x * 1000) / 10) + '%';
 
@@ -259,8 +262,8 @@ export const LESSONS = [
       { type: 'watch', until: '2008Q3', title: '第 1 步：先看水', strip: true, glow: { parts: ['budget'] },
         text: [
           '第一个问题：**这个季度，水（货币）总量是多了还是少了？** 看图下面那一条「本季水量」。',
-          '2008Q3：泵入 = 放贷 {loans} + 赤字 {def}；排出 = 还本 {rep}；净变化 **+{net}**（十亿美元）。',
-          '注意：放贷（{loans}）比还本（{rep}）少，银行这一边在净抽水；是政府赤字（{def}）把总水量顶了上去。这就是 2008 年：私人部门在还债，政府在补水。',
+          '2008Q3：泵入 = 放贷 {loans} + 赤字 {def}；排出 = 还本 {rep}；净变化 **{net}**（十亿美元）。总水量少了。',
+          '注意：放贷（{loans}）比还本（{rep}）少，银行这一边在净抽水；政府赤字（{def}）在补水，可这一季还补不满（上一季的退税支票发完了）。这就是 2008 年：私人部门在还债，政府在补水。',
         ],
         vals: [
           { key: 'loans', get: 'end:budget.pumpedIn.loans', fmt: 'num' }, { key: 'def', get: 'end:budget.pumpedIn.deficit', fmt: 'num' },
@@ -268,7 +271,7 @@ export const LESSONS = [
         ],
         block: 'budget',
         claims: [
-          { get: 'end:budget.net', gt: 0, note: '本季总水量变多' },
+          { get: 'end:budget.net', lt: 0, note: '本季总水量变少' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '放贷少于还本' },
           { get: 'end:budget.pumpedIn.deficit', gt: 100, note: '赤字是主要的泵' },
         ],
@@ -342,7 +345,7 @@ export const LESSONS = [
         text: [
           '第四个问题：**周期往下走一步，还差什么？** 打开「周期」页，每个表盘下面都写着「还差什么」；顶上「本季看点」的最后一行也会写。',
           '小周期现在在「{ph}」。要回到「扩张」，要同时满足两条：信贷脉冲 ≥ {t0}（现在 {v0}），失业率 4 季变化 ≤ {t1}（现在 {v1}）。两条都差得远，这个周期还没走完。',
-          '大周期走得慢：下一站是 ⑤「降息失灵、私人去杠杆」，它的条件已经满足，但要连续 {need} 个季度才算数，现在是 {have}/{need}。再过一个季度，本季看点就会写「大周期 ②→⑤」。',
+          '大周期走得慢：下一站是 ⑤「降息失灵、私人去杠杆」，它的条件已经满足，但要连续 {need} 个季度才算数，现在是 {have}/{need}。再过两个季度（2009Q2），本季看点就会写「大周期 ②→⑤」。',
         ],
         relation: '读「下一步」的办法：差得远，就不用急；只差一个季度或一个条件，就盯紧下个季度。',
         vals: [
@@ -354,7 +357,8 @@ export const LESSONS = [
         claims: [
           { get: 'start:cycles.short.evidence.0.value', lt: 0, note: '信贷脉冲还是负的' },
           { get: 'start:cycles.short.evidence.1.value', gt: 0.001, note: '失业率 4 季变化还在抬头' },
-          { get: 'start:cycles.long.progress.have', vs: { get: 'start:cycles.long.progress.need' }, gte: -1, lte: -1, note: '大周期还差 1 个季度' },
+          { get: 'start:cycles.long.progress.have', vs: { get: 'start:cycles.long.progress.need' }, gte: -2, lte: -2, note: '大周期还差 2 个季度' },
+          { get: 'when:cycles.long.stage=5', from: '2008Q4', until: '2009Q4', dateBetween: ['2009Q2', '2009Q2'], note: '2009Q2 进 ⑤' },
         ],
         concept: ['shortCycle', 'longCycle'] },
 
@@ -545,19 +549,19 @@ export const LESSONS = [
       { type: 'predict', until: '2008Q1', title: '第 3 步：为什么两年才见效',
         q: '2006Q2，政策利率已升到约 {pol0}，房价还在涨。接下来两年，房价会？',
         options: [
-          { t: '立刻暴跌', ok: false, when: [{ get: 'dd:assets.housing.price', lt: -0.15 }] },
-          { t: '先见顶，然后温和回落', ok: true, when: [{ get: 'dd:assets.housing.price', lt: -0.01 }, { get: 'dd:assets.housing.price', gt: -0.15 }] },
+          { t: '立刻暴跌（半年跌一成以上）', ok: false, when: [{ get: 'chg:assets.housing.price', from: '2006Q2', until: '2006Q4', lt: -0.1 }] },
+          { t: '先见顶，然后一季一季往下滑', ok: true, when: [{ get: 'dd:assets.housing.price', lt: -0.05 }, { get: 'chg:assets.housing.price', from: '2006Q2', until: '2006Q4', gt: -0.1 }] },
           { t: '继续大涨', ok: false, when: [{ get: 'chg:assets.housing.price', gt: 0.05 }] },
         ],
         vals: [
           { key: 'pol0', get: 'start:rates.policy', fmt: 'pct0' },
           { key: 'pk', get: 'argmax:assets.housing.price', fmt: 'str', from: '2003Q1', until: '2008Q1' },
           { key: 'dd', get: 'dd:assets.housing.price', fmt: 'chg1', from: '2003Q1', until: '2008Q1' },
-          { key: 'fall', get: 'chg:assets.housing.price', fmt: 'chg1' },
+          { key: 'fall', get: 'chg:assets.housing.price', fmt: 'chg1' }, { key: 'h6', get: 'chg:assets.housing.price', fmt: 'chg1', from: '2006Q2', until: '2006Q4' },
         ],
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢攒起来的。等 DSR 升到够高、房价比一年前转弱，银行才收闸。',
-          '从 2004 年年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价 {fall}（从高点算最大回撤 {dd}），是温和回落，不是暴跌。',
+          '从 2004 年年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价 {fall}（从高点算最大回撤 {dd}）。头半年只跌了 {h6}，之后一季比一季跌得多：是慢慢滑下去，不是一夜暴跌。',
           '加息像在长长的水管里加了一道阻力，水要过一阵才到下游。下一课：圈倒着转的时候，降息还推得动吗？',
         ],
         claims: [{ get: 'argmax:assets.housing.price', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' }],
@@ -603,10 +607,10 @@ export const LESSONS = [
         claims: [
           { get: 'min:extra.creditImpulse', from: '2000Q1', until: '2003Q1', vs: { get: 'min:extra.creditImpulse', from: '2007Q3', until: '2012Q4' }, gt: 0.005, note: '2001 年的坑比 2008 年浅' },
           { get: 'when:cycles.short.phase=ease', from: '2000Q4', until: '2003Q1', dateBetween: ['2001Q1', '2001Q1'], note: '2001 年这圈 2001Q1 进降息' },
-          { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q4', '2003Q2'], note: '2001 年这圈 2003Q1 回到扩张' },
+          { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q1', '2003Q2'], note: '2001 年这圈 2002–03 年回到扩张' },
           { get: 'qcount:cycles.long.fork=B2', from: '2000Q1', until: '2003Q1', lt: 0.5, note: '2000–03 年大周期条上没有 B2' },
           { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2012Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2008 年这圈 2007Q4 进降息' },
-          { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2012Q1', '2012Q3'], note: '2008 年这圈 2012 年才回到扩张' },
+          { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2011Q1', '2012Q3'], note: '2008 年这圈 2011 年以后才回到扩张' },
           { get: 'when:cycles.long.fork=B2', from: '2007Q3', until: '2012Q4', dateBefore: 'when:cycles.long.stage=5', note: 'B2 先于 ⑤' },
           { get: 'when:cycles.long.stage=5', from: '2007Q3', until: '2012Q4', dateBefore: 'when:cycles.long.stage=6', note: '⑤ 先于 ⑥' },
         ],
@@ -726,9 +730,9 @@ export const LESSONS = [
         glow: { pipes: ['qe'], parts: ['centralBank', 'pool'] },
         hl: ['qe', 'assetReservoir'], concept: ['qe', 'assetReservoir'] },
 
-      { type: 'predict', from: '2012Q1', until: '2015Q1', title: '第 3 步：实际利率为负，债务自己变轻（⑦）', tab: 'cycle',
+      { type: 'predict', from: '2013Q1', until: '2017Q1', title: '第 3 步：实际利率为负，债务自己变轻（⑦）', tab: 'cycle',
         glow: { parts: ['centralBank', 'government'] },
-        q: '跳到 2012Q1：政策利率 {pol}，通胀 {pi}，实际利率 {rr}，是负的。政府没有还债，债务本身还在涨。到 2015Q1，政府债务占 GDP 的比例会？',
+        q: '跳到 2013Q1：政策利率 {pol}，通胀 {pi}，实际利率 {rr}，是负的。政府没有还债，每年还在借（赤字），债务本身还在涨。到 2017Q1，政府债务占 GDP 的比例会？',
         options: [
           { t: '更高：债还在涨', ok: false, when: [{ get: 'dpp:gov.debtGdp', gt: 0.01 }] },
           { t: '差不多', ok: false, when: [{ get: 'dpp:gov.debtGdp', gte: -0.01, lte: 0.01 }] },
@@ -742,15 +746,15 @@ export const LESSONS = [
           { key: 's7', get: 'when:cycles.long.stage=7', fmt: 'str' },
         ],
         explain: [
-          '更低：政府债务/GDP 从 {r0} 降到 {r1}。可政府一分钱也没还：债务本身从 {b0} 涨到 {b1}。变轻，是因为分母长得更快：这三年名义 GDP 涨了 {gg}，债务只涨了 {bg}。',
+          '更低：政府债务/GDP 从 {r0} 降到 {r1}。可政府一分钱也没还：债务本身从 {b0} 涨到 {b1}。变轻，是因为分母长得更快：这四年名义 GDP 涨了 {gg}，债务只涨了 {bg}。',
           '实际利率为负，就是让时间替欠债的人还钱：存钱的人每年亏一点，欠债的人每年轻一点。这叫**金融压制**。{s7}，大周期盘进入 **⑦ 金融压制·增长化债**。',
         ],
         claims: [
-          { get: 'start:rates.realPolicy', lt: -0.02, note: '2012Q1 实际利率为负' },
-          { get: 'max:rates.realPolicy', lt: -0.01, note: '这三年实际利率一直为负' },
+          { get: 'start:rates.realPolicy', lt: -0.01, note: '2013Q1 实际利率为负' },
+          { get: 'max:rates.realPolicy', lt: -0.005, note: '这四年实际利率一直为负' },
           { get: 'chg:debt.government', gt: 0, note: '政府债务本身在涨（没还）' },
           { get: 'chg:macro.gdpNominal', vs: { get: 'chg:debt.government' }, gt: 0.03, note: '名义 GDP 涨得比债务快' },
-          { get: 'when:cycles.long.stage=7', dateBetween: ['2013Q2', '2014Q4'], note: '大周期进 ⑦' },
+          { get: 'when:cycles.long.stage=7', dateBetween: ['2015Q3', '2016Q4'], note: '大周期进 ⑦' },
         ],
         hl: ['policyRate', 'realRate'], concept: ['realRate', 'govDebtGdp'] },
 
@@ -774,7 +778,7 @@ export const LESSONS = [
         ],
         claims: [
           { get: 'start:cycles.long.stage', gte: 7, lte: 7, note: '2025Q4 还在 ⑦' },
-          { get: 'count:cycles.long.stage', from: '2014Q1', until: '2025Q4', lt: 1, note: '2014 年起一直停在 ⑦' },
+          { get: 'count:cycles.long.stage', from: '2016Q1', until: '2025Q4', lt: 1, note: '2016 年起一直停在 ⑦' },
           { get: 'start:cycles.long.evidence.0.name', eq: 'DSR 相对起点' }, { get: 'start:cycles.long.evidence.0.value', lte: -0.025, note: 'DSR 比起点低（满足）' },
           { get: 'start:cycles.long.evidence.1.name', eq: '银行坏账率' }, { get: 'start:cycles.long.evidence.1.value', lte: 0.025, note: '坏账少（满足）' },
           { get: 'start:cycles.long.evidence.2.name', eq: '实际政策利率（压制结束）' }, { get: 'start:cycles.long.evidence.2.value', gte: -0.01, note: '实际利率回到 −1% 以上（满足）' },
@@ -844,7 +848,7 @@ export const LESSONS = [
       { type: 'reveal', title: '第 3 步：家庭', roleCard: 'household', glow: { parts: ['household'], pipes: ['principalRepay'] },
         text: [
           '**看到**：工作在丢（失业率 {u}），房价在跌，每月还本付息占收入的 {dsr}。',
-          '**做了**：触发「去杠杆」：少借、多存。借款需求打了折（×{bm}），储蓄率多存 {sa}。',
+          '**做了**：触发「债务悬压」：房价从高点跌了一截，房子撑不住房贷了，于是少借、多存。借款需求打了折（×{bm}），储蓄率多存 {sa}。',
           '**冲突**：一家人省钱是对的；大家一起省，商店的生意就少了，别人的工资也少了。你花的钱，就是别人的收入（第 1 课的收入循环）。',
         ],
         vals: [
@@ -857,13 +861,13 @@ export const LESSONS = [
           { get: 'start:extra.borrowMult', lt: 1, note: '借款需求打折' },
           { get: 'start:extra.saveAdj', gt: 0, note: '多存' },
         ],
-        ledgerAt: [{ player: 'household', ruleId: 'hh_deleverage' }],
+        ledgerAt: [{ player: 'household', ruleId: 'hh_overhang' }],
         hl: ['principalRepay'], concept: ['dsr', 'income'] },
 
       { type: 'reveal', title: '第 4 步：企业', roleCard: 'firm', glow: { parts: ['firm', 'capex'], pipes: ['toCapex', 'outI'] },
         text: [
           '**看到**：订单不够：需求比产能少 {gap}。',
-          '**做了**：削减 Capex：上一季就削到了规则的下限（×{cm}），这一季停在那里。企业投资这个出口（第 1 课）只占 GDP 的 {oi}。',
+          '**做了**：削减 Capex：房价一转头（2006 年下半年）就开始削，一年后削到规则的下限（×{cm}），这一季还停在那里。企业投资这个出口（第 1 课）只占 GDP 的 {oi}。',
           '**冲突**：角色卡上的错是「繁荣时一起扩产」；萧条时正好反过来，大家一起停投：今天的订单更少，几年后河道也窄了。',
         ],
         vals: [{ key: 'gap', get: 'start:macro.demandPressure', fmt: 'apct1' }, { key: 'cm', get: 'start:extra.capexMult', fmt: 'n2' }, { key: 'oi', get: 'start:out.I', fmt: 'pct0' }],
@@ -871,29 +875,32 @@ export const LESSONS = [
           { get: 'start:macro.demandPressure', lt: R('firm_capex_cut', 'p'), note: '需求比产能少（低于削减线）' },
           { get: 'start:extra.capexMult', lte: R('firm_capex_cut', 'min') + 0.001, note: 'Capex 倍数在下限' },
           { get: 'at:2008Q2:extra.capexMult', from: '2008Q2', until: '2008Q3', lte: R('firm_capex_cut', 'min') + 0.001, note: '上一季就到了下限' },
+          { get: 'at:2007Q3:extra.capexMult', from: '2006Q2', until: '2007Q3', lte: R('firm_capex_cut', 'min') + 0.001, note: '2007Q3 削到下限' },
+          { get: 'at:2006Q2:extra.capexMult', from: '2006Q2', until: '2007Q3', gt: 1, note: '2006Q2 还在扩' },
         ],
-        ledgerAt: [{ player: 'firm', ruleId: 'firm_capex_cut', date: '2008Q2' }],
+        ledgerAt: [{ player: 'firm', ruleId: 'firm_capex_cut', date: '2007Q3' }],
         hl: ['capex', 'capacity'], concept: ['capex', 'outputGap'] },
 
       { type: 'reveal', title: '第 5 步：政府', roleCard: 'government', glow: { parts: ['government'], pipes: ['fiscalInjection'] },
         text: [
-          `**看到**：失业率 {u}；政府付的利息占税收的 {it}，超过了它的警戒线 ${p0(R('gov_austerity', 'i2t'))}。`,
-          '**模型里做了**：触发「利息太重 → 收缩财政」：财政注入（新水）从 GDP 的 {f0} 收到 {f1}。不过赤字仍有 GDP 的 {def}，债务继续往上走（第 4 课的 ⑥ 补水）。',
-          '**模型偏差**：真实的美国这时是**大幅加码**：2008 年 2 月退税支票、10 月 TARP 救银行、2009 年 2 月 ARRA 刺激法案；联邦赤字从 2008 财年约 GDP 的 3% 升到 2009 财年约 10%。模型里的政府按规则自己决定，这一季的「收」是模型没做对的地方。',
-          '**冲突**：角色卡上的「刺激收太早」，真实例子是**日本 1997**：经济刚有起色，就把消费税从 3% 提到 5%，随后掉回衰退。',
+          '**看到**：失业率 {u}，工作在丢；政府付的利息占税收的 {it}。',
+          '**做了**：历史模式里，政府照**真实的美国赤字**走（外生数据，和央行照真实利率走一样）。这一季真实赤字是 GDP 的 {r1}，比上一季的 {r0} 小一点：2008 年春的退税支票发完了。模型里的赤字（再加上失业带来的自动加码）是 GDP 的 {def}。',
+          '**接下来**：美国随后大幅加码：10 月 TARP 救银行，2009 年 2 月 ARRA 刺激法案。到 2009Q2，真实赤字到了 GDP 的 {r9}，债务一路往上走（第 4 课的 ⑥ 补水）。',
+          '**冲突**：角色卡上的「刺激收太早」，真实例子是**日本 1997**：经济刚有起色，就把消费税从 3% 提到 5%，随后掉回衰退。美国这一季赤字小一点，只是退税发完了；下一季就反过来加码，没有犯这个错。',
         ],
         vals: [
           { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'it', get: 'start:gov.interestToTax', fmt: 'pct0' },
-          { key: 'f0', get: 'at:2008Q2:extra.fiscalAdj', fmt: 'pct', from: '2008Q2', until: '2008Q3' }, { key: 'f1', get: 'start:extra.fiscalAdj', fmt: 'pct' },
-          { key: 'def', get: 'start:gov.deficit/macro.gdpNominal', fmt: 'pct0' },
+          { key: 'r0', get: 'real:at:2008Q2:govDeficitGdp', fmt: 'pct', from: '2008Q2', until: '2008Q3' }, { key: 'r1', get: 'real:start:govDeficitGdp', fmt: 'pct' },
+          { key: 'r9', get: 'real:at:2009Q2:govDeficitGdp', fmt: 'pct0', from: '2008Q3', until: '2009Q2' },
+          { key: 'def', get: 'start:gov.deficit/macro.gdpNominal', fmt: 'pct' },
         ],
         claims: [
-          { get: 'start:gov.interestToTax', gt: R('gov_austerity', 'i2t'), note: '利息/税收超过警戒线' },
-          { get: 'start:extra.fiscalAdj', vs: { get: 'at:2008Q2:extra.fiscalAdj', from: '2008Q2', until: '2008Q3' }, lt: 0, note: '财政注入比上一季收' },
-          { get: 'start:gov.deficit/macro.gdpNominal', gt: 0.08, note: '赤字仍然很大' },
+          { get: 'real:start:govDeficitGdp', vs: { get: 'real:at:2008Q2:govDeficitGdp', from: '2008Q2', until: '2008Q3' }, lt: -0.005, note: '真实赤字比上一季小' },
+          { get: 'real:at:2009Q2:govDeficitGdp', from: '2008Q3', until: '2009Q2', gt: 0.08, note: '2009Q2 真实赤字超过 GDP 的 8%' },
+          { get: 'start:gov.deficit/macro.gdpNominal', gt: 0.04, note: '模型赤字不小' },
           { get: 'dpp:gov.debtGdp', from: '2008Q3', until: '2009Q4', gt: 0.02, note: '债务继续往上走' },
         ],
-        ledgerAt: [{ player: 'government', ruleId: 'gov_austerity' }],
+        ledgerAt: [{ player: 'government', ruleId: 'gov_real_path' }],
         hl: ['fiscalInjection'], concept: ['interestToTax', 'fiscalInjection', 'govDebtGdp'] },
 
       { type: 'reveal', title: '第 6 步：投资者', roleCard: 'investor', glow: { parts: ['cash', 'poolBond'], pipes: ['toCash', 'toBond'] },
@@ -938,7 +945,7 @@ export const LESSONS = [
         text: [
           '**四盏扣分灯全亮**（看屏幕顶上的总目标条）：',
           '**泛滥** {lf}：通胀 {pi}，高过 2% 的目标。**干涸** {ld}：失业率 {u}，远高于正常。**溃坝** {lb}：大周期走上了 B2 岔路，借来的水把堤坝冲开了。**透支** {lo}：家庭偿债和政府利息都太重。',
-          '七个角色，每一个都做了对自己合理的事：央行降息，银行自保，家庭省钱，企业停投，政府收支出，投资者逃向现金和国债，外国人要更高的利息。加在一起，整条河既在干涸、又在溃坝。',
+          '七个角色，每一个都做了对自己合理的事：央行降息，银行自保，家庭省钱，企业停投，政府退税发完、赤字小了一点，投资者逃向现金和国债，外国人要更高的利息。加在一起，整条河既在干涸、又在溃坝。',
           '这就是为什么要有「整个经济」这张卡：只有站在整条河上看，才看得见每个角色各自看不见的东西。',
         ],
         vals: [
@@ -993,10 +1000,10 @@ export const LESSONS = [
           '银行每季看两样东西：房价比一年前涨了多少、坏账多不多。',
           `房价涨得快（比一年前 > ${p1(R('bank_loosen', 'hp'))}），说明手里的抵押品值钱了（LVR 变好）。坏账又低（< ${p1(R('bank_loosen', 'bad'))}）。`,
           `于是触发规则：「放宽审批」。银行框里的小圆点向右移（审批倍数变大，每季加 ${R('bank_loosen', 'step').toFixed(2)}，上限 ×${R('bank_loosen', 'max').toFixed(2)}），新贷款变多。`,
-          '看这个：审批 ×1.xx 往上走，蓝管跟着变粗，一直走到上限。',
+          '看这个：审批倍数从 1997 年起一格一格往上走，1998 年初就开到了上限；蓝管跟着变粗。',
         ],
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }],
-        claims: [{ get: 'dpp:bank.approval', gt: 0.03, note: '审批倍数往上走' }, { get: 'end:bank.approval', gte: R('bank_loosen', 'max') - 0.011, note: '走到上限' }, { get: 'end:bank.badLoanRate', lt: R('bank_loosen', 'bad'), note: '坏账率低' }, { get: 'end:extra.houseYoY', gt: R('bank_loosen', 'hp'), note: '房价涨得快' }],
+        claims: [{ get: 'dpp:bank.approval', from: '1997Q1', until: '1999Q2', gt: 0.03, note: '审批倍数从 1997 年起往上走' }, { get: 'at:1998Q1:bank.approval', from: '1997Q1', until: '1999Q2', gte: R('bank_loosen', 'max') - 0.011, note: '1998 年初到上限' }, { get: 'chg:flows.newLoans', gt: 0, note: '蓝管变粗' }, { get: 'end:bank.approval', gte: R('bank_loosen', 'max') - 0.011, note: '走到上限' }, { get: 'end:bank.badLoanRate', lt: R('bank_loosen', 'bad'), note: '坏账率低' }, { get: 'end:extra.houseYoY', gt: R('bank_loosen', 'hp'), note: '房价涨得快' }],
         hl: ['bankApproval', 'newLoans'], concept: ['lvr', 'bankApproval'] },
 
       { type: 'watch', until: '2001Q2', title: '第 3 步：家庭也在追涨',
@@ -1043,12 +1050,13 @@ export const LESSONS = [
         ],
         insight: [
           '闸门锁死在 ×1.0，2006Q2 房价指数 {h.1}；默认放宽到 ×1.25 时是 {h.0}（累计新贷款 {nl.1} 对 {nl.0}）。闸门上限就是这个圈的「放大倍数」。',
-          '再放宽到 ×1.5，房价是 {h.2}，并不比默认高：圈自己有刹车，房价/收入太高时，估值锚会把价格往回拉。所以不是越大越好。',
+          '再放宽到 ×1.5，房价到 {h.2}，比默认还高；家庭 DSR 也到了 {dsr.2}（默认 {dsr.0}）。闸门越宽，圈转得越快，欠条也越重：涨得越高，后面摔得越疼（第 3 课）。',
         ],
         claims: [
           { get: 'end:assets.housing.price', set: { params: { 'bank_loosen.max': 1.0 } }, vs: { set: {} }, lt: -3, from: '1997Q1', until: '2006Q2', note: '锁死 → 房价更低' },
           { get: 'sum:flows.newLoans', set: { params: { 'bank_loosen.max': 1.0 } }, vs: { set: {} }, lt: 0, from: '1997Q1', until: '2006Q2', note: '锁死 → 新贷款更少' },
-          { get: 'end:assets.housing.price', set: { params: { 'bank_loosen.max': 1.5 } }, vs: { set: {} }, lte: 0, from: '1997Q1', until: '2006Q2', note: '×1.5 并不更高' },
+          { get: 'end:assets.housing.price', set: { params: { 'bank_loosen.max': 1.5 } }, vs: { set: {} }, gt: 0, from: '1997Q1', until: '2006Q2', note: '×1.5 → 房价更高' },
+          { get: 'end:household.dsr', set: { params: { 'bank_loosen.max': 1.5 } }, vs: { set: {} }, gt: 0, from: '1997Q1', until: '2006Q2', note: '×1.5 → DSR 更高' },
         ],
         hl: ['bankApproval'] },
 
@@ -1103,20 +1111,20 @@ export const LESSONS = [
       { type: 'predict', until: '2008Q1', title: '第 3 步：猜一猜',
         q: '政策利率已升到约 {pol0}。接下来 2 年，房价会？',
         options: [
-          { t: '立刻暴跌', ok: false, when: [{ get: 'dd:assets.housing.price', lt: -0.15 }] },
-          { t: '先见顶，然后温和回落', ok: true, when: [{ get: 'dd:assets.housing.price', lt: -0.01 }, { get: 'dd:assets.housing.price', gt: -0.15 }] },
+          { t: '立刻暴跌（半年跌一成以上）', ok: false, when: [{ get: 'chg:assets.housing.price', from: '2006Q2', until: '2006Q4', lt: -0.1 }] },
+          { t: '先见顶，然后一季一季往下滑', ok: true, when: [{ get: 'dd:assets.housing.price', lt: -0.05 }, { get: 'chg:assets.housing.price', from: '2006Q2', until: '2006Q4', gt: -0.1 }] },
           { t: '继续大涨', ok: false, when: [{ get: 'chg:assets.housing.price', gt: 0.05 }] },
         ],
         vals: [
           { key: 'pol0', get: 'start:rates.policy', fmt: 'pct0' },
           { key: 'pk', get: 'argmax:assets.housing.price', fmt: 'str', from: '2003Q1', until: '2008Q1' },
           { key: 'dd', get: 'dd:assets.housing.price', fmt: 'chg1', from: '2003Q1', until: '2008Q1' },
-          { key: 'fall', get: 'chg:assets.housing.price', fmt: 'chg1', from: '2006Q2', until: '2008Q1' },
+          { key: 'fall', get: 'chg:assets.housing.price', fmt: 'chg1', from: '2006Q2', until: '2008Q1' }, { key: 'h6', get: 'chg:assets.housing.price', fmt: 'chg1', from: '2006Q2', until: '2006Q4' },
         ],
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢累积的。',
           '等 DSR 升到够高、房价比一年前转弱，银行才触发收紧。',
-          '从 2004 年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价约 {fall}（从高点算最大回撤 {dd}），是温和回落，不是暴跌。',
+          '从 2004 年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价约 {fall}（从高点算最大回撤 {dd}）。头半年只跌了 {h6}，之后一季比一季跌得多：是慢慢滑下去，不是一夜暴跌。',
         ],
         claims: [{ get: 'argmax:assets.housing.price', fmt: 'date', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' }],
         hl: ['interestPaid', 'assetReservoir'] },
@@ -1301,7 +1309,7 @@ export const LESSONS = [
 
       { type: 'watch', until: '2001Q4', title: '第 3 步：2000–01，顶来了，央行降息', view: 'waves', tab: 'cycle',
         text: [
-          '先是物价冒头，央行加息；加到头，央行掉头降息：{e0}，圆环从「收紧」转到「降息（推得动吗？）」。{d2}，大周期走到 ② 缓冲池满。信贷先缩了，可房价还在涨。',
+          '先是物价冒头，央行加息。{d2}，大周期走到 ② 缓冲池满。加到头，央行掉头降息：{e0}，圆环从「收紧」转到「降息（推得动吗？）」。信贷先缩了，可房价还在涨。',
           '央行从 {pm} 一路降息到 {pe}。看曲线：季度图上，真实 GDP 掉到了趋势线下面，这就是小周期的坑。',
           '房价还在涨，大周期没有转到 B2：银行的抵押品好好的，闸门没关。',
         ],
@@ -1311,7 +1319,7 @@ export const LESSONS = [
         ],
         metrics: [{ label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '信贷脉冲', get: 'extra.creditImpulse', fmt: 'pct' }, { label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }],
         claims: [
-          { get: 'when:cycles.long.stage=2', dateBetween: ['2001Q1', '2001Q3'], note: '大周期走到 ②' },
+          { get: 'when:cycles.long.stage=2', dateBetween: ['2000Q3', '2001Q1'], note: '大周期走到 ②（降息前后）' },
           { get: 'when:cycles.short.phase=ease', dateBetween: ['2001Q1', '2001Q2'], note: '第一次降息，圆环转到「降息（推得动吗？）」' },
           { get: 'dpp:rates.policy', lt: -0.03, note: '降息 3 个点以上' },
           { get: 'min:extra.creditImpulse', lt: 0, note: '信贷先缩' },
@@ -1320,7 +1328,7 @@ export const LESSONS = [
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
 
       { type: 'predict', until: '2003Q1', title: '第 4 步：猜一猜', view: 'waves', tab: 'cycle', hl: ['policyRate', 'newLoans'],
-        q: '2001Q4：政策利率已降到 {pol}，信贷脉冲还是负的（{ci0}）。再过一年多，到 2003Q1，降息推得动吗？降息后信贷回来了吗？',
+        q: '2001Q4：政策利率已降到 {pol}，信贷脉冲 {ci0}，刚从负数爬回零附近。再过一年多，到 2003Q1，降息推得动吗？信贷真的回来了吗？',
         options: [
           { t: '回来了：新贷款重新比还本多，小周期回到扩张', ok: true, when: [{ get: 'end:extra.creditImpulse', gt: 0 }] },
           { t: '没回来：信贷还在缩，大周期接手', ok: false, when: [{ get: 'end:extra.creditImpulse', lt: 0 }] },
@@ -1337,11 +1345,11 @@ export const LESSONS = [
           '原因下面几步再讲：这一次，银行的闸门一直开着。',
         ],
         claims: [
-          { get: 'when:cycles.short.phase=expand', dateBetween: ['2002Q4', '2003Q2'], note: '小周期回到扩张' },
+          { get: 'when:cycles.short.phase=expand', dateBetween: ['2002Q1', '2003Q2'], note: '小周期回到扩张' },
           { get: 'when:cycles.short.phase=ease', from: '2000Q4', dateBetween: ['2001Q1', '2001Q1'], note: '先进入降息（2001Q1）' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, gt: 0, note: '新贷款多于还本' },
           { get: 'count:cycles.long.stage', lt: 1, note: '大周期没动' },
-          { get: 'start:extra.creditImpulse', lt: 0, note: '降息时信贷脉冲还是负的' },
+          { get: 'start:extra.creditImpulse', lt: 0.005, gt: -0.01, note: '降息时信贷脉冲在零附近' }, { get: 'min:extra.creditImpulse', from: '2000Q4', until: '2001Q4', lt: 0, note: '之前信贷脉冲是负的' },
         ] },
 
       { type: 'watch', until: '2007Q3', title: '第 5 步：2005–07，同样的顶又来了', view: 'flow', tab: 'cycle',
@@ -1404,9 +1412,9 @@ export const LESSONS = [
         metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }, { label: '小周期', get: 'cycles.short.label', fmt: 'str' }],
         claims: [
           { get: 'when:cycles.short.handoff=no', from: '2007Q3', dateBetween: ['2008Q1', '2008Q1'], note: '2008Q1 起：降息，推不动' },
-          { get: 'count:cycles.short.handoff', from: '2008Q1', until: '2011Q4', lt: 1, note: '2008Q1 到 2011Q4 一直是「推不动」' },
+          { get: 'count:cycles.short.handoff', from: '2008Q1', until: '2011Q1', lt: 1, note: '2008Q1 到 2011Q1 一直是「推不动」' },
           { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2011Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 起小周期在「降息」' },
-          { get: 'count:cycles.short.phase', from: '2007Q4', until: '2011Q4', lt: 1, note: '2007Q4 到 2011Q4 小周期一直停在「降息」' },
+          { get: 'count:cycles.short.phase', from: '2007Q4', until: '2011Q1', lt: 1, note: '2007Q4 到 2011Q1 小周期一直停在「降息」' },
           { get: 'when:cycles.long.stage=5', dateBetween: ['2008Q4', '2009Q4'], note: '大周期进 ⑤' },
           { get: 'when:cycles.long.stage=6', dateBetween: ['2010Q1', '2010Q4'], note: '大周期进 ⑥' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' },
@@ -1435,9 +1443,9 @@ export const LESSONS = [
         claims: [
           { get: 'min:extra.creditImpulse', from: '2000Q1', until: '2003Q1', vs: { get: 'min:extra.creditImpulse', from: '2007Q3', until: '2012Q4' }, gt: 0.005, note: '2001 年的坑比 2008 年浅' },
           { get: 'when:cycles.short.phase=ease', from: '2000Q4', until: '2003Q1', dateBetween: ['2001Q1', '2001Q1'], note: '2001 年这圈 2001Q1 进降息' },
-          { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q4', '2003Q2'], note: '2001 年这圈 2003Q1 回到扩张' },
+          { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q1', '2003Q2'], note: '2001 年这圈 2002–03 年回到扩张' },
           { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2012Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2008 年这圈 2007Q4 进降息' },
-          { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2012Q1', '2012Q3'], note: '2008 年这圈 2012 年才回到扩张' },
+          { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2011Q1', '2012Q3'], note: '2008 年这圈 2011 年以后才回到扩张' },
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
 
@@ -1539,8 +1547,8 @@ export const LESSONS = [
         glow: { pipes: ['qe'], parts: ['centralBank'] },
         hl: ['qe'], concept: ['qe'] },
 
-      { type: 'predict', until: '2012Q4', title: '第 4 步：猜一猜',
-        q: '模型里 QE 在 2010 年底停了（真实的美联储后来又做了 QE2、扭曲操作和 QE3），财政注入也一步步收回；私人部门仍然几乎不借钱。接下来两年，总水量 M 会怎样？',
+      { type: 'predict', from: '2012Q4', until: '2014Q2', title: '第 4 步：猜一猜',
+        q: '跳到 2012 年底。模型里的 QE 在 2013 年年中停了（真实的美联储 QE3 一直买到 2014 年 10 月），财政注入也一步步收回；私人部门仍然几乎不借钱。接下来一年半，总水量 M 会怎样？',
         options: [
           { t: '继续快速上涨', ok: false, when: [{ get: 'chg:money.M', gt: 0.03 }] },
           { t: '停住，略有回落', ok: true, when: [{ get: 'chg:money.M', lt: 0 }, { get: 'chg:money.M', gt: -0.1 }] },
@@ -1552,8 +1560,8 @@ export const LESSONS = [
           { key: 'dm', get: 'chg:money.M', fmt: 'chg1' },
         ],
         explain: [
-          '两个泵都在缩：财政注入从每季 {fi0} 降到 {fi1}，模型里 QE 已经停了（真实的美联储后来又做了 QE2、扭曲操作和 QE3）。',
-          '排水口还在抽：还本平均每季 {rep}，新贷款平均只有 {nl}（十亿美元）。泵入 < 排出，水位慢慢退，这两年总水量 {dm}。',
+          '两个泵都在缩：财政注入从每季 {fi0} 降到 {fi1}，模型里 QE 已经停了。',
+          '排水口还在抽：还本平均每季 {rep}，新贷款平均只有 {nl}（十亿美元）。泵入 < 排出，水位慢慢退，这一年半总水量 {dm}。',
           '补水一撤，没有人接棒，水就回落。注意：模型里这段私人信贷空窗，比真实世界更深、更长（真实美国 2013 年前后家庭已开始重新借钱）。',
         ],
         metrics: [{ label: '总水量 M', get: 'money.M', fmt: 'tn' }, { label: '财政注入', get: 'flows.fiscalInjection', fmt: 'num' }, { label: '新贷款', get: 'flows.newLoans', fmt: 'num' }, { label: '还本', get: 'flows.principalRepay', fmt: 'num' }],
@@ -1563,13 +1571,13 @@ export const LESSONS = [
       { type: 'experiment', from: '2008Q3', until: '2014Q4', title: '第 5 步：动手改',
         text: [
           '你来当总指挥：时间倒回 2008Q3，选一个方案重跑到 2014Q4。',
-          '注意：失业金这类「自动加码」关不掉。你关的，是政府的「主动加码」规则和央行的 QE。',
+          '注意：「都开」时政府照真实的美国赤字走。失业金这类「自动加码」关不掉；「关财政」关的是主动的那部分（退税、TARP、ARRA 这类加码），也不再按规则加码。',
         ],
         choices: [
-          { label: '财政加码 + QE 都按规则', short: '都开', set: {} },
-          { label: '关掉政府的主动加码', short: '关财政', set: { rules: { gov_stimulus: false } } },
+          { label: '财政照真实赤字 + QE 按规则', short: '都开', set: {} },
+          { label: '关掉政府的主动加码', short: '关财政', set: { rules: { gov_real_path: false, gov_stimulus: false } } },
           { label: '关掉 QE', short: '关 QE', set: { rules: { cb_qe: false } } },
-          { label: '两个泵都关', short: '都关', set: { rules: { gov_stimulus: false, cb_qe: false } } },
+          { label: '两个泵都关', short: '都关', set: { rules: { gov_real_path: false, gov_stimulus: false, cb_qe: false } } },
         ],
         compareAll: true,
         metrics: [
@@ -1585,21 +1593,21 @@ export const LESSONS = [
         ],
         claims: [
           { get: 'min:assets.housing.price', set: { rules: { cb_qe: false } }, vs: { set: {} }, lt: -3, from: '2008Q3', until: '2014Q4', note: '关 QE → 房价更低' },
-          { get: 'min:assets.housing.price', set: { rules: { gov_stimulus: false, cb_qe: false } }, vs: { set: {} }, lt: -3, from: '2008Q3', until: '2014Q4', note: '都关 → 房价更低' },
-          { get: 'end:macro.gdpNominal', set: { rules: { gov_stimulus: false } }, vs: { set: {} }, lt: 0, from: '2008Q3', until: '2014Q4', note: '关财政 → GDP 更小' },
-          { get: 'end:gov.debtGdp', set: { rules: { gov_stimulus: false } }, vs: { set: {} }, lt: 0, from: '2008Q3', until: '2014Q4', note: '关财政 → 债务/GDP 更低' },
-          { get: 'max:macro.unemployment', set: { rules: { gov_stimulus: false, cb_qe: false } }, vs: { set: {} }, lte: 0.01, gte: -0.01, from: '2008Q3', until: '2014Q4', note: '失业率峰值几乎一样' },
+          { get: 'min:assets.housing.price', set: { rules: { gov_real_path: false, gov_stimulus: false, cb_qe: false } }, vs: { set: {} }, lt: -3, from: '2008Q3', until: '2014Q4', note: '都关 → 房价更低' },
+          { get: 'end:macro.gdpNominal', set: { rules: { gov_real_path: false, gov_stimulus: false } }, vs: { set: {} }, lt: 0, from: '2008Q3', until: '2014Q4', note: '关财政 → GDP 更小' },
+          { get: 'end:gov.debtGdp', set: { rules: { gov_real_path: false, gov_stimulus: false } }, vs: { set: {} }, lt: 0, from: '2008Q3', until: '2014Q4', note: '关财政 → 债务/GDP 更低' },
+          { get: 'max:macro.unemployment', set: { rules: { gov_real_path: false, gov_stimulus: false, cb_qe: false } }, vs: { set: {} }, lte: 0.01, gte: -0.01, from: '2008Q3', until: '2014Q4', note: '失业率峰值几乎一样' },
         ],
         hl: ['fiscalInjection', 'qe'] },
 
       { type: 'reveal', from: '2008Q3', until: '2014Q4', title: '第 6 步：大周期盘走到哪了', tab: 'cycle',
         text: [
-          '这六年，大周期盘的指针一格一格往前走：② 缓冲池满 → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手 → ⑦ 金融压制、增长化债。',
+          '这六年，大周期盘的指针一格一格往前走：② 缓冲池满 → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手；再过一年多，才到 ⑦ 金融压制、增长化债。',
           '（切到「周期」页，看盘面和下面的趋势带。）',
         ],
         question: '政府和央行把水补回去之后，大周期盘上哪一格会亮起来？',
         vals: [
-          { key: 'd5', get: 'when:cycles.long.stage=5', fmt: 'str' }, { key: 'd6', get: 'when:cycles.long.stage=6', fmt: 'str' }, { key: 'd7', get: 'when:cycles.long.stage=7', fmt: 'str' },
+          { key: 'd5', get: 'when:cycles.long.stage=5', fmt: 'str' }, { key: 'd6', get: 'when:cycles.long.stage=6', fmt: 'str' }, { key: 'd7', get: 'when:cycles.long.stage=7', fmt: 'str', from: '2008Q3', until: '2017Q4' },
           { key: 'l', get: 'end:cycles.long.label', fmt: 'str' },
         ],
         answerHint: [
@@ -1607,7 +1615,8 @@ export const LESSONS = [
           '本模型里：{d5} 进 ⑤，{d6} 进 ⑥，{d7} 进 ⑦（现在是：{l}）。',
         ],
         relation: '⑥ 不是终点。名义增长 > 利率，债务一年年变轻，才进 ⑦。补水的账，是靠时间慢慢「化」掉的。',
-        claims: [{ get: 'when:cycles.long.stage=5', dateBefore: 'when:cycles.long.stage=6', note: '⑤ 先于 ⑥' }, { get: 'when:cycles.long.stage=6', dateBefore: 'when:cycles.long.stage=7', note: '⑥ 先于 ⑦' }],
+        claims: [{ get: 'when:cycles.long.stage=5', dateBefore: 'when:cycles.long.stage=6', note: '⑤ 先于 ⑥' }, { get: 'when:cycles.long.stage=6', from: '2008Q3', until: '2017Q4', dateBefore: 'when:cycles.long.stage=7', note: '⑥ 先于 ⑦' },
+          { get: 'when:cycles.long.stage=7', from: '2008Q3', until: '2017Q4', dateBetween: ['2015Q1', '2016Q4'], note: '⑦ 在 2014Q4 之后一年多' }],
         hl: ['fiscalInjection', 'qe'], concept: ['longCycle', 'fiscalInjection'] },
 
       { type: 'chain', title: '第 7 步：把整条因果链串起来',
@@ -1709,7 +1718,7 @@ export const LESSONS = [
           'B1 是大周期的岔路之一：缓冲池满后多出来的水溢出成物价，交给小周期去加息、降息。再这样反复溢出，大周期后面的格子上就会多出一个「+ B1」（⑦ + B1，2023 年就是）。',
         ],
         metrics: [{ label: '通胀', get: 'macro.inflation', fmt: 'pct' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
-        claims: [{ get: 'dpp:rates.policy', gt: 0.03, note: '利率升了 3 个点以上' }, { get: 'dpp:macro.demandPressure', lt: -0.05, note: '需求压力被压下来' }, { get: 'dpp:macro.unemployment', gt: 0, note: '失业上升' },
+        claims: [{ get: 'dpp:rates.policy', gt: 0.03, note: '利率升了 3 个点以上' }, { get: 'dpp:macro.demandPressure', lt: -0.02, note: '需求压力被压下来' }, { get: 'dpp:macro.unemployment', gt: 0, note: '失业上升' },
           { get: 'when:cycles.short.top=price', from: '2019Q1', until: '2023Q4', dateBetween: ['2021Q3', '2022Q1'], note: '小周期盘亮「过热·物价」（B1）' },
           { get: 'when:cycles.short.label=收紧（加息）（接 物价过热）', from: '2019Q1', until: '2023Q4', dateBetween: ['2022Q1', '2022Q3'], note: '再往后，圆环转到「收紧（加息）」' },
           { get: 'count:cycles.long.b1Overlay', from: '2019Q1', until: '2023Q4', gt: 0, note: '大周期盘上出现「⑦ + B1」' }],
@@ -1732,18 +1741,18 @@ export const LESSONS = [
         ],
         relation: '买资产的水不拓宽河道，只有 Capex 能。但 Capex 有滞后，这个时间差，就是通胀的窗口。',
         metrics: [{ label: '产能（潜在，十亿美元）', get: 'macro.capacityPotential', fmt: 'num' }, { label: 'Capex（十亿美元/季）', get: 'flows.toCapex', fmt: 'num' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
-        claims: [{ get: 'chg:macro.capacityPotential', from: '2022Q2', until: '2023Q4', vs: { get: 'chg:macro.capacityPotential', from: '2020Q4', until: '2022Q2' }, gt: 0.01, note: '产能是后来才加速变宽的' },
+        claims: [{ get: 'chg:macro.capacityPotential', from: '2022Q2', until: '2023Q4', vs: { get: 'chg:macro.capacityPotential', from: '2020Q4', until: '2022Q2' }, gt: 0.003, note: '产能是后来才加速变宽的' },
           { get: 'max:extra.capexMult', from: '2020Q4', until: '2022Q4', vs: { get: 'start:extra.capexMult', from: '2020Q4', until: '2022Q4' }, gt: 0.1, note: '2021 年起 Capex 加码' }],
         hl: ['capex', 'capacity'], concept: ['capex', 'capacity'] },
 
       { type: 'experiment', from: '2019Q1', until: '2023Q4', title: '第 6 步：动手改',
         text: [
           '你来当总指挥：时间倒回 2019Q1，选一个方案重跑到 2023Q4，比较通胀和产能。',
-          '财政方案改的是「注入的上限」；Capex 方案改的是企业扩张的上限和步子。',
+          '默认：政府照真实的美国赤字走。「少发钱」不照真实赤字，改按规则加码，上限压到 3% GDP；Capex 方案改的是企业扩张的上限和步子。',
         ],
         choices: [
-          { label: '默认（财政和 Capex 照规则）', short: '默认', set: {} },
-          { label: '财政少发钱：注入上限压到 3% GDP', short: '少发钱', set: { params: { 'gov_stimulus.max': 0.03 } } },
+          { label: '默认（财政照真实赤字，Capex 照规则）', short: '默认', set: {} },
+          { label: '财政少发钱：按规则加码，上限 3% GDP', short: '少发钱', set: { rules: { gov_real_path: false }, params: { 'gov_stimulus.max': 0.03 } } },
           { label: '企业不扩 Capex', short: '不扩 Capex', set: { rules: { firm_capex_up: false } } },
           { label: '企业大力扩 Capex（上限 ×1.5）', short: '大力 Capex', set: { params: { 'firm_capex_up.max': 1.5, 'firm_capex_up.step': 0.1 } } },
         ],
@@ -1756,13 +1765,13 @@ export const LESSONS = [
         ],
         insight: [
           '**财政少发钱**：通胀峰值 {ip.1}（默认 {ip.0}），政府债务/GDP {db.1}（默认 {db.0}）。少发的钱，就是少漫出去的水。',
-          '**企业不扩 Capex**：需求压力峰值 {pp.2}（默认 {pp.0}），但期末产能也只有 {cp.2}（默认 {cp.0}）。',
+          '**企业不扩 Capex**：通胀峰值 {ip.2}（默认 {ip.0}），少了一块需求；但期末产能也只有 {cp.2}（默认 {cp.0}）。',
           '**企业大力扩 Capex**：需求压力峰值反而更高，{pp.3}；期末产能 {cp.3}。Capex 先是需求，几年后才是产能。',
         ],
         claims: [
-          { get: 'max:macro.inflation', set: { params: { 'gov_stimulus.max': 0.03 } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '少发钱 → 通胀峰值更低' },
-          { get: 'end:gov.debtGdp', set: { params: { 'gov_stimulus.max': 0.03 } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '少发钱 → 债务/GDP 更低' },
-          { get: 'max:macro.demandPressure', set: { rules: { firm_capex_up: false } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '不扩 Capex → 压力峰值更低' },
+          { get: 'max:macro.inflation', set: { rules: { gov_real_path: false }, params: { 'gov_stimulus.max': 0.03 } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '少发钱 → 通胀峰值更低' },
+          { get: 'end:gov.debtGdp', set: { rules: { gov_real_path: false }, params: { 'gov_stimulus.max': 0.03 } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '少发钱 → 债务/GDP 更低' },
+          { get: 'max:macro.inflation', set: { rules: { firm_capex_up: false } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '不扩 Capex → 通胀峰值更低' },
           { get: 'end:macro.capacityPotential', set: { rules: { firm_capex_up: false } }, vs: { set: {} }, lt: 0, from: '2019Q1', until: '2023Q4', note: '不扩 Capex → 产能更小' },
           { get: 'max:macro.demandPressure', set: { params: { 'firm_capex_up.max': 1.5, 'firm_capex_up.step': 0.1 } }, vs: { set: {} }, gt: 0, from: '2019Q1', until: '2023Q4', note: '大力 Capex → 压力峰值更高' },
           { get: 'end:macro.capacityPotential', set: { params: { 'firm_capex_up.max': 1.5, 'firm_capex_up.step': 0.1 } }, vs: { set: {} }, gt: 0, from: '2019Q1', until: '2023Q4', note: '大力 Capex → 产能更大' },
@@ -1917,16 +1926,17 @@ export const LESSONS = [
           { key: 'pi', label: '平均通胀', get: 'avg:macro.inflation', fmt: 'pct' },
         ],
         insight: [
-          '**关掉 QE**：房价涨幅 {h.1}（默认 {h.0}），股价 {e.1}（默认 {e.0}），国债价格 {b.1}（默认 {b.0}）；平均通胀 {pi.1} 对 {pi.0}，物价几乎没动。',
-          '**关掉追涨**：追涨不造水，只把新水往涨得快的池子集中。关掉它，房产少拿一些（房价涨幅 {h.2}），股票多拿一些（股价涨幅 {e.2}）。',
+          '**关掉 QE**：房价涨幅 {h.1}（默认 {h.0}），国债价格 {b.1}（默认 {b.0}）；股价 {e.1}（默认 {e.0}）反而没少：模型里 QE 的新水主要流进国债和房产。平均通胀 {pi.1} 对 {pi.0}，物价几乎没动。',
+          '**关掉追涨**：追涨不造水，只把新水往涨得快的池子集中。关掉它，房价涨幅 {h.2}、股价涨幅 {e.2}，都比默认小；国债反而多拿一些（国债价格 {b.2}，默认 {b.0}）。',
         ],
         claims: [
           { get: 'chg:assets.housing.price', set: { rules: { cb_qe: false } }, vs: { set: {} }, lt: 0, from: '2009Q1', until: '2019Q4', note: '关 QE → 房价涨幅更小' },
-          { get: 'chg:assets.equity.price', set: { rules: { cb_qe: false } }, vs: { set: {} }, lt: 0, from: '2009Q1', until: '2019Q4', note: '关 QE → 股价涨幅更小' },
+          { get: 'chg:assets.equity.price', set: { rules: { cb_qe: false } }, vs: { set: {} }, gt: 0, from: '2009Q1', until: '2019Q4', note: '关 QE → 股价反而没少' },
           { get: 'chg:assets.bond.price', set: { rules: { cb_qe: false } }, vs: { set: {} }, lt: 0, from: '2009Q1', until: '2019Q4', note: '关 QE → 国债价格涨幅更小' },
           { get: 'avg:macro.inflation', set: { rules: { cb_qe: false } }, vs: { set: {} }, lte: 0.005, gte: -0.005, from: '2009Q1', until: '2019Q4', note: '关 QE → 物价几乎没动' },
           { get: 'chg:assets.housing.price', set: { rules: { inv_momentum: false } }, vs: { set: {} }, lt: 0, from: '2009Q1', until: '2019Q4', note: '关追涨 → 房价涨幅更小' },
-          { get: 'chg:assets.equity.price', set: { rules: { inv_momentum: false } }, vs: { set: {} }, gt: 0, from: '2009Q1', until: '2019Q4', note: '关追涨 → 股票多拿一些，股价涨幅更大' },
+          { get: 'chg:assets.equity.price', set: { rules: { inv_momentum: false } }, vs: { set: {} }, lt: 0, from: '2009Q1', until: '2019Q4', note: '关追涨 → 股价涨幅也更小' },
+          { get: 'chg:assets.bond.price', set: { rules: { inv_momentum: false } }, vs: { set: {} }, gt: 0, from: '2009Q1', until: '2019Q4', note: '关追涨 → 国债多拿一些' },
         ],
         hl: ['assetReservoir', 'qe'] },
 
@@ -1963,7 +1973,7 @@ export const LESSONS = [
       { type: 'reveal', until: '2029Q4', title: '第 1 步：历史播完了，谁来定利率', tab: 'ledger',
         text: [
           '真实数据到 2025Q4 为止。再往后，没有真实的联储路径，也没有外生的冲击（油价、疫情）。',
-          '看这个：流水账里每季都有央行的一行。',
+          '看这个：政策利率每季都在小步挪动（看下面的表）；一季挪动 0.25 个点以上时，流水账里会多一行央行的「泰勒规则」。',
         ],
         question: '没有真实路径了，政策利率由谁来定？',
         vals: [{ key: 'n', get: 'count:rates.policy', fmt: 'num' }, { key: 'p0', get: 'start:rates.policy', fmt: 'pct' }, { key: 'p1', get: 'end:rates.policy', fmt: 'pct' }],
@@ -1973,7 +1983,6 @@ export const LESSONS = [
         ],
         relation: '前面每一课，我们都是只放开一个角色、其余照规则。这里是全放开。',
         claims: [{ get: 'count:rates.policy', gt: 3, note: '利率在变（由规则定）' }],
-        ledgerClaim: { player: 'centralBank', re: '泰勒', min: 4 },
         hl: ['policyRate'], concept: ['policyRate'], freeLink: true },
 
       { type: 'watch', until: '2044Q4', title: '第 2 步：小周期一圈圈转', tab: 'cycle',
@@ -1987,21 +1996,23 @@ export const LESSONS = [
         hl: ['policyRate'], concept: ['shortCycle', 'longCycle'] },
 
       { type: 'predict', until: '2050Q4', title: '第 3 步：猜一猜',
-        q: '自由运行里，没有人刻意去还政府的债。到 2050 年，政府债务占 GDP 的比例，会比 2025 年底？',
+        q: '自由运行里，没有人刻意去还政府的债。2038–40 年会来一次衰退（失业率冲到 9% 左右）。等它过去（2043 年底），政府债务占 GDP 的比例，会比衰退前（2037 年底）？',
         options: [
-          { t: '更低', ok: false, when: [{ get: 'dpp:gov.debtGdp', from: '2025Q4', until: '2050Q4', lt: -0.05 }] },
-          { t: '差不多', ok: false, when: [{ get: 'dpp:gov.debtGdp', from: '2025Q4', until: '2050Q4', gt: -0.05 }, { get: 'dpp:gov.debtGdp', from: '2025Q4', until: '2050Q4', lt: 0.05 }] },
-          { t: '更高', ok: true, when: [{ get: 'dpp:gov.debtGdp', from: '2025Q4', until: '2050Q4', gt: 0.05 }] },
+          { t: '更低', ok: false, when: [{ get: 'dpp:gov.debtGdp', from: '2037Q4', until: '2043Q4', lt: -0.05 }] },
+          { t: '差不多', ok: false, when: [{ get: 'dpp:gov.debtGdp', from: '2037Q4', until: '2043Q4', gt: -0.05 }, { get: 'dpp:gov.debtGdp', from: '2037Q4', until: '2043Q4', lt: 0.05 }] },
+          { t: '更高：衰退时跳上去一截', ok: true, when: [{ get: 'dpp:gov.debtGdp', from: '2037Q4', until: '2043Q4', gt: 0.05 }] },
         ],
         vals: [
-          { key: 'g0', get: 'start:gov.debtGdp', fmt: 'pct0', from: '2025Q4', until: '2050Q4' }, { key: 'g1', get: 'end:gov.debtGdp', fmt: 'pct0', from: '2025Q4', until: '2050Q4' },
-          { key: 'gm', get: 'max:gov.debtGdp', fmt: 'pct0', from: '2025Q4', until: '2050Q4' },
+          { key: 'g0', get: 'start:gov.debtGdp', fmt: 'pct0', from: '2037Q4', until: '2043Q4' }, { key: 'g1', get: 'end:gov.debtGdp', fmt: 'pct0', from: '2037Q4', until: '2043Q4' },
+          { key: 'um', get: 'max:macro.unemployment', fmt: 'pct', from: '2037Q4', until: '2043Q4' },
+          { key: 'g2', get: 'end:gov.debtGdp', fmt: 'pct0', from: '2025Q4', until: '2050Q4' },
         ],
         explain: [
-          '每一次衰退，政府都会出手补水（主线第 4 课）；每一次景气，它只是慢慢收回一点，不会把债还掉。',
-          '所以债务一次比一次高：2025 年底 {g0}，2050 年 {g1}（途中最高 {gm}）。这就是「债务棘轮」。',
+          '更高。衰退一来，政府就出手补水（主线第 4 课）：失业率最高 {um}，政府债务/GDP 从 {g0} 跳到 {g1}。',
+          '景气时它只是慢慢收回一点，不会把债还掉：到 2050 年还有 {g2}。一次衰退跳一截、景气时只慢慢回落，这就是「债务棘轮」。',
         ],
-        claims: [{ get: 'dpp:gov.debtGdp', from: '2025Q4', until: '2050Q4', gt: 0.05, note: '债务/GDP 更高' }],
+        claims: [{ get: 'dpp:gov.debtGdp', from: '2037Q4', until: '2043Q4', gt: 0.05, note: '衰退后债务/GDP 更高' }, { get: 'max:macro.unemployment', from: '2037Q4', until: '2043Q4', gt: 0.08, lt: 0.1, note: '失业率冲到 9% 左右' },
+          { get: 'end:gov.debtGdp', from: '2025Q4', until: '2050Q4', vs: { get: 'start:gov.debtGdp', from: '2037Q4', until: '2043Q4' }, gt: 0, note: '2050 年仍高于衰退前' }],
         metrics: [{ label: '政府债务 / GDP', get: 'gov.debtGdp', fmt: 'pct' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }, { label: '小周期', get: 'cycles.short.label', fmt: 'str' }],
         hl: ['fiscalInjection'] },
 

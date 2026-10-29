@@ -3,7 +3,7 @@ import { RULE_DEFS, RULE_BY_ID, makeRuleState, makeRuleParams } from './rules.js
 import { seed, exogenous, decideAll, settle, buildSnapshot, qLabel, dateOf } from './economy.js';
 import { TOWN_DATA, TOWN_HV0, makeTown, townBlock, evolveTown, applyTownAction, zeroFlowsTown } from './town.js';
 import { VALVES } from './valves.js';
-import { COUNTRY_PARAMS } from '../data/country-params.js';
+import { COUNTRY_PARAMS, TOWN_PARAMS } from '../data/country-params.js';
 
 const HIST_LAST = 123;   // 2025Q4
 const FREE_LAST = 223;   // 2050Q4
@@ -12,7 +12,7 @@ const FREE_LAST = 223;   // 2050Q4
 //  scenario 'us'  : real data required (data = US_Q, or a country's <ISO>_Q), delays always on.
 //  country        : ISO id, default 'USA'. Picks COUNTRY_PARAMS[country] (src/data/country-params.js) for the engine (K.cp) and its
 //                   rule-parameter overrides. A country without params runs on the USA params (sim.countryParamsFallback = true).
-//                   The town always runs on USA params.
+//                   The town always runs on TOWN_PARAMS (the first US calibration, before the 2026-10-29 US recalibration).
 //  scenario 'town': synthetic 万元 economy (data optional, TOWN_DATA is used). delays default false: no repricing lag,
 //                   no smoothing, no momentum, short (2q) Capex lag, so one action shows its effect at once. delays:true restores them.
 export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, scenario = 'us', delays, country = 'USA' } = {}) {
@@ -20,7 +20,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
   if (isTown && !data) data = TOWN_DATA;
   if (!data) throw new Error('createSim: data (US_Q) required');
   const iso = isTown ? 'USA' : String(country || 'USA').toUpperCase();
-  const cp = COUNTRY_PARAMS[iso] || COUNTRY_PARAMS.USA;
+  const cp = isTown ? TOWN_PARAMS : COUNTRY_PARAMS[iso] || COUNTRY_PARAMS.USA;
   // rule defaults for this country: RULE_DEFS params with the country's overrides on top (also what reset() restores)
   const ruleParams = () => { const p = makeRuleParams(); for (const [id, o] of Object.entries(cp.rules || {})) if (p[id]) Object.assign(p[id], o); return p; };
   const listeners = {};

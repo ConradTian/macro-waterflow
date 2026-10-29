@@ -285,7 +285,7 @@ export function decideAll(S, K, ex, env) {
     // stabilisers at the model's unemployment (settle §4), so the real recession's revenue loss is not counted twice on a different
     // model cycle; when model u = real u, the model deficit = real primary deficit + model interest. Rules only in free mode, without
     // the data, or when the government is taken over / its valve turned (they continue from this adj).
-    const realFiscal = !usr && env.mode === 'history' && K.cp.fiscalRealPath && ex.govDeficitGdp != null && ex.govInterestGdp != null && ex.uReal != null;
+    const realFiscal = !usr && env.mode === 'history' && K.cp.fiscalRealPath && env.en('gov_real_path') && ex.govDeficitGdp != null && ex.govInterestGdp != null && ex.uReal != null;
     if (usr && usr.fiscalInjection != null) {
       adj = clamp(usr.fiscalInjection, -0.05, 0.15);
       entries.push(mkEntry(S, 'government', 'gov_stimulus', `失业率 ${pct(S.u)}，利息/税收 ${pct(S.i2t)}`, '用户接管政府：手动设定财政注入（占 GDP）', `财政注入 ${pct(adj)} GDP/年`));
@@ -521,7 +521,8 @@ export function settle(S0, K, ex, dec, env) {
   // 1. policy, shocks, rates
   S.policy = dec.policy; S.qeOn = dec.qeOn;
   S.shock = Math.max(ex.shock, 0.6 * S0.shock); // shock level fades over ~4 quarters
-  S.capLoss = Math.max(S0.capLoss * 0.93, 0.6 * ex.shock);
+  // capacity lost to a lockdown-type shock heals at (1 - capLossDecay) per quarter (cp.capLossDecay, default 0.93: ~10q half-life)
+  S.capLoss = Math.max(S0.capLoss * (K.cp.capLossDecay ?? 0.93), 0.6 * ex.shock);
   const demandShockF = (1 - 1.5 * S.shock) / (1 - 1.5 * S0.shock);
   const qe = dec.qeSize;
   S.qeStock = S0.qeStock + qe;
@@ -676,7 +677,10 @@ export function settle(S0, K, ex, dec, env) {
   const spendRatio = 4 * (0.35 * consCredit + capex_q + fiscalSpend_a * dt + wealthSpend) / S0.AD;
   const nxRatio = dec.nx;
   const d = (a, b) => (b == null ? 0 : a - b);
-  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - K.ws * (S.sav - S0.sav) - (K.cp.adPull ?? 0.4) * v0.pressure * dt;
+  // demand closes the gap to capacity at adPull per year. cp.adPullFull: the gap to NORMAL capacity Ystar - a temporary supply loss
+  // (lockdown, broken supply chains: capLoss) is not seen by demand, so it shows up in prices instead of being absorbed by slower demand
+  const gapPull = K.cp.adPullFull ? (1 + v0.pressure) * (1 - S0.capLoss) - 1 : v0.pressure;
+  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - K.ws * (S.sav - S0.sav) - (K.cp.adPull ?? 0.4) * gapPull * dt;
   S.spendRatio = spendRatio; S.dsRatio = dsRatio; S.nxRatio = nxRatio;
   S.AD = S0.AD * (1 + gNom) * demandShockF;
 
@@ -692,20 +696,34 @@ export function settle(S0, K, ex, dec, env) {
   const fxChg = ex.fx != null && ex.fx4 != null && ex.fx4 > 0 ? ex.fx / ex.fx4 - 1 : 0;
   const fxPush = fb ? K.cp.fxPass * shB.m * clamp(fxChg, -0.3, 0.3) : 0;
   const raw = S0.piE + gapTerm + oilPush + fxPush;
-  S.pi = 0.5 * S0.pi + 0.5 * raw;
+  if (K.cp.oilDirect) {
+    // energy reaches the CPI at once (pump prices): only the core part (expectations + gap + FX) carries last quarter's inertia
+    S.piCore = 0.5 * (S0.piCore ?? S0.pi) + 0.5 * (raw - oilPush);
+    S.pi = S.piCore + oilPush;
+  } else S.pi = 0.5 * S0.pi + 0.5 * raw;
   S.P = S0.P * (1 + S.pi * dt);
   S.Y = Math.min(S.AD / S.P, capEff);
   S.gdp = S.P * S.Y;
   S.Ph.push(S.P); S.Ph.shift();
   S.piY = S.t >= 4 ? S.P / S.Ph[0] - 1 : S.pi;
+  // expectations look through energy (cp.oilLookThrough 0..1, off = 0): they follow inflation minus that share of the oil push's
+  // contribution over the last 4 quarters (≈ core inflation), so an oil spike moves headline CPI but not the expectations anchor
+  let piX = S.piY;
+  const lt = K.cp.oilLookThrough || 0;
+  if (lt) {
+    S.piOil = K.cp.oilDirect ? oilPush : 0.5 * (S0.piOil || 0) + 0.5 * oilPush;    // oil part of this quarter's inflation (same smoothing as S.pi)
+    S.oilQ = [...(S0.oilQ || [0, 0, 0, 0]).slice(1), S.piOil * dt];
+    piX = S.piY - lt * S.oilQ.reduce((a, b) => a + b, 0);
+  }
   if (env.en('hh_infl_deanchor')) {
     const p = env.P('hh_infl_deanchor');
-    S.dean = 0.8 * S0.dean + 0.2 * clamp((S.piY - p.pi) / 0.03, 0, 1);
-    const gapPi = S.piY - S0.piE;
+    // piX = the inflation expectations read (piY, or ~core with cp.oilLookThrough); without look-through this is the original rule
+    S.dean = 0.8 * S0.dean + 0.2 * clamp((piX - p.pi) / 0.03, 0, 1);
+    const gapPi = piX - S0.piE;
     S.piE = S0.piE + (p.speed + p.extra * S.dean) * (gapPi > 0 ? 1 : p.down) * gapPi + p.anchor * (1 - S.dean) * (K.target - S0.piE);
   } else {
     S.dean = 0;
-    S.piE = S0.piE + 0.08 * (S.piY - S0.piE) + 0.03 * (K.target - S0.piE);
+    S.piE = S0.piE + 0.08 * (piX - S0.piE) + 0.03 * (K.target - S0.piE);
   }
   // labour slack: output below capacity. cp.slackVsCapEff: measured against the shock-reduced capacity (a lockdown's lost capacity
   // is not job loss: JobKeeper-type schemes keep workers attached); otherwise against full capacity Ystar (USA)
@@ -870,8 +888,8 @@ export function settle(S0, K, ex, dec, env) {
     'macro.inflation': [
       { factor: '通胀预期锚', contribution: 0.5 * S0.piE },
       { factor: '需求超过产能（缺口）', contribution: 0.5 * gapTerm },
-      { factor: '油价/供给冲击', contribution: 0.5 * oilPush },
-      { factor: '上季惯性（粘性）', contribution: 0.5 * S0.pi },
+      { factor: '油价/供给冲击', contribution: (K.cp.oilDirect ? 1 : 0.5) * oilPush },
+      { factor: '上季惯性（粘性）', contribution: 0.5 * (K.cp.oilDirect ? S0.piCore ?? S0.pi : S0.pi) },
       ...(fb ? [{ factor: '汇率/进口价格', contribution: 0.5 * fxPush }] : []),
     ],
   };

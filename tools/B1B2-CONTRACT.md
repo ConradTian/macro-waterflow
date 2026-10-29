@@ -71,7 +71,10 @@ The old dial was about a year off the real Fed path. Causes: 收紧 meant recess
   - 收紧 → 降息, or → 扩张 once a hold outlasts 8 quarters.
   - 降息 → 扩张 when credit restarts or the bank hikes again (`restart` event = 推得动).
   - 降息 → 过热·物价 when inflation takes off with rates still low (2021).
-  - No 扩张 → 降息: insurance cuts with no prior tightening (1998) leave the dial on 扩张.
+  - 扩张 → 降息 (2026-10-29): a cutting round with no tightening before it also reads 降息 when the cut rule holds (≥ 0.2pp under the 6-quarter high, not rising) **and** the bank cuts in that quarter (≥ `polFlat`, 0.1pp), so a rate left low after an easing round does not re-enter 降息.
+    - Why: the AUS dial read 扩张 for 29 quarters from 2013Q1 while the RBA cut through 2011–16 and again 2019Q2–2020Q2; 'ease' could only be reached from 过热 / 收紧.
+    - It replaces the old rule "insurance cuts with no prior tightening (1998) leave the dial on 扩张". The US now reads 降息 in 1998Q4–1999Q2 (Fed −0.75pp Sep–Nov 1998) and 2002Q4–2003Q3 (Fed −0.5pp Nov 2002, −0.25pp Jun 2003).
+    - `engine_check --country AUS` asserts that the RBA cutting windows 2011Q4–2016Q3 and 2019Q2–2020Q2 read 降息 in most quarters.
 - **B1**: `fork` B1 / `b1Overlay` hold during 过热·物价, and also during 收紧 that came from a price top while inflation is still ≥ 3.5%.
 - **Long dial**: entering ⑥ from ⑤ needs 4 quarters (`LONG_N_TO`), every other move still needs 6.
   - ⑤ stays at 6: with 4, AUS 2021 would enter ⑤.
@@ -79,30 +82,35 @@ The old dial was about a year off the real Fed path. Causes: 收紧 meant recess
 - **New threshold keys** live as fallbacks in `regimes.js` (`stx()`): `turn` 0.002, `polFlat` 0.001, `inflUp` 0.005, `holdMax` 8. Any `ST` key in country-params overrides them.
   - `ST.cut` and `ST.zb` are no longer used by the short cycle. `ST.hike` is now the size of the hiking round.
 
-## History timeline now (US, history mode), against the FOMC path
+## History timeline now (US, history mode, after the 2026-10-29 recalibration with the real fiscal path), against the FOMC path
 | Date | 大周期 | 小周期 | Notes | Real Fed |
 |---|---|---|---|---|
 | 1995Q1 | ① | 扩张 | | |
+| 1998Q4 | | 降息 | expand → ease (new rule) | cuts Sep–Nov 1998 (−0.75pp) |
+| 1999Q3 | | 扩张 | the bank hikes again (liftoff) | |
 | 1999Q4 | | 收紧（加息） | | hikes 1999Q3 → 2000Q2 |
 | 2000Q2 | | 收紧（加息）（接 物价过热） | SHORT_TOP price, fork B1 | |
+| 2000Q4 | → ② | 收紧·衰退（接 物价过热） | label only | |
 | 2001Q1 | | 降息（接 物价过热） | | first cut Jan 2001 |
-| 2001Q2 | → ② | | | |
-| 2003Q1 | | 扩张 | **推得动** (restart) | last cut Jun 2003 |
+| 2002Q2 | | 扩张 | **推得动** (restart) | |
+| 2002Q4 | | 降息 | expand → ease (new rule) | cut Nov 2002 (−0.5pp), Jun 2003 |
+| 2003Q4 | | 扩张 | | |
 | 2004Q4 | | 收紧（加息） | | hikes 2004Q3 → 2006Q2 |
 | 2005Q2 | | 收紧（加息）（接 物价过热） | SHORT_TOP price, fork B1 | |
 | 2006Q2 | | 收紧·衰退（接 物价过热） | label only | hold at 5.25% from Jun 2006 |
 | 2006Q4 | | 收紧·衰退（接 资产过热） | SHORT_TOP asset | |
 | 2007Q4 | | 降息（接 资产过热） | | first cut Sep 2007 (Q3 average −0.2pp) |
 | 2008Q1 | | | **LONG_FORK B2**, handoff 'no' (**推不动**) | |
-| 2009Q1 | ⑤ | | handoff still 'no' | |
-| 2010Q1 | ⑥ | | handoff still 'no' (was 2010Q3) | TARP/QE1 2008Q4, ARRA 2009Q1 |
-| 2012Q2 | | 扩张 | | |
-| 2014Q1 | ⑦ | | | |
+| 2009Q2 | ⑤ | | handoff still 'no' | |
+| 2010Q2 | ⑥ | | handoff still 'no' | TARP/QE1 2008Q4, ARRA 2009Q1 |
+| 2011Q2 | | 扩张 | | |
+| 2016Q1 | ⑦ | | | |
 | 2017Q1 | | 收紧（加息） | 2016: one 25bp hike, round < 0.5pp, so 扩张 | hikes Dec 2015, Dec 2016 → Dec 2018 |
-| 2019Q3 | | 降息 | | cuts Jul–Oct 2019, Mar 2020 |
-| 2021Q4 | | 过热·物价 | SHORT_TOP price, b1Overlay (⑦ + B1) | rates at zero, CPI > 5% |
-| 2022Q2 | | 收紧（加息）（接 物价过热） | b1Overlay until 2023Q3 | hikes Mar 2022 → Jul 2023 |
-| 2023Q2 | | 收紧·衰退（接 物价过热） | label only | |
+| 2017Q3 | | 收紧（加息）（接 物价过热） | SHORT_TOP price, b1Overlay | |
+| 2019Q3 | | 降息（接 物价过热） | | cuts Jul–Oct 2019, Mar 2020 |
+| 2021Q3 | | 过热·物价 | SHORT_TOP price, b1Overlay (⑦ + B1) | rates at zero, CPI > 5% |
+| 2022Q2 | | 收紧（加息）（接 物价过热） | b1Overlay until 2023Q2 | hikes Mar 2022 → Jul 2023 |
+| 2023Q4 | | 收紧·衰退（接 物价过热） | label only | |
 | 2024Q4 | | 降息（接 物价过热） | | first cut Sep 2024 (Q3 average −0.07pp) |
 
 engine_check asserts this against the FOMC path (±1 quarter). It checks:

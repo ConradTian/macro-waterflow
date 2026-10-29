@@ -77,10 +77,12 @@ export function probe(valveId) {
   return { valveId, val, rows };
 }
 
-// label implied by the measurement: material departure quarter (fallback: first visible departure)
+// label implied by the measurement: material departure quarter (fallback: first visible departure). A term that does not depart
+// visibly within the H-quarter horizon gets the slowest label '2–3 年' (US 2026-10-29 recalibration: with 30-year fixed mortgages
+// repricing slowly, a held +1.5pp policy rate moves the DSR by < 0.3pp in 4 years)
 export function measuredLabel(rows, term) {
   const r = rows.find(x => x.p === term);
-  return r ? labelOf(r.mat ?? r.first) : null;
+  return r ? labelOf(r.mat ?? r.first) : '2–3 年';
 }
 
 if (process.argv[1] && process.argv[1].endsWith('valve_probe.mjs') && !process.argv.includes('--labels')) {

@@ -29,7 +29,7 @@ const ASSETS = [
 ];
 // short rule names for the ledger rules (a player + one of these = "银行「因坏账收紧」")
 export const RULE_NAME = {
-  cb_taylor: '泰勒规则调息', cb_qe: 'QE 开关', gov_stimulus: '加码财政', gov_austerity: '财政紧缩', gov_bank_recap: '注资银行',
+  cb_taylor: '泰勒规则调息', cb_qe: 'QE 开关', gov_real_path: '真实赤字', gov_stimulus: '加码财政', gov_austerity: '财政紧缩', gov_bank_recap: '注资银行',
   bank_loosen: '放宽审批', bank_tighten_losses: '因坏账收紧', bank_tighten_collateral: '因抵押品收紧', bank_rebuild_capital: '先补资本',
   hh_chase: '追涨 / 观望', hh_deleverage: '去杠杆', hh_overhang: '债务悬压', firm_capex_up: '加 Capex', firm_capex_cut: '削 Capex',
   inv_momentum: '追涨', inv_riskoff: '避险', foreign_funding: '要求更高期限溢价', shock_gdp: '产出冲击', shock_oil: '油价冲击',

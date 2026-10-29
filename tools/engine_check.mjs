@@ -430,7 +430,8 @@ function cycleChecks(US_Q) {
   console.log('\n=== CYCLE DIALS: long (大周期) + short (小周期), timeline ===');
   const LORD = [1, 2, 5, 6, 7, 8];
   // allowed short moves (regimes.js 2026-10-29 redesign): hot -> ease / tight -> ease directly when the bank cuts; ease -> 过热·物价 skips 扩张 (2021)
-  const SNEXT = { expand: ['hotP', 'hotA', 'tight'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
+  // expand -> ease (2026-10-29): a cutting round without a tightening round before it (Fed 1998, RBA 2011-16 / 2019-20) reads 降息
+  const SNEXT = { expand: ['hotP', 'hotA', 'tight', 'ease'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
   const isTop = k => k === 'hotP' || k === 'hotA';
   // a short-cycle top: entering 过热, or 收紧 picking up the kind of top it is in (`via` set / re-labelled while the bank is already hiking)
   const topAt = (h, i) => { const a = h[i].cycles.short, b = i > 0 ? h[i - 1].cycles.short : null;
@@ -635,6 +636,15 @@ if (COUNTRY !== 'USA') {
   }
   const h = check(`real ${COUNTRY}_Q`, data, 'history');
   borderChecks(`${COUNTRY} history`, h, cp);
+  if (COUNTRY === 'AUS') {
+    // the short dial against the RBA cutting rounds (no tightening round before them, so they need the expand -> ease move)
+    const I = d => data.dates.indexOf(d);
+    for (const [a, b] of [['2011Q4', '2016Q3'], ['2019Q2', '2020Q2']]) {
+      const w = h.slice(I(a), I(b) + 1), n = w.filter(x => x.cycles.short.phase === 'ease').length;
+      console.log(`  RBA cuts ${a}->${b}: dial reads 降息 in ${n}/${w.length} quarters`);
+      assert(n * 2 > w.length, `AUS: RBA cutting ${a}->${b} reads 降息 in most quarters (${n}/${w.length})`);
+    }
+  }
   if (COUNTRY_TARGETS[COUNTRY]) COUNTRY_TARGETS[COUNTRY](data, h);
   const hf = check(`real ${COUNTRY}_Q`, data, 'free');
   borderChecks(`${COUNTRY} free`, hf, cp);

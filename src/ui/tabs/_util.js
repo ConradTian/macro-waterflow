@@ -23,10 +23,12 @@ import { currentCountry, countryInfo } from '../country-info.js';
  *  once the chart's "now" has reached `from`. { key: realKey, from, to (quarters), text } */
 export const MODEL_GAPS = [
   { key: 'equityIndex', from: '2001Q1', to: '2002Q4', text: '模型偏差：真实股市 2001–02 跌约 45%，模型没跌' },
-  { key: 'unemployment', from: '2006Q1', to: '2008Q2', text: '模型偏差：2006–08 模型失业率 6–10%，真实约 4.5–5%' },
-  { key: 'unemployment', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
-  { key: 'gdpNominal', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
-  { key: 'gdpRealGrowthYoY', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
+  { key: 'unemployment', from: '2006Q1', to: '2008Q2', text: '模型偏差：2006–08 模型失业率 6–9%，真实约 4.5–5%' },
+  { key: 'unemployment', from: '2009Q3', to: '2013Q4', text: '模型偏差：2009–13 模型失业率回落太快，真实更高（2013 年还有 7–8%）' },
+  { key: 'unemployment', from: '2024Q1', to: '2025Q4', text: '模型偏差：2024–25 模型失业率升到约 7%，真实约 4%' },
+  { key: 'gdpNominal', from: '2024Q1', to: '2025Q4', text: '模型偏差：2024–25 模型增长几乎停住，真实还在长' },
+  { key: 'gdpRealGrowthYoY', from: '2024Q1', to: '2025Q4', text: '模型偏差：2024–25 模型增长几乎停住，真实约 2–3%' },
+  { key: 'govDebtGdp', from: '2009Q1', to: '2025Q4', text: '口径差：真实线是联邦总债务（含政府内部持有）；模型只累积赤字，接近「公众持有」的口径（低 20 多个点）' },
 ];
 /** Real (to now) / model / user comparison chart. modelFn maps a snapshot -> number. */
 /** True when the real series has at least one number (a country can lack a series: e.g. AUS has no CAPE, so its chart is hidden, not drawn empty). */

@@ -114,10 +114,11 @@ export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 //  - 'hiking round' / 'cut' come from a turning-point filter on the policy rate (state.cb): a move of ST.turn off the running low (high)
 //    turns the bank's direction up (down). The policy rate has no noise, so tight / ease need 1 quarter (no dwell);
 //    hot needs 2 quarters, expand 3 (credit back and unemployment not rising), both after a 2-quarter dwell.
-//  - Moves: expand -> hot / tight; hot -> tight / ease / expand (hotP -> hotA re-labels); tight -> ease (or expand once a hold at the
-//    high outlasts ST.holdMax); ease -> expand (推得动, or the bank starts hiking again = recovery confirmed) or -> 过热·物价 (inflation
-//    takes off while rates are still low: 2021). No move from expand straight to ease: cuts with no round of tightening before
-//    (1998 insurance cuts) do not move the dial.
+//  - Moves: expand -> hot / tight / ease; hot -> tight / ease / expand (hotP -> hotA re-labels); tight -> ease (or expand once a hold at
+//    the high outlasts ST.holdMax); ease -> expand (推得动, or the bank starts hiking again = recovery confirmed) or -> 过热·物价 (inflation
+//    takes off while rates are still low: 2021). expand -> ease (2026-10-29): a cutting round with no tightening before it still reads
+//    降息 (RBA 2011-16 and 2019-20; Fed 1998 insurance cuts); before, 'ease' could only be reached from hot / tight. From 扩张 the
+//    bank must also cut in that quarter (>= ST.polFlat), so a rate left low after an easing round does not re-enter 降息.
 export const SHORT_LABEL = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息（推得动吗？）' };
 export const TOP_LABEL = { price: '物价过热', asset: '资产过热' };
 export const KEY_LABEL = { expand: '扩张', hotP: '过热·物价', hotA: '过热·资产', tight: '收紧', ease: '降息（推得动吗？）' };
@@ -133,7 +134,7 @@ export const SHORT_N = { hotP: 2, hotA: 2, tight: 1, ease: 1, expand: 3 };
 export const WARMUP = 8;
 const SHORT_DWELL = 2;                         // min quarters in a short phase before an evidence-driven move (hot / expand); policy moves skip it
 const POLICY = { tight: 1, ease: 1 };
-export const SHORT_NEXT = { expand: ['tight', 'hotA', 'hotP'], hotP: ['ease', 'tight', 'hotA', 'expand'], hotA: ['ease', 'tight', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
+export const SHORT_NEXT = { expand: ['tight', 'ease', 'hotA', 'hotP'], hotP: ['ease', 'tight', 'hotA', 'expand'], hotA: ['ease', 'tight', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
 // thresholds added with the redesign (fallbacks so an older country-params file still works)
 const stx = ST => ({ turn: 0.002, polFlat: 0.001, inflUp: 0.005, holdMax: 8, ...ST });
 
@@ -155,7 +156,7 @@ function cycleTexts(cyc) {
   };
   const hikeT = `央行本轮加息 ≥ ${pp1(ST.hike)} → 收紧（加息）`, cutT = `央行比 6 季高点降 ≥ ${pp1(ST.turn)} 且本季不再加 → 降息`;
   const SHORT_NEXT_TXT = {
-    expand: `${hikeT}；还没加息时：通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价，信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 过热·资产`,
+    expand: `${hikeT}；${cutT}；还没加息时：通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价，信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 过热·资产`,
     hotP: `${hikeT}；${cutT}；信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 改判 过热·资产；通胀回落 → 扩张`,
     hotA: `${hikeT}；${cutT}；信贷回正且失业率不升 → 扩张`,
     tight: `${cutT}（推得动吗？）。失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} 时标「收紧·衰退」`,
@@ -300,6 +301,8 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
   const ready = p => {
     if (p === 'expand' && liftoff) return true;
     if (sstreak[p] < SHORT_N[p] || (!POLICY[p] && dwell <= SHORT_DWELL)) return false;
+    // 扩张 -> 降息 needs a cut THIS quarter (>= polFlat): a rate still under its 6-quarter high after an easing round ended is not a new one
+    if (p === 'ease' && S.phase === 'expand') return f.dPol1 <= -ST.polFlat;
     // the soft landing out of a top / a hold is only believed once their own evidence is gone; 推得动 is not called in a quarter the bank still cuts
     if (p === 'expand') return !(KEY_TOP[S.phase] && sok[S.phase]) && !(S.phase === 'tight' && sok.tight) && !(S.phase === 'ease' && f.dPol1 <= -ST.turn);
     return true;

@@ -1,10 +1,12 @@
 // Country parameters (WORLD-CONTRACT addendum). The engine is the SAME for every country; only these numbers differ.
 // createSim({ data, mode, country }) picks COUNTRY_PARAMS[country] (default 'USA') and the engine reads it as K.cp.
-// USA = the numbers the engine was calibrated with (tools/engine_check.mjs, 17 targets): it must reproduce the old engine bit for bit.
+// USA = USA_BASE + the 2026-10-29 recalibration (real fiscal path ON; tools/engine_check.mjs: 17/17 targets + the dated cycle asserts).
 // Everything else (rule thresholds that are generic behaviour, equity-market mechanics, accounting splits) stays in src/engine.
 // No Node-only APIs. Plain data, never mutated by the engine.
 
-const USA = {
+// USA_BASE = the numbers of the first US calibration (rule government, 17/17). AUS and the town are built on them and keep them
+// bit for bit; the USA itself overrides them with the 2026-10-29 recalibration below (real fiscal path ON).
+const USA_BASE = {
   iso: 'USA', name: '美国', ccy: 'USD',
   ccyUnit: '亿美元',          // ledger text unit (kept as the old engine text)
   cbName: '联储',             // ledger text: "真实联储路径"
@@ -47,11 +49,9 @@ const USA = {
   // fiscalRealPath (history mode): the government's stance follows the data - the real cyclically adjusted primary deficit
   // (govDeficitGdp - govInterestGdp - the model's own automatic stabilisers at the REAL unemployment gap; us-quarterly.js has the
   // NIPA series), like cb_real_path for the policy rate; the rules run only in free mode, without the series, or on a takeover.
-  // OFF for the USA until the private-sector block is recalibrated (engine pass 2026-10-29): switched on alone it fails 9/17
-  // targets - the old rule government had been filling a model-made demand hole (model deficit ~13% of GDP in 2007 and ~15% in
-  // 2024-25, real ~2% and ~6.5%), which is also why it 'tightened' in 2008Q3 (interest/tax > 22%). The hole comes from the
-  // capex -> capacity overshoot after every easing and a wealth effect that reacts to the CHANGE in wealth (demand turns in
-  // 2005-06, not 2007-09). The optional mechanisms below are the tested building blocks of that recalibration (all OFF here).
+  // OFF in this base (AUS, town); ON for the USA (see USA below). Switched on alone it failed 9/17 targets: the old rule government
+  // had been filling a model-made demand hole (model deficit ~13% of GDP in 2007 and ~15% in 2024-25, real ~2% and ~6.5%), which is
+  // also why it 'tightened' in 2008Q3 (interest/tax > 22%). The rule gov_real_path switches it off per sim (lessons' experiments).
   fiscalRealPath: false,
   // optional demand/supply mechanisms (default = the calibrated engine, bit for bit). Value null/undefined = off.
   //   capGain (0.6)      capacity growth per 1pp of completed Capex/GDP above capexShare0 (economics suggests ~0.15-0.3)
@@ -63,6 +63,10 @@ const USA = {
   //   savRp (0)          precautionary saving per 1pp of risk premium above 4.5%
   //   shockLayoff (0)    unemployment per unit of the lockdown shock (US: temporary layoffs, no job-retention scheme)
   //   transferMpc (1), xsDrain (0.5)   share of transfers spent at once; the rest is excess saving spent later at xsDrain/yr
+  //   adPullFull (off)   adPull closes the gap to NORMAL capacity Ystar: a lockdown / supply-chain capacity loss shows up in prices
+  //   capLossDecay (0.93) share of the lockdown capacity loss still missing one quarter later (supply chains heal slowly)
+  //   oilDirect (off)    the oil push reaches the CPI at once (no inertia); only core inflation is sticky
+  //   oilLookThrough (0) share of the oil push's 4-quarter contribution that inflation expectations ignore (they follow ~core)
   moneyGdp: 0.55,             // starting deposits M / GDP
   mktCapGdp: 1,               // starting equity market cap / GDP
   eqDilution: 0,              // net new share issuance per year: earnings per share grow this much slower than aggregate profits
@@ -116,6 +120,32 @@ const USA = {
   rules: {},
 };
 
+// USA = USA_BASE + the 2026-10-29 recalibration with the REAL fiscal path ON (history mode: the government follows the NIPA
+// deficit). Search: local + robustness-aware (obj = targets + margins + u RMSE; +-10% one-at-a-time perturbations counted), see the
+// engine report. Result: 17/17 targets + every dated cycle assert; u RMSE 2.0pp (was 3.0pp); 2021-22 CPI peak 6.5% (was 4.9% with
+// the rule government, 4.8% with the real path alone); +-10% one-at-a-time on the 25 changed numbers: 5/50 runs break a target.
+// What changed and why:
+//   - capex block: Capex responds weakly to pressure / real rates and builds little capacity (capexPress, capexRate, capGain), the
+//     Capex rules swing x0.93..x1.145: no more capacity overshoot (and demand hole) after every easing round
+//   - households: saving reacts less to unemployment (savU), the wealth effect works on the LEVEL of wealth (wealthLevel), the
+//     2020 transfers are partly saved and spent later (transferMpc, xsDrain); lockdown layoffs (shockLayoff, slackVsCapEff)
+//   - 2021-22 inflation (general mechanisms, no dates): the lockdown capacity loss heals slowly (capLossDecay) and demand does not
+//     see it (adPullFull), oil reaches the CPI at once (oilDirect) while expectations look through it (oilLookThrough)
+//   - the rest is fit (okun, gBase, gapSlope, adPull, firmSpread, rateSens, mortReprice, rule params below)
+// The numbers carry 3-4 digits on purpose: rounding moves the robustness count.
+const USA = {
+  ...USA_BASE,
+  fiscalRealPath: true,
+  slackVsCapEff: true, oilDirect: true, adPullFull: true, oilLookThrough: 1, capLossDecay: 0.98,
+  capGain: 0.2035, capexRate: 0.1468, capexPress: 0.1068, savU: 0.5088, okun: 0.4208, gBase: 0.0348, gapSlope: 0.1903, adPull: 0.4756,
+  transferMpc: 0.3939, xsDrain: 0.5, firmSpread: 0.3519, shockLayoff: 0.3694, rateSens: 0.4114, wealthLevel: 0.0498, mortReprice: 0.0834,
+  rules: {
+    firm_capex_up: { max: 1.1451 }, firm_capex_cut: { min: 0.93 }, firm_oil_passthrough: { k: 0.0299 },
+    inv_momentum: { hpMom: 0.4672 }, inv_valuation: { revert: 0.0584 },
+    hh_chase: { up: 0.0478 }, hh_overhang: { save: 0.047 }, hh_deleverage: { u: 0.1151 }, hh_infl_deanchor: { pi: 0.0304 },
+  },
+};
+
 // Australia: same engine. What differs: mostly VARIABLE-rate mortgages (the cash rate reaches DSR within a few quarters), a lower
 // starting LVR, households that carried a DSR rising ~7pp (1999-2007) without a bust, commodity exports with the border ON,
 // a 2-3% inflation target, faster trend growth. Tuned only on the AUS targets (tools/engine_check.mjs --country AUS), never on USA.
@@ -125,7 +155,7 @@ const USA = {
 // (was 7.6%), +-10% one-at-a-time perturbations of 50 params flagged 0/100 (was 11/100), joint +-10% flagged 20/60 (was 46/60, no ⑤/B2).
 // The numbers below carry 3-4 digits on purpose: rounding moves the robustness count.
 const AUS = {
-  ...USA,
+  ...USA_BASE,
   iso: 'AUS', name: '澳大利亚', ccy: 'AUD', ccyUnit: '十亿澳元', cbName: '澳联储',
   ws: 0.60,                   // compensation + mixed income share is lower than in the US
   uStar: 0.0486,              // base NAIRU (2008); the path below moves it: ~7.1% in 1995 -> 4.9% in 2008 -> 3.9% from 2023
@@ -174,6 +204,8 @@ const AUS = {
 };
 
 export const COUNTRY_PARAMS = { USA, AUS };
+// the town (万元 teaching economy) runs on the first US calibration: its lessons and valve lags are written on those numbers
+export const TOWN_PARAMS = USA_BASE;
 
 // a country's params: COUNTRY_PARAMS[iso], or USA when that country has no params yet (fallback flagged by the caller)
 export function countryParams(iso = 'USA') {
