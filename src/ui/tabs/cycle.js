@@ -6,6 +6,7 @@ import { pctFmt } from '../chart.js';
 import { flash, LAMP_LINKS } from '../links.js';
 import { lampBarHtml } from '../gauge.js';
 import { fmtV, nextText, evidenceList, beginRows, initPins, applyUrlPin, wireEvidence } from './_cycle-ev.js';
+import { wavesHtml, wireWaves } from './_cycle-waves.js';
 
 // own stylesheet (index.html links it too; this keeps free/ and any other host working)
 try {
@@ -309,6 +310,8 @@ export function render(container, ctx) {
     <div class="pn-lead cy-lead">${lead(s)}</div>
     ${dials}
     ${trail ? `<h3 class="pn-h">轨迹带 <small>宽带 = 大周期（慢慢换色）；带里的波 = 一轮轮小周期；黑线 = 现在</small></h3>${trail.html}` : ''}
+    <h3 class="pn-h">真实世界的三条线 <small>五国真实 GDP 拆成达利欧的三条线；直线 = GDP 长期趋势（由生产率决定）</small></h3>
+    ${wavesHtml(ctx)}
     <h3 class="pn-h">四盏灯 <small>形状 + 文字 + 颜色同时表示；点灯，看图里哪些水管在喂它</small></h3>
     <div class="lp-grid">${lamps}</div>
     <h3 class="pn-h">真实 vs 模型 <small>模型偏离真实本来就正常：它是玩具</small></h3>
@@ -319,6 +322,7 @@ export function render(container, ctx) {
     d.addEventListener('toggle', () => { openMap[d.dataset.k] = d.open; });
   });
   if (trail) wireTrail(container, ctx, trail);
+  wireWaves(container, ctx);
   if (s.cycles) wireEvidence(container, ctx);
   container.querySelectorAll('.lp[data-lamp]').forEach(lp => {
     const go = ev => {
