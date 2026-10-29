@@ -130,6 +130,10 @@ export function fmtV(v, f) {
     case 'rate': return (v * 100).toFixed(2) + '%';
     case 'tn': return (v / 1000).toFixed(1) + ' 万亿美元';
     case 'bn': return Math.round(v).toLocaleString('en-US') + ' 十亿美元';   // input USD bn (same unit as the map labels)
+    case 'ppa': return Math.abs(v * 100).toFixed(1) + '个点';   // size of a change in points, no sign (the text says 升了/降了)
+    case 'apct0': return Math.abs(v * 100).toFixed(0) + '%';
+    case 'apct1': return Math.abs(v * 100).toFixed(1) + '%';
+    case 'aud': return Math.round(v).toLocaleString('en-US') + ' 十亿澳元';   // input local-currency bn (AUS model flows, per quarter)
     default: return Math.round(v).toLocaleString('en-US');
   }
 }
@@ -141,6 +145,7 @@ export function aggregate(hist, spec, base = null) {
   const i = spec.indexOf(':'), agg = spec.slice(0, i), path = spec.slice(i + 1);
   if (agg === 'when') { const [p, val] = path.split('='); const h = hist.find(x => String(getPath(x, p)) === val); return h ? h.date : null; }
   const rows = base && ['chg', 'dpp', 'dd', 'start', 'count'].includes(agg) ? [base, ...hist] : hist;
+  if (agg === 'qcount') { const [p, val] = path.split('='); return rows.filter(h => String(getPath(h, p)) === val).length; }   // number of quarters where path == value
   if (agg === 'count') { let n = 0; for (let k = 1; k < rows.length; k++) if (String(getPath(rows[k], path)) !== String(getPath(rows[k - 1], path))) n++; return n; }
   if (agg === 'start') return base ? getPath(base, path) : null;
   const raw = rows.map(h => getPath(h, path));
@@ -164,7 +169,7 @@ export function clearRunCache() { RUNS.clear(); }
 export function scratchRun(data, L, set, from, until) {
   const key = `${L.id}|${L.mode || ''}|${JSON.stringify(set || {})}|${from}|${until}`;
   if (RUNS.has(key)) return RUNS.get(key);
-  const s = createSim({ data, mode: L.mode === 'free' ? 'free' : 'history' });
+  const s = createSim({ data, mode: L.mode === 'free' ? 'free' : 'history', country: L.country || 'USA' });   // a country lesson runs on that country's sim
   for (const r of s.rules) s.setRuleEnabled(r.id, ruleOnFor(L, r.id));
   const ff = d => { const T = dateT(d); while (s.t < T && !s.done) s.step(); };
   ff(from);
@@ -181,19 +186,37 @@ let WORLD = null;
 export function setWorldData(W) { WORLD = W || null; }
 export const hasWorldData = () => !!WORLD;
 export const isWorldGet = g => typeof g === 'string' && g.startsWith('world:');
+// 'world:<path>@<year>' = the value; 'world:<path>@<y0>><y1>' = the change y1 / y0 - 1 (e.g. world:countries.USA.houseReal@2006>2012)
 export function evalWorld(spec) {
-  const m = /^world:([\w.]+)@(\d{4}|last)$/.exec(spec);
+  const m = /^world:([\w.]+)@(\d{4}|last)(?:>(\d{4}))?$/.exec(spec);
   if (!WORLD || !m || !Array.isArray(WORLD.years)) return null;
   const a = getPath(WORLD, m[1]);
   if (!Array.isArray(a)) return null;
-  let v;
-  if (m[2] === 'last') { for (let k = a.length - 1; k >= 0 && v == null; k--) v = a[k]; }
-  else { const k = WORLD.years.indexOf(+m[2]); v = k < 0 ? null : a[k]; }
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const at = y => {
+    let v;
+    if (y === 'last') { for (let k = a.length - 1; k >= 0 && v == null; k--) v = a[k]; }
+    else { const k = WORLD.years.indexOf(+y); v = k < 0 ? null : a[k]; }
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  };
+  if (m[3]) { const v0 = at(m[2]), v1 = at(m[3]); return v0 && v1 != null ? v1 / v0 - 1 : null; }
+  return at(m[2]);
+}
+// REAL data getters: 'real:<agg>:<series>' (also 'real:at:YYYYQn:<series>') aggregates the country's real quarterly series (data.series)
+// over the same window as the model getters (from..until; base = value at from). No simulation: it is the data the model is compared with.
+export const isRealGet = g => typeof g === 'string' && g.startsWith('real:');
+export function evalReal(data, spec, from, until) {
+  const rest = spec.slice(5), key = rest.split(':').pop();
+  const S = data && data.series && data.series[key];
+  if (!Array.isArray(S) || !data.dates) return null;
+  const t0 = dateT(from), t1 = dateT(until);
+  const row = t => ({ date: data.dates[t], [key]: S[t] });
+  const hist = []; for (let t = t0 + 1; t <= t1 && t < data.dates.length; t++) hist.push(row(t));
+  return aggregate(hist, rest, row(t0));
 }
 
 export function evalGet(data, L, g, win) {
   if (isWorldGet(g.get)) return evalWorld(g.get);
+  if (isRealGet(g.get)) return evalReal(data, g.get, g.from || win.from, g.until || win.until);
   const r = scratchRun(data, L, g.set, g.from || win.from, g.until || win.until);
   return aggregate(r.hist, g.get, r.base);
 }

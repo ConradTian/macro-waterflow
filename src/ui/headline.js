@@ -11,6 +11,7 @@
 import { linksForEntry, LAMP_LINKS, flash, flashConcept } from './links.js';
 import { KEY_LABEL } from '../engine/regimes.js';
 import { nextText } from './tabs/_cycle-ev.js';
+import { currentCountry, localizeText } from './country-info.js';
 
 /* ------------------------------------------------------------------ vocabulary */
 const LAMPS = {
@@ -181,6 +182,8 @@ export function renderHeadline(el, ctx) {
   const prev = snap.t > 0 ? sim.snapshot('model', snap.t - 1) : null;
   let items = [], nx = null;
   try { items = headlineItems(snap, prev, sim); nx = nextStep(snap); } catch (e) { console.error(e); }
+  const iso = currentCountry(sim), loc = o => (o && iso !== 'USA' ? { ...o, text: localizeText(o.text, iso), where: localizeText(o.where, iso) } : o);   // country view: US-only words swapped
+  items = items.map(loc); nx = loc(nx);
   last.items = items; last.next = nx;
   const quiet = prev && !items.length;
   const sum = !prev ? '这是起点，还没有上一季可以比较' : quiet ? '本季平稳：没有新信号' : items.slice(0, 2).map(i => esc(i.text)).join(' · ');

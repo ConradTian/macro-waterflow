@@ -556,6 +556,9 @@ function scorecardAUS(data, hist) {
   add('A2b unemployment peak 2009-10', (u09 * 100).toFixed(1) + '%', '5..6.8% (real 5.8%)', u09 >= 0.05 && u09 <= 0.068);
   const uMid = Math.max(...sl(U, '2008Q1', '2016Q4'));
   add('A2c max unemployment 2008-16', (uMid * 100).toFixed(1) + '%', '<= 7.0%', uMid <= 0.07);
+  const avg = a => a.reduce((p, q) => p + q, 0) / a.length;
+  const u2325 = avg(sl(U, '2023Q1', '2025Q4')), u2325r = S.unemployment ? avg(sl(S.unemployment, '2023Q1', '2025Q4')) : null;
+  add('A2d unemployment avg 2023-25', `${(u2325 * 100).toFixed(1)}%${u2325r != null ? ` (real ${(u2325r * 100).toFixed(1)}%)` : ''}`, '<= 6.0%', u2325 <= 0.06, true);
   const P = hist.map(s => s.macro.inflation);
   const pi23 = Math.max(...sl(P, '2021Q1', '2023Q4')), iPi = idx('2021Q1') + sl(P, '2021Q1', '2023Q4').indexOf(pi23);
   add('A3a inflation peak 2021-23', `${(pi23 * 100).toFixed(1)}% ${D[iPi]}`, '6..9.5% (real 7.8%)', pi23 >= 0.06 && pi23 <= 0.095);
@@ -565,6 +568,10 @@ function scorecardAUS(data, hist) {
   const hdMax = Math.max(...sl(hd, '2015Q1', '2025Q4'));
   add('A4a hh debt/GDP rises to ~120%', `max 2015-25 ${(hdMax * 100).toFixed(0)}% (start ${(hd[0] * 100).toFixed(0)}%)`, '105..135%', hdMax >= 1.05 && hdMax <= 1.35);
   add('A4b hh debt/GDP 2007 above start', `${(hd[idx('2007Q4')] * 100).toFixed(0)}%`, '>= start + 20pp', hd[idx('2007Q4')] >= hd[0] + 0.2);
+  // government debt stays in the real range (no fictitious fiscal stimulus fills a model-made demand hole)
+  const gd = hist.map(s => s.gov.debtGdp), gdMax = Math.max(...gd);
+  const gdReal = S.govDebtGdp ? Math.max(...S.govDebtGdp.filter(x => x != null)) : null;
+  add('A4c gov debt/GDP max 1995-2025', `${(gdMax * 100).toFixed(0)}%${gdReal != null ? ` (real max ${(gdReal * 100).toFixed(0)}%)` : ''}`, '<= 60%', gdMax <= 0.6, true);
   const DS = hist.map(s => s.household.dsr);
   const dDs = DS[idx('2023Q4')] - DS[idx('2022Q2')];
   add('A5a DSR 2022Q2->2023Q4 (variable rates)', `${(dDs * 100).toFixed(1)}pp`, '>= +2pp', dDs >= 0.02);

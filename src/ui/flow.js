@@ -18,6 +18,7 @@
 //   flows.{toEquity,toBond,toGold,rent,dividends,coupons,qt,govSurplusDrain,fiscalDrain}, assets.*.level, budget, iou, town, extra.qeOn.
 
 import { CONCEPTS } from '../data/concepts.js';
+import { countryInfo, currentCountry } from './country-info.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const VB_W = 390, VB_H = 472;
@@ -152,7 +153,8 @@ const PATH_TARGET = {
    ===================================================================================================================== */
 function labelSet(snap, town) {
   if (!town) {
-    return { bank: '银行', hh: '家庭 · 1.2 亿户', hhShort: '家庭', channel: '商品河道', housingCap: '', unit: '十亿美元', gov: '政府' };
+    const ci = curInfo();      // US: 家庭 · 1.2 亿户 / 十亿美元 (the old texts); another country: its own household count and currency unit
+    return { bank: '银行', hh: '家庭 · ' + ci.households, hhShort: '家庭', channel: '商品河道', housingCap: '', unit: ci.unitBn, gov: '政府' };
   }
   const T = snap.town || {};
   const hs = (T.households || []).map(h => h.name.endsWith('家') ? h.name : h.name + '家');
@@ -160,6 +162,8 @@ function labelSet(snap, town) {
   return { bank: T.bank?.name || '镇银行', hh, hhShort: '家庭', channel: T.shop?.name || '小卖部', housingCap: `镇上${T.houseCount || 10}套`, unit: '万元', gov: '政府' };
 }
 const isTownSnap = snap => !!(snap && snap.town);
+// the country on screen (country-info.js): the sim's (the town counts as USA). Read at render time, so a lesson swapping sims is followed.
+const curInfo = () => countryInfo(currentCountry(currentSim()));
 
 /* =====================================================================================================================
    VALUE MAPPING
@@ -209,8 +213,9 @@ function levelsOf(snap) {
   const gdp = Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
   const L = {};
   for (const p of POOLS) L[p.id] = lvlOf(a[p.id]?.price ?? 100);
-  L.iou = clamp(iouOf(snap) / gdp / 2.4, 0.06, 0.98);
-  L.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / 1.4, 0.06, 0.98);
+  const tk = curInfo().tank;      // per-country scales (USA 2.4 / 1.4 as before): AUS M/GDP reaches 1.7, so its cash tank is full at 1.9
+  L.iou = clamp(iouOf(snap) / gdp / tk.iou, 0.06, 0.98);
+  L.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / tk.cash, 0.06, 0.98);
   return L;
 }
 
@@ -595,7 +600,7 @@ function setBorder(R, snap, town) {
   if (local) h += row('fx', '汇率（本币/美元）', `${fmtFx(fx)}${ch.txt ? ` · 比一年前 ${ch.txt}` : ''}`);
   if (usd) h += row('reserveCurrency', '美元 = 储备货币', resTxt);
   if (num(B.foreignBondBuy)) h += row('foreignBonds', B.foreignBondBuy < 0 ? '外国人卖国债' : '外国人买国债', `${fmtSigned(B.foreignBondBuy, false)}${num(B.foreignBondShare) ? ` · 持有 ${Math.round(B.foreignBondShare * 100)}%` : ''}`);
-  h += `<div class="bp-note">单位：十亿美元 / 季；点蓝字看解释</div>`;
+  h += `<div class="bp-note">单位：${curInfo().unitBn} / 季；点蓝字看解释</div>`;
   if (D.pop.innerHTML !== h) D.pop.innerHTML = h;
 }
 
@@ -780,7 +785,7 @@ function setBudget(R, snap, town) {
   R.bar.innerHTML =
     `<div class="fb-mini" role="button" tabindex="0" data-act="fb-toggle" aria-expanded="${open}"><span class="fb-mlab">本季水量</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span>` +
     `<span class="fb-meq">= 泵入 ${num(pTot)} − 排出 ${num(dTot)}</span><span class="fb-caret" aria-hidden="true">▴</span><button type="button" class="fb-legbtn" data-act="legend">图例</button></div>` +
-    `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">单位：${town ? '万元' : '十亿美元'} · 管宽 = 本季流量</span></div>` +
+    `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">单位：${town ? '万元' : curInfo().unitBn} · 管宽 = 本季流量</span></div>` +
     `<div class="fb-row fb-eq"><span class="fb-grp pump"><span class="fb-k">泵入</span> ${termBtn('newLoans', '放贷')} ${num(pi.loans)} + ${termBtn('qe', 'QE')} ${num(pi.qe)} + ${termBtn('fiscalInjection', '赤字')} ${num(pi.deficit)}</span>` +
     `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '还本')} ${num(dr.repay)}${drainTail}</span></div></div>`;
 }

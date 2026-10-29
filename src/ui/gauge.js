@@ -7,6 +7,7 @@
 
 import { createSim } from '../engine/sim.js';
 import { US_Q } from '../data/us-quarterly.js';
+import { currentCountry, countryInfo, countryData, fmtBn } from './country-info.js';
 import { GAUGES, NO_GAUGE } from '../data/gauges.js';
 
 export { GAUGES, NO_GAUGE };
@@ -54,10 +55,10 @@ function fedge(v, fmt) {
   if (fmt === 'x') return sg + String(+Math.abs(v).toFixed(2)) + 'x';
   return sg + String(+Math.abs(v).toFixed(2));
 }
-function fmoney(v, town) {
+function fmoney(v, town, iso = 'USA') {
   if (!ok(v)) return '—';
   if (town) return (Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v))) + ' 万元';
-  return Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + ' 万亿美元' : Math.round(v) + ' 十亿美元';
+  return fmtBn(v, iso);      // USA: '2.10 万亿美元' / '620 十亿美元' as before; another country: its own currency
 }
 
 // push labels apart (sorted by y), keeping inside [lo, hi]
@@ -78,8 +79,8 @@ function spread(items, gap, lo, hi) {
 /* ------------------------------------------------------------------ events (US only) */
 const EVENTS = [['2000Q1', '科网泡沫顶'], ['2006Q2', '房价顶'], ['2008Q4', '金融危机'], ['2020Q2', '疫情'], ['2022Q2', '通胀顶']];
 const qIndex = d => { const m = /^(\d{4})Q([1-4])$/.exec(d || ''); return m ? +m[1] * 4 + +m[2] - 1 : null; };
-function eventName(date, scen) {
-  if (scen === 'town') return '';
+function eventName(date, scen, iso = 'USA') {
+  if (scen === 'town' || iso !== 'USA') return '';      // the event labels are US history
   const q = qIndex(date);
   if (q == null) return '';
   let best = '', bd = 3;
@@ -89,28 +90,38 @@ function eventName(date, scen) {
 
 /* ------------------------------------------------------------------ baseline runs (lazy, cached) */
 const SCEN_NAME = { history: '美国 1995–2025 基线', free: '自由模式基线', town: '小镇基线' };
-const BASE = new Map();      // scen -> { sim, snaps }
-const SERIES = new Map();    // `${scen}|${key}` -> { vals, dates, min, max, iMin, iMax, n }
+const scenName = (scen, iso) => (scen === 'history' && iso !== 'USA' ? `${countryInfo(iso).name} 1995–2025 基线` : SCEN_NAME[scen]);
+const BASE = new Map();      // `${iso}|${scen}` -> { sim, snaps }
+const SERIES = new Map();    // `${iso}|${scen}|${key}` -> { vals, dates, min, max, iMin, iMax, n }
+const EMPTY = () => ({ vals: [], dates: [], min: Infinity, max: -Infinity, iMin: -1, iMax: -1, n: 0 });
 
 function scenOf(snap, sim) {
   if (sim?.scenario === 'town' || snap?.scenario === 'town') return 'town';
   return sim?.mode === 'free' ? 'free' : 'history';
 }
-function baseline(scen) {
-  let b = BASE.get(scen);
+// iso: the country the live sim runs on. The baseline is the same engine on that country's data (app.js registers it); without the data: null (no 洪痕 range, the gauge still draws)
+function baseline(scen, iso = 'USA') {
+  if (scen === 'town') iso = 'USA';
+  const bk = iso + '|' + scen;
+  let b = BASE.get(bk);
   if (b) return b;
-  const sim = scen === 'town' ? createSim({ scenario: 'town' }) : createSim({ data: US_Q, mode: scen === 'free' ? 'free' : 'history' });
+  const data = iso === 'USA' ? US_Q : countryData(iso);
+  if (!data) return null;
+  const sim = scen === 'town' ? createSim({ scenario: 'town' }) : createSim({ data, mode: scen === 'free' ? 'free' : 'history', country: iso });
   let guard = 0;
   while (!sim.done && guard++ < 400) sim.step();
   b = { sim, snaps: sim.history('model') };
-  BASE.set(scen, b);
+  BASE.set(bk, b);
   return b;
 }
-function seriesOf(scen, key, fn) {
-  const ck = scen + '|' + key;
+function seriesOf(scen, key, fn, iso = 'USA') {
+  if (scen === 'town') iso = 'USA';
+  const ck = iso + '|' + scen + '|' + key;
   let s = SERIES.get(ck);
   if (s) return s;
-  const { sim, snaps } = baseline(scen);
+  const bl = baseline(scen, iso);
+  if (!bl) return EMPTY();
+  const { sim, snaps } = bl;
   const vals = [], dates = [];
   let min = Infinity, max = -Infinity, iMin = -1, iMax = -1, n = 0;
   snaps.forEach((sn, i) => {
@@ -156,8 +167,8 @@ function pickScale(S, cur, trail, edges) {
 }
 
 function verticalSvg(id, g, snap, sim) {
-  const scen = scenOf(snap, sim);
-  const S = seriesOf(scen, 'c:' + id, g.get);
+  const scen = scenOf(snap, sim), iso = currentCountry(sim);
+  const S = seriesOf(scen, 'c:' + id, g.get, iso);
   const cur = g.get(snap, sim);
   const trail = trailOf(sim, snap, g.get);
   const bands = normBands(typeof g.bands === 'function' ? g.bands(snap) : g.bands);
@@ -221,7 +232,7 @@ function verticalSvg(id, g, snap, sim) {
   const spread0 = S.n > 0 && S.max - S.min > 1e-12;
   if (spread0) {
     const hiTxt = `最高 ${F(S.max)} · ${S.dates[S.iMax]}`, loTxt = `最低 ${F(S.min)} · ${S.dates[S.iMin]}`;
-    const eh = eventName(S.dates[S.iMax], scen), el = eventName(S.dates[S.iMin], scen);
+    const eh = eventName(S.dates[S.iMax], scen, iso), el = eventName(S.dates[S.iMin], scen, iso);
     marks.push({ y: Y(S.max), kind: 'hi', t: hiTxt + (eh ? ' ' + eh : '') });
     marks.push({ y: Y(S.min), kind: 'lo', t: loTxt + (el ? ' ' + el : '') });
   }
@@ -247,7 +258,7 @@ function verticalSvg(id, g, snap, sim) {
   const aria = `水尺：${g.label ? g.label + '，' : ''}现在 ${ok(cur) ? F(cur) : '—'}${lvNow ? '（' + LV_TXT[lvNow] + '区）' : ''}` +
     (spread0 ? `；基线最高 ${F(S.max)}（${S.dates[S.iMax]}），最低 ${F(S.min)}（${S.dates[S.iMin]}）` : '');
   const H = TOP + HS + 8;
-  return { svg: `<svg class="gg-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" preserveAspectRatio="xMinYMin meet">${out.join('')}</svg>`, scen, hasBands: !!bands };
+  return { svg: `<svg class="gg-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" preserveAspectRatio="xMinYMin meet">${out.join('')}</svg>`, scen, iso, hasBands: !!bands };
 }
 
 /* ------------------------------------------------------------------ 对比尺 */
@@ -257,7 +268,8 @@ function pairHtml(g, snap, sim) {
   try { p = g.pair(snap, sim); } catch (e) { p = null; }
   if (!p || !p.a || !p.b || !ok(p.a.v) || !ok(p.b.v)) return '';
   const town = snap.scenario === 'town' || sim?.scenario === 'town';
-  const val = v => (p.fmt === 'bn' ? fmoney(v, town) : p.fmt === 'num' ? fnum(v, 'num') : fnum(v, 'pct', 1));
+  const iso = currentCountry(sim);
+  const val = v => (p.fmt === 'bn' ? fmoney(v, town, iso) : p.fmt === 'num' ? fnum(v, 'num') : fnum(v, 'pct', 1));
   const av = p.a.v, bv = p.b.v;
   let lo = Math.min(0, av, bv), hi = Math.max(0, av, bv);
   if (p.zoom) {                                           // both values are big and close: cut the scale (marked with a break sign)
@@ -284,10 +296,11 @@ function pairHtml(g, snap, sim) {
 export function gaugeHtml(conceptId, snap, sim) {
   const g = GAUGES[conceptId];
   if (!g || !snap) return '';
+  if (g.usOnly && currentCountry(sim) !== 'USA') return '';
   ensureCss();
   let v;
   try { v = verticalSvg(conceptId, g, snap, sim || null); } catch (e) { return ''; }
-  const note = `圆点 = 近 8 季轨迹（越淡越早）；虚线 = ${SCEN_NAME[v.scen] || '基线'}里的最高 / 最低`;
+  const note = `圆点 = 近 8 季轨迹（越淡越早）；虚线 = ${scenName(v.scen, v.iso) || '基线'}里的最高 / 最低`;
   return `<div class="gg" data-gauge="${esc(conceptId)}"><div class="gg-h">水尺${g.label ? ` <small>${esc(g.label)}</small>` : ''}</div>` +
     v.svg + `<div class="gg-note">${note}${v.hasBands ? '；色带：绿 / 黄（斜纹）/ 红（点纹）' : ''}</div>` + pairHtml(g, snap, sim || null) + '</div>';
 }
@@ -310,10 +323,10 @@ export function lampBarHtml(lampKey, snap, sim) {
   const [a0, a1] = L.axis, span = a1 - a0;
   const bands = normBands(L.bands);
   const pos = v => Math.max(0, Math.min(100, (v - a0) / span * 100));
-  const scen = scenOf(snap, sim);
+  const scen = scenOf(snap, sim), iso = currentCountry(sim);
   const val = v => fnum(v, fmt, fmt === 'x' ? 2 : 1);
   let S = null;
-  try { S = seriesOf(scen, 'l:' + lampKey, s => lampValue(lampKey, s)); } catch (e) { S = null; }
+  try { S = seriesOf(scen, 'l:' + lampKey, s => lampValue(lampKey, s), iso); } catch (e) { S = null; }
 
   // segments (colour + texture + level text in the title)
   const segs = bands.map(b => {

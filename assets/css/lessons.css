@@ -274,12 +274,5 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 @media (max-width: 480px) { .ls-res.ls-all { font-size: 12px; } .ls-res.ls-all th, .ls-res.ls-all td { padding: 4px 3px; } }
 
 /* world lessons: the 地图 page (#world-map, position:fixed, own module) must not hide behind the lesson card (--ls-h = card height, --tb-h = tab bar).
-   < 900px (the map stacks its selected-country card under the stage): the map ends above the card.
-   >= 900px (the selected-country card is a right column, the lesson card covers its lower part): let that column scroll up past the lesson card,
-   so the 「进入 X 的水流图 →」 button can always be reached. */
-@media (max-width: 899.98px) {
-  body.lesson-on .wm:not([hidden]) { bottom: calc(var(--ls-h, 0px) + var(--tb-h, 0px)); }
-}
-@media (min-width: 900px) {
-  body.lesson-on .wm:not([hidden]) .wm-card { padding-bottom: calc(var(--ls-h, 0px) + 12px); }
-}
+   On every width the map ends above the lesson card, so a box the lesson selects is never covered (the map scales down to fit). */
+body.lesson-on .wm:not([hidden]) .wm-body { padding-bottom: calc(var(--ls-h, 0px) + var(--tb-h, 0px)); }

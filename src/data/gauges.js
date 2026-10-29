@@ -157,7 +157,7 @@ export const GAUGES = {
   },
   fx: { get: s => s.border?.fxPerUsd, fmt: 'num', label: '本币 / 美元（变大 = 本币变弱）' },
   foreignBonds: { get: bdShare('foreignBondBuy'), fmt: 'pct', label: '占 GDP' },
-  reserveCurrency: { get: s => s.border?.reserveShareUsd, fmt: 'pct', label: '美元占世界外储' },
+  reserveCurrency: { get: s => s.border?.reserveShareUsd, fmt: 'pct', label: '美元占世界外储', usOnly: true },   // usOnly: no gauge in a country view (only the US view has a reserve share)
 
   // ---------- the four lamps ----------
   lampCredit: { get: s => s.lights?.credit?.value, fmt: 'pct', label: '占 GDP', bands: lamp('credit') },

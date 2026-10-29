@@ -16,6 +16,13 @@ const USA = {
   gBase: 0.04,                // baseline nominal demand growth (~ gT + target)
   gapSlope: 0.212,            // Phillips-curve slope when demand exceeds capacity
   okun: 0.6,                  // unemployment target rises by okun x (slack: output below capacity)
+  // ---- optional mechanisms (2026-10-29, engine round 3). All OFF for the USA: the US path stays bit for bit the calibrated one.
+  uStarPath: null,            // NAIRU path: [[date 'YYYYQn', offset vs uStar], ...] piecewise-linear, held flat outside the knots
+  slackVsCapEff: false,       // labour slack measured against the shock-reduced capacity (a lockdown's lost capacity is not job loss)
+  firmNeutralQ: 0,            // > 0: firms' neutral real rate moves with the trailing mean (this many quarters) of the real policy rate
+  cycleDebtGdp4q: false,      // cycle dials read debt/GDP over the 4-quarter mean GDP (BIS) instead of the quarter's annualised GDP
+  fixedCohort: null,          // { open, close, share, reset, resetQ }: a fixed-rate mortgage bucket written in [open, close) that rolls
+                              // back onto the variable rate from `reset` over resetQ quarters (dates 'YYYYQn')
   // ---- households and housing
   mortShare: 0.8,             // mortgage share of household debt
   lvr0: 0.38,                 // starting average LVR (mortgages / housing value) -> sets the housing stock HV0
@@ -93,29 +100,38 @@ const USA = {
 // Australia: same engine. What differs: mostly VARIABLE-rate mortgages (the cash rate reaches DSR within a few quarters), a lower
 // starting LVR, households that carried a DSR rising ~7pp (1999-2007) without a bust, commodity exports with the border ON,
 // a 2-3% inflation target, faster trend growth. Tuned only on the AUS targets (tools/engine_check.mjs --country AUS), never on USA.
-// 2026-10-29 retune (engine agent, round 2): robustness-aware search on the AUS scorecard + fit terms (u 2023-25, u/CPI RMSE, gov debt/GDP,
-// no fictitious fiscal stimulus in 2001-08 / 2023-25), scored also on +-10% one-at-a-time perturbations of every AUS param: flagged 35/100 -> 11/100.
-// The numbers below carry 3-4 digits on purpose: the model is chaotic near the 2021 cycle fork, and rounding moves the robustness count.
+// 2026-10-29 retune (engine agent, round 3): the optional mechanisms are ON (cycle debt/GDP over 4 quarters of GDP, slack vs the
+// shock-reduced capacity, NAIRU path, a 2020-21 fixed-rate cohort), then a robustness-aware search on the AUS scorecard + fit terms
+// (u 2023-25 near 5%, u/CPI/gov-debt RMSE, no fictitious fiscal stimulus in 2001-08 / 2023-25). Result: 16/18, u 2023-25 avg 5.2%
+// (was 7.6%), +-10% one-at-a-time perturbations of 50 params flagged 0/100 (was 11/100), joint +-10% flagged 20/60 (was 46/60, no ⑤/B2).
+// The numbers below carry 3-4 digits on purpose: rounding moves the robustness count.
 const AUS = {
   ...USA,
-  iso: 'AUS', name: '澳大利亚', ccy: 'AUD', ccyUnit: '十亿澳元', cbName: '澳储行',
+  iso: 'AUS', name: '澳大利亚', ccy: 'AUD', ccyUnit: '十亿澳元', cbName: '澳联储',
   ws: 0.60,                   // compensation + mixed income share is lower than in the US
-  uStar: 0.0473,              // RBA NAIRU estimates ~4.5-5% over the 2010s-2020s (was 0.05)
-  piTarget: 0.025, gT: 0.0305, gBase: 0.0555,   // RBA 2-3% target; ~3% trend growth (population + mining capacity); gBase = gT + target
-  gapSlope: 0.189,            // flatter Phillips curve than the US 0.212 (inflation targeting since 1993)
-  okun: 0.4,                  // unemployment reacts less to slack (labour hoarding; JobKeeper in 2020)
-  mortShare: 0.85, lvr0: 0.2207, lvrBad: 0.3031, rentYield0: 0.045, pi0: 4.5, sav0: 0.06,
-  mortFixed: 0.1,             // ~90% of new mortgages float with the cash rate (US: 25%)
-  mortVarSpread: 0.0268,      // standard variable rate ~ cash + 2.5-3pp over 1995-2025
-  mortReprice: 0.6369,        // the stock reprices within ~2 quarters (US 0.099: 30y fixed)
-  dsrRoom: 0.10, badDsr: 0.15,   // DSR rose from ~10% to ~17% (BIS) with low arrears: banks and borrowers carry a higher DSR
-  wealthMpc: 0.022,           // housing-wealth effect a little stronger than the US 0.0192 (higher home ownership, more housing in wealth)
-  capexShare0: 0.1637,        // business + public investment share; also caps the excess capex boom (clamp 0.20) when real rates fall far
-                              // below the high 1995 starting real rate (the boom would otherwise add too much capacity, 2010-15 and 2021-23)
-  taxGdp: 0.25, spendGdp: 0.2481,   // a small primary surplus at neutral (AUS ran surpluses 1998-2008); gov debt/GDP RMSE 32pp -> 23pp
+  uStar: 0.0486,              // base NAIRU (2008); the path below moves it: ~7.1% in 1995 -> 4.9% in 2008 -> 3.9% from 2023
+  // RBA NAIRU estimates: ~6.5-7% in the mid-1990s, ~5% by the late 2000s, ~4-4.5% in the 2020s (u was 8.5% in 1995 and 3.5% in 2022)
+  uStarPath: [['1995Q1', 0.0228], ['2008Q1', 0], ['2023Q1', -0.00976]],
+  slackVsCapEff: true,        // JobKeeper (2020-21) kept workers attached: the lockdown's lost capacity is not counted as labour slack
+  cycleDebtGdp4q: true,       // BIS debt/GDP (4-quarter GDP): the 2020Q2 GDP collapse no longer fakes a debt/GDP jump and ⑤ evidence in 2021
+  // ~40% of new loans in 2020-21 were 2-3 year fixed at ~2%; they rolled onto the variable rate in 2022-24 (the 'fixed-rate cliff')
+  fixedCohort: { open: '2020Q2', close: '2022Q1', share: 0.35, reset: '2022Q4', resetQ: 8 },
+  piTarget: 0.025, gT: 0.0294, gBase: 0.05741,   // RBA 2-3% target; ~3% trend growth (population + mining capacity); gBase ~ gT + target
+  gapSlope: 0.253,            // Phillips slope when demand exceeds capacity (2021-23: CPI 7.8% with u at 3.5%)
+  okun: 0.4,                  // unemployment reacts less to slack (labour hoarding)
+  mortShare: 0.85, lvr0: 0.26, lvrBad: 0.4, rentYield0: 0.045, pi0: 4.5, sav0: 0.06,
+  mortFixed: 0.11,            // ~90% of new mortgages float with the cash rate (US: 25%)
+  mortVarSpread: 0.0293,      // standard variable rate ~ cash + 2.5-3pp over 1995-2025
+  mortReprice: 0.7,           // the stock reprices within ~2 quarters (US 0.099: 30y fixed)
+  dsrRoom: 0.0979, badDsr: 0.128,   // DSR rose from ~10% to ~17% (BIS) with low arrears: banks and borrowers carry a higher DSR
+  rateSens: 0.343,            // borrowing demand reacts less to the real mortgage rate than in the US (0.589): rates float, so the DSR cap binds instead
+  wealthMpc: 0.01,            // a weaker wealth effect than the US 0.0192 (search optimum: the housing boom feeds demand mainly through credit)
+  capexShare0: 0.19,          // business + public investment share at neutral (AUS ~25% GFCF incl. dwellings); also caps the capex boom (clamp 0.20)
+  taxGdp: 0.251, spendGdp: 0.244,   // a small primary surplus at neutral (AUS ran surpluses 1998-2008)
   mktCapGdp: 0.7, termPrem0: 0.004,
   eqDilution: 0.025,          // ASX is price-only with high payout + dividend reinvestment / capital raisings: EPS lags aggregate profit
   shockFloor: -0.03,          // AUS had no yoy fall below -1% from 1992 to 2019: -3% already marks a lockdown-type quarter
+  shockMult: 6,               // the 2020Q2 lockdown quarter (-6.7% vs a year earlier) is deeper than one yoy number shows (US x4)
   seed: { gdp0: 480, hhDebtGdp: 0.6, privateCreditGdp: 1.0, govDebtGdp: 0.4, mortgageRate: 0.105, policyRate: 0.075,
     cpiYoY: 0.045, unemployment: 0.085, gov10y: 0.09 },
   borderFeedback: true,       // trade (trailing structural shares), FX pass-through and foreign bond holdings move the AUS path
@@ -128,12 +144,13 @@ const AUS = {
     hh_forced_sales: { u: 0.09 },          // u was 8.5% in 1995: forced sales start above that, not at 7%
     hh_deleverage: { dsr: 0.08 },          // deleveraging starts 8pp above the starting DSR (US 3pp)
     hh_overhang: { dsr: 0.06, dsrW: 0.04 },
-    hh_infl_deanchor: { anchor: 0.06 },    // inflation targeting since 1993: expectations pulled to target faster
-    bank_loosen: { max: 1.42 },            // the 1995-2007 credit expansion (household debt/GDP 52% -> 109%)
+    hh_infl_deanchor: { anchor: 0.0996 },  // inflation targeting since 1993: expectations pulled to target faster (US 0.0364)
+    bank_loosen: { max: 1.389 },           // the 1995-2007 credit expansion (household debt/GDP 52% -> 109%)
     // 2020: JobKeeper-size response (general-government deficit ~8% of GDP in FY2020-21) comes faster than the US-calibrated 3pp/quarter,
-    // and a shallower demand hole already counts (gap -3%); the slightly faster unwind ends it by 2022 (budget near balance 2022-23)
-    gov_stimulus: { ramp: 0.0459, gap: -0.03, unwind: 0.0049 },
-    firm_capex_up: { rReal: 0.0431 },      // capex expands only when the real funding cost is clearly low (AUS real rates start ~7% in 1995)
+    // and a shallower demand hole already counts (gap -3%); a faster unwind ends it by 2022 (budget near balance 2022-24)
+    gov_stimulus: { ramp: 0.0414, gap: -0.03, unwind: 0.00538, gapFree: 0.0273, gain: 1.679, max: 0.117 },
+    firm_capex_up: { rReal: 0.04 },        // capex expands only when the real funding cost is clearly low (AUS real rates start ~7% in 1995)
+    firm_capex_cut: { rReal: 0.0605 },
   },
 };
 

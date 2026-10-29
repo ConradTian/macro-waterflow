@@ -18,6 +18,7 @@ export const LAMP_SYMBOL = { green: '●', yellow: '▲', red: '■' };   // sha
 export const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 
 import { lineChart } from '../chart.js';
+import { currentCountry, countryInfo } from '../country-info.js';
 /** Known places where the model is clearly off the real world. Drawn as a small band + note on the real-vs-model charts (by realKey),
  *  once the chart's "now" has reached `from`. { key: realKey, from, to (quarters), text } */
 export const MODEL_GAPS = [
@@ -27,7 +28,16 @@ export const MODEL_GAPS = [
   { key: 'gdpRealGrowthYoY', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
 ];
 /** Real (to now) / model / user comparison chart. modelFn maps a snapshot -> number. */
+/** True when the real series has at least one number (a country can lack a series: e.g. AUS has no CAPE, so its chart is hidden, not drawn empty). */
+export const hasReal = (ctx, key) => { const s = ctx.real && ctx.real.series && ctx.real.series[key]; return !!s && s.some(v => v != null && isFinite(v)); };
+/** One quiet line under a tab's charts saying where the 真实 line comes from. Nothing for the USA (as before). */
+export function dataNoteHtml(ctx) {
+  const iso = currentCountry(ctx.sim);
+  return iso === 'USA' ? '' : `<p class="pn-sub pn-src">真实线 = ${esc(countryInfo(iso).realData)}；模型是同一套规则，只换了这个国家的数据和几个参数。</p>`;
+}
 export function compareChart(host, ctx, { title, realKey, modelFn, fmt, note, height = 150 }) {
+  if (!ctx.real || (realKey && !hasReal(ctx, realKey))) { host.innerHTML = ''; host.hidden = true; return; }   // no real data for this series here: hide the chart
+  host.hidden = false;
   const t = ctx.sim.t, dates = ctx.real.dates, n = dates.length;
   const pad = arr => { const o = new Array(n).fill(null); arr.forEach((v, i) => { if (i < n) o[i] = v; }); return o; };
   const series = [];
@@ -35,6 +45,6 @@ export function compareChart(host, ctx, { title, realKey, modelFn, fmt, note, he
   series.push({ name: '模型', style: 'model', values: pad(ctx.sim.history('model').map(modelFn)) });
   const uh = ctx.sim.history('user');
   if (uh && uh.length) series.push({ name: '你的版本', style: 'user', values: pad(uh.map(modelFn)) });
-  const bands = MODEL_GAPS.filter(b => b.key === realKey);
+  const bands = currentCountry(ctx.sim) === 'USA' ? MODEL_GAPS.filter(b => b.key === realKey) : [];   // the 「模型偏差」 notes were written for the US run
   lineChart(host, { series, dates, reservedFrom: ctx.real.reservedFrom, currentDate: dates[Math.min(t, n - 1)], fmt, title, note, height, bands });
 }

@@ -1,7 +1,8 @@
 // 接管 tab: take over ONE role (central bank working), rule list with toggles, real/model/user comparison.
-import { esc, pct, num, PLAYERS, playerOf, compareChart } from './_util.js';
+import { esc, pct, num, PLAYERS, playerOf, compareChart, dataNoteHtml } from './_util.js';
 import { pctFmt } from '../chart.js';
 import { linkify, term } from '../concepts.js';
+import { currentCountry, localizeText } from '../country-info.js';
 import { ROLE_ORDER, ROLE_NAME, isRoleLearned, roleHasLesson, requestRoleLesson } from '../links.js';
 
 let rate = null;        // user's pending policy rate (decimal)
@@ -47,12 +48,13 @@ function learnRow() {
 }
 
 function rulesHtml(sim) {
+  const iso = currentCountry(sim);
   const groups = {};
   sim.rules.forEach(r => (groups[r.player] ||= []).push(r));
   return Object.keys(groups).map(p => {
     const pl = playerOf(p);
     return `<div class="tk-grp"><h4 style="--pc:${pl.color}"><span class="lg-mark" aria-hidden="true">${pl.mark}</span>${pl.name}</h4>` +
-      groups[p].map(r => `<label class="tk-rule"><input type="checkbox" data-rule="${esc(r.id)}" ${r.enabled ? 'checked' : ''}><span>${linkify(r.text)}</span><em>${r.enabled ? '开' : '关'}</em></label>`).join('') + '</div>';
+      groups[p].map(r => `<label class="tk-rule"><input type="checkbox" data-rule="${esc(r.id)}" ${r.enabled ? 'checked' : ''}><span>${linkify(localizeText(r.text, iso))}</span><em>${r.enabled ? '开' : '关'}</em></label>`).join('') + '</div>';
   }).join('');
 }
 
@@ -79,12 +81,12 @@ export function render(container, ctx) {
         <div class="tk-step"><button type="button" id="tk-m" aria-label="降 0.25 个百分点">−0.25</button>
           <output id="tk-v">${(rate * 100).toFixed(2)}%</output><button type="button" id="tk-p" aria-label="升 0.25 个百分点">+0.25</button></div>
         <input type="range" id="tk-r" min="0" max="10" step="0.25" value="${(rate * 100).toFixed(2)}" aria-label="政策利率 0 到 10%">
-        <div class="tk-sug"><span>规则建议</span><b>${sugRate != null ? (sugRate * 100).toFixed(2) + '%' : '—'}</b> ${esc(sug.text || '')}
+        <div class="tk-sug"><span>规则建议</span><b>${sugRate != null ? (sugRate * 100).toFixed(2) + '%' : '—'}</b> ${esc(localizeText(sug.text || '', currentCountry(sim)))}
           <button type="button" id="tk-use" ${sugRate == null ? 'disabled' : ''}>采用建议</button></div>
         <p class="pn-sub">当前模型利率 ${pct(s.rates.policy, 2)}；改动从下一个季度起生效，之后每步沿用，直到你再改。</p></div>
       <h3 class="pn-h">三条线对比 <small>真实 · 模型 · 你的版本</small></h3>
       <div class="pn-charts"><div id="tk-c1"></div><div id="tk-c2"></div><div id="tk-c3"></div><div id="tk-c4"></div></div>
-      <h3 class="pn-h">峰值 / 谷值差异</h3>${table(ctx)}`;
+      <h3 class="pn-h">峰值 / 谷值差异</h3>${table(ctx)}${dataNoteHtml(ctx)}`;
   } else {
     main = `<div class="tk-box"><p>结论：接管 = 暂停某个角色的自动规则，由你来下决定，其余角色仍按规则运行；然后和“真实历史”“模型基准”对比。</p>
       <p class="pn-sub">粗版本先开放央行：你只能看到央行看得到的信息，并设定政策利率。</p>

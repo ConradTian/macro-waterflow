@@ -9,4 +9,4 @@ export const COUNTRY_DATA = {
   EA: () => import('./ea-quarterly.js').then(m => m.EA_Q),
   CHN: () => import('./chn-quarterly.js').then(m => m.CHN_Q),
 };
-export const COUNTRY_READY = { USA: true, AUS: false, GBR: false, JPN: false, EA: false, CHN: false };
+export const COUNTRY_READY = { USA: true, AUS: true, GBR: false, JPN: false, EA: false, CHN: false };

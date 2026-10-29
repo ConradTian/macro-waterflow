@@ -10,12 +10,16 @@
 //  5. world getters  'world:<path>@<year>' must resolve on WORLD (src/data/world.js; --world=<file> checks against another file)
 //  6. map steps      map:{open, select?, year?}: select is a country id of WORLD, year is in WORLD.years
 //  7. no typed numbers: a world text may only contain years, step/lesson numbers and '1 美元'; every other number comes from vals
-//  8. draft lessons (draft:true, e.g. w2 until the AUS view is ready) are only checked structurally and must stay unavailable until COUNTRY_READY
+//  8. draft lessons (draft:true) are only checked structurally and must stay unavailable until COUNTRY_READY
+// COUNTRY lessons (country:'AUS', e.g. w2): every scratch run uses that country's data and sim (createSim({ data, mode, country }));
+//  the lesson may only be available when COUNTRY_READY[country]; getters 'real:<agg>:<series>' read the country's REAL quarterly series
+//  (data.series); a step's wavesNow:{iso,has} is checked against the country's NOW label in src/data/waves.js
 // Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { US_Q } from '../src/data/us-quarterly.js';
+import { WAVES } from '../src/data/waves.js';
 import { LESSONS } from '../src/data/lessons.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
 import { CONCEPTS } from '../src/data/concepts.js';
@@ -25,9 +29,11 @@ import { headlineItems } from '../src/ui/headline.js';
 import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr, setWorldData, evalWorld } from '../src/ui/lessons-town.js';
 
 const worldArg = (process.argv.find(a => a.startsWith('--world=')) || '').slice(8);
-let WORLD = null, COUNTRY_READY = {};
+let WORLD = null, COUNTRY_READY = {}, COUNTRY_DATA = {};
+const DATA = { USA: US_Q };   // quarterly data per country (a lesson with country:'AUS' runs on AUS_Q)
 try { WORLD = (await import(worldArg ? pathToFileURL(resolve(worldArg)).href : '../src/data/world.js')).WORLD; } catch (e) { console.log('  (no world data: ' + e.message.split('\n')[0] + ')'); }
-try { COUNTRY_READY = (await import('../src/data/countries/index.js')).COUNTRY_READY || {}; } catch (e) { /* no country views yet */ }
+try { const ci = await import('../src/data/countries/index.js'); COUNTRY_READY = ci.COUNTRY_READY || {}; COUNTRY_DATA = ci.COUNTRY_DATA || {}; } catch (e) { /* no country views yet */ }
+for (const l of LESSONS) if (l.country && l.country !== 'USA' && !DATA[l.country] && COUNTRY_DATA[l.country]) DATA[l.country] = await COUNTRY_DATA[l.country]();
 setWorldData(WORLD);
 const PENDING_CONCEPTS = ['exports', 'imports', 'fx', 'foreignBonds', 'reserveCurrency'];   // border cards, written by the border-UI agent
 const BORDER_TERMS = ['exports', 'imports', 'fx', 'foreignBonds', 'reserveCurrency'];       // data-term ids of the border block in the diagram
@@ -45,20 +51,21 @@ const FLOW_TERMS = ['policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'p
 const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
 const BLOCKS = ['alloc', 'budget', 'sources'];
-const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'num', 'str'];
-const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count'];
+const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'aud', 'ppa', 'apct0', 'apct1', 'num', 'str'];
+const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count', 'qcount'];
 const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');          // numeric ids 1..7 plus half-step cycle lessons ('3b')
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
 const WORLDL = LESSONS.filter(l => l.kind === 'world');                  // 世界 1, 世界 2 ...
-const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)$/.test(g);
+const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)(>\d{4})?$/.test(g);
+const specRealOk = (g, D) => typeof g === 'string' && g.startsWith('real:') && AGGS.includes(g.split(':')[1]) && !!(D && D.series && Array.isArray(D.series[g.split(':').pop()]));
 const isoOk = c => !!(WORLD && WORLD.countries && WORLD.countries[c]);
 // a world text may only carry years, step/lesson numbers and '1 美元'; every other number must be a {placeholder}
-const typedNumbers = t => String(t).replace(/\{[^}]*\}/g, '').replace(/第 ?[\d.]+ ?[课步]|下面分 \d+ 步|世界 ?\d|1 美元|\b(19|20)\d\d\b/g, '').match(/\d+/g);
+const typedNumbers = t => String(t).replace(/\{[^}]*\}/g, '').replace(/第 ?[\d.]+ ?[课步]|下面分 \d+ 步|世界 ?\d|1 美元|\bB[12]\b|\b(19|20)\d\d\b/g, '').match(/\d+/g);
 const stripSim = createSim({ data: US_Q, mode: 'history' });
 const stripAt = date => { const t = US_Q.dates.indexOf(date); while (stripSim.t < t && !stripSim.done) stripSim.step(); return headlineItems(stripSim.snapshot('model', t), null, stripSim).map(i => i.text); };
 const lessonIds = new Set([...LESSONS.map(l => String(l.id)), ...ROLE_LESSONS.map(l => String(l.id))]);
 
-const specOk = s => typeof s === 'string' && (AGGS.includes(s.split(':')[0]) || specWorldOk(s));
+const specOk = (s, D) => typeof s === 'string' && (AGGS.includes(s.split(':')[0]) || specWorldOk(s) || specRealOk(s, D));
 function checkSet(set, w) {
   for (const [id, on] of Object.entries((set && set.rules) || {})) { ok(RULE_BY_ID[id] && typeof on === 'boolean', w + 'set rule ' + id); }
   for (const [k, v] of Object.entries((set && set.params) || {})) { const [r, p] = k.split('.'); ok(RULE_BY_ID[r] && p in RULE_BY_ID[r].params && typeof v === 'number', w + 'set param ' + k); }
@@ -66,18 +73,19 @@ function checkSet(set, w) {
 
 // ---- one condition: get - mul*vs  against gt/gte/lt/lte (numbers), or a date test
 function evalCond(L, c, win) {
+  const D = DATA[L.country || 'USA'];
   const g = { get: c.get, set: c.set, from: c.from, until: c.until };
-  const a = evalGet(US_Q, L, g, win);
+  const a = evalGet(D, L, g, win);
   if (c.dateBetween || c.dateBefore) {
     if (typeof a !== 'string') return { pass: false, msg: `${c.get} gave ${a}` };
     if (c.dateBetween) { const pass = dateT(a) >= dateT(c.dateBetween[0]) && dateT(a) <= dateT(c.dateBetween[1]); return { pass, msg: `${a} in [${c.dateBetween}]` }; }
-    const b = evalGet(US_Q, L, { ...g, get: c.dateBefore }, win);
+    const b = evalGet(D, L, { ...g, get: c.dateBefore }, win);
     return { pass: typeof b === 'string' && dateT(a) < dateT(b), msg: `${a} before ${b}` };
   }
   let b = 0, bs = '';
   if (c.vs) {
     const vg = { get: c.vs.get || c.get, set: c.vs.set !== undefined ? c.vs.set : c.set, from: c.vs.from || c.from, until: c.vs.until || c.until };
-    b = evalGet(US_Q, L, vg, win); bs = ` - ${(c.mul ?? 1)}*${typeof b === 'number' ? b.toFixed(4) : b}`;
+    b = evalGet(D, L, vg, win); bs = ` - ${(c.mul ?? 1)}*${typeof b === 'number' ? b.toFixed(4) : b}`;
   }
   if (typeof a !== 'number' || typeof b !== 'number') return { pass: false, msg: `not numeric: ${a} ${b}` };
   const d = a - (c.mul ?? 1) * b;
@@ -88,20 +96,23 @@ const condName = c => c.note || c.get;
 
 for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
   const isW = L.kind === 'world', draft = !!L.draft;
+  const D = DATA[L.country || 'USA'];
   console.log(`\n=== lesson ${L.id} (${L.title})${draft ? ' [draft: structure only]' : ''} ===`);
   const pos = lessonPositions(L);
   const w0 = `L${L.id} `;
   ok(draft ? L.available === false : L.available === true, w0 + (draft ? 'draft stays unavailable' : 'available'));
   ok(L.rulesOn === 'all', w0 + 'rulesOn all');
-  ok(L.scenario !== 'town', w0 + 'US scenario');
-  ok(US_Q.dates.includes(L.startDate) || L.mode === 'free', w0 + 'startDate');
+  ok(L.scenario !== 'town', w0 + 'no town scenario');
+  ok(!!D, w0 + 'quarterly data for ' + (L.country || 'USA') + ' loads');
+  if (!D) continue;
+  ok(D.dates.includes(L.startDate) || L.mode === 'free', w0 + 'startDate');
   ok(L.steps[0].type === 'intro', w0 + 'intro first');
   if (isW) {
     ok(draft || L.steps[L.steps.length - 1].type === 'recap', w0 + 'ends with a recap step');
     ok(draft || (L.steps[L.steps.length - 1].lines || []).length === 3, w0 + 'recap has 3 lines');
     ok(draft || L.steps.some(s => s.type === 'predict'), w0 + 'has a predict step (猜一猜)');
     ok(WORLD && WORLD.years && WORLD.countries, w0 + 'world data (src/data/world.js) loads');
-    if (L.country) { ok(isoOk(L.country), w0 + 'country ' + L.country); if (COUNTRY_READY[L.country]) warn(!draft && L.available, w0 + 'COUNTRY_READY.' + L.country + ' is true: calibrate the lesson and set available'); else ok(L.available === false, w0 + 'country view not ready -> lesson stays unavailable'); }
+    if (L.country) { ok(isoOk(L.country), w0 + 'country ' + L.country); if (COUNTRY_READY[L.country]) warn(!draft && L.available, w0 + 'COUNTRY_READY.' + L.country + ' is true: calibrate the lesson and set available'); else ok(L.available === false, w0 + 'country view not ready -> lesson stays unavailable'); ok(L.available !== true || COUNTRY_READY[L.country], w0 + 'available only when COUNTRY_READY.' + L.country); if (!draft && L.available) ok(L.steps[0].text.some(t => /^下面分 \d+ 步/.test(t)) && L.steps.some(s => s.map && s.map.open), w0 + 'country lesson has the N-steps line and opens the map'); }
   } else {
     ok(L.steps[L.steps.length - 1].type === 'chain', w0 + 'ends with a chain step');
     ok(L.steps.filter(s => s.type === 'chain').length === 1, w0 + 'exactly one chain');
@@ -128,9 +139,10 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
       const typed = [st.title, ...arr(st.text), st.q, ...arr(st.explain), ...arr(st.answerHint), ...arr(st.relation), ...arr(st.lines), ...(st.options || []).map(o => o.t)].filter(Boolean).flatMap(t => typedNumbers(t) || []);
       ok(typed.length === 0, w + 'no typed numbers in the text (use vals)' + (typed.length ? ': ' + typed.join(',') : ''));
     }
-    for (const d of [st.from, st.until]) if (d) ok(US_Q.dates.includes(d) || (L.mode === 'free' && /^20\d\dQ[1-4]$/.test(d)), w + 'date ' + d);
-    (st.metrics || []).forEach(m => { ok(specOk(m.get) || m.get.indexOf(':') < 0, w + 'metric spec ' + m.get); ok(!m.fmt || FMTS.includes(m.fmt), w + 'metric fmt ' + m.fmt); });
-    (st.vals || []).forEach(v => { ok(v.key && specOk(v.get) && FMTS.includes(v.fmt), w + 'val ' + v.key); checkSet(v.set, w + 'val ' + v.key + ' '); });
+    for (const d of [st.from, st.until]) if (d) ok(D.dates.includes(d) || (L.mode === 'free' && /^20\d\dQ[1-4]$/.test(d)), w + 'date ' + d);
+    (st.metrics || []).forEach(m => { ok(specOk(m.get, D) || m.get.indexOf(':') < 0, w + 'metric spec ' + m.get); ok(!m.fmt || FMTS.includes(m.fmt), w + 'metric fmt ' + m.fmt); });
+    (st.vals || []).forEach(v => { ok(v.key && specOk(v.get, D) && FMTS.includes(v.fmt), w + 'val ' + v.key); checkSet(v.set, w + 'val ' + v.key + ' '); for (const d of [v.from, v.until]) if (d && L.mode !== 'free') ok(D.dates.includes(d), w + 'val ' + v.key + ' date ' + d); });
+    if (st.wavesNow) { const wc = WAVES.countries.find(c => c.iso === st.wavesNow.iso); ok(wc && wc.now && wc.now.text.includes(st.wavesNow.has), w + `waves.js NOW of ${st.wavesNow.iso} mentions "${st.wavesNow.has}" (got: ${wc && wc.now && wc.now.text})`); }
     // intro
     if (st.type === 'intro') {
       ok(st.text[0].startsWith('**'), w + 'one-line conclusion first');
@@ -177,7 +189,7 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
     // ---- 2. templates
     const win = pos[i];
     const you = st.slider ? st.slider.def : null;
-    const tbl = buildTable(US_Q, L, st, win, you);
+    const tbl = buildTable(D, L, st, win, you);
     const miss = [];
     const filled = fillStep(st, tbl, miss);
     ok(miss.length === 0, w + 'all placeholders filled' + (miss.length ? ' (missing ' + miss.join(' ') + ')' : ''));
@@ -190,7 +202,7 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
     // experiment: every choice's tokens exist and are numeric
     if (st.type === 'experiment') {
       for (const m of st.metrics) st.choices.forEach((c, k) => ok(typeof tbl.raw[`${m.key}.${k}`] === 'number' || typeof tbl.raw[`${m.key}.${k}`] === 'string', w + `metric ${m.key} under choice ${k} = ${tbl.raw[`${m.key}.${k}`]}`));
-      const dflt = (st.metrics || []).map(m => aggregate(scratchRun(US_Q, L, {}, st.from, st.until).hist, m.get, scratchRun(US_Q, L, {}, st.from, st.until).base));
+      const dflt = (st.metrics || []).map(m => aggregate(scratchRun(D, L, {}, st.from, st.until).hist, m.get, scratchRun(D, L, {}, st.from, st.until).base));
       st.metrics.forEach((m, k) => ok(dflt[k] === tbl.raw[`${m.key}.0`], w + `UI default column == table value (${m.key})`));
     }
     if (showText) {
@@ -217,7 +229,7 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
       ok(r.pass, w + 'claim: ' + condName(c));
     });
     if (st.ledgerClaim) {
-      const r = scratchRun(US_Q, L, {}, win.from, win.until);
+      const r = scratchRun(D, L, {}, win.from, win.until);
       const n = r.hist.filter(h => h.ledger.some(e => e.player === st.ledgerClaim.player && new RegExp(st.ledgerClaim.re).test(e.rule + e.action))).length;
       ok(n >= st.ledgerClaim.min, w + `ledger: ${st.ledgerClaim.player} /${st.ledgerClaim.re}/ in ${n} quarters (>= ${st.ledgerClaim.min})`);
     }

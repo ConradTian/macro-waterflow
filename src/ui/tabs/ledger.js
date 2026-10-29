@@ -7,6 +7,7 @@ import { linkify } from '../concepts.js';
 import { flash, linksForEntry } from '../links.js';
 import { freshness, fv } from '../headline.js';
 import { CONCEPTS } from '../../data/concepts.js';
+import { currentCountry, localizeText } from '../country-info.js';
 
 let filter = 'all';
 let view = 'changes';          // 'changes' | 'all'
@@ -31,6 +32,7 @@ function condHtml(c) {
 
 export function render(container, ctx) {
   const hist = ctx.sim.history('model');
+  const L = t => localizeText(t, currentCountry(ctx.sim));      // 「真实联储路径」 -> 「真实澳联储路径」 etc. (the engine's rule texts are written for the US)
   wantRuler(() => { if (container.isConnected) render(container, ctx); });
   // walk quarters newest first, comparing each with the one before it
   const rows = [];
@@ -62,11 +64,11 @@ export function render(container, ctx) {
     return `<article class="lg-card${r.fresh ? ' is-new' : ''}" data-i="${k}" tabindex="0" style="--pc:${pl.color}">
       <header><span class="lg-mark" aria-hidden="true">${pl.mark}</span><b>${esc(e.date)} · ${pl.name}</b>${badge}</header>
       <dl>
-        <dt>观察</dt><dd>${linkify(e.observe)}</dd>
-        <dt>规则</dt><dd>${linkify(e.rule)}${cond}</dd>
-        <dt>行动</dt><dd><b>${linkify(e.action)}</b></dd>
-        <dt>即时结果</dt><dd>${linkify(e.immediate)}</dd>
-        <dt>延迟后果</dt><dd>${linkify(e.delayed)}</dd>
+        <dt>观察</dt><dd>${linkify(L(e.observe))}</dd>
+        <dt>规则</dt><dd>${linkify(L(e.rule))}${cond}</dd>
+        <dt>行动</dt><dd><b>${linkify(L(e.action))}</b></dd>
+        <dt>即时结果</dt><dd>${linkify(L(e.immediate))}</dd>
+        <dt>延迟后果</dt><dd>${linkify(L(e.delayed))}</dd>
       </dl></article>`;
   }).join('');
   const empty = view === 'changes'

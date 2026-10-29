@@ -24,6 +24,19 @@ let LIVE_P = null;   // params accessor of the sim currently deciding (so ledger
 const nz = (x, d) => (x == null || Number.isNaN(x) ? d : x);
 
 export function qLabel(t) { return `${1995 + Math.floor(t / 4)}Q${(t % 4) + 1}`; }
+const qIndex = d => (typeof d === 'number' ? d : (Number(d.slice(0, 4)) - 1995) * 4 + Number(d.slice(5)) - 1);
+
+// natural unemployment in quarter t. cp.uStarPath (optional): piecewise-linear knots [[date 'YYYYQn' | quarter index, offset vs cp.uStar], ...],
+// held flat before the first and after the last knot. Without a path this is K.uStar exactly (USA).
+export function uStarAt(K, t) {
+  const p = K.uStarKnots;
+  if (!p) return K.uStar;
+  if (t <= p[0][0]) return K.uStar + p[0][1];
+  for (let i = 1; i < p.length; i++) {
+    if (t <= p[i][0]) { const [t0, a] = p[i - 1], [t1, b] = p[i]; return K.uStar + a + (b - a) * (t - t0) / (t1 - t0); }
+  }
+  return K.uStar + p[p.length - 1][1];
+}
 // scenario-aware label: US = "1995Q1"; town = "第0季" (t quarters since the start)
 export function dateOf(S, t) { return S.scenario === 'town' ? `第${t}季` : qLabel(t); }
 
@@ -126,6 +139,10 @@ export function seed(data, opts = {}) {
   };
   if (opts.HV0) K.HV0 = opts.HV0;
   K.rent0 = cp.rentYield0 * K.HV0;
+  // optional country mechanisms (all off for USA, so the US path is unchanged): NAIRU path, firms' moving neutral real rate, fixed-rate cohort
+  if (cp.uStarPath && cp.uStarPath.length) K.uStarKnots = cp.uStarPath.map(([d, o]) => [qIndex(d), o]).sort((a, b) => a[0] - b[0]);
+  if (cp.firmNeutralQ > 0) K.rpReal0 = policy0 - cpi0;   // real policy rate at the start (the moving neutral is measured from it)
+  if (cp.fixedCohort) { const f = cp.fixedCohort; K.fcT = { open: qIndex(f.open), close: qIndex(f.close), reset: qIndex(f.reset) }; }
   const Ystar = gdp0, P = 1;
   const pipelineQ = K.c0 * Ystar * DT;
   const B0 = Dh + Df;
@@ -147,6 +164,7 @@ export function seed(data, opts = {}) {
     ringProbs: null, ringStage: 1, mem: { last: {}, outBand: false, ciSign: 0, falling: false, dsrRed: false, capLow: false, i2t: false, stage: null },
     flows: null, wealthPrev: K.HV0 + K.mkt0,
   };
+  if (cp.firmNeutralQ > 0) S.rpH = new Array(cp.firmNeutralQ).fill(K.rpReal0);   // trailing real policy rates (moving neutral)
   K.f0 = exogenous(data, 0, cp).fShare;   // share of government debt held abroad at the start (foreign-yield effect is measured from it)
   if (cp.borderFeedback) S.nxRatio = null;  // border feeds back: the first quarter has no "previous" net-export ratio (no jump at t=1)
   S.border = borderBlock(K, exogenous(data, 0, cp), opts.mode || 'history', gdp0, 0, 0, 0, 0);
@@ -198,7 +216,7 @@ export function ruleBasedPolicy(S, K, ex, env) {
     return { policy: ex.policyRate, ruleId: 'cb_real_path', text: `真实${K.cp.cbName}路径（外生）` };
   if (env.en('cb_taylor')) {
     const p = env.P('cb_taylor');
-    const gap = (K.uStar - S.u) * 2;
+    const gap = (uStarAt(K, S.t + 1) - S.u) * 2;
     const priv = (S.Dh + S.Df) / S.gdp;
     const rStar = p.rStar - p.debtDrag * Math.max(0, priv - p.debtBase);   // 债务棘轮：私人债务越重，中性利率越低
     const tgt = rStar + v.piY + p.wInfl * (v.piY - p.target) + p.wGap * gap;
@@ -286,7 +304,7 @@ export function decideAll(S, K, ex, env) {
         } else if (adj < 0) {
           adj = Math.min(0, adj + p.unwind);   // 紧缩结束后财政立场逐步回到中性
         } else if (adj > 0) {
-          const rec = S.u - K.uStar < 0.015 && v.pressure > -0.01;
+          const rec = S.u - uStarAt(K, S.t + 1) < 0.015 && v.pressure > -0.01;
           const na = Math.max(0, adj - (rec ? p.unwind * 2 : p.unwind));
           if (adj - na > 0.003) entries.push(mkEntry(S, 'government', 'gov_stimulus', `景气${rec ? '恢复' : '趋稳'}：失业率 ${pct(S.u)}`, '景气稳定 → 逐步收回财政支持', `财政注入 ${pct(adj)} → ${pct(na)} GDP/年`,
             { immediate: '政府支出下降', delayed: '赤字收窄；若私人部门未恢复则需求回落' }));
@@ -475,7 +493,9 @@ export function settle(S0, K, ex, dec, env) {
   S.mem = { ...S0.mem, last: { ...S0.mem.last } };
   const v0 = S0.v, dt = DT;
   const dl = env.delays !== false;   // false (town demos): no repricing lag / smoothing / momentum, short Capex lag
+  if (S0.rpH) S.rpH = S0.rpH.slice();
   S.t = S0.t + 1;
+  const uStar = uStarAt(K, S.t);   // natural unemployment this quarter (K.uStar unless the country has a NAIRU path)
   S.Mstart = S0.M;
   const noise = (() => { const r = mulberry32(env.seed + S.t * 7919); return { eq: gauss(r), gold: gauss(r) }; })();
 
@@ -502,6 +522,19 @@ export function settle(S0, K, ex, dec, env) {
   const mf = K.cp.mortFixed;
   S.mortNew = mf * (S.gov10y + K.spread) + (1 - mf) * (S.policy + K.cp.mortVarSpread) + mAdj;
   S.mortEff = S0.mortEff + (dl ? K.mortReprice : 1) * (S.mortNew - S0.mortEff);
+  if (K.fcT) {
+    // fixed-rate cohort (cp.fixedCohort): loans written in [open, close) lock that quarter's new-loan rate; from `reset` they roll back
+    // onto the variable rate over resetQ quarters (AUS 2020-21 2-3 year fixed loans, the 2023 "fixed-rate cliff").
+    // The stock rate = (1 - cohort share) x the variable stock rate + cohort share x the locked rate.
+    const o = K.fcT, fc = K.cp.fixedCohort;
+    const mv0 = S0.mortVar ?? S0.mortEff;
+    S.mortVar = mv0 + (dl ? K.mortReprice : 1) * (S.mortNew - mv0);
+    let c = S0.fcShare || 0, r = S0.fcRate || 0;
+    if (S.t >= o.open && S.t < o.close) { const add = fc.share / (o.close - o.open); r = (c * r + add * S.mortNew) / (c + add); c += add; }
+    else if (S.t >= o.reset) c = Math.max(0, c - fc.share / fc.resetQ);
+    S.fcShare = c; S.fcRate = r;
+    S.mortEff = (1 - c) * S.mortVar + c * r;
+  }
   const firmNew = 0.5 * S.gov10y + 0.5 * S.policy + 0.02 + 0.1 * Math.max(0, S0.bad - 0.02);
   S.firmEff = S0.firmEff + (dl ? 0.15 : 1) * (firmNew - S0.firmEff);
   S.govEff = S0.govEff + (dl ? 0.06 : 1) * (S.gov10y - S0.govEff);
@@ -509,7 +542,7 @@ export function settle(S0, K, ex, dec, env) {
 
   // 2. saving, income
   const inc = K.ws * S0.gdp;
-  const sT = clamp(K.s0 + 1.0 * (S0.u - K.uStar) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj, 0.01, 0.2);
+  const sT = clamp(K.s0 + 1.0 * (S0.u - uStar) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj, 0.01, 0.2);
   S.sav = S0.sav + (dl ? 0.5 : 1) * (sT - S0.sav);
 
   // 3. credit: min(demand, LVR cap, DSR cap, capital cap) x approval
@@ -551,9 +584,9 @@ export function settle(S0, K, ex, dec, env) {
   S.E = Math.max(0.01 * B1, S0.E + net - payout * Math.max(0, net)) + dec.recap;
 
   // 4. fiscal
-  const tauR = K.tau0 - 0.8 * (S0.u - K.uStar) * K.tau0 * 1.0;
+  const tauR = K.tau0 - 0.8 * (S0.u - uStar) * K.tau0 * 1.0;
   const taxes_a = tauR * S0.gdp;
-  const primaryRatio = K.gr0 + S.adj + 0.4 * (S0.u - K.uStar);
+  const primaryRatio = K.gr0 + S.adj + 0.4 * (S0.u - uStar);
   const primary_a = primaryRatio * S0.gdp;
   const interest_a = S0.Dg * S.govEff;
   const deficit_a = interest_a + primary_a - taxes_a;
@@ -564,13 +597,16 @@ export function settle(S0, K, ex, dec, env) {
   //   transfers      = households' branch (benefits, tax cuts, relief): 35% of baseline outlays + automatic stabiliser 0.4*(u-u*) (all benefits)
   //                    + discretionary stance adj: 95% transfers when adj>0 (stimulus episodes: cheques, relief), 35% when adj<0 (cuts)
   //   govPurchases   = primary outlays - transfers (orders to firms / goods channel)
-  const trBase = TRANSFER_SHARE * K.gr0 * S0.gdp, trAuto = 0.4 * (S0.u - K.uStar) * S0.gdp, trDisc = (S.adj > 0 ? STIM_TRANSFER_SHARE : TRANSFER_SHARE) * S.adj * S0.gdp;
+  const trBase = TRANSFER_SHARE * K.gr0 * S0.gdp, trAuto = 0.4 * (S0.u - uStar) * S0.gdp, trDisc = (S.adj > 0 ? STIM_TRANSFER_SHARE : TRANSFER_SHARE) * S.adj * S0.gdp;
   const transfers_a = clamp(trBase + trAuto + trDisc, 0, Math.max(0, primary_a));
   const govPurchases_a = primary_a - transfers_a;
   S.taxes = taxes_a; S.govSpend = primary_a + interest_a; S.interest = interest_a; S.deficit = deficit_a;
 
   // 5. capex pipeline and capacity
-  const capexShare = clamp((K.c0 + 0.4 * clamp(v0.pressure, -0.1, 0.1) - 0.6 * (rFirmReal - K.rfr0)) * S.capexMult, 0.08, 0.20);
+  // firms compare their real funding cost with a neutral rate: fixed at the start (USA), or (cp.firmNeutralQ > 0) moving with the
+  // trailing mean of the real policy rate, so a secular fall in rates does not keep Capex (and capacity) booming for ever
+  const rfrN = S0.rpH ? K.rfr0 + S0.rpH.reduce((a, b) => a + b, 0) / S0.rpH.length - K.rpReal0 : K.rfr0;
+  const capexShare = clamp((K.c0 + 0.4 * clamp(v0.pressure, -0.1, 0.1) - 0.6 * (rFirmReal - rfrN)) * S.capexMult, 0.08, 0.20);
   const capex_q = capexShare * S0.gdp * dt;
   S.pipeline.push(capex_q / S0.P);
   const lag = dl ? 6 : 2;   // quarters between Capex spending and new capacity (town demo: short but visible)
@@ -642,10 +678,13 @@ export function settle(S0, K, ex, dec, env) {
     S.dean = 0;
     S.piE = S0.piE + 0.08 * (S.piY - S0.piE) + 0.03 * (K.target - S0.piE);
   }
-  const slack = 1 - S.Y / S.Ystar;
-  const uT = K.uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack);
+  // labour slack: output below capacity. cp.slackVsCapEff: measured against the shock-reduced capacity (a lockdown's lost capacity
+  // is not job loss: JobKeeper-type schemes keep workers attached); otherwise against full capacity Ystar (USA)
+  const slack = 1 - S.Y / (K.cp.slackVsCapEff ? capEff : S.Ystar);
+  const uT = uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack);
   S.u = S0.u + 0.5 * (uT - S0.u);
   S.uHist.push(S.u); S.uHist.shift();
+  if (S.rpH) { S.rpH.push(S.policy - S.piY); S.rpH.shift(); }
   S.inc = K.ws * S.gdp; S.incPrev = S0.inc;
 
   // 9. profits, bad loans, DSR, LVR
@@ -831,8 +870,11 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
     ring = detectRing(v, S.ringProbs);
     S.ringProbs = ring.probs; S.ringStage = ring.stage;
     // two dials (long / short debt cycle): state machine carried in S.cyc (replaced, never mutated)
+    // debt/GDP for the cycle dials: over the quarter's annualised GDP (USA), or (cp.cycleDebtGdp4q) over the mean of the last 4 quarters
+    // (BIS definition), so a one-quarter GDP collapse (2020Q2) does not fake a debt/GDP spike and false ⑤ evidence
+    const gCyc = K.cp.cycleDebtGdp4q ? (S.gdpH[1] + S.gdpH[2] + S.gdpH[3] + S.gdpH[4]) / 4 : S.gdp;
     const cy = advanceCycles(S.cyc || null, {
-      ...v, pvt: (S.Dh + S.Df) / S.gdp, gov: S.Dg / S.gdp, qeGdp: S.qeStock / S.gdp, defGdp: S.deficitGdp ?? 0,
+      ...v, pvt: (S.Dh + S.Df) / gCyc, gov: S.Dg / gCyc, qeGdp: S.qeStock / S.gdp, defGdp: S.deficitGdp ?? 0,
       gap: S.Y / (S.Ystar * (1 - S.capLoss)) - 1,
     }, S.t, dateOf(S, S.t), K.cp.cycle);
     S.cyc = cy.state; cycles = cy.out;

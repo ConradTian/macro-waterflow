@@ -3,6 +3,7 @@ import { CONCEPTS, KEYWORDS, makeCtx as mkCtx } from '../data/concepts.js';
 import { showConcept, clearConcept, flashConcept, unflashConcept, conceptNote } from './links.js';   // diagram highlight while a card is open
 import { currentSim } from './flow.js';       // the sim that is on screen (US or town), for 'N quarters ago' lookups
 import { chainHtml, highlightTargets, pushBadges, playScript, checkPlan, cachedCheck, runCheckAsync, stepStatus, chipName } from './causal-view.js';   // 传导链 block (pure)
+import { currentCountry, fmtBnShort, localizeText } from './country-info.js';
 import * as overlay from './causal-overlay.js';                // arrow badges + ▶ playback on the diagram
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -42,13 +43,13 @@ export function linkify(text) {
 }
 
 function getPath(o, p) { return p.split('.').reduce((a, k) => (a == null ? a : a[k]), o); }
-function fmtVal(v, fmt, town) {
+function fmtVal(v, fmt, town, iso = 'USA') {
   if (v == null || (typeof v === 'number' && !isFinite(v))) return '—';
   if (typeof v === 'string') return v;
   switch (fmt) {
     case 'pct': return (v * 100).toFixed(2) + '%';
     case 'bn': if (town) return (Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0)) + ' 万元';
-      return Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + ' 万亿' : v.toFixed(0) + ' 十亿';
+      return fmtBnShort(v, iso);      // USA: '2.10 万亿' / '620 十亿' (as before); another country adds its currency: '620 十亿澳元'
     case 'idx': return v.toFixed(1);
     default: return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2);
   }
@@ -75,6 +76,7 @@ function whyHtml(c, snap) {
   let txt = '';
   try { txt = c.why ? String(c.why(snap, prevOf(snap), mkCtx(snap, simOf(snap))) || '') : ''; } catch (e) { txt = ''; }
   if (!txt) txt = '这一季还没有足够的数据来解释它。';
+  txt = localizeText(txt, isoOf(snap));
   return `<div class="cc-why"><span class="cc-k">为什么现在是这个值 · ${esc(snap.date)}</span>${txt.split('\n').map(l => `<p>${esc(l)}</p>`).join('')}</div>`;
 }
 function logicHtml(text) {
@@ -84,6 +86,7 @@ function logicHtml(text) {
 }
 const isPhoneNow = () => { try { return matchMedia('(max-width: 767.98px)').matches; } catch (e) { return false; } };
 const isTownSnap = snap => !!snap && (snap.scenario === 'town' || !!snap.town);
+const isoOf = snap => (isTownSnap(snap) ? 'USA' : currentCountry(simOf(snap) || opts.sim));   // the country of the card's snapshot (the town is the USA)
 // central-bank rule edges of the causal map exist only in free-run mode
 function modeOf(snap) {
   const sim = simOf(snap) || opts.sim;
@@ -109,7 +112,7 @@ function checkOf(id, snap) {
   for (let alt = 0; alt < 8; alt++) {
     const plan = checkPlan(id, { mode: cv.check.mode, dir: cv.push ?? 1, alt });
     if (!plan) break;
-    const p = { valveNode: plan.valveNode, valveId: plan.valveId, vdir: plan.vdir, t: cv.check.t, scenario: cv.check.scenario, mode: cv.check.mode };
+    const p = { valveNode: plan.valveNode, valveId: plan.valveId, vdir: plan.vdir, t: cv.check.t, scenario: cv.check.scenario, mode: cv.check.mode, country: cv.check.country };
     let hit = cachedCheck(p);
     if (!hit) { runCheckAsync(p, () => { if (tok === cv.token) refreshConcepts(); }); return { pending: true }; }
     if (hit.status === 'ok') return hit;
@@ -119,7 +122,7 @@ function checkOf(id, snap) {
 }
 function startCheck(snap) {
   if (!snap) return;
-  cv.check = { t: snap.t, scenario: isTownSnap(snap) ? 'town' : 'us', mode: modeOf(snap) };
+  cv.check = { t: snap.t, scenario: isTownSnap(snap) ? 'town' : 'us', mode: modeOf(snap), country: isoOf(snap) };
 }
 function startPlay(id, snap) {
   const steps = playScript(id, { mode: modeOf(snap), dir: cv.push ?? 1 });
@@ -181,9 +184,9 @@ function liveHtml(c) {
   if (typeof v === 'number' && typeof pv === 'number') {
     const d = v - pv;
     arrow = Math.abs(d) < 1e-9 ? '<span class="cc-arrow" title="与上季持平">→ 持平</span>'
-      : `<span class="cc-arrow ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ 上升' : '▼ 下降'}（上季 ${esc(fmtVal(pv, c.fmt, town))}）</span>`;
+      : `<span class="cc-arrow ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ 上升' : '▼ 下降'}（上季 ${esc(fmtVal(pv, c.fmt, town, isoOf(snap)))}）</span>`;
   }
-  return `<div class="cc-live"><span class="cc-live-l">${esc(snap.date)} 当前值</span><b>${esc(fmtVal(v, c.fmt, town))}</b>${arrow}</div>`;
+  return `<div class="cc-live"><span class="cc-live-l">${esc(snap.date)} 当前值</span><b>${esc(fmtVal(v, c.fmt, town, isoOf(snap)))}</b>${arrow}</div>`;
 }
 
 function links(label, ids, role) {
@@ -262,6 +265,7 @@ function draw(keep) {
       : `<button type="button" data-cc-crumb="${i}">${esc(CONCEPTS[s]?.name || s)}</button>`).join('<i>›</i>')}</nav>` : '';
   if (cv.id !== id) { resetChain(); cv.id = id; }
   const snap = opts.getSnap(), mode = modeOf(snap);
+  const L = t => localizeText(t, isoOf(snap));      // country view: US-only words (联储, 美国 30 年固定 …) swapped for the country's
   const ht = highlightTargets(id, { mode, dir: cv.push ?? 1 });
   const hl = showConcept(id, ht.from.length || ht.to.length ? ht : undefined);     // mark SELF / FROM / TO (the main chain) in the left diagram
   const dirNow = cv.push ?? 1;
@@ -274,17 +278,17 @@ function draw(keep) {
     crumbs +
     `<h2 class="cc-title">${esc(c.name)}</h2>` +
     // 是什么 -> 当前值 -> 水尺 -> 传导链 -> 为什么现在是这个值 -> 水的比喻 -> 更多
-    `<p class="cc-short"><span class="cc-tag">是什么</span>${esc(c.short)}</p>` +
+    `<p class="cc-short"><span class="cc-tag">是什么</span>${esc(L(c.short))}</p>` +
     liveHtml(c) +
     gaugeOf(id, snap) +
     chain +
     whereHtml(id, hl) +
     whyHtml(c, snap) +
-    `<div class="cc-row"><span class="cc-k">水的比喻</span><p>${esc(c.water)}</p></div>` +
+    `<div class="cc-row"><span class="cc-k">水的比喻</span><p>${esc(L(c.water))}</p></div>` +
     `<details class="cc-more"${(moreOpen == null ? !isPhoneNow() : moreOpen) ? ' open' : ''}><summary>更多：受谁影响 · 公式 · 合理性</summary>` +
     links('受谁影响（来自）', c.from, 'from') + links('影响谁（流向）', c.to, 'to') +
-    `<div class="cc-row"><span class="cc-k">公式</span><pre class="cc-formula">${esc(c.formula)}</pre></div>` +
-    `<div class="cc-row"><span class="cc-k">合理性（谁做什么 → 什么流动 → 什么变化）</span>${logicHtml(c.logic)}</div></details>`;
+    `<div class="cc-row"><span class="cc-k">公式</span><pre class="cc-formula">${esc(L(c.formula))}</pre></div>` +
+    `<div class="cc-row"><span class="cc-k">合理性（谁做什么 → 什么流动 → 什么变化）</span>${logicHtml(L(c.logic))}</div></details>`;
   try { if (gaugeMod && gaugeMod.wireGauges) gaugeMod.wireGauges(r.querySelector('.cc-body')); } catch (e) { /* ignore */ }
   r.hidden = false;
   r.classList.add('open');

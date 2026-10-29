@@ -2,6 +2,7 @@
 // (src/data/waves.js, built by tools/build_waves.py) and the US quarterly short cycle next to the game's own short-cycle calls.
 // The chart builders are exported: the 周期 tab section (wavesHtml) and the left-hand curves view (src/ui/wave-view.js) share them.
 import { esc } from './_util.js';
+import { currentCountry, countryInfo } from '../country-info.js';
 import { WAVES } from '../../data/waves.js';
 import { LONG_LABEL } from '../../engine/regimes.js';
 
@@ -14,8 +15,9 @@ const STAGE_MARK = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' 
 const STAGE_ORDER = [1, 2, 5, 6, 7, 8];
 const stageName = s => String(LONG_LABEL[s] || '').replace(/^\S+\s*/, '');
 const f1 = n => (+n).toFixed(1);
-let iso = 'USA';                       // selected country (kept across the per-step re-render); ?wv=JPN preselects
-try { const p = new URLSearchParams(location.search).get('wv'); if (p) iso = p.toUpperCase(); } catch (e) { /* no location */ }
+let iso = 'USA';                       // selected country (kept across the per-step re-render); ?wv=JPN preselects, a country view starts on its own chip
+let isoSet = false;
+try { const p = new URLSearchParams(location.search).get('wv'); if (p) { iso = p.toUpperCase(); isoSet = true; } } catch (e) { /* no location */ }
 const openMap = { dalio: true };
 
 /* Dalio's picture, our own drawing: straight line + long S wave + short waves riding on it */
@@ -176,18 +178,20 @@ export function stageLegendHtml() {
 }
 
 export function wavesHtml(ctx) {
+  const simIso = currentCountry(ctx.sim), us = simIso === 'USA';      // the game runs on this country's data (the US unless a country view)
+  if (!isoSet) { isoSet = true; if (WAVES.countries.some(x => x.iso === simIso)) iso = simIso; }   // country view: preselect its chip
   const c = WAVES.countries.find(x => x.iso === iso) || WAVES.countries[0];
   const live = ctx.sim.mode === 'history' && !!ctx.real;
-  const nowYear = live && c.iso === 'USA' ? +String(ctx.snap.date || '').slice(0, 4) || null : null;
+  const nowYear = live && c.iso === simIso ? +String(ctx.snap.date || '').slice(0, 4) || null : null;
   const chips = WAVES.countries.map(x => `<button type="button" class="wv-chip" data-iso="${x.iso}" aria-pressed="${x.iso === c.iso}">${esc(x.name)}</button>`).join('');
-  const usq = c.iso === 'USA' ? `<div class="wv-qb"><div class="wv-sub"><b>美国小周期（季度）</b>：GDP 离自己的趋势多远。灰色 = 官方认定的衰退。${live ? '下面的色带是游戏每季的判定，可以直接对照。' : ''}</div>
+  const usq = c.iso === 'USA' && us ? `<div class="wv-qb"><div class="wv-sub"><b>美国小周期（季度）</b>：GDP 离自己的趋势多远。灰色 = 官方认定的衰退。${live ? '下面的色带是游戏每季的判定，可以直接对照。' : ''}</div>
       ${usQuarterSvg(ctx.sim.history('model'), ctx.sim.t, live, { id: 'tq' })}
       ${live ? shortLegendHtml() : ''}
       <p class="wv-src">${esc(WAVES.usQ.src)}</p></div>` : '';
   // buttons: compare on the left (history only), second window + follow (only where BroadcastChannel exists)
-  const sync = typeof BroadcastChannel === 'function';
+  const sync = typeof BroadcastChannel === 'function' && us;       // the second window / follow mode and the curves view are US-run features
   const acts = [
-    live ? `<button type="button" class="wv-btn" data-act="wv-left" aria-label="把曲线放到左边，盖住水流图，和右边的环对照"><span class="a">放到左边对照</span><span class="b">收回水流图</span></button>` : '',
+    live && us ? `<button type="button" class="wv-btn" data-act="wv-left" aria-label="把曲线放到左边，盖住水流图，和右边的环对照"><span class="a">放到左边对照</span><span class="b">收回水流图</span></button>` : '',
     sync ? `<button type="button" class="wv-btn" data-act="wv-win" aria-label="在新窗口打开，随这个窗口同步">⧉ 第二个窗口</button>` : '',
     sync ? `<button type="button" class="wv-btn" data-act="wv-follow" aria-pressed="${document.body.dataset.follow === '1'}" aria-label="跟随另一个窗口的季度">跟随另一窗口</button>` : '',
   ].join('');
@@ -200,7 +204,7 @@ export function wavesHtml(ctx) {
     ${countrySvg(c, nowYear)}
     <div class="wv-keys"><span class="wv-k"><i class="wv-sw long"></i>粗线 = 长期债务周期</span><span class="wv-k"><i class="wv-sw dev"></i>细线 = 实际 GDP</span><span class="wv-k"><i class="wv-sw zero"></i>0 线 = GDP 长期趋势</span></div>
     <p class="wv-now"><b>${esc(WAVES.asOf)} 在环上：</b>${esc(c.now.mark === '小' ? '' : c.now.mark + ' ')}${esc(c.now.text)}<small>（事后判断，示意）</small></p>
-    <p class="wv-src">${esc(c.src)}。${esc(WAVES.method)}${!live ? ' 自由模式的游戏时间不对应真实历史，所以不画「现在」。' : c.iso !== 'USA' ? ' 游戏只用美国数据，所以别国不画「现在」。' : ''}</p>
+    <p class="wv-src">${esc(c.src)}。${esc(WAVES.method)}${!live ? ' 自由模式的游戏时间不对应真实历史，所以不画「现在」。' : c.iso !== simIso ? ` 游戏跑的是${countryInfo(simIso).name}的数据，所以别国不画「现在」。` : ''}</p>
     </div></div>
     ${usq}
   </div>`;

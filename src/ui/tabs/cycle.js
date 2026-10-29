@@ -1,6 +1,6 @@
 // 周期 tab: one-line conclusion, TWO dials (大周期 / 小周期) with hysteresis evidence, trail band over the whole run,
 // the four lamps (lamp -> diagram highlight) and real-vs-model charts. Reads snapshots only (snap.cycles, snap.lights).
-import { esc, pct, num, LAMP, LAMP_SYMBOL, compareChart } from './_util.js';
+import { esc, pct, num, LAMP, LAMP_SYMBOL, compareChart, dataNoteHtml } from './_util.js';
 import { term } from '../concepts.js';
 import { pctFmt } from '../chart.js';
 import { flash, LAMP_LINKS } from '../links.js';
@@ -405,6 +405,7 @@ export function render(container, ctx) {
     <div class="lp-grid">${lamps}</div>
     <h3 class="pn-h">真实 vs 模型 <small>模型偏离真实本来就正常：它是玩具</small></h3>
     <div class="pn-charts"><div id="cy-c1"></div><div id="cy-c2"></div><div id="cy-c3"></div></div>
+    ${dataNoteHtml(ctx)}
   </section>`;
   container.querySelectorAll('details[data-k]').forEach(d => {
     d.open = openMap[d.dataset.k] !== false && (openMap[d.dataset.k] || false);

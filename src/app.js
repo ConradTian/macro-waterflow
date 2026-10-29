@@ -4,6 +4,7 @@ import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
 import { renderHeadline } from './ui/headline.js';   // 本季看点 strip under the time bar
 import { initScrubber } from './ui/scrubber.js';     // collapsible time scrubber under the progress line
+import { setActiveCountry, registerCountryData } from './ui/country-info.js';   // unit / name / data-source labels of the country view
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -41,12 +42,14 @@ async function boot() {
   if (want && want !== 'USA') {
     try {
       const ci = await import('./data/countries/index.js');
-      if (ci.COUNTRY_READY[want] && ci.COUNTRY_DATA[want]) { real = await ci.COUNTRY_DATA[want](); COUNTRY = want; }
+      // ?forceCountry=1 (debug, screenshots and tools/check_country_ui.mjs only): boot the country even while COUNTRY_READY says false
+      if ((ci.COUNTRY_READY[want] || params.get('forceCountry') === '1') && ci.COUNTRY_DATA[want]) { real = await ci.COUNTRY_DATA[want](); COUNTRY = want; }
     } catch (e) { real = null; COUNTRY = 'USA'; }
     if (COUNTRY === 'USA') countryNote = `${CNAME[want] || want}的水流图还没做好，先回到美国。`;
   }
   if (COUNTRY === 'USA') { try { real = (await import('./data/us-quarterly.js')).US_Q; } catch (e) { real = null; } }
   if (COUNTRY !== 'USA') document.title = `${CNAME[COUNTRY] || COUNTRY} · 宏观水流模拟器`;
+  setActiveCountry(COUNTRY); registerCountryData(COUNTRY, real);      // gauge.js / causal-view.js re-run the engine on this country's data (the US ones import US_Q themselves)
   // DIAGRAM v2 screenshot helper: ?scenario=town boots the 万元 town economy (lessons switch scenarios themselves)
   sim = params.get('scenario') === 'town' ? createSim({ mode: MODE, scenario: 'town' }) : createSim({ data: real, mode: MODE, country: COUNTRY });
   if (params.get('debug') === '1') window.__mw = { sim: () => sim, snap: () => snap };   // read-only handle for tools/check_scrubber.mjs

@@ -1,7 +1,7 @@
 // 资产 tab (DIAGRAM v2): five cards = the 4 sub-pools of the diagram (房产 / 股票 / 长期国债 / 黄金) + the cash tank.
 // Each card: water level (price index), nominal vs real return, its spring (cash flow), its special link, main +/- factors.
 // Tapping a card lights the matching sub-pool (and its pipes) in the diagram.
-import { esc, pct, spct, num, compareChart } from './_util.js';
+import { esc, pct, spct, num, compareChart, dataNoteHtml } from './_util.js';
 import { term } from '../concepts.js';
 import { flash } from '../links.js';
 
@@ -104,7 +104,7 @@ export function render(container, ctx) {
       <button type="button" data-m="real" class="${mode === 'real' ? 'on' : ''}" aria-pressed="${mode === 'real'}">近 4 季看实际</button></div>
     <div class="as-grid">${cards}</div>
     <h3 class="pn-h">价格指数：真实 / 模型 / 你 <small>${town ? '' : '1995Q1 = 100'}</small></h3>
-    <div class="pn-charts"><div id="as-h"></div><div id="as-e"></div></div></section>`;
+    <div class="pn-charts"><div id="as-h"></div><div id="as-e"></div></div>${dataNoteHtml(ctx)}</section>`;
   container.querySelectorAll('.pn-seg button').forEach(b => b.addEventListener('click', () => { mode = b.dataset.m; render(container, ctx); }));
   const pick = card => {
     const A = ASSETS.find(x => x.k === card.dataset.k); if (!A) return;

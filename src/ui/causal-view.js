@@ -16,6 +16,7 @@ import { EXTRA_NODES, OUTCOMES, METRIC, VALVE_OF } from '../data/causal.js';
 import { propagate, chainView, pathLinks, pathSigns, isValve, allNodes } from './causal-graph.js';
 import { createSim } from '../engine/sim.js';
 import { US_Q } from '../data/us-quarterly.js';
+import { countryData, countryInfo } from './country-info.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MINUS = '−';
@@ -167,17 +168,21 @@ const TURN = {
   fiscalInjection: (c, d) => ({ v: d > 0 ? 0.05 : -0.03, text: d > 0 ? '财政注入 +5% GDP' : `财政注入 ${MINUS}3% GDP` }),
 };
 
-export const checkKey = p => [p.valveId, p.vdir, p.t, p.scenario, p.mode].join('|');
+export const checkKey = p => [p.valveId, p.vdir, p.t, p.scenario, p.mode, p.country || 'USA'].join('|');
 const H1 = 4, H2 = 8;
 
 /** Generator: yields between chunks of quarters (so a caller can use setTimeout), returns the result. */
 export function* checkGen(p) {
   const town = p.scenario === 'town';
-  const mk = () => (town ? createSim({ scenario: 'town' }) : createSim({ data: US_Q, mode: p.mode }));
+  // p.country: the country view's ISO (the app registers its quarterly data in country-info.js); absent = the USA, as before
+  const iso = town ? 'USA' : String(p.country || 'USA').toUpperCase();
+  const data = iso === 'USA' ? US_Q : countryData(iso);
+  if (!town && !data) return { scenario: p.scenario, mode: p.mode, t: p.t, valveId: p.valveId, valveNode: p.valveNode, vdir: p.vdir, status: 'impossible', reason: '这个国家的数据还没有载入，核对不了', date: '' };
+  const mk = () => (town ? createSim({ scenario: 'town' }) : createSim({ data, mode: p.mode, country: iso }));
   const A = mk(), B = mk();
   let n = 0;
   while (A.t < p.t && !A.done) { A.step(); B.step(); if (++n % 8 === 0) yield; }
-  const base = { scenario: p.scenario, mode: p.mode, t: p.t, valveId: p.valveId, valveNode: p.valveNode, vdir: p.vdir };
+  const base = { scenario: p.scenario, country: iso, mode: p.mode, t: p.t, valveId: p.valveId, valveNode: p.valveNode, vdir: p.vdir };
   const v = A.valves.find(x => x.id === p.valveId);
   const turn = v && TURN[p.valveId] ? TURN[p.valveId](typeof v.value === 'boolean' ? +v.value : v.value, p.vdir) : { no: '这个阀门这里还不能核对' };
   const date = A.snapshot('model', Math.min(A.t, p.t))?.date || '';
@@ -351,7 +356,7 @@ function checkHtml(id, o, v) {
     const line = simLine(id, { sign: c.vdir, lag: 0 }, c);
     if (line) rows += `<div class="cv-cr">${chip(id, c.vdir, { self: true, small: true })}${line}</div>`;
   }
-  const sc = c.scenario === 'town' ? '小镇' : '美国';
+  const sc = c.scenario === 'town' ? '小镇' : countryInfo(c.country).name;
   return `<div class="cv-sec cv-check">${head}<div class="cv-what">拧动 <b>${esc(c.turn)}</b>，${where}<small>（${sc}${c.mode === 'free' ? '·自由模式' : ''}，两份一样的模拟，只差这一下，各走 ${c.steps} 个季度）</small></div>${rows}<div class="cv-legend"><i class="cv-mk ok">✓</i>和图一致 <i class="cv-mk eq">≈</i>几乎没动 <i class="cv-mk bad">✗</i>和图相反</div></div>`;
 }
 

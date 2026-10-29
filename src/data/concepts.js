@@ -11,6 +11,8 @@
 //           since(fn) -> { t, date } = first quarter of the current streak in which fn(snapshot) is true }
 // Scenario-aware: c.town is true for the 万元 town (dates look like 第3季); the US wording ("美国第一次是 2008-11") is only used when !c.town.
 
+import { currentCountry, countryInfo, fmtBn } from '../ui/country-info.js';
+
 const ok = v => typeof v === 'number' && isFinite(v);
 const P = (v, d = 1) => (ok(v) ? (v * 100).toFixed(d) + '%' : '—');
 const PP = (v, d = 1) => (ok(v) ? (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(d) + 'pp' : '—');
@@ -24,15 +26,16 @@ const lampWhy = key => s => { const L = s.lights?.[key]; return L ? `现在是${
 // helpers handed to every concept's why(snap, prev, ctx): units, formatting, history lookups (see the header of src/data/concepts.js)
 export function makeCtx(snap, sim) {
   const town = snap.scenario === 'town' || !!snap.town;
+  const iso = town ? 'USA' : currentCountry(sim), ci = countryInfo(iso);      // the country of the sim (USA: the old texts exactly)
   const br = snap.branch || 'model';
   const past = n => { try { return sim && snap.t - n >= 0 ? sim.snapshot(br, snap.t - n) : null; } catch (e) { return null; } };
   const money = v => {
     if (!(typeof v === 'number' && isFinite(v))) return '—';
     if (town) return (Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v))) + ' 万元';
-    return Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + ' 万亿美元' : Math.round(v) + ' 十亿美元';
+    return fmtBn(v, iso);
   };
   return {
-    town, unit: town ? '万元' : '十亿美元', date: snap.date, money,
+    town, iso, cbName: ci.cbName, unit: town ? '万元' : ci.unitBn, date: snap.date, money,
     num: v => (!ok(v) ? '—' : town ? (Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v))) : String(Math.round(v))),
     pct: (v, d = 1) => (typeof v === 'number' && isFinite(v) ? (v * 100).toFixed(d) + '%' : '—'),
     past,

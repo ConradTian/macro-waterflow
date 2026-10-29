@@ -1569,24 +1569,166 @@ export const LESSONS = [
     ],
   },
 
-  /* 世界 2 (placeholder, outline only): the AUS country view. Not available until COUNTRY_READY.AUS and the numbers are calibrated;
-   * texts below are DRAFT (no numbers, to be filled with live vals and claims after calibration). */
+  /* 世界 2: the AUS country view. Runs on the AUS sim (lesson-level country:'AUS' -> ?country=AUS&lesson=w2; scratch runs use createSim({ data: AUS_Q, country:'AUS' })).
+   * Getters: model numbers 'agg:path' (AUS sim), REAL data 'real:agg:series' (AUS_Q.series, no simulation), annual 'world:...' (also world:path@y0>y1 = change y1/y0-1).
+   * fmt 'aud' = 十亿澳元 (model flows are local-currency bn per quarter). step.wavesNow:{iso,has} -> the checker verifies the waves.js NOW label. */
   {
-    id: 'w2', kind: 'world', label: '世界 2', country: 'AUS', draft: true,
+    id: 'w2', kind: 'world', label: '世界 2', country: 'AUS',
     title: '澳洲：同一套水流，换一个国家',
-    oneLine: '同一套水流规则，换成澳洲的数据和几个参数：浮动房贷让利率咬得快，房价没有 2008 式崩盘，2022 年的通胀，今天的小周期收紧。',
+    oneLine: '同一台水机器，换成澳洲的数据和几个设置：浮动房贷让利率咬得快，2008 年没有走进 B2，2022 年加息当季就落到家庭，今天小周期在收紧段的尾部。',
     rulesOn: 'all',
-    startDate: '2008Q4', endDate: '2025Q4', mode: 'history', available: false,
+    startDate: '2006Q1', endDate: '2025Q4', mode: 'history', available: true,
     steps: [
-      { type: 'intro', title: '先说结论',
+      { type: 'intro', title: '先说结论', view: 'flow', map: { open: false },
         text: [
-          '**结论：水流的规则没变，变的是几个参数。澳洲最大的不同：房贷大多是浮动利率，央行一调利率，当季的利息就变。**',
-          '下面分 4 步：① 浮动房贷 ② 没有崩的房价 ③ 2022 年的通胀 ④ 今天（草稿，待数据校准后补数字）。',
+          '**结论：同一台水机器，换一个国家的设置，讲出来的故事就不一样。规则一条没改，改的是房贷利率的类型、房价的高低、出口卖给谁。**',
+          '你在美国那张图里学到的一切，原样用在澳洲：银行、家庭、央行、国境线。这一课不教新规则，只问两件事：哪里不同？不同带来了什么？',
+          '下面分 7 步：① 哪里不同 ② 2008：澳洲没走 B2 ③ 2020：冲击与 JobKeeper ④ 2022–2023：通胀与加息 ⑤ 今天（2025） ⑥ 模型的偏差 ⑦ 三句话。',
+          '时间：1995–2025 年的季度数据，利率用澳联储的真实路径。每个模型数字都是现场算的；真实数据另外标明。',
         ] },
-      { type: 'reveal', title: '第 1 步：浮动房贷，利率咬得快', text: ['（草稿）美国的房贷大多是长期固定，加息要等存量分批重定价，两年后才咬到（第 2 课）。澳洲的房贷大多是浮动的，加息当季就咬：水管短，水压传得快。待校准：用澳洲数据对比利息支出对政策利率的反应速度。'] },
-      { type: 'reveal', title: '第 2 步：房价没有 2008 式崩盘', text: ['（草稿）2008 年美国房价大跌、银行收紧，圈倒着转；澳洲同一时期房价没有出现这样的崩盘。待校准：用澳洲房价、信贷、移民和供给的数据核对，再讲为什么。'] },
-      { type: 'reveal', title: '第 3 步：2022 年的通胀', text: ['（草稿）疫情后通胀回来，央行快速加息；浮动房贷让加息直接落到家庭的利息支出上，消费被压得更快。待校准：对照澳洲 2022–2023 年的通胀、利率和家庭 DSR。'] },
-      { type: 'reveal', title: '第 4 步：今天，小周期收紧', text: ['（草稿）今天澳洲处在小周期的收紧段：看政策灯、信贷脉冲和失业率，问「降息推得动吗」（第 3.5 课）。待校准：用最新季度数据给出位置。'] },
+
+      { type: 'reveal', title: '第 1 步：哪里不同', from: '2006Q1', until: '2007Q4', hl: ['exports', 'fx'], concept: ['exports', 'fx'],
+        text: [
+          '**结论：三处设置不同：房贷多是浮动利率，房价高，出口大头卖给中国。**',
+          '一，浮动房贷。美国的房贷多是长期固定，加息要等存量分批重定价，约两年后才咬到（第 2 课）。澳洲的房贷多是浮动的，澳联储一调，当季利息就变：水管短，水压传得快。2006 年初到 2007 年底，政策利率加了 {dp}，家庭还本付息占收入的比例（DSR）就从 {d0} 升到 {d1}。',
+          '二，房价高。1995 到 2007 年，模型里的房价涨了 {hp}，家庭收入只涨了 {inc}；家庭债务占 GDP 从 {hd0}（真实）升到 {hd1}。房子是借钱撑起来的，所以利率一动，水位就晃。',
+          '三，国境线。看图右边的国境线：出口水管和汇率闸。澳洲出口相当于 GDP 的 {ex}，美国只有 {exu}；大头是铁矿石、煤和天然气，主要卖给中国。2007 年底模型里每季出口约 {qx}。中国买得多，出口管就粗，澳元也跟着强；中国放慢，反过来。',
+        ],
+        vals: [
+          { key: 'dp', get: 'dpp:rates.policy', fmt: 'pp' }, { key: 'd0', get: 'start:household.dsr', fmt: 'pct' }, { key: 'd1', get: 'end:household.dsr', fmt: 'pct' },
+          { key: 'hp', get: 'chg:assets.housing.price', fmt: 'pct0', from: '1995Q1', until: '2007Q4' }, { key: 'inc', get: 'chg:household.income', fmt: 'pct0', from: '1995Q1', until: '2007Q4' },
+          { key: 'hd0', get: 'real:at:1995Q1:hhDebtGdp', fmt: 'pct0', from: '1995Q1', until: '2007Q4' }, { key: 'hd1', get: 'real:at:2007Q4:hhDebtGdp', fmt: 'pct0', from: '1995Q1', until: '2007Q4' },
+          { key: 'ex', get: 'world:countries.AUS.exportsGdp@2007', fmt: 'pct0' }, { key: 'exu', get: 'world:countries.USA.exportsGdp@2007', fmt: 'pct0' },
+          { key: 'qx', get: 'end:border.exports', fmt: 'aud' },
+        ],
+        claims: [
+          { get: 'dpp:household.dsr', gt: 0.01, note: '2006–2007 年加息抬高 DSR 超过 1 个点（浮动房贷）' },
+          { get: 'chg:assets.housing.price', from: '1995Q1', until: '2007Q4', vs: { get: 'chg:household.income' }, gt: 0, note: '房价涨幅 > 收入涨幅' },
+          { get: 'world:countries.AUS.exportsGdp@2007', vs: { get: 'world:countries.USA.exportsGdp@2007' }, gt: 0, note: '澳洲出口/GDP > 美国' },
+        ] },
+
+      { type: 'predict', title: '第 2 步：猜一猜（2008）', from: '2007Q4', until: '2010Q4', tab: 'cycle', hl: ['exports', 'policyRate'], concept: ['shortCycle', 'longCycle'],
+        q: '2008 年，美国房价从 2006 年到 2012 年跌了 {us}，银行收紧，长周期掉进 B2 → ⑤（私人去杠杆）。澳洲同样是高房价、高房贷，用的是同一台水机器。澳洲 2008 会不会也走 B2？',
+        options: [
+          { t: '会：高房价高房贷，和美国一样', ok: false, when: [{ get: 'qcount:cycles.long.fork=B2', gt: 0 }] },
+          { t: '房价会跌一大截，只是没进 B2', ok: false, when: [{ get: 'dd:assets.housing.price', lt: -0.1 }] },
+          { t: '不会：房价基本没跌，长周期留在原位', ok: true, when: [{ get: 'qcount:cycles.long.fork=B2', lt: 0.5 }, { get: 'max:cycles.long.stage', lt: 5 }, { get: 'dd:assets.housing.price', gt: -0.1 }] },
+        ],
+        vals: [
+          { key: 'us', get: 'world:countries.USA.houseReal@2006>2012', fmt: 'apct0' },
+          { key: 'hr', get: 'real:dd:houseIndex', fmt: 'apct1' }, { key: 'hr2', get: 'real:chg:houseIndex', fmt: 'pct0' }, { key: 'hm', get: 'chg:assets.housing.price', fmt: 'pct0' },
+          { key: 'um', get: 'max:macro.unemployment', fmt: 'pct' }, { key: 'ur', get: 'real:max:unemployment', fmt: 'pct' },
+          { key: 'cx', get: 'world:trade.AUS.CHN@2008>2010', fmt: 'pct0' },
+          { key: 'rp', get: 'real:dpp:policyRate', fmt: 'ppa', from: '2008Q3', until: '2009Q2' },
+          { key: 'dd', get: 'dpp:household.dsr', fmt: 'ppa', from: '2008Q3', until: '2009Q2' },
+        ],
+        explain: [
+          '不会。真实的澳洲房价，2008 年最多回撤 {hr}，到 2010 年底已经比 2007 年底高 {hr2}；模型里这三年房价涨了 {hm}。没有崩，银行就没有被抵押品拖垮，长周期没有掉进 B2。',
+          '失业率也没有跳：模型里最高 {um}，真实最高 {ur}，都只是小幅波动。',
+          '为什么？一，中国的刺激让出口水管不但没变细，澳洲卖给中国的货 2008 到 2010 年还多了 {cx}。二，澳联储下手快：2008 年第三季度到 2009 年第二季度，政策利率降了 {rp}。三，房贷是浮动的，降息当季就落到家庭：模型里 DSR 同期降了 {dd}，家庭很快喘过气来。',
+          '这就是「换设置、换故事」：同一台机器，美国掉进了 ⑤，澳洲没有。',
+        ],
+        claims: [
+          { get: 'qcount:cycles.long.fork=B2', lt: 0.5, note: '2008–2010 年没有 B2 岔路' },
+          { get: 'max:cycles.long.stage', lt: 5, note: '长周期没到 ⑤' },
+          { get: 'real:dd:houseIndex', gt: -0.1, note: '真实房价回撤 < 10%' },
+          { get: 'world:countries.USA.houseReal@2006>2012', lt: -0.2, note: '美国房价 2006–2012 年跌超两成' },
+          { get: 'max:macro.unemployment', lt: 0.07, note: '模型失业率始终 < 7%' },
+          { get: 'world:trade.AUS.CHN@2008>2010', gt: 0, note: '澳洲对中国出口 2010 年比 2008 年多' },
+          { get: 'real:dpp:policyRate', from: '2008Q3', until: '2009Q2', lt: -0.03, note: '澳联储 2008Q3–2009Q2 降息 > 3 个点' },
+          { get: 'dpp:household.dsr', from: '2008Q3', until: '2009Q2', lt: -0.02, note: '同期模型 DSR 降 > 2 个点（浮动房贷）' },
+        ] },
+
+      { type: 'reveal', title: '第 3 步：2020，冲击与 JobKeeper', from: '2019Q4', until: '2021Q1', hl: ['capacity'], concept: ['shortCycle'],
+        text: [
+          '**结论：2020 年是「产能被按住」的冲击，不是「工作消失」的冲击。**',
+          '封锁让一部分产能暂时开不了工：模型里产能损失最高 {cl}。需求塌了，失业率也跳了一下：模型最高 {um}，真实最高 {ur}，两条线都是一个尖峰，很快回落。',
+          'JobKeeper（政府替企业发工资的补贴）让工人留在雇主名下，所以工作岗位没有真的消失，失业率的上升比产出的下滑小得多。模型里政府债务占 GDP 为此抬高到 {gd}，随后又收回。',
+          '这和 2008 年一脉相承：水一断，政府和央行马上补水；水管短（浮动房贷），补水当季就到家庭。',
+        ],
+        vals: [
+          { key: 'cl', get: 'max:extra.capacityLoss', fmt: 'pct' },
+          { key: 'um', get: 'max:macro.unemployment', fmt: 'pct' }, { key: 'ur', get: 'real:max:unemployment', fmt: 'pct' },
+          { key: 'gd', get: 'max:gov.debtGdp', fmt: 'pct0' },
+        ],
+        claims: [
+          { get: 'max:extra.capacityLoss', gt: 0.05, note: '2020 年有明显的产能损失' },
+          { get: 'max:macro.unemployment', vs: { get: 'start:macro.unemployment' }, gt: 0.02, note: '失业率尖峰 > 2 个点' },
+          { get: 'real:max:unemployment', vs: { get: 'real:start:unemployment' }, gt: 0.01, note: '真实失业率也有尖峰' },
+          { get: 'end:macro.unemployment', vs: { get: 'max:macro.unemployment' }, lt: -0.01, note: '失业率到 2021 年初已回落' },
+        ] },
+
+      { type: 'reveal', title: '第 4 步：2022–2023，通胀与加息', from: '2022Q2', until: '2023Q4', tab: 'cycle', hl: ['policyRate', 'interestPaid'], concept: ['policyRate'],
+        text: [
+          '**结论：通胀回来了，澳联储加息；因为房贷是浮动的，加息几乎立刻落到家庭的利息上，DSR 涨得快。**',
+          '2022 年第二季度到 2023 年第四季度，政策利率加了 {dp}（澳联储真实路径）。模型里家庭 DSR 从 {d0} 升到 {d1}，涨了 {dd}；真实的 DSR 涨了 {rd}。方向对，幅度偏大，这是模型的偏差。',
+          '还有一个只属于澳洲的坎：2020–2021 年有一大批人锁了便宜的固定利率，2022 到 2024 年陆续到期，换成浮动利率，叫「固定利率悬崖」。所以存量房贷的平均利率是慢慢追上来的：到 2023 年底只加了 {me1}，到 2024 年底才加了 {me2}。',
+          '小周期的拨盘在 {tt} 换到「收紧（加息）」（接物价过热）。这时水管短的代价最清楚：家庭的钱先被利息抽走，消费被压下去，通胀才降得下来。',
+        ],
+        vals: [
+          { key: 'dp', get: 'dpp:rates.policy', fmt: 'pp' }, { key: 'd0', get: 'start:household.dsr', fmt: 'pct' }, { key: 'd1', get: 'end:household.dsr', fmt: 'pct' },
+          { key: 'dd', get: 'dpp:household.dsr', fmt: 'pp' }, { key: 'rd', get: 'real:dpp:hhDsr', fmt: 'pp' },
+          { key: 'me1', get: 'dpp:rates.mortgageEff', fmt: 'pp' }, { key: 'me2', get: 'dpp:rates.mortgageEff', fmt: 'pp', until: '2024Q4' },
+          { key: 'tt', get: 'when:cycles.short.phase=tight', fmt: 'str' },
+        ],
+        claims: [
+          { get: 'dpp:household.dsr', gte: 0.02, note: 'DSR 2022Q2→2023Q4 升 ≥ 2 个点（浮动房贷）' },
+          { get: 'real:dpp:hhDsr', gt: 0.01, note: '真实 DSR 也升了 > 1 个点' },
+          { get: 'dpp:household.dsr', vs: { get: 'real:dpp:hhDsr' }, gt: 0, note: '模型 DSR 涨幅 > 真实（偏大）' },
+          { get: 'dpp:rates.mortgageEff', until: '2024Q4', vs: { get: 'dpp:rates.mortgageEff', until: '2023Q4' }, gt: 0, note: '存量房贷利率到 2024 年底追得更多（固定利率悬崖）' },
+          { get: 'dpp:rates.policy', gt: 0.03, note: '政策利率加 > 3 个点' },
+          { get: 'qcount:cycles.short.phase=tight', gt: 3, note: '2022Q2–2023Q4 小周期处在「收紧」' },
+        ] },
+
+      { type: 'reveal', title: '第 5 步：今天（2025），收紧段的尾部', from: '2024Q4', until: '2025Q4', tab: 'cycle', map: { open: true, select: 'AUS', year: 2025 }, hl: ['policyRate'], concept: ['shortCycle', 'exports'],
+        wavesNow: { iso: 'AUS', has: '收紧' },
+        text: [
+          '**结论：今天澳洲的小周期在收紧段的尾部：加息压住了通胀，但偿债变重；澳联储已经开始降息。**',
+          '周期页对澳洲今天的判断是：小周期在收紧，加息压通胀，偿债变重（2020 年起的短周期）。模型的拨盘上，「收紧」从 {tt} 一直到 2025 年第一季度，第二季度起转到「降息（推得动吗？）」：澳联储开始降息。',
+          '两个读数。2025 年底，政策利率 {pol}（峰值 {pk}）；家庭 DSR 还有 {dsr}，比 2022 年初高 {dsr0}。水压松了一点，但水管短：房贷还在咬着家庭。',
+          '再看地图（已选中澳洲）：2025 年澳洲卖给中国 {ac}，卖给美国只有 {au}。出口水管的粗细，仍然系在中国一个国家身上。',
+          '问：这次降息推得动吗？看信贷脉冲和失业率（第 3.5 课）。',
+        ],
+        vals: [
+          { key: 'tt', get: 'when:cycles.short.phase=tight', fmt: 'str', from: '2022Q2', until: '2025Q4' },
+          { key: 'pol', get: 'end:rates.policy', fmt: 'pct' }, { key: 'pk', get: 'max:rates.policy', fmt: 'pct', from: '2022Q2', until: '2025Q4' },
+          { key: 'dsr', get: 'end:household.dsr', fmt: 'pct' }, { key: 'dsr0', get: 'dpp:household.dsr', fmt: 'pp', from: '2022Q1' },
+          { key: 'ac', get: 'world:trade.AUS.CHN@2025', fmt: 'bn' }, { key: 'au', get: 'world:trade.AUS.USA@2025', fmt: 'bn' },
+        ],
+        claims: [
+          { get: 'when:cycles.short.phase=tight', from: '2022Q2', until: '2025Q4', dateBefore: 'when:cycles.short.phase=ease', note: '拨盘先「收紧」后「降息」' },
+          { get: 'end:household.dsr', vs: { get: 'start:household.dsr', from: '2022Q1', until: '2022Q1' }, gt: 0.02, note: '2025 年底 DSR 仍比 2022 年初高 > 2 个点' },
+          { get: 'world:trade.AUS.CHN@2025', vs: { get: 'world:trade.AUS.USA@2025' }, gt: 0, note: '澳洲 → 中国 出口 > 澳洲 → 美国' },
+        ] },
+
+      { type: 'reveal', title: '第 6 步：模型的偏差，诚实交代', from: '2025Q4', concept: ['longCycle'],
+        text: [
+          '**结论：这台玩具机器能讲出大方向，但有三处和真实对不上。你要知道它哪里看不见。**',
+          '一，失业率偏高。2023 到 2025 年，模型平均 {u1}，真实平均 {u2}：明显偏高。所以模型里的「衰退」成分比真实更重。',
+          '二，缺了 2017–2019 年的房价回调。真实房价那几年回撤了 {h1}（监管机构 APRA 限制投资性房贷和只付利息贷款）；模型里同期房价还涨了 {h2}。监管这种「人为拧阀门」，模型里没有。',
+          '三，缺了 2008 年的股市下跌。真实的澳洲股指从 2007 年底到 2009 年第一季度跌了 {e1}，模型里只回撤 {e2}。那是全球恐慌传过来的，国境线上的避险情绪，模型没有画。',
+          '怎么用：看大方向（浮动房贷让利率咬得快，2008 年没崩，2022 年 DSR 涨得快），别拿它预测明天的数字。',
+        ],
+        vals: [
+          { key: 'u1', get: 'avg:macro.unemployment', fmt: 'pct', from: '2022Q4', until: '2025Q4' }, { key: 'u2', get: 'real:avg:unemployment', fmt: 'pct', from: '2022Q4', until: '2025Q4' },
+          { key: 'h1', get: 'real:dd:houseIndex', fmt: 'apct1', from: '2017Q1', until: '2019Q4' }, { key: 'h2', get: 'chg:assets.housing.price', fmt: 'pct0', from: '2017Q1', until: '2019Q4' },
+          { key: 'e1', get: 'real:dd:equityIndex', fmt: 'apct0', from: '2007Q4', until: '2009Q1' }, { key: 'e2', get: 'dd:assets.equity.price', fmt: 'apct0', from: '2007Q4', until: '2009Q1' },
+        ],
+        claims: [
+          { get: 'avg:macro.unemployment', from: '2022Q4', until: '2025Q4', vs: { get: 'real:avg:unemployment' }, gt: 0.008, note: '模型 2023–2025 失业率比真实高 > 0.8 个点' },
+          { get: 'real:dd:houseIndex', from: '2017Q1', until: '2019Q4', lt: -0.05, note: '真实房价 2017–2019 年回撤 > 5%' },
+          { get: 'dd:assets.housing.price', from: '2017Q1', until: '2019Q4', gt: -0.02, note: '模型里同期房价几乎没回撤' },
+          { get: 'real:dd:equityIndex', from: '2007Q4', until: '2009Q1', lt: -0.3, note: '真实股指 2008 年跌 > 30%' },
+          { get: 'dd:assets.equity.price', from: '2007Q4', until: '2009Q1', gt: -0.15, note: '模型股价回撤 < 15%' },
+        ] },
+
+      { type: 'recap', title: '第 7 步：三句话',
+        lines: [
+          '同一台水机器，换国家只是换数据和几个设置：浮动房贷、高房价、出口卖给中国。',
+          '设置不同，故事就不同：2008 年澳洲没有走 B2，2022 年加息当季就落到家庭的利息上，今天处在小周期收紧段的尾部。',
+          '这台机器是玩具：失业率偏高，漏了 2017–2019 年的房价回调和 2008 年的股市下跌；看大方向，别当预测。',
+        ],
+        concepts: ['exports', 'fx', 'shortCycle'] },
     ],
   },
 ];
