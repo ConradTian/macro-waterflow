@@ -63,6 +63,53 @@ export function countrySvg(c, nowYear, o = {}) {
   return `<svg viewBox="0 0 ${W} ${H}" class="wv-svg" role="img" aria-label="${esc(c.name)} ${a}–${b} 实际 GDP 高于或低于长期趋势的百分比">${g}</svg>`;
 }
 
+/* ---- captions under a country's chart (shared with the curves view). Facts come from waves.js (tools/build_waves.py):
+   src / basis per country, lam = the HP lambda. 数据 + 读法 always show; the method sits behind 「这三条线怎么画的」. ---- */
+const LAM = WAVES.lam || 100;
+// countries where one straight line over the whole window fits badly (fast catch-up, then a slowdown)
+const FIT_NOTE = {
+  JPN: '日本 1950–70 年代追赶式高增长，1990 年后增速换挡，一条直线拟合不好：蓝线先高后低的大起落，大半是增速换挡，不全是债务。',
+  CHN: '中国 1978 年改革前后增速差很多，直线是整段平均：蓝线的起落有一部分是增速换挡，不全是债务。',
+};
+const READ_NOTE = { JPN: '；日本这条蓝线的坑大半是增速换挡，见下面', CHN: '；中国的蓝线有一部分是增速换挡，见下面' };
+const pct = v => { const a = Math.abs(v); return a >= 10 ? a.toFixed(0) : a.toFixed(1); };
+const atYear = (c, arr, y) => arr[Math.max(0, Math.min(c.years.length - 1, Math.round(y - c.years[0])))];
+
+/* what the chart says at year y: where the blue line sits, where it is heading, and the short wave on top of it */
+export function readAt(c, y) {
+  const L = atYear(c, c.long, y), d5 = L - atYear(c, c.long, y - 5), S = atYear(c, c.dev, y) - L;
+  const side = Math.abs(L) < 2 ? '蓝线贴着 0 线' : `蓝线在 0 线${L > 0 ? '上方' : '下方'} ${pct(L)}%（${L > 0 ? '加杠杆' : '去杠杆'}一侧）`;
+  const dir = d5 > 1 ? '近 5 年在往上走' : d5 < -1 ? '近 5 年在往下走' : '近 5 年走平';
+  const sh = Math.abs(S) < 1 ? '细线贴着蓝线（短波很小）' : `细线比蓝线${S > 0 ? '高' : '低'} ${pct(S)} 个百分点（短波偏${S > 0 ? '热' : '冷'}）`;
+  return `${side}，${dir}；${sh}`;
+}
+
+/* o: { read: html for the 读法 line (default: right end + today's ring position), id: data-wv key for the open state } */
+export function captionHtml(c, o = {}) {
+  const a = c.years[0], b = c.years[c.years.length - 1];
+  const read = o.read || `看最右端 ${b} 年：${readAt(c, b)}${READ_NOTE[c.iso] || ''}。→ <b>${esc(WAVES.asOf)} 在环上：</b>${esc(c.now.mark === '小' ? '' : c.now.mark + ' ')}${esc(c.now.text)}<small>（事后判断，示意）</small>`;
+  const li = (k, t) => `<li><b>${k}</b>${t}</li>`;
+  return `<div class="wv-capb">
+    <p class="wv-cap"><b>数据：</b>${esc(c.name)}真实 GDP ${esc(c.basis || '总量')}，${a}–${b} 年，取对数。来源：${esc(c.src)}</p>
+    <p class="wv-now wv-read"><b>读法：</b>${read}</p>
+    <details class="wv-how" data-wv="${o.id || 'how'}"><summary>这三条线怎么画的</summary><ul>
+      ${li('直线', ` = 对数 GDP 的线性趋势（整段拟合一条直线，年均 +${c.trend}%）≈ 生产率 = 河道宽度的长期走势。用的是总量，所以也含人口增长。图里把它拉平成 0 线。`)}
+      ${li('细线', ' = 偏离：实际 GDP 离直线多远。')}
+      ${li('蓝色长波（粗线）', ` = 偏离里慢变的部分（HP 滤波 λ=${LAM}，约 20 年以下的起伏被滤掉），像丰水年代 / 枯水年代。在 0 线上方 ≈ 加杠杆年代，下方 ≈ 去杠杆年代。它是从 GDP 算出来的，不是从债务数据算的。`)}
+      ${li('短波', ' = 偏离 − 长波（细线减蓝线），几年一轮，像一场场洪水的涨落。')}
+      ${li('事后看', '：直线和蓝线都用了前后年份的数据，最右端几年会随新数据改。')}
+      ${FIT_NOTE[c.iso] ? li('注意', '：' + FIT_NOTE[c.iso]) : ''}
+    </ul></details></div>`;
+}
+/* the 「怎么画的」 box starts open where there is room (desktop), closed on a phone; a tap is remembered in store[key] */
+export function wireHow(root, store, roomy) {
+  root.querySelectorAll('details.wv-how').forEach(d => {
+    const k = d.dataset.wv;
+    d.open = store[k] === undefined ? !!roomy : store[k];
+    d.addEventListener('toggle', () => { store[k] = d.open; });
+  });
+}
+
 /* runs of equal values: [{key, from, to}] over hist[0..upTo] */
 function runs(hist, keyOf, upTo) {
   const out = [];
@@ -202,9 +249,9 @@ export function wavesHtml(ctx) {
     <div class="wv-chips" role="group" aria-label="选国家">${chips}</div>
     <div class="wv-sub"><b>${esc(c.name)} ${c.years[0]}–${c.years[c.years.length - 1]}</b>：把直线拉平成 0 线（GDP 长期趋势，年均 ${c.trend}%）。${c.crises.length ? '红虚线 = 银行危机。' : ''}</div>
     ${countrySvg(c, nowYear)}
-    <div class="wv-keys"><span class="wv-k"><i class="wv-sw long"></i>粗线 = 长期债务周期</span><span class="wv-k"><i class="wv-sw dev"></i>细线 = 实际 GDP</span><span class="wv-k"><i class="wv-sw zero"></i>0 线 = GDP 长期趋势</span></div>
-    <p class="wv-now"><b>${esc(WAVES.asOf)} 在环上：</b>${esc(c.now.mark === '小' ? '' : c.now.mark + ' ')}${esc(c.now.text)}<small>（事后判断，示意）</small></p>
-    <p class="wv-src">${esc(c.src)}。${esc(WAVES.method)}${!live ? ' 自由模式的游戏时间不对应真实历史，所以不画「现在」。' : c.iso !== simIso ? ` 游戏跑的是${countryInfo(simIso).name}的数据，所以别国不画「现在」。` : ''}</p>
+    <div class="wv-keys"><span class="wv-k"><i class="wv-sw long"></i>蓝粗线 = 长波（≈ 长期债务周期）</span><span class="wv-k"><i class="wv-sw dev"></i>细线 = 实际 GDP</span><span class="wv-k"><i class="wv-sw zero"></i>0 线 = GDP 长期趋势</span></div>
+    ${captionHtml(c)}
+    ${!live ? '<p class="wv-src">自由模式的游戏时间不对应真实历史，所以不画「现在」。</p>' : c.iso !== simIso ? `<p class="wv-src">游戏跑的是${esc(countryInfo(simIso).name)}的数据，所以别国不画「现在」。</p>` : ''}
     </div></div>
     ${usq}
   </div>`;
@@ -215,10 +262,11 @@ const fire = (name, detail) => document.dispatchEvent(new CustomEvent(name, { de
 export function wireWaves(container, ctx) {
   const box = container.querySelector('.wv');
   if (!box) return;
-  box.querySelectorAll('details[data-wv]').forEach(d => {
+  box.querySelectorAll('details[data-wv]:not(.wv-how)').forEach(d => {
     d.open = openMap[d.dataset.wv] !== false;
     d.addEventListener('toggle', () => { openMap[d.dataset.wv] = d.open; });
   });
+  wireHow(box, openMap, box.clientWidth >= 560);
   box.querySelectorAll('.wv-chip').forEach(b => b.addEventListener('click', () => {
     iso = b.dataset.iso;
     const fresh = document.createElement('div');

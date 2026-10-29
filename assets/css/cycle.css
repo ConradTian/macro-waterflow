@@ -229,6 +229,19 @@
 .wv-now { margin: 6px 0 2px; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--pn-accent) 8%, transparent); font-size: 13px; }
 .wv-now small { color: var(--pn-muted); margin-left: 4px; }
 .wv-src { margin: 4px 0 8px; font-size: 11px; color: var(--pn-muted); line-height: 1.45; }
+/* captions under a country's chart: 数据 + 读法 always, the method behind 「这三条线怎么画的」 (captionHtml in _cycle-waves.js) */
+.wv-capb { margin: 4px 0 10px; }
+.wv-cap { margin: 4px 0 2px; font-size: 12px; color: var(--pn-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.wv-cap b, .wv-read > b:first-child { color: var(--pn-text); }
+.wv-read { font-size: 12.5px; line-height: 1.5; }
+.wv-how { margin: 4px 0 0; font-size: 12px; line-height: 1.5; }
+.wv-how > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; color: var(--pn-accent); font-weight: 600; font-size: 12.5px; }
+.wv-how > summary::-webkit-details-marker { display: none; }
+.wv-how > summary::before { content: '▸'; display: inline-block; width: 1em; transition: transform .15s; }
+.wv-how[open] > summary::before { transform: rotate(90deg); }
+.wv-how ul { margin: 0; padding: 0 0 0 16px; color: var(--pn-text); }
+.wv-how li { margin: 2px 0; }
+.wv-how li::marker { color: var(--pn-muted); }
 .wv-keys.col { flex-direction: column; }
 .wv-keys.col .wv-k { display: block; }
 .wv-keys.col .wv-sw { vertical-align: middle; margin-right: 5px; }
