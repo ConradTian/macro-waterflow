@@ -13,6 +13,12 @@
 //   try     { valve+slider | choices, quarters, metrics, insight }          sandbox (no state carried on)
 //   chain   { links:[{text, term?, pipe?, part?}], text, next? }            final causal chain, each link tappable -> pipe glows
 //   zoom    { date, until?, text, block?, next?, showAll? }                 zoomOut() animation, swap to the US sim at `date`
+// PANELS (the two big lessons 汇率 kind:'fx' and 投资者 kind:'capstone'): step field panel:{ id, ...options } mounts one interactive panel
+//   (mountFxPanel from src/ui/fx-lab.js / mountInvestorPanel from src/ui/investor-lab.js, chosen by the lesson's kind) on entering the step and
+//   unmounts it on leaving the step, on exit and before draw() rebuilds a host. Host per step (contract: tools/D-CONTRACT.md 「接线」):
+//   'diagram' = div#ls-panel over the water-diagram column (covers it like the curves view); 'card' = div.ls-pnl-card in the lesson card body
+//   (steps that need the diagram visible: 投资者 assetTable flashes the pools). Panel modules load lazily in startLesson.
+// Country lessons (lesson field country:'AUS': w2, 投资者): starting one goes to ?country=AUS&lesson=<id>; exiting it goes back to the US root page.
 import { createSim } from '../engine/sim.js';
 import * as RULES from '../engine/rules.js';
 import { VALVES } from '../engine/valves.js';
@@ -244,13 +250,14 @@ function syncPad() {
 }
 
 /* ---------- course menu (COURSE in data/lessons.js): 主线 / 选学 / 接下来 / 旧版课程 (collapsed) ---------- */
-// recommended path = the main line m1..m5 (badge 「推荐 n」); everything else is optional
-const REC = Object.fromEntries((COURSE.main || []).map((k, i) => [k, i + 1]));
+// recommended path = the main line m1..m5, then the two big lessons 汇率 / 投资者 (badge 「推荐 n」); everything else is optional
+const REC = Object.fromEntries([...(COURSE.main || []), ...(COURSE.later || [])].map((k, i) => [k, i + 1]));
 // badge (the round number on the left) per menu key
 function badgeOf(key, L) {
   const s = String(key);
   if (s.startsWith('role:')) return (ROLE_NAME[s.slice(5)] || '?').slice(0, 1);
   if (L && L.kind === 'main') return String(COURSE.main.indexOf(L.id) + 1);
+  if (L && (L.kind === 'fx' || L.kind === 'capstone')) return (L.title || '?').slice(0, 1);   // 汇 / 投
   if (s === '0b') return '½';
   if (s === '3b') return '3½';
   if (/^w\d+$/.test(s)) return s.replace(/^w(\d+)$/, '世$1');
@@ -281,15 +288,14 @@ export async function openMenu() {
   await rolesReady;
   const p = load();
   const list = keys => (keys || []).map(k => itemFor(k, p)).join('');
-  const soon = (COURSE.soon || []).map(s => menuItem(null, p, '…', 'soon:' + s.key, s.title, s.oneLine, '制作中')).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead"><b>先学主线：5 课，约 1 小时。</b>第 1 课从一个 5 户人家的小镇讲起，再放大到真实的美国季度数据。学完主线，选学按兴趣挑。</p>` +
+    `<p class="ls-lead"><b>先学主线：5 课，约 1 小时。</b>第 1 课从一个 5 户人家的小镇讲起，再放大到真实的美国季度数据。学完主线，接着上两节大课：汇率、投资者。选学按兴趣挑。</p>` +
     `<h3 class="ls-sec">主线 <small>按顺序学，约 1 小时</small></h3><ol class="ls-list ls-main">${list(COURSE.main)}</ol>` +
-    `<h3 class="ls-sec">选学 <small>学完主线以后，按兴趣挑</small></h3><ol class="ls-list">${list(COURSE.advanced)}</ol>` +
-    `<h3 class="ls-sec">接下来 <small>出了国境；下面两课正在做</small></h3><ol class="ls-list">${list(COURSE.later)}${soon}</ol>` +
+    `<h3 class="ls-sec">接下来 <small>两节大课：出了国境，再收成投资动作</small></h3><ol class="ls-list ls-later">${list(COURSE.later)}</ol>` +
+    `<h3 class="ls-sec">选学 <small>按兴趣挑</small></h3><ol class="ls-list">${list(COURSE.advanced)}</ol>` +
     `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>` +
-    `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、7 个角色课、旧的周期课；内容已并进主线</small></summary>` +
+    `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、7 个角色课、旧的周期课、世界 1；内容已并进主线和汇率课</small></summary>` +
     `<ol class="ls-list">${list(COURSE.legacy)}</ol></details>`;
   const det = menu.querySelector('.ls-old');
   if (det) det.addEventListener('toggle', () => { oldOpen = det.open; });
@@ -319,6 +325,7 @@ export async function startLesson(id, step = 0) {
     return;
   }
   if (usesWorld(L)) await loadWorld();
+  await loadPanels(L);                                      // step field panel: the lesson's panel module, before the first step mounts one
   ensureDom(); closeMenu();
   const prev = cur;
   if (!prev) setView('flow');                              // a fresh lesson starts on the water diagram (its highlights live there); a step may switch with `view`
@@ -343,6 +350,8 @@ export function exitLesson() {
   const wasTown = cur.world === 'town';
   const tBack = wasTown ? cur.usT0 : dateT(ctx.getSnap().date);
   const L = cur.L;
+  // a lesson that lives in another country's view (country:'AUS': w2, 投资者) took the page there on start; leaving it goes back to the US root page
+  const home = L.country && L.country !== 'USA' && curCountry() !== 'USA';
   cur = null; target = null; hlIds = []; applyHl(); clearFlash(); clearDrops();
   applyVis(null);
   ov = { params: {}, rules: {} };
@@ -354,7 +363,13 @@ export function exitLesson() {
   ctx.setTickMs(1000);
   ctx.refresh(); ctx.setQuiet(false);
   card.hidden = true; document.body.classList.remove('lesson-on'); syncPad();
+  if (home) { goHome(); return; }
   ctx.setPlaying(true);
+}
+function goHome() {                                         // the US root page: keep the theme, drop everything else (as app.js goCountry(''))
+  const u = new URL(location.href), th = u.searchParams.get('theme');
+  u.search = ''; if (th) u.searchParams.set('theme', th);
+  location.href = u.href;
 }
 
 /* ---------- worlds: the lesson may run on the town sim and/or the US sim ---------- */
@@ -375,6 +390,56 @@ function leaveStep() {
   ss.tkOn = false;
   (ss.timers || []).forEach(clearTimeout);
   clearDrops();
+  dropPanel();
+}
+
+/* ---------- step field panel:{id,...}: one interactive panel (汇率: src/ui/fx-lab.js, 投资者: src/ui/investor-lab.js) ---------- */
+const PANEL_MODS = { fx: () => import('./fx-lab.js'), inv: () => import('./investor-lab.js') };
+const panelLib = {};                                        // kind -> loaded module
+const CARD_PANELS = { inv: ['assetTable'] };                // these panels go in the lesson card: their step needs the diagram (pool flashes)
+const panelKind = (L, spec) => (L.kind === 'fx' ? 'fx' : L.kind === 'capstone' ? 'inv' : /^fx-/.test(spec.id) ? 'fx' : 'inv');
+export const panelWhere = (L, spec) => ((CARD_PANELS[panelKind(L, spec)] || []).includes(spec.id) ? 'card' : 'diagram');
+let pnl = null;                                             // the mounted panel: { kind, where, key, host }
+async function loadPanels(L) {
+  const kinds = new Set(L.steps.filter(s => s.panel).map(s => panelKind(L, s.panel)));
+  await Promise.all([...kinds].filter(k => !panelLib[k]).map(k => PANEL_MODS[k]().then(m => { panelLib[k] = m; }, e => console.error(e))));
+}
+function mountPanel(kind, host, spec) {
+  const m = panelLib[kind];
+  try { return kind === 'fx' ? m.mountFxPanel(host, spec) : m.mountInvestorPanel(host, spec); } catch (e) { console.error(e); return null; }
+}
+function dropPanel() {
+  if (!pnl) return;
+  const m = panelLib[pnl.kind];
+  try { if (pnl.kind === 'fx') m.unmountFxPanel(); else m.unmountInvestorPanel(); } catch (e) { console.error(e); }
+  if (pnl.where === 'diagram') { pnl.host.remove(); document.getElementById('diagram')?.classList.remove('ls-pnl-on'); }
+  document.body.classList.remove('ls-panel-on');
+  if (card) card.classList.remove('ls-pcard');
+  pnl = null;
+}
+// after every draw() (and when a render lost the diagram host): mount the step's panel into its host, or drop the one that is up
+function syncPanel() {
+  const st = cur && !ss.zooming ? cur.L.steps[cur.i] : null;
+  const spec = st && st.panel;
+  if (!spec) { dropPanel(); return; }
+  const kind = panelKind(cur.L, spec), where = panelWhere(cur.L, spec), key = cur.L.id + '#' + cur.i;
+  if (!panelLib[kind]) return;                              // module failed to load: text only
+  if (pnl && (pnl.key !== key || pnl.where !== where || !pnl.host.isConnected && where === 'diagram')) dropPanel();
+  if (where === 'diagram') {
+    if (pnl) return;                                        // already up: draw() never touches the diagram column
+    const dia = document.getElementById('diagram'); if (!dia) return;
+    const host = document.createElement('div');
+    host.id = 'ls-panel'; host.className = 'ls-pnl ls-pnl-dia'; host.dataset.kind = kind; host.setAttribute('aria-label', st.title || '面板');
+    dia.appendChild(host); dia.classList.add('ls-pnl-on');
+    pnl = { kind, where, key, host };
+    mountPanel(kind, host, spec);
+  } else {
+    const host = card.querySelector('.ls-pnl-card'); if (!host) return;
+    pnl = { kind, where, key, host };
+    card.classList.add('ls-pcard');
+    mountPanel(kind, host, spec);                            // 投资者: an equal spec moves the live panel into the new host (keeps its state)
+  }
+  document.body.classList.add('ls-panel-on');
 }
 
 function enterStep(i) {
@@ -382,7 +447,9 @@ function enterStep(i) {
   const { L, pos } = cur;
   const st = L.steps[i];
   cur.i = i; ss = {}; target = null;
-  mark(p => { p.step[L.id] = i; if (st.type === 'recap' || st.type === 'chain') p.done[L.id] = true; });
+  // the big lessons (汇率, 投资者) end on a reveal step: reaching it counts as done
+  const lastDone = (L.kind === 'fx' || L.kind === 'capstone') && i === L.steps.length - 1;
+  mark(p => { p.step[L.id] = i; if (st.type === 'recap' || st.type === 'chain' || lastDone) p.done[L.id] = true; });
   if ((st.type === 'recap' || st.type === 'chain') && L.role) markRoleLearned(L.role);
   // the zoom from the town to the US: animate first (names fade, 万元 -> 十亿美元), then swap the sim
   if (st.type === 'zoom' && cur.world === 'town' && pos[i].world === 'us' && P.get('end') !== '1' && P.get('nozoom') !== '1') {
@@ -451,6 +518,7 @@ export function onRender() {
   if (!cur || busy) return;
   syncPad();
   applyHl();
+  if (cur.L.steps[cur.i].panel && (!pnl || !pnl.host.isConnected)) syncPanel();   // a render rebuilt the diagram column: put the panel back
   const snap = ctx.getSnap();
   const dEl = card.querySelector('.ls-date');
   if (dEl) dEl.textContent = snap.date;
@@ -904,6 +972,9 @@ function draw() {
     && !(st.type === 'reveal' && st.question && !ss.revealed) && !(st.type === 'predict' && ss.picked == null)
     && !((st.type === 'action' || st.type === 'valve') && !ss.done)) body += nextLessonBtn(st.next);
   if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开自由运行 ↗（新窗口，自己玩）</a>`;
+  const pCard = st.panel && !ss.zooming && panelWhere(L, st.panel) === 'card';
+  if (pCard) body += '<div class="ls-pnl ls-pnl-card"></div>';        // host of a card panel (filled by syncPanel below)
+  if (pnl && pnl.where === 'card' && pnl.kind === 'fx') dropPanel();   // an FX panel cannot be moved: unmount before the host is rebuilt
   // the primary button (揭晓 / 做做看 / 拧一拧 / 跑 N 季 / 下一课) is pulled out of the scrolling body so it is always visible
   let cta = '';
   { const m = body.match(/<button type="button" class="btn primary ls-run"[^>]*>[\s\S]*?<\/button>/); if (m) { body = body.replace(m[0], ''); cta = m[0]; } }
@@ -912,7 +983,7 @@ function draw() {
   card.dataset.step = String(i); card.dataset.lesson = String(L.id);
   card.innerHTML =
     `<div class="ls-top"><button type="button" class="ls-col" data-act="collapse" aria-label="折叠/展开">${card.classList.contains('collapsed') ? '▴' : '▾'}</button>` +
-    `<button type="button" class="ls-ttl" data-act="menu">${esc(lessonLabel(L))} · ${esc(L.title)}</button><span class="ls-date">${snap.date}</span>` +
+    `<button type="button" class="ls-ttl" data-act="menu">${L.label && String(L.title).startsWith(L.label) ? esc(L.title) : `${esc(lessonLabel(L))} · ${esc(L.title)}`}</button><span class="ls-date">${snap.date}</span>` +
     `<button type="button" class="ls-exp" data-act="expand" aria-label="放大/缩小教学卡">${card.classList.contains('tall') ? '⤡' : '⤢'}</button>` +
     `<a class="ls-free" href="${esc(freeUrl())}" target="_blank" rel="noopener">↗ 自由运行</a>` +
     `<button type="button" class="ls-exit" data-act="exit">退出教学</button></div>` +
@@ -920,6 +991,7 @@ function draw() {
     `<div class="ls-nav"><button type="button" class="btn" data-act="prev" ${i === 0 ? 'disabled' : ''}>‹ 上一步</button>` +
     (cta || `<span class="ls-dots" aria-label="第 ${i + 1}/${n} 步">${dots}</span>`) +
     `<button type="button" class="btn primary" data-act="next" ${canNext ? '' : 'disabled'}>下一步 ›</button></div>`;
+  syncPanel();                                               // step field panel: mount / re-attach / drop (before restoring the scroll position)
   const nb = card.querySelector('.ls-body'); if (nb && keepTop) nb.scrollTop = keepTop;
   if (nb && (st.type === 'try' || st.type === 'experiment' || st.type === 'takeover') && (ss.result || ss.arrived)) { const tb = nb.querySelector('.ls-res'); if (tb) tb.scrollIntoView({ block: 'nearest' }); }
   if (st.type === 'takeover') renderTk();

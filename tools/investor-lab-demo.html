@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>投资者 lab demo</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<link rel="stylesheet" href="../assets/css/investor-lab.css">
+<style>
+  /* demo shell: ?host=right mimics the iPad right panel (the diagram takes the left 46%), ?host=full uses the whole width */
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .dm { display: grid; grid-template-columns: 1fr; min-height: 100dvh; }
+  .dm.right { grid-template-columns: minmax(400px, min(46%, 620px)) 1fr; }
+  .dm-left { display: none; border-right: 1px solid var(--border); padding: 16px; color: var(--muted); font-size: 13px; }
+  .dm.right .dm-left { display: block; }
+  .dm-main { padding: 12px 16px 24px; min-width: 0; }
+  .dm-step { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .dm-step b { color: var(--text); }
+  #host { min-width: 0; }
+  #result { display: none; }
+</style>
+</head>
+<body>
+<div class="dm" id="dm">
+  <aside class="dm-left" id="dm-left">水流图的位置（demo 不画图）</aside>
+  <main class="dm-main"><p class="dm-step" id="dm-step"></p><div id="host"></div></main>
+</div>
+<pre id="result"></pre>
+<script type="module">
+// Query: panel=<id> (default gauges) | selftest=1   host=right|full   theme=light|dark   iso=AUS|USA   date=2009Q1
+// selftest mounts + unmounts every panel in turn, follows the sim one quarter on the gauges, and writes a JSON report into #result
+// (read by tools/check_lesson_investor.mjs through headless Edge --dump-dom).
+const errors = [];
+addEventListener('error', e => errors.push(String(e.message || e.error)));
+addEventListener('unhandledrejection', e => errors.push('promise: ' + String(e.reason && (e.reason.stack || e.reason.message) || e.reason)));
+const origErr = console.error; console.error = (...a) => { errors.push('console: ' + a.map(String).join(' ')); origErr(...a); };
+const q = new URLSearchParams(location.search);
+if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
+if (q.get('host') === 'right') document.getElementById('dm').classList.add('right');
+const out = r => { document.getElementById('result').textContent = JSON.stringify(r); document.title = 'DONE'; };
+try {
+  const [{ createSim }, { setFlowContext }, lab, { LESSON_INVESTOR }, { COUNTRY_DATA }] = await Promise.all([
+    import('../src/engine/sim.js'), import('../src/ui/flow.js'), import('../src/ui/investor-lab.js'),
+    import('../src/data/lesson-investor.js'), import('../src/data/countries/index.js')]);
+  const iso = q.get('iso') || LESSON_INVESTOR.country || 'USA';
+  const data = await COUNTRY_DATA[iso]();
+  const sim = createSim({ data, mode: 'history', country: iso });
+  const date = q.get('date') || LESSON_INVESTOR.endDate;
+  while (!sim.done && sim.snapshot().date !== date) sim.step();
+  setFlowContext({ sim: () => sim });
+  const host = document.getElementById('host');
+  const stepOf = id => LESSON_INVESTOR.steps.find(s => s.panel && s.panel.id === id);
+  const show = id => { const st = stepOf(id); document.getElementById('dm-step').innerHTML = st ? `<b>${st.title}</b>　${iso} · ${sim.snapshot().date}` : id; return lab.mountInvestorPanel(host, st ? st.panel : { id }); };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  if (q.get('selftest') === '1') {
+    const rep = { ids: lab.INVESTOR_PANEL_IDS, panels: {}, errors };
+    for (const id of lab.INVESTOR_PANEL_IDS) {
+      const e0 = errors.length, h = show(id);
+      for (let k = 0; k < 40 && /正在取/.test(host.textContent); k++) await wait(100);   // async data (blind cards, FX)
+      await wait(150);
+      const el = host.querySelector('.ivl');
+      const r = { mounted: !!(h && el && el.dataset.panel === id), text: (el?.textContent || '').replace(/\s+/g, ' ').trim(), svgs: el ? el.querySelectorAll('svg').length : 0,
+        w: el ? el.scrollWidth : 0, cw: el ? el.clientWidth : 0 };
+      if (id === 'gauges') {   // follow the sim: one more quarter must show up on the gauges
+        const d0 = sim.snapshot().date; sim.step(); await wait(900);
+        r.followed = host.textContent.includes(sim.snapshot().date) && sim.snapshot().date !== d0; r.follow = [d0, sim.snapshot().date];
+      }
+      if (id === 'assetTable') { const tr = el?.querySelector('tr[data-id="b2"]'); tr?.click(); r.clicked = !!el?.querySelector('tr.sel[data-id="b2"]'); }
+      if (id === 'realRate') { const inp = el?.querySelector('input[type=range]'); if (inp) { inp.value = '0.03'; inp.dispatchEvent(new Event('input', { bubbles: true })); } r.slid = (el?.querySelector('.ivl-val')?.textContent || ''); }
+      if (id === 'timeline') { el?.querySelector('[data-act="yr"][data-y="2005"]')?.click(); r.yr = el?.querySelector('.ivl-now b')?.textContent || ''; }
+      if (id === 'priced') { el?.querySelector('[data-act="extra"]')?.click(); r.extra = el?.querySelectorAll('.pd').length || 0; }
+      if (id === 'blind') r.links = [...(el?.querySelectorAll('a[href]') || [])].map(a => a.getAttribute('href'));
+      let host2 = null;
+      if (id === 'realRate') {   // the lesson card rebuilds its HTML: mounting the same spec into a new host keeps the live panel
+        host2 = document.createElement('div'); host.after(host2);
+        lab.mountInvestorPanel(host2, stepOf(id).panel);
+        r.reattached = !host.querySelector('.ivl') && host2.querySelector('.ivl .ivl-val')?.textContent === r.slid;
+      }
+      lab.unmountInvestorPanel();
+      r.unmounted = !host.querySelector('.ivl') && host.children.length === 0 && (!host2 || host2.children.length === 0);
+      if (host2) host2.remove();
+      r.errors = errors.slice(e0);
+      rep.panels[id] = r;
+    }
+    out(rep);
+  } else {
+    show(q.get('panel') || 'gauges');
+    window.__ivl = { lab, sim, show };
+    await wait(50);
+    document.title = 'READY';
+  }
+} catch (e) { errors.push('boot: ' + (e.stack || e.message)); out({ boot: false, errors }); }
+</script>
+</body>
+</html>

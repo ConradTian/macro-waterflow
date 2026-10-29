@@ -56,7 +56,11 @@
 //   claims [cond]                every factual sentence of a step.  cond = { get, from?, until?, set?, vs?, mul?, gt|gte|lt|lte, dateBetween?, dateBefore? }
 
 import { RULE_BY_ID } from '../engine/rules.js';
-const R = (id, k) => RULE_BY_ID[id].params[k];
+// the two big lessons after the main line (own files, own checkers): 汇率 (kind 'fx') and 投资者 (kind 'capstone'). Step field panel:{id,...}
+// mounts an interactive panel (src/ui/lessons.js; contract tools/D-CONTRACT.md 「接线」).
+import { LESSON_FX } from './lesson-fx.js';
+import { LESSON_INVESTOR } from './lesson-investor.js';
+const R =(id, k) => RULE_BY_ID[id].params[k];
 const p0 = x => Math.round(x * 100) + '%';
 const p1 = x => (Math.round(x * 1000) / 10) + '%';
 
@@ -949,7 +953,7 @@ export const LESSONS = [
           { get: 'start:lamp.burst', eq: 'red', note: '溃坝红' }, { get: 'start:cycles.long.fork', eq: 'B2', note: '大周期在 B2 岔路' },
           { get: 'start:lamp.overdraft', ne: 'green', note: '透支亮' },
         ],
-        concept: ['B2', 'dsr', 'interestToTax'], next: 5 },
+        concept: ['B2', 'dsr', 'interestToTax'], next: 'fx' },
     ],
   },
 
@@ -2031,7 +2035,7 @@ export const LESSONS = [
           { text: '主线：小周期 → 降息推不动 → B2 → 大周期 ⑤。降息推得动，信贷回来，回到扩张；推不动，大周期接手。这是两个环之间唯一的连线（第 3 课）', part: 'cycle', hl: ['policyRate', 'newLoans'], term: 'B2' },
           { text: '私人去杠杆（⑤）：政府赤字和央行 QE 两个泵接手补水（⑥，第 4 课）', pipe: ['fiscalInjection', 'qe'], part: 'government', term: 'fiscalInjection' },
           { text: '需求冲过产能，溢出成物价（大周期的 B1 岔路，小周期里是「过热·物价」）；产能只有 Capex 能拓宽，且有滞后；央行加息降温（选学：Capex 与产能）', pipe: ['toConsumption', 'toCapex'], part: 'channel', hl: ['cpi', 'capacity'], term: 'B1' },
-          { text: '新增的水在房、股、债、金之间分配：恐慌逃向国债，通胀时国债下跌，QE 时资产高、物价低（旧版投资者课，新版制作中）', pipe: ['toBond', 'toGold', 'toEquity'], part: 'pool', term: 'assetReservoir' },
+          { text: '新增的水在房、股、债、金之间分配：恐慌逃向国债，通胀时国债下跌，QE 时资产高、物价低（毕业课：投资者）', pipe: ['toBond', 'toGold', 'toEquity'], part: 'pool', term: 'assetReservoir' },
           { text: '小周期（扩张 → 过热 → 收紧 → 降息）在大周期（⑤ → ⑥ → ⑦ → ⑧ → ①）里一圈圈重复，每次降息都要答「推得动吗」，答不动才轮到大周期；每一圈债务更高、利率谷底是否更低，要看规则（本课）', part: 'cycle', term: 'longCycle' },
         ], next: 'w2', freeLink: true },
     ],
@@ -2319,23 +2323,25 @@ export const LESSONS = [
         concepts: ['exports', 'fx', 'shortCycle'] },
     ],
   },
+
+  /* ============================== 两节大课：汇率 → 投资者 (after the main line; m5 -> fx -> inv) ==============================
+   * Data in their own files (src/data/lesson-fx.js, src/data/lesson-investor.js), checked by tools/check_lesson_fx.mjs and
+   * tools/check_lesson_investor.mjs (check_lessons.mjs only checks their place in the course). 汇率 absorbs 世界 1 (now 旧版).
+   */
+  LESSON_FX,
+  LESSON_INVESTOR,
 ];
 
 export const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]));
 
 // The course menu (src/ui/lessons.js), top to bottom. Keys are lesson ids, or 'role:<player>' for the town role lessons.
-//   main      主线 (~1 hour), in order; each hands over to the next (last step `next`)
-//   advanced  选学, after the main line
-//   later     kept in the menu after the main line (世界 1: the FX lesson will absorb it)
-//   soon      placeholders for the next two big lessons (shown disabled, 「制作中」)
-//   legacy    旧版课程 (collapsed group at the bottom): still reachable by ?lesson=ID, nothing removed
+//   main      主线 (~1 hour), in order; each hands over to the next (last step `next`); m5 -> the first `later` lesson
+//   later     the two big lessons right after the main line (汇率 -> 投资者), badges 「推荐 6 / 7」
+//   advanced  选学, after those
+//   legacy    旧版课程 (collapsed group at the bottom): still reachable by ?lesson=ID, nothing removed (世界 1: absorbed by 汇率)
 export const COURSE = {
   main: ['m1', 'm2', 'm3', 'm4', 'm5'],
+  later: ['fx', 'inv'],
   advanced: [5, 7, 'w2'],
-  later: ['w1'],
-  soon: [
-    { key: 'fx', title: '汇率', oneLine: '国境线上的闸：利率是水压，钱往水压高的地方流，汇率跟着变。世界 1 的内容会并进来。' },
-    { key: 'investor', title: '投资者', oneLine: '新水进哪个池子：房、股、债、金，谁在什么天气里涨，谁在什么天气里跌。' },
-  ],
-  legacy: [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 'role:government', 'role:firm', 'role:investor', 'role:foreign', 1, 2, 3, '3b', 4, 6],
+  legacy: [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 'role:government', 'role:firm', 'role:investor', 'role:foreign', 1, 2, 3, '3b', 4, 6, 'w1'],
 };

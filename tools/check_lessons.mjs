@@ -19,7 +19,10 @@
 // 10. town steps  (m1 starts in the 万元 town, then zooms to the US): townClaims [{ at:'before'|'after', get, minus?:'before', gt|gte|lt|lte }] are
 //                 checked on a town replay with the SAME code as the UI (replayTown + the tap); the US steps after the zoom run the usual checks
 // 11. mark / roleCard ids exist; ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
-// 12. handover   m1 -> m2 -> ... -> m5 -> the first 选学 lesson (last step `next`); COURSE lists every lesson / role lesson exactly once
+// 12. handover   m1 -> m2 -> ... -> m5 -> fx (汇率) -> inv (投资者) (last step `next`); COURSE lists every lesson / role lesson exactly once
+// BIG LESSONS (kind:'fx' 汇率, kind:'capstone' 投资者; src/data/lesson-fx.js, lesson-investor.js): their numbers, facts and claims are verified by
+//  tools/check_lesson_fx.mjs / check_lesson_investor.mjs, so the per-step checks above (incl. the world rule 7 "no typed numbers") skip them.
+//  Checked here: 13. place in the course  COURSE.later = fx, inv right after the main line; handovers; country / panel ids / panel hosts
 // Claims may test strings: eq:'red' / ne:'green' (getters 'lamp.<id>', 'lamps.lit', 'out.C', 'gdp.<flow>', '<a>/<b>': see src/ui/lessons-town.js).
 // Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
@@ -67,6 +70,7 @@ const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');
 const MAIN = LESSONS.filter(l => l.kind === 'main');                     // 主线 m1..m5          // numeric ids 1..7 plus half-step cycle lessons ('3b')
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
 const WORLDL = LESSONS.filter(l => l.kind === 'world');                  // 世界 1, 世界 2 ...
+const BIG = LESSONS.filter(l => l.kind === 'fx' || l.kind === 'capstone');   // 汇率, 投资者: own checkers (not in the loop below)
 const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)(>\d{4})?$/.test(g);
 const specRealOk = (g, D) => typeof g === 'string' && g.startsWith('real:') && AGGS.includes(g.split(':')[1]) && !!(D && D.series && Array.isArray(D.series[g.split(':').pop()]));
 const isoOk = c => !!(WORLD && WORLD.countries && WORLD.countries[c]);
@@ -292,7 +296,7 @@ for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
 /* ---------- cross-lesson ---------- */
 console.log('\n--- cross-lesson ---');
 if (pendingSeen.size) console.log('  PENDING concept cards (not written yet, world lessons point at them): ' + [...pendingSeen].join(', '));
-ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LESSONS.length - 2, 'world lessons w1, w2 sit after the cycle lessons');
+ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LESSONS.length - 4, 'world lessons w1, w2 sit after the cycle lessons (then the two big lessons)');
 ok(WORLDL.every(l => l.label && l.title), 'world lessons have label and title');
 ok(CYC.map(l => l.id).join() === '1,2,3,3b,4,5,6,7', 'cycle lessons 1..7 (+ 3b) all present, in order');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
@@ -302,7 +306,35 @@ ok(CYC.every((l, k) => String(l.steps[l.steps.length - 1].next) === String(NEXT_
 /* ---------- main line + menu (COURSE) ---------- */
 ok(MAIN.map(l => l.id).join() === COURSE.main.join() && COURSE.main.join() === 'm1,m2,m3,m4,m5', 'main line m1..m5, in LESSONS in menu order');
 ok(MAIN.every(l => l.available === true), 'main lessons available');
-MAIN.forEach((l, k) => { const nx = l.steps[l.steps.length - 1].next, want = k < MAIN.length - 1 ? MAIN[k + 1].id : COURSE.advanced[0]; ok(String(nx) === String(want), `${l.id} hands over to ${want} (got ${nx})`); });
+MAIN.forEach((l, k) => { const nx = l.steps[l.steps.length - 1].next, want = k < MAIN.length - 1 ? MAIN[k + 1].id : COURSE.later[0]; ok(String(nx) === String(want), `${l.id} hands over to ${want} (got ${nx})`); });
+/* ---------- 13. the two big lessons (汇率 -> 投资者) ---------- */
+{
+  console.log('\n--- big lessons (fx, inv): place in the course; numbers are checked by check_lesson_fx.mjs / check_lesson_investor.mjs ---');
+  const src = f => readFileSync(new URL('../src/ui/' + f, import.meta.url), 'utf8');
+  const ids = (f, name) => { const m = src(f).match(new RegExp(name + ' = \\[([^\\]]*)\\]')); return m ? [...m[1].matchAll(/'([\w-]+)'/g)].map(x => x[1]) : []; };
+  const PANEL_IDS = { fx: ids('fx-lab.js', 'FX_PANELS'), capstone: ids('investor-lab.js', 'INVESTOR_PANEL_IDS') };
+  ok(BIG.map(l => l.id).join() === 'fx,inv' && LESSONS.slice(-2).map(l => l.id).join() === 'fx,inv', 'fx (汇率) and inv (投资者) are registered, last in LESSONS');
+  ok(COURSE.later.join() === 'fx,inv', 'menu: 接下来 = fx, inv (right after the main line)');
+  ok(!('soon' in COURSE), 'no 制作中 placeholders left (COURSE.soon removed)');
+  const [FX, INV] = BIG;
+  ok(FX && FX.kind === 'fx' && FX.label === '汇率' && INV && INV.kind === 'capstone', 'kinds: fx = 汇率, inv = capstone');
+  ok(FX && String(FX.steps[FX.steps.length - 1].next) === 'inv', 'fx hands over to inv (last step next)');
+  ok(INV && INV.steps[INV.steps.length - 1].next == null && (INV.steps[INV.steps.length - 1].panel || {}).id === 'blind', 'inv is the end of the line: its last step shows the 盲测 links (panel blind), no next');
+  ok(INV && INV.country === 'AUS' && COUNTRY_READY.AUS === true && !!DATA.AUS, 'inv lives in the AUS view (country:AUS, COUNTRY_READY.AUS)');
+  for (const L of BIG) {
+    ok(L.available === true && L.rulesOn === 'all' && D_OK(L), `${L.id} available, rulesOn all, startDate in its data`);
+    ok(L.steps.filter(s => s.panel).length >= 5, `${L.id} has panel steps`);
+    L.steps.forEach((st, i) => {
+      if (st.panel) ok(PANEL_IDS[L.kind].includes(st.panel.id), `${L.id} step ${i + 1} panel id ${st.panel.id} exists in ${L.kind === 'fx' ? 'fx-lab.js FX_PANELS' : 'investor-lab.js INVESTOR_PANEL_IDS'}`);
+      if (st.next != null) ok(i === L.steps.length - 1 && lessonIds.has(String(st.next)), `${L.id} step ${i + 1} next ${st.next} (last step, exists)`);
+      if (st.tab) ok(TABS.includes(st.tab), `${L.id} step ${i + 1} tab ${st.tab}`);
+      // hl on a step whose panel covers the diagram is invisible anyway: an id the diagram does not have is only a warning
+      (st.hl || []).forEach(h => (st.panel ? warn : ok)(FLOW_TERMS.includes(h), `${L.id} step ${i + 1} hl ${h}${FLOW_TERMS.includes(h) ? '' : ' (not a data-term of the diagram: no glow)'}`));
+      [...(st.concept || []), ...(st.concepts || [])].forEach(c => ok(CONCEPTS[c], `${L.id} step ${i + 1} concept ${c}`));
+    });
+  }
+}
+function D_OK(L) { const D = DATA[L.country || 'USA']; return !!D && D.dates.includes(L.startDate); }
 ok(MAIN[0].scenario === 'town' && MAIN[0].steps.findIndex(s => s.type === 'zoom') === 3, 'm1: steps 1-2 in the town, step 3 zooms to the US');
 const mainSteps = MAIN.reduce((a, l) => a + l.steps.length, 0);
 ok(mainSteps <= 32, `main line is about an hour: ${mainSteps} steps (<= 32, ~2 min each)`);
@@ -316,8 +348,9 @@ ok(new Set(menuKeys).size === menuKeys.length, 'COURSE lists no lesson twice');
 for (const l of LESSONS) ok(menuKeys.includes(String(l.id)), `lesson ${l.id} is in the menu (COURSE)`);
 for (const l of ROLE_LESSONS) ok(menuKeys.includes('role:' + l.role), `role lesson ${l.id} is in the menu (旧版)`);
 for (const k of menuKeys) ok(k.startsWith('role:') ? ROLE_LESSONS.some(l => l.role === k.slice(5)) : LESSONS.some(l => String(l.id) === k), 'menu key exists: ' + k);
-ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,6', '旧版课程 = lesson 0, 0.5, the 7 role lessons and cycle lessons 1-4 (+3b), 6');
-ok(COURSE.advanced.join() === '5,7,w2' && COURSE.later.join() === 'w1' && COURSE.soon.map(s => s.title).join() === '汇率,投资者', '选学 = 5, 7, w2; then 世界 1 and the two 制作中 placeholders');
+ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,6,w1', '旧版课程 = lesson 0, 0.5, the 7 role lessons, cycle lessons 1-4 (+3b), 6 and 世界 1 (absorbed by 汇率)');
+ok(COURSE.advanced.join() === '5,7,w2', '选学 = 5 (Capex 与产能), 7 (自由运行), w2 (澳洲)');
+ok(Object.keys(COURSE).join() === 'main,later,advanced,legacy', 'menu groups in order: 主线, 接下来 (fx, inv), 选学, 旧版');
 ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
 ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
 const L7 = CYC[CYC.length - 1];

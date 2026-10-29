@@ -296,6 +296,24 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 .ls-freebtn { display: block; margin: 10px 0 4px; text-align: center; text-decoration: none; border: 1px dashed var(--accent); color: var(--accent); border-radius: 10px; padding: 10px; font-weight: 600; }
 @media (max-width: 480px) { .ls-res.ls-all { font-size: 12px; } .ls-res.ls-all th, .ls-res.ls-all td { padding: 4px 3px; } }
 
+/* =====================================================================
+   Step field panel:{id,...} (the big lessons 汇率 / 投资者; src/ui/lessons.js syncPanel, contract tools/D-CONTRACT.md 「接线」).
+   'diagram' host = #ls-panel over the water-diagram column (like the curves view: the flow DOM stays underneath, hidden, so
+   highlights keep working); the 曲线 toggle and the curves view are hidden while it is up. 'card' host = .ls-pnl-card in the card body;
+   the card may then grow taller on iPad (.ls-pcard) so the panel gets room next to the visible diagram.
+   ===================================================================== */
+#diagram.ls-pnl-on > .flow-wrap { visibility: hidden; }
+#diagram.ls-pnl-on > .view-toggle, #diagram.ls-pnl-on > .wvw { display: none; }
+.ls-pnl-dia { position: absolute; inset: 0; z-index: 32; background: var(--surface); text-align: left; box-sizing: border-box;
+  overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.ls-pnl-dia[data-kind="fx"] { overflow: hidden; display: flex; flex-direction: column; }      /* .fxp scrolls inside itself (max-height: 100%) */
+.ls-pnl-dia[data-kind="fx"] > .fxp { flex: 1 1 auto; min-height: 0; }
+.ls-pnl-dia[data-kind="inv"] { padding: 10px 12px 18px; }
+.ls-pnl-card { margin: 10px 0 4px; padding-top: 8px; border-top: 1px dashed var(--border); min-width: 0; }
+@media (min-width: 768px) {
+  .ls-card.ls-pcard:not(.collapsed) { max-height: 72%; }
+}
+
 /* world lessons: the 地图 page (#world-map, position:fixed, own module) must not hide behind the lesson card (--ls-h = card height, --tb-h = tab bar).
    On every width the map ends above the lesson card, so a box the lesson selects is never covered (the map scales down to fit). */
 body.lesson-on .wm:not([hidden]) .wm-body { padding-bottom: calc(var(--ls-h, 0px) + var(--tb-h, 0px)); }
