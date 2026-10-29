@@ -1,0 +1,50 @@
+{
+ "chinabond/cgb_curve.csv": {
+  "url": "https://yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery?startDate=YYYY-01-01&endDate=YYYY-12-31&gjqx=0&qxId=ycqx&locale=cn_ZH",
+  "date": "2026-10-29",
+  "note": "ChinaBond CGB yield curve (中债国债收益率曲线), percent, daily, years 2002-2025; parsed from the HTML table",
+  "bytes": 337584
+ },
+ "csindex/H00300.csv": {
+  "url": "https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=H00300&startDate=20020101&endDate=20251231",
+  "date": "2026-10-29",
+  "note": "CSI 300 Total Return Index (沪深300全收益), daily close",
+  "bytes": 112915
+ },
+ "csindex/000300.csv": {
+  "url": "https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=000300&startDate=20020101&endDate=20251231",
+  "date": "2026-10-29",
+  "note": "CSI 300 price index (沪深300), daily close + P/E (peg, from 2011-06)",
+  "bytes": 126482
+ },
+ "oecd/finmark.csv": {
+  "url": "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,4.0/CHN+USA+JPN+AUS.M........?startPeriod=1990-01",
+  "date": "2026-10-29",
+  "note": "OECD Financial market indicators, monthly: IR3TIB 3-month rate, IRLT 10y gov yield, SHARE share price index, CC FX",
+  "bytes": 279078
+ },
+ "local/kenfrench_monthly.csv": {
+  "url": "copied from ../dalio_432/data/kenfrench_monthly.csv",
+  "date": "2026-10-26",
+  "note": "Ken French US market MKT_RF+RF monthly (dalio_432 processed copy of the F-F 3 factors)",
+  "bytes": 64906
+ },
+ "local/shiller_monthly.csv": {
+  "url": "copied from ../dalio_432/data/shiller_monthly.csv",
+  "date": "2026-10-26",
+  "note": "Shiller monthly P, D, E, CPI, CAPE (dalio_432 processed copy of ie_data.xls)",
+  "bytes": 195839
+ },
+ "local/fred_UNRATE_2026-10-26.csv": {
+  "url": "copied from ../dalio_432/cache/fred_UNRATE_2026-10-26.csv",
+  "date": "2026-10-26",
+  "note": "FRED UNRATE US unemployment rate, monthly SA",
+  "bytes": 14211
+ },
+ "local/fred_DTB3_2026-10-26.csv": {
+  "url": "copied from ../dalio_432/cache/fred_DTB3_2026-10-26.csv",
+  "date": "2026-10-26",
+  "note": "FRED DTB3 US 3-month T-bill, daily, 1954+ (within-year timing of the short rate)",
+  "bytes": 301441
+ }
+}
