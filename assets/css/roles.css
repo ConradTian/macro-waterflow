@@ -1,0 +1,30 @@
+/* Role cards (AB-CONTRACT A1): the compact 4-line card on top of a role's concept card, in the 接管 tab and (via roleCardHtml) elsewhere.
+   Only tokens (--pn-* / --c-*, already dark-aware in app.css / panels.css), so light is the default and dark follows the theme. */
+.rc { --rc: var(--pn-accent, #2563eb); margin: 6px 0 10px; padding: 6px 10px 7px; background: var(--pn-bg, var(--bg, #f3f5f8));
+  border: 1px solid var(--pn-border, #d6dce6); border-left: 4px solid var(--rc); border-radius: 8px; font-size: 12.5px; line-height: 1.45; max-width: 100%; }
+.rc-centralBank { --rc: var(--c-fiscal, #8a3fb0); } .rc-bank { --rc: var(--c-credit, #1f6fc2); } .rc-household { --rc: var(--c-housing, #a4622b); }
+.rc-firm { --rc: var(--c-capex, #b08900); } .rc-government { --rc: var(--c-fiscal, #8a3fb0); } .rc-investor { --rc: var(--c-financial, #0c8f7e); }
+.rc-foreign { --rc: var(--c-border, #be185d); } .rc-economy { --rc: var(--c-goods, #2a9547); }
+.rc-h { display: flex; align-items: center; gap: 6px; margin: 0 0 3px; font-size: 13px; font-weight: 700; color: var(--pn-text, var(--text, #1b2330)); }
+.rc-mark { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; border-radius: 50%;
+  background: var(--rc); color: #fff; font-size: 11px; font-weight: 700; }
+.rc-s { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--pn-muted, var(--muted, #5f6b7c)); }
+.rc-rows { margin: 0; }
+.rc-row { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 0 8px; padding: 2px 0; border-top: 1px dotted var(--pn-border, #d6dce6); }
+.rc-row:first-child { border-top: 0; }
+.rc-row dt { margin: 0; font-size: 11.5px; font-weight: 600; color: var(--rc); white-space: nowrap; }
+.rc-row dd { margin: 0; color: var(--pn-text, var(--text, #1b2330)); overflow-wrap: anywhere; }
+.rc .term { padding: 2px 1px; }                       
+
+/* phone: a little tighter so the card does not push the 是什么 line off the first screen */
+@media (max-width: 767.98px) {
+  .rc { padding: 5px 8px 6px; font-size: 12px; }
+  .rc-row { grid-template-columns: 4.2em minmax(0, 1fr); gap: 0 6px; }
+}
+
+/* 接管 tab */
+.tk-rolecard .rc { margin: 8px 0; }
+.tk-cards { margin: 8px 0; }
+.tk-cards > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-size: 13px; color: var(--pn-accent, #2563eb); }
+.rc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.rc-grid .rc { margin: 0; }

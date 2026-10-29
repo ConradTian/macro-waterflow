@@ -5,6 +5,7 @@ import { currentSim } from './flow.js';       // the sim that is on screen (US o
 import { chainHtml, highlightTargets, pushBadges, playScript, checkPlan, cachedCheck, runCheckAsync, stepStatus, chipName } from './causal-view.js';   // 传导链 block (pure)
 import { currentCountry, fmtBnShort, localizeText } from './country-info.js';
 import * as overlay from './causal-overlay.js';                // arrow badges + ▶ playback on the diagram
+import { roleCard, roleOfConcept, ROLE_KEYWORDS } from '../data/role-cards.js';   // 角色卡 (AB-CONTRACT A1)
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let opts = { getSnap: () => null, getPrev: null, sim: null };
@@ -40,6 +41,42 @@ export function linkify(text) {
     last = m.index + m[0].length;
   }
   return out + esc(t.slice(last));
+}
+
+// role cards: the same keyword links, plus a few words that are only linked inside a card (ROLE_KEYWORDS); longest first
+const RK = [...KEYWORDS, ...ROLE_KEYWORDS].sort((a, b) => b[0].length - a[0].length);
+const RK_RE = new RegExp(RK.map(k => k[0].replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|'), 'g');
+const RK_MAP = Object.fromEntries(RK);
+function linkifyRole(text) {
+  const t = String(text ?? '');
+  let out = '', last = 0, m;
+  RK_RE.lastIndex = 0;
+  while ((m = RK_RE.exec(t))) {
+    out += esc(t.slice(last, m.index)) + term(RK_MAP[m[0]], m[0]);
+    last = m.index + m[0].length;
+  }
+  return out + esc(t.slice(last));
+}
+
+/**
+ * The compact 4-line role card as HTML (a <section class="rc">), every known term a clickable concept link.
+ *   role: 'centralBank' | 'bank' | 'household' | 'firm' | 'government' | 'investor' | 'foreign' | 'economy' (整个经济, the 8th card)
+ *   iso : country ('USA' | 'AUS' ...), default = the country on screen. Returns '' for an unknown role.
+ * Styles: assets/css/roles.css (loaded by initConcepts). Links open through the document-level [data-term] click handler of initConcepts().
+ */
+export function roleCardHtml(role, iso) {
+  const c = roleCard(role, iso || currentCountry(opts.sim));
+  if (!c) return '';
+  return `<section class="rc rc-${esc(role)}" data-role="${esc(role)}" aria-label="${esc(c.title)}的角色卡">` +
+    `<h3 class="rc-h"><span class="rc-mark" aria-hidden="true">${esc(c.mark)}</span><span class="rc-t">${esc(c.title)}</span>` +
+    `<span class="rc-s">${esc(c.sub || '角色卡')}</span></h3>` +
+    `<dl class="rc-rows">${c.rows.map(r => `<div class="rc-row"><dt>${esc(r.k)}</dt><dd>${linkifyRole(r.v)}</dd></div>`).join('')}</dl></section>`;
+}
+// the card that belongs on top of concept card `id` ('' when it has none; the 外国人 card only where the country has a border block)
+function roleOnTop(id, snap) {
+  const role = roleOfConcept(id);
+  if (!role || (role === 'foreign' && !(snap && snap.border))) return '';
+  return roleCardHtml(role, isoOf(snap));
 }
 
 function getPath(o, p) { return p.split('.').reduce((a, k) => (a == null ? a : a[k]), o); }
@@ -277,6 +314,7 @@ function draw(keep) {
     `<button type="button" class="cc-btn" data-cc-close aria-label="关闭">✕ 关闭</button></header>` +
     crumbs +
     `<h2 class="cc-title">${esc(c.name)}</h2>` +
+    roleOnTop(id, snap) +
     // 是什么 -> 当前值 -> 水尺 -> 传导链 -> 为什么现在是这个值 -> 水的比喻 -> 更多
     `<p class="cc-short"><span class="cc-tag">是什么</span>${esc(L(c.short))}</p>` +
     liveHtml(c) +
@@ -312,7 +350,7 @@ export function close() {
 export function refreshConcepts() { if (root && !root.hidden && stack.length) draw(true); }
 
 function ensureCss() {
-  for (const f of ['panels.css', 'concept-hl.css', 'causal.css']) {
+  for (const f of ['panels.css', 'concept-hl.css', 'causal.css', 'roles.css']) {
     if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) continue;
     const l = document.createElement('link');
     l.rel = 'stylesheet';

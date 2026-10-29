@@ -199,7 +199,6 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .ticks path { stroke: var(--muted); stroke-opacity: .6; stroke-width: 1; }
 .flow-svg .link { stroke: var(--c-credit); stroke-width: 1.4; stroke-dasharray: 2 2; fill: none; }
 .flow-svg .caption { fill: var(--muted); font-size: 9px; }
-.flow-svg .lvlpill rect { fill: none; stroke: var(--muted); stroke-opacity: .6; stroke-dasharray: 2 2; }
 .flow-svg .capmark { fill: var(--c-capex); opacity: .75; transition: transform .6s; }
 .flow-svg .emptyspring circle { fill: none; stroke: var(--muted); stroke-dasharray: 2 2.5; }
 .flow-svg .emptyspring path { stroke: var(--muted); stroke-width: 1; opacity: .6; }
@@ -261,9 +260,9 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .hit { fill: transparent; stroke: none; }
 .flow-svg g.term { cursor: pointer; }
 .flow-svg g.term text:first-of-type { text-decoration: underline dotted; text-underline-offset: 2px; }
-/* 欠条箱: 占 GDP reading (the number the long-cycle dial reads); on phones the two captions are hidden, so it moves up under the title */
-.flow-svg .cap.gdp { fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-@media (max-width: 767.98px) { .flow-svg .iou-gdp { transform: translateY(-14px); } }
+/* 欠条 / 水 readings under the two tanks (占 GDP; the 欠条 one is the number the long-cycle dial reads) */
+.flow-svg .cap.gdp { fill: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-svg .cap.gdp.debt { fill: var(--c-debt); }
 .flow-svg g.term:active .bg { fill: var(--surface-2); }
 .flow-svg .dangling { display: none; }
 
@@ -335,8 +334,8 @@ button.term:hover { text-decoration-style: solid; }
 .flow-wrap.zoom-out .fb-unit { opacity: 0; }
 .flow-budget .fb-eq { margin-top: 2px; font-size: 12px; }
 .flow-budget .fb-grp { white-space: nowrap; }
-.flow-budget .fb-grp.pump .fb-k { color: var(--c-fiscal); font-weight: 700; }
-.flow-budget .fb-grp.drain .fb-k { color: var(--c-repay); font-weight: 700; }
+.flow-budget .fb-grp.pump .fb-k { color: var(--c-pump); font-weight: 700; }
+.flow-budget .fb-grp.drain .fb-k { color: var(--c-drain); font-weight: 700; }
 .flow-budget .fb-minus { font-weight: 800; color: var(--muted); }
 .flow-budget button.term { font-size: inherit; }
 @media (max-width: 420px) { .flow-budget { font-size: 11.5px; padding: 4px 8px 5px; } .flow-budget .fb-eq { font-size: 11px; } .flow-budget .fb-net { font-size: 13px; } }
@@ -601,4 +600,100 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
   .timebar { gap: 4px; }
   .icon-btn { min-width: 34px; }
   .badge { flex: none; }
+}
+
+/* =====================================================================================================================
+   A+B package (tools/AB-CONTRACT.md; flow.js): three pipe colours, 收入循环 loop, 欠条 tank, channel bank + 断面 inset, 4 outlets,
+   历史正常区间 bands, chip popover. Colours only from tokens; dark rules guarded like the rest of this file.
+   ===================================================================================================================== */
+:root {
+  --c-pump: #1f6fc2;      /* pumps: create water (blue +) */
+  --c-drain: #d33f3f;     /* drains: destroy water (red −) */
+  --c-pipe: #8792a2;      /* every other pipe: only moves water (grey) */
+  --c-debt: #4b5bd6;      /* 欠条 tank water */
+  --c-bank: #8a6a3c;      /* river banks (earth) */
+  --c-band: rgba(27, 35, 48, .14);   /* 历史正常区间 band */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --c-pump: #5aa7ee; --c-drain: #ef6b6b; --c-pipe: #8e9aab; --c-debt: #8f9cf0; --c-bank: #c9a26b; --c-band: rgba(230, 235, 242, .16); }
+}
+:root[data-theme="dark"] { --c-pump: #5aa7ee; --c-drain: #ef6b6b; --c-pipe: #8e9aab; --c-debt: #8f9cf0; --c-bank: #c9a26b; --c-band: rgba(230, 235, 242, .16); }
+
+/* B5: one colour per kind of pipe (overrides the old per-category --pc; the pools keep their water colours) */
+.flow-svg .pc-pump { --pc: var(--c-pump); }
+.flow-svg .pc-drain { --pc: var(--c-drain); }
+.flow-svg .pc-pipe { --pc: var(--c-pipe); }
+.flow-svg .pc-pipe .bed { opacity: .3; }
+.flow-svg .drain.mini .sign { stroke: var(--pc); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+.flow-svg .legend .pipeline { stroke: var(--c-pipe); }
+.flow-svg .cap.lg-pump { fill: var(--c-pump); font-weight: 700; }
+.flow-svg .cap.lg-drain { fill: var(--c-drain); font-weight: 700; }
+
+/* B2: 收入循环 loop behind the income pipes */
+.flow-svg .loop-ring { fill: none; stroke: var(--c-goods); stroke-opacity: .32; stroke-width: 10; stroke-linejoin: round; }
+.flow-svg .loop-arr { fill: var(--c-goods); fill-opacity: .85; }
+.flow-svg .loop-lbl rect { fill: var(--surface); fill-opacity: .92; stroke: var(--c-goods); stroke-opacity: .6; stroke-width: 1; }
+.flow-svg .loop-lbl text { fill: var(--c-goods); font-weight: 700; }
+
+/* B3: 欠条 tank */
+.flow-svg .water.debt { fill: var(--c-debt); fill-opacity: .42; }
+.flow-svg .node.tank.iou { stroke: var(--c-debt); stroke-opacity: .7; stroke-width: 1.4; }
+.flow-svg .ticks.pair path { stroke: var(--muted); stroke-width: 1; stroke-opacity: .7; }
+.flow-svg .ticks.pair path.one { stroke: var(--text); stroke-width: 1.4; }
+
+/* B1: channel bank line + 溢出 tint (plan view), 断面 inset */
+.flow-svg .ch-bank { fill: none; stroke: var(--c-bank); stroke-width: 1.6; }
+.flow-svg .ch-over { fill: var(--c-drain); fill-opacity: .28; }
+.flow-svg .sec-bg { fill: var(--surface); fill-opacity: .94; stroke: var(--border); stroke-width: 1; }
+.flow-svg .sec-t { fill: var(--text); font-weight: 700; }
+.flow-svg .sec-ground { fill: var(--c-bank); fill-opacity: .18; stroke: none; }
+.flow-svg .sec-bank { fill: none; stroke: var(--c-bank); stroke-width: 1.6; stroke-linejoin: round; }
+.flow-svg .sec-over { fill: var(--c-drain); fill-opacity: .45; }
+.flow-svg .sec-dim { fill: none; stroke: var(--text); stroke-opacity: .7; stroke-width: .9; }
+.flow-svg .sec-n { fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.flow-svg .sec-s { font-weight: 700; }
+.flow-svg .sec-s.idle { fill: var(--muted); }
+.flow-svg .sec-s.over { fill: var(--c-drain); }
+.flow-svg g.sec.term text:first-of-type { text-decoration: underline dotted; }
+
+/* A2: outlets under the channel */
+.flow-svg .chip.outc rect.bg { stroke-width: 1.4; }
+.flow-svg .chip.outc text { font-variant-numeric: tabular-nums; font-weight: 700; }
+.flow-svg .cap.oname { fill: var(--text); font-weight: 600; }
+.flow-svg .cap.gdpln { fill: var(--text); font-weight: 700; }
+.flow-svg .ph-only { display: none; }
+
+/* B6: 历史正常区间 band + 贵 / 便宜 tag */
+.flow-svg .vband { pointer-events: none; }
+.flow-svg .vb-fill { fill: var(--c-band); }
+.flow-svg .vb-edge { fill: none; stroke: var(--text); stroke-opacity: .45; stroke-width: .9; }      /* solid: the 洪痕 lines are the dashed ones */
+.flow-svg .vb-bar { fill: var(--text); fill-opacity: .55; }
+.flow-svg .cap.vstat { font-weight: 800; }
+.flow-svg .cap.vstat.hi { fill: var(--lamp-red); }
+.flow-svg .cap.vstat.lo { fill: var(--lamp-green); }
+.flow-svg .cap.vstat.ok { fill: var(--muted); }
+
+/* A3: 实际利率 */
+.flow-svg .sub.neg { fill: var(--c-drain); }
+
+/* B4: chip popover (amounts) */
+.flow-svg g.chip { cursor: pointer; }
+.flow-cpop { position: absolute; z-index: 21; background: var(--surface); border: 1.5px solid var(--c-pipe); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 8px 12px 10px; font-size: 13px; max-height: 88%; overflow-y: auto; }
+.flow-cpop[hidden] { display: none; }
+.flow-cpop h4 { margin: 0 0 4px; font-size: 15px; }
+.flow-cpop .fp-kind { font-size: 11px; color: var(--muted); font-weight: 700; padding-right: 30px; }
+.flow-cpop .fp-x { position: absolute; top: 2px; right: 2px; width: 36px; height: 36px; border: 0; background: none; font-size: 16px; color: var(--muted); cursor: pointer; }
+.flow-cpop .cp-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px dashed var(--border); }
+.flow-cpop .cp-row b { font-variant-numeric: tabular-nums; }
+.flow-cpop .cp-note { margin-top: 4px; padding-top: 5px; border-top: 1px dashed var(--border); color: var(--muted); font-size: 12px; line-height: 1.45; }
+.flow-cpop .fp-btns { margin-top: 8px; }
+.flow-cpop .btn { min-height: 36px; padding: 0 12px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 767.98px) {
+  .flow-svg .ph-only { display: inline; }
+  /* the outlets row took the corner pill's slot: the 净出口 chip is the border gate on phones (flow.js syncNxGate) */
+  .flow-svg .bd-p { display: none; }
+  .flow-svg.has-border .chip[data-bd="pill"] rect.bg { stroke: var(--c-border); stroke-dasharray: 4 2.5; stroke-width: 1.6; }
+  .flow-svg .sec-dim { stroke-width: 1.1; }
 }

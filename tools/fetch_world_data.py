@@ -194,6 +194,14 @@ def fetch_misc():
         print("  FAIL ons", e)
 
 
+def fetch_population():
+    """World Bank SP.POP.TOTL (total population, annual) for the six economies, 1995-latest: the per-person score of the objective strip."""
+    ind = "SP.POP.TOTL"
+    url = (f"https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/{ind}"
+           "?format=json&per_page=20000&date=1995:2026")
+    save("worldbank", f"{ind}.json", get(url), url, "World Bank WDI total population (EMU = euro area aggregate); mid-year estimates")
+
+
 def copy_gold():
     """Gold monthly USD price: reuse the read-only copy from the parent research project (same file the US data uses)."""
     import shutil
@@ -205,7 +213,7 @@ def copy_gold():
         LOG.append((f"gold/{src.name}", "copied from ../dalio_432/cache (originally datasets/gold-prices monthly, GitHub)", "2026-10-26", "", src.stat().st_size))
 
 
-SOURCES = {"gold": copy_gold, "bis": fetch_bis, "fred": fetch_fred, "imf": fetch_imf, "oecd": fetch_oecd, "misc": fetch_misc}
+SOURCES = {"gold": copy_gold, "bis": fetch_bis, "fred": fetch_fred, "imf": fetch_imf, "oecd": fetch_oecd, "misc": fetch_misc, "population": fetch_population}
 
 if __name__ == "__main__":
     which = sys.argv[1:] or list(SOURCES)

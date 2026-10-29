@@ -1,11 +1,13 @@
 // 接管 tab: take over ONE role (central bank working), rule list with toggles, real/model/user comparison.
 import { esc, pct, num, PLAYERS, playerOf, compareChart, dataNoteHtml } from './_util.js';
 import { pctFmt } from '../chart.js';
-import { linkify, term } from '../concepts.js';
+import { linkify, term, roleCardHtml } from '../concepts.js';
+import { ROLE_CARD_ORDER } from '../../data/role-cards.js';
 import { currentCountry, localizeText } from '../country-info.js';
 import { ROLE_ORDER, ROLE_NAME, isRoleLearned, roleHasLesson, requestRoleLesson } from '../links.js';
 
 let rate = null;        // user's pending policy rate (decimal)
+let cardsOpen = false;  // the 所有角色卡 fold (the tab is redrawn every quarter)
 const OPEN = ['centralBank'];
 const NOT_VISIBLE = ['银行内部的资本比率与坏账率', '家庭 DSR / LVR 的真实分布', '资产缓冲池的水位（房价与资产估值是否偏离）', '企业 Capex 管道与实际产能', '外部冲击（油价、海外需求）将来会不会来'];
 
@@ -58,6 +60,14 @@ function rulesHtml(sim) {
   }).join('');
 }
 
+// 角色卡: the card of the role you take over (the open one, 央行, until you pick), then a fold with all of them (外国人 only where the country has a border block)
+function cardsHtml(sim, s, taken) {
+  const iso = currentCountry(sim);
+  const all = ROLE_CARD_ORDER.filter(r => r !== 'foreign' || s.border).map(r => roleCardHtml(r, iso)).join('');
+  return `<div class="tk-rolecard">${roleCardHtml(taken || 'centralBank', iso)}</div>` +
+    `<details class="tk-cards"${cardsOpen ? ' open' : ''}><summary>所有角色的角色卡（${ROLE_CARD_ORDER.filter(r => r !== 'foreign' || s.border).length} 张）</summary><div class="rc-grid">${all}</div></details>`;
+}
+
 export function render(container, ctx) {
   const { sim, snap: s } = ctx, taken = sim.takenOver;
   const picks = Object.keys(PLAYERS).map(p => {
@@ -97,9 +107,12 @@ export function render(container, ctx) {
     <div class="pn-chips" role="group" aria-label="选择角色">${picks}</div>
     <div class="tk-learn" aria-label="角色课进度">${learnRow()}</div>
     ${taken ? '<button type="button" class="tk-exit" id="tk-exit">退出接管</button>' : ''}
+    ${cardsHtml(sim, s, taken)}
     ${main}
     <h3 class="pn-h">规则清单 <small>可逐条开关，看效果</small></h3><div class="tk-rules">${rulesHtml(sim)}</div></section>`;
 
+  const fold = container.querySelector('.tk-cards');
+  if (fold) fold.addEventListener('toggle', () => { cardsOpen = fold.open; });
   const redo = () => render(container, ctx);
   container.querySelectorAll('[data-learn]').forEach(b => b.addEventListener('click', () => requestRoleLesson(b.dataset.learn)));
   container.querySelectorAll('[data-pick]:not([disabled])').forEach(b => b.addEventListener('click', () => { rate = null; sim.takeover(b.dataset.pick); redo(); }));

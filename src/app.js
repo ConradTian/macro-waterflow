@@ -3,6 +3,7 @@
 import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
 import { renderHeadline } from './ui/headline.js';   // 本季看点 strip under the time bar
+import { renderObjective } from './ui/objective.js';   // 总目标 strip (每人真实消费 + four penalty lamps) above the 本季看点 strip
 import { initScrubber } from './ui/scrubber.js';     // collapsible time scrubber under the progress line
 import { setActiveCountry, registerCountryData } from './ui/country-info.js';   // unit / name / data-source labels of the country view
 
@@ -426,6 +427,7 @@ function renderAll() {
   renderFlow($('diagram'), snap, prevSnap);
   if (!wvEl) buildViewDom();                         // after the first renderFlow: it empties #diagram once when it builds the SVG
   renderView();
+  try { renderObjective($('objective'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   renderTab();
   if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers

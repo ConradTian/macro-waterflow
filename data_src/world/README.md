@@ -49,6 +49,7 @@ IMF data comes from the official `api.imf.org` SDMX endpoint (the older DataMapp
 | `worldbank/NE.EXP.GNFS.ZS.json` | https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/NE.EXP.GNFS.ZS?format=json&per_page=20000&date=1995:2025 | 2026-10-29 | World Bank WDI |
 | `worldbank/NE.IMP.GNFS.ZS.json` | https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/NE.IMP.GNFS.ZS?format=json&per_page=20000&date=1995:2025 | 2026-10-29 | World Bank WDI |
 | `worldbank/SL.UEM.TOTL.ZS.json` | https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/SL.UEM.TOTL.ZS?format=json&per_page=20000&date=1995:2025 | 2026-10-29 | World Bank WDI |
+| `worldbank/SP.POP.TOTL.json` | https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/SP.POP.TOTL?format=json&per_page=20000&date=1995:2026 | 2026-10-29 | World Bank WDI total population (EMU = euro area aggregate); mid-year estimates; fetch with `fetch_world_data.py population` |
 
 ## Not downloaded / unreachable
 

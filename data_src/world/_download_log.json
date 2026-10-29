@@ -250,5 +250,11 @@
   "date": "2026-10-26",
   "note": "",
   "bytes": 35730
+ },
+ "worldbank/SP.POP.TOTL.json": {
+  "url": "https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/SP.POP.TOTL?format=json&per_page=20000&date=1995:2026",
+  "date": "2026-10-29",
+  "note": "World Bank WDI total population (EMU = euro area aggregate); mid-year estimates",
+  "bytes": 37109
  }
 }

@@ -16,9 +16,24 @@
 //
 // Snapshot fields used (all optional, graceful fallbacks when an older engine snapshot lacks them):
 //   flows.{toEquity,toBond,toGold,rent,dividends,coupons,qt,govSurplusDrain,fiscalDrain}, assets.*.level, budget, iou, town, extra.qeOn.
+//
+// A+B package (tools/AB-CONTRACT.md, 2026-10-29):
+//   B1 goods channel = width x depth: river width = capacity, water depth = demand / capacity (1 + macro.demandPressure) against a fixed bank line;
+//      a 断面 inset (cross-section) shows width, depth and freeboard (超高 = 闲置（失业）, 漫顶 = 溢出（通胀）).
+//   A2 four outlets under the channel (家庭消费 / 企业投资 / 政府购买 / 净出口) = PIPES entries 'outC' 'outI' 'outG' 'outNX' (before the border pipes).
+//      They read household.consumption, firm.capex (annual, /4), the engine's gross flows.govPurchases and border.netExports. The engine builds GDP
+//      from aggregate demand, not as C+I+G+NX: the four sum to ~84% of GDP (US) / ~90% (AUS); the tap popover states the gap.
+//   B2 one big 收入循环 loop arrow (household -> channel -> firm -> household) behind the income pipes.
+//   B3 欠条 tank beside the 现金 (= all water) tank, both on ONE scale (% of GDP), labelled 欠条 x% / 水 y% (占 GDP).
+//   B4 every chip shows % of GDP, annualised (quarterly flow x 4 / GDP; the town keeps 万元). Tap a chip: popover with the amounts.
+//   B5 pipe colours: pump = blue +, drain = red -, every other pipe grey (classes pc-pump / pc-drain / pc-pipe, tokens in app.css).
+//   B6 asset pools: 历史正常区间 band (middle half, p25-p75, of the history-mode run 1995-2021 of the same country); above = 贵, below = 便宜.
+//   A3 实际利率 (rates.realPolicy) next to 政策利率, tappable (realRate card).
 
 import { CONCEPTS } from '../data/concepts.js';
-import { countryInfo, currentCountry } from './country-info.js';
+import { countryInfo, currentCountry, countryData, fmtBn } from './country-info.js';
+import { createSim } from '../engine/sim.js';
+import { US_Q } from '../data/us-quarterly.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const VB_W = 390, VB_H = 472;
@@ -64,6 +79,13 @@ const POOLS = [
   { id: 'gold',    part: 'poolGold',    x: 160, name: '黄金',     term: 'goldAsset',   cls: 'gold',    spring: null },
 ];
 const poolCx = p => p.x + TANK_W / 2;
+// 欠条 + 现金 tanks side by side (B3), then the goods channel frame. CH_CX = centre of the river (its width = capacity).
+const IOU_X = 209, CASH_X = 229, PAIR_W = 18;
+const CH_X0 = 254, CH_W = 130, CH_CX = 319;
+// channel: bank line (河岸) in the plan view; water depth r = 1 at the bank. Interior bottom = TANK_Y + TANK_H - 4.
+const CH_BOT = TANK_Y + TANK_H - 4, BANK_Y = 316;
+// 断面 inset (cross-section) inside the channel, right side
+const SEC = { x: 312, y: 297, w: 70, h: 91, cx: 347, top: 318, bed: 338 };
 
 // PIPES. pts follow flow direction. chip = [x, y, anchor]. kind: pump | drain | pipe | buy | capex | spring | fb.
 // from / to = endpoint part ids (used to hide pipes that would dangle when a lesson hides both ends).
@@ -82,12 +104,19 @@ const PIPES = [
   { k: 'toEquity',        part: 'pool poolEquity',  cls: 'equity',  kind: 'buy', label: '股票', term: 'assetReservoir',   pts: [[100, 218], [100, 274]],                      chip: [101, 232, 'middle'], from: 'household', to: 'poolEquity' },
   { k: 'toHousing',       part: 'pool poolHousing', cls: 'housing', kind: 'buy', label: '房产', term: 'assetReservoir',   pts: [[142, 218], [142, 274]],                      chip: [143, 252, 'middle'], from: 'household', to: 'poolHousing' },
   { k: 'toGold',          part: 'pool poolGold',    cls: 'gold',    kind: 'buy', label: '黄金', term: 'assetReservoir',   pts: [[183, 218], [183, 274]],                      chip: [184, 232, 'middle'], from: 'household', to: 'poolGold' },
-  { k: 'toCash',          part: 'cash',        cls: 'cash',    kind: 'pipe',  label: '现金',                               pts: [[221, 218], [221, 274]],                      chip: [221, 404, 'middle'], from: 'household', to: 'cash', minor: true },
-  { k: 'toConsumption',   part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '消费',                               pts: [[252, 218], [252, 274]],                      chip: [248, 252, 'end'], from: 'household', to: 'channel' },
-  { k: 'wages',           part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '工资',                               pts: [[270, 274], [270, 218]],                      chip: [274, 244, 'start'], from: 'channel', to: 'household' },
-  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[304, 274], [304, 218]],                      chip: [308, 228, 'start'], from: 'channel', to: 'firm' },
-  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[338, 218], [338, 274]],                      chip: [338, 262, 'middle'], from: 'firm', to: 'channel' },
-  { k: 'spillToGoods',    part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '溢出',                               pts: [[232, 352], [244, 352]],                      chip: [238, 340, 'middle'], from: 'cash', to: 'channel', minor: true, nochip: true },
+  { k: 'toCash',          part: 'cash',        cls: 'cash',    kind: 'pipe',  label: '现金',                               pts: [[238, 218], [238, 274]],                      chip: [238, 234, 'middle'], from: 'household', to: 'cash', minor: true },
+  // only the household's EXTRA spending paid with new water (credit + part of the deficit), not consumption C (that is the outlet 'outC')
+  { k: 'toConsumption',   part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '新水消费',                           pts: [[260, 218], [260, 274]],                      chip: [256, 252, 'end'], from: 'household', to: 'channel' },
+  { k: 'wages',           part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '工资',                               pts: [[268, 274], [268, 218]],                      chip: [272, 238, 'start'], from: 'channel', to: 'household' },
+  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[304, 274], [304, 218]],                      chip: [308, 226, 'start'], from: 'channel', to: 'firm' },
+  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[338, 218], [338, 274]],                      chip: [338, 260, 'middle'], from: 'firm', to: 'channel' },
+  { k: 'spillToGoods',    part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '溢出',                               pts: [[247, 352], [257, 352]],                      chip: [251, 340, 'middle'], from: 'cash', to: 'channel', minor: true, nochip: true, maxW: 4 },
+  // A2: the 4 outlets at the end of the goods channel = GDP by use (goods are used up; the water goes round the 收入循环). Chip = % of GDP only, the name is
+  // drawn under it. out: width by share of GDP; signed: a negative value (net imports) reverses the arrow.
+  { k: 'outC',            part: 'channel',            cls: 'goods',  kind: 'out', label: '家庭消费', short: '消费',                     pts: [[268, 390], [268, 397]], chip: [268, 404, 'middle'], from: 'channel', to: 'channel' },
+  { k: 'outI',            part: 'channel capex',      cls: 'capex',  kind: 'out', label: '企业投资', short: '投资', term: 'capex',        pts: [[297, 390], [297, 397]], chip: [297, 404, 'middle'], from: 'channel', to: 'capex' },
+  { k: 'outG',            part: 'channel government', cls: 'fiscal', kind: 'out', label: '政府购买', short: '政府', term: 'govPurchases', pts: [[326, 390], [326, 397]], chip: [326, 404, 'middle'], from: 'channel', to: 'government' },
+  { k: 'outNX',           part: 'channel',            cls: 'goods',  kind: 'out', label: '净出口',   short: '净出口',                   pts: [[356, 390], [356, 397]], chip: [356, 404, 'middle'], from: 'channel', to: 'border', signed: true },
   // springs (cash flows into the pools, "pipes only move water")
   { k: 'coupons',   part: 'springs', cls: 'bond',    kind: 'spring', label: '票息', pts: [[poolCx(POOLS[0]), 424], [poolCx(POOLS[0]), 390]], chip: [poolCx(POOLS[0]), 406, 'middle'], from: 'poolBond', to: 'poolBond', soft: true },
   { k: 'dividends', part: 'springs', cls: 'equity',  kind: 'spring', label: '分红', pts: [[poolCx(POOLS[1]), 424], [poolCx(POOLS[1]), 390]], chip: [poolCx(POOLS[1]), 406, 'middle'], from: 'poolEquity', to: 'poolEquity', soft: true },
@@ -98,8 +127,8 @@ const PIPES = [
   // collateral feedback: housing level -> bank approval (dashed loop, not a money flow)
   { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[122, 274], [122, 112]], chip: [130, 134, 'end'], from: 'poolHousing', to: 'bank' },
   // 国境线 (only drawn while snap.border exists; keep these LAST: lessons.js pairs pipes and chips by index)
-  { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[366, BD_BOT], [366, 390]], chip: [360, 470, 'end'],   from: 'border', to: 'channel',  bd: true },
-  { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[300, 390], [300, BD_BOT]], chip: [307, 488, 'start'], from: 'channel', to: 'border',  bd: true },
+  { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[381, BD_BOT], [381, 390]], chip: [376, 470, 'end'],   from: 'border', to: 'channel',  bd: true },
+  { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[371, 390], [371, BD_BOT]], chip: [366, 488, 'end'],   from: 'channel', to: 'border',  bd: true },
   { k: 'foreignBonds', part: 'border', cls: 'border', kind: 'pipe', label: '外国人买国债', term: 'foreignBonds', pts: [[16, BD_BOT], [16, 390]],   chip: [24, 486, 'start'],  from: 'border', to: 'poolBond', bd: true, maxW: 5 },
 ];
 
@@ -143,10 +172,12 @@ const PATH_TARGET = {
   'rates.mortgageNew': ['@bank'], 'rates.mortgageEff': ['interestPaid'], 'rates.gov10y': ['@poolBond'], 'rates.policy': ['@rate'],
   'assets.bond.price': ['@poolBond'], 'assets.equity.price': ['@poolEquity'], 'assets.housing.price': ['toHousing', '@poolHousing'], 'assets.gold.price': ['@poolGold'],
   'money.M': ['@budget'], 'household.dsr': ['@household'], 'household.income': ['wages', '@household'], 'household.lvr': ['@household'],
-  'household.savingRate': ['@household'], 'household.consumption': ['toConsumption'],
-  'macro.demandPressure': ['@channel'], 'macro.unemployment': ['@channel'], 'macro.inflation': ['@channel'], 'macro.capacityPotential': ['toCapex', '@channel'],
-  'firm.capex': ['toCapex'], 'bank.approval': ['@bank', 'collateral'],
+  'household.savingRate': ['@household'], 'household.consumption': ['outC', 'toConsumption'],
+  'macro.demandPressure': ['@channel', '@section'], 'macro.unemployment': ['@channel'], 'macro.inflation': ['@channel'], 'macro.capacityPotential': ['toCapex', '@channel'],
+  'firm.capex': ['toCapex', 'outI'], 'bank.approval': ['@bank', 'collateral'], 'rates.realPolicy': ['@realRate'],
 };
+// B5: one colour per KIND of pipe (pump / drain / ordinary). The collateral feedback (fb) is not a money flow and keeps its own dashed look.
+const pcOf = kind => (kind === 'pump' ? 'pc-pump' : kind === 'drain' ? 'pc-drain' : kind === 'fb' ? '' : 'pc-pipe');
 
 /* =====================================================================================================================
    LABELS (town vs US)
@@ -195,7 +226,25 @@ function flowsOf(snap, prevSnap) {
   f.transfers = N * shT; f.govPurchases = N * (1 - shT);
   const B = snap.border;      // 国境线: same units as the other flows (local currency bn per quarter)
   f.exports = B?.exports ?? 0; f.imports = B?.imports ?? 0; f.foreignBonds = B?.foreignBondBuy ?? 0;
+  Object.assign(f, outletsOf(snap));
   return f;
+}
+// A2 outlets, per quarter: I is annual in the snapshot; G = the engine's GROSS purchases (snap.flows.govPurchases, not the new-water split above).
+// The engine builds GDP from total demand, not as C+I+G+NX, and its household.consumption leaves out credit- and wealth-funded spending
+// (the four came to ~84% of GDP). So C is the residual GDP − I − G − NX: the four outlets add up to GDP by construction (US C ≈ 71–79%, real ≈ 68%).
+function outletsOf(snap) {
+  const outI = (snap.firm?.capex ?? 0) / 4, outG = snap.flows?.govPurchases ?? 0, outNX = snap.border?.netExports ?? 0;
+  return { outC: Math.max(0, gdpOf(snap) / 4 - outI - outG - outNX), outI, outG, outNX };
+}
+// share of GDP of a quarterly flow, annualised (x 4 / GDP: the same base as the gauges)
+const gdpOf = snap => Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
+const shareOf = (v, snap) => (v * 4) / gdpOf(snap);
+// chip text: '2.4%' / '12%' (>= 10% without decimals); outlets always whole percents. '−' sign only when it does not round to 0.
+function pctTxt(x, whole) {
+  const a = Math.abs(x) * 100;
+  if (a < 0.05) return '0%';
+  const s = whole || a >= 9.95 ? String(Math.round(a)) : a.toFixed(1);
+  return (x < 0 && +s > 0 ? '−' : '') + s + '%';
 }
 function budgetOf(snap) {
   if (snap.budget && snap.budget.pumpedIn && snap.budget.drainedOut) return snap.budget;
@@ -213,29 +262,106 @@ function levelsOf(snap) {
   const gdp = Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
   const L = {};
   for (const p of POOLS) L[p.id] = lvlOf(a[p.id]?.price ?? 100);
-  const tk = curInfo().tank;      // per-country scales (USA 2.4 / 1.4 as before): AUS M/GDP reaches 1.7, so its cash tank is full at 1.9
-  L.iou = clamp(iouOf(snap) / gdp / tk.iou, 0.06, 0.98);
-  L.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / tk.cash, 0.06, 0.98);
+  // B3: 欠条 and 现金 (= all the water, M) share ONE scale, so the two tanks compare directly (USA: full at 2.4 x GDP)
+  const tk = curInfo().tank, S = Math.max(tk.iou, tk.cash);
+  L.iou = clamp(iouOf(snap) / gdp / S, 0.03, 0.98);
+  L.cash = clamp(((a.cash?.level ?? snap.money?.M ?? 0) / gdp) / S, 0.03, 0.98);
   return L;
 }
+
+// B1: demand / capacity (1 = water at the bank). Older snapshots: 1 + outputGap (never above 1).
+const depthOf = snap => 1 + (snap.macro?.demandPressure ?? snap.macro?.outputGap ?? 0);
+// drawn depth relative to the bank height, vertical exaggeration x6 (demand / capacity moves only a few %): 0.97 -> 0.82, 1.05 -> 1.30
+const depthDraw = D => clamp(1 + 6 * (D - 1), 0.12, 1.32);
 
 function targets(snap, prevSnap, st) {
   const f = flowsOf(snap, prevSnap), a = snap.assets || {};
   const r = ref(snap);
-  const gdp = Math.max(1e-6, snap.macro?.gdpNominal ?? 30000);
+  const gdp = gdpOf(snap);
   const cap = snap.macro?.capacity ?? 100;
   if (st.cap0 == null || snap.t === 0) st.cap0 = cap;
   const t = {};
-  for (const p of PIPES) t['w.' + p.k] = p.bd ? Math.min(pipeWidth(Math.abs(f[p.k] ?? 0), r * 1.5), p.maxW || 7) : p.kind === 'fb' ? 3 : (p.kind === 'spring' ? Math.min(pipeWidth(f[p.k] ?? 0, r * 0.35), 6) : pipeWidth(f[p.k] ?? 0, r));
+  for (const p of PIPES) t['w.' + p.k] = p.bd ? Math.min(pipeWidth(Math.abs(f[p.k] ?? 0), r * 1.5), p.maxW || 7) : p.kind === 'fb' ? 3 : p.kind === 'out' ? clamp(1.2 + 9 * Math.sqrt(Math.abs(f[p.k] ?? 0) / (gdp / 4)), 1, 9.5)
+    : (p.kind === 'spring' ? Math.min(pipeWidth(f[p.k] ?? 0, r * 0.35), 6) : Math.min(pipeWidth(f[p.k] ?? 0, r), p.maxW || 9.5));
   const L = levelsOf(snap);
   for (const p of POOLS) t['lv.' + p.id] = L[p.id];
   t.iou = L.iou;
   t.cash = L.cash;
-  t.chLvl = clamp(0.5 + 6 * (snap.macro?.outputGap ?? 0), 0.12, 0.95);
-  t.chW = 104 + 30 * clamp(Math.log(cap / st.cap0) / Math.log(2.5), 0, 1);
+  t.chR = depthDraw(depthOf(snap));
+  t.chW = 100 + 26 * clamp(Math.log(cap / st.cap0) / Math.log(2.5), 0, 1);
   const dy = (snap.rates?.gov10y ?? 0) - (prevSnap?.rates?.gov10y ?? snap.rates?.gov10y ?? 0);
   t.tilt = clamp(dy * 4500, -18, 18);
+  // B6 历史正常区间 per pool (tank level units); absent = no band (town, no data yet, a measure the snapshot lacks)
+  const BV = isTownSnap(snap) ? null : poolBands(snap, st);
+  st.bandState = BV;
+  if (BV) for (const id in BV) { t['bl.' + id] = BV[id].lo; t['bh.' + id] = BV[id].hi; }
   return t;
+}
+
+/* =====================================================================================================================
+   B6 历史正常区间: per pool, the middle half (p25..p75) of a valuation measure over 1995-2021 of the history-mode run of the SAME country
+   (the model's own range, so the band and the water come from one engine). The band is drawn in price terms on the tank:
+   price at which the measure would sit at the band edge, given today's fundamentals.
+     housing  房价/收入 (assets.housing.priceToIncome)      band price = price x edge / P/I now
+     equity   市盈率 P/E (assets.equity.pe)                    band price = price x edge / P/E now
+     bond     实际 10 年利率 = gov10y - inflationExp            band price = price x exp(-8 x (edge - real now))   (duration 8, as the engine)
+                                                              high real yield = cheap, so the HIGH yield edge is the LOW price edge
+     gold     实际金价 = gold price / price level              band price = price x edge / real gold now
+   ===================================================================================================================== */
+const BAND_Y0 = 1995, BAND_Y1 = 2021;
+const MEASURE = {
+  housing: s => s.assets?.housing?.priceToIncome,
+  equity: s => s.assets?.equity?.pe,
+  bond: s => (s.rates?.gov10y != null && s.macro?.inflationExp != null ? s.rates.gov10y - s.macro.inflationExp : undefined),
+  gold: s => (s.assets?.gold?.price != null && s.macro?.priceLevel > 0 ? s.assets.gold.price / (s.macro.priceLevel / 100) : undefined),
+};
+const BANDS = new Map();      // iso -> { housing: [lo, hi], ... } | 'pending' | null
+function bandRanges(iso) {
+  const b = BANDS.get(iso);
+  if (b !== undefined) return b === 'pending' ? null : b;
+  const data = iso === 'USA' ? US_Q : countryData(iso);
+  if (!data) return null;      // the country's data is not registered yet: try again next render
+  BANDS.set(iso, 'pending');
+  // one full history run (~124 quarters) off the critical path, then redraw the quarter on screen
+  setTimeout(() => {
+    let out = null;
+    try {
+      const sim = createSim({ data, mode: 'history', country: iso });
+      let guard = 0;
+      while (!sim.done && guard++ < 400) sim.step();
+      const hist = sim.history('model').filter(s => { const y = +String(s.date).slice(0, 4); return y >= BAND_Y0 && y <= BAND_Y1; });
+      out = {};
+      for (const id in MEASURE) {
+        const v = hist.map(MEASURE[id]).filter(x => typeof x === 'number' && isFinite(x)).sort((x, y) => x - y);
+        if (v.length >= 20) out[id] = [v[Math.floor(0.25 * (v.length - 1))], v[Math.ceil(0.75 * (v.length - 1))]];
+      }
+    } catch (e) { out = null; }
+    BANDS.set(iso, out);
+    const host = document.getElementById('diagram'), st = host && host._flow;
+    if (st && st.snap) renderFlow(host, st.snap, st.prev);
+  }, 250);
+  return null;
+}
+// -> { id: { lo, hi (tank levels), state: 'hi' | 'lo' | 'ok' } } or null
+function poolBands(snap, st) {
+  const rg = bandRanges(curInfo().iso);
+  if (!rg) return null;
+  const a = snap.assets || {}, out = {};
+  for (const p of POOLS) {
+    const e = rg[p.id], m = MEASURE[p.id](snap), px = a[p.id]?.price;
+    if (!e || !(typeof m === 'number' && isFinite(m)) || !(px > 0)) continue;
+    let pLo, pHi, state;
+    if (p.id === 'bond') {
+      pLo = px * Math.exp(-8 * (e[1] - m)); pHi = px * Math.exp(-8 * (e[0] - m));
+      state = m < e[0] ? 'hi' : m > e[1] ? 'lo' : 'ok';
+    } else {
+      if (!(m > 0)) continue;
+      pLo = px * e[0] / m; pHi = px * e[1] / m;
+      state = m > e[1] ? 'hi' : m < e[0] ? 'lo' : 'ok';
+    }
+    out[p.id] = { lo: lvlOf(pLo), hi: lvlOf(pHi), state };
+  }
+  return out;
 }
 
 /* =====================================================================================================================
@@ -261,7 +387,7 @@ function termGroup(parent, term, hit, p, nodeName) {
 }
 
 function pumpIcon(parent, d, pipe) {
-  const g = el('g', { class: `pump ${pipe.cls}${d.main ? ' main' : ''}`, 'data-pipe': d.k, transform: `translate(${d.x} ${d.y})` }, parent);
+  const g = el('g', { class: `pump ${pipe.cls} pc-pump${d.main ? ' main' : ''}`, 'data-pipe': d.k, transform: `translate(${d.x} ${d.y})` }, parent);
   part(g, pipe.part);
   const s = d.main ? 1.15 : 1;
   const inner = el('g', { transform: `scale(${s})` }, g);
@@ -276,7 +402,7 @@ function pumpIcon(parent, d, pipe) {
   return g;
 }
 function drainIcon(parent, d, pipe) {
-  const g = el('g', { class: `drain ${pipe.cls}`, 'data-pipe': d.k, transform: `translate(${d.x} ${d.y})` }, parent);
+  const g = el('g', { class: `drain ${pipe.cls} pc-drain`, 'data-pipe': d.k, transform: `translate(${d.x} ${d.y})` }, parent);
   part(g, pipe.part);
   el('path', { class: 'body', d: 'M-10 -8 L10 -8 L3.2 2.5 L3.2 9 L-3.2 9 L-3.2 2.5 Z' }, g);
   const dr = el('g', { class: 'drops' }, g);
@@ -305,7 +431,7 @@ function build(host) {
     role: 'img', 'aria-label': '宏观水流示意图：泵（造水）、排水口（消水）、管道（搬水）、阀门、资产池与商品河道' }, document.createElement('div'));
   wrap.appendChild(svg);
   const R = { svg, wrap, pipes: {}, pools: {} };
-  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : (R.hasBorder ? VB_HB : VB_H)}`); wrap.classList.toggle('phone', ph); };
+  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : (R.hasBorder ? VB_HB : VB_H)}`); wrap.classList.toggle('phone', ph); syncNxGate(R); };
   R.syncVB = syncPhone;
   syncPhone();
   try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', syncPhone) : PH_MQ.addListener(syncPhone)); } catch (e) { /* ignore */ }
@@ -323,16 +449,27 @@ function build(host) {
   node(back, 76, 170, 194, 48, '', 'household', 'household');
   node(back, 276, 170, 84, 48, '', 'firm', 'firm');
   node(back, 24, 170, 32, 48, 'soft drainbox', 'repay', 'drain');
-  // iou tank
-  R.iouBox = node(back, 184, 118, 66, 48, 'soft', 'iou', 'iou');
-  R.iouWater = part(el('rect', { class: 'water debt', x: 184, y: 166, width: 66, height: 0 }, back), 'iou');
-  part(el('path', { class: 'link', d: 'M163 142 H184' }, back), 'iou');
+  // B2: one big 收入循环 loop (household -> spend -> channel -> firm -> wages, profits -> household), behind the income pipes
+  {
+    const lg = part(el('g', { class: 'loop' }, back), 'household firm channel');
+    el('path', { class: 'loop-ring', d: 'M262 240 V254 Q262 270 278 270 H334 Q350 270 350 254 V238 Q350 224 336 224 H276 Q262 224 262 240 Z' }, lg);
+    for (const [x, y, rot] of [[262, 250, 90], [306, 270, 0], [350, 244, -90], [306, 224, 180]]) el('path', { class: 'loop-arr', d: 'M-5 -6.5 L6 0 L-5 6.5 Z', transform: `translate(${x} ${y}) rotate(${rot})` }, lg);
+  }
+  // B3: the 欠条 tank stands next to the 现金 tank (pool row), same height and the same % of GDP scale. The dashed link: loans -> IOUs.
+  part(el('path', { class: 'link', d: `M163 157 H${IOU_X + PAIR_W / 2} V${TANK_Y}` }, back), 'iou');
+  R.iouBox = node(back, IOU_X, TANK_Y, PAIR_W, TANK_H, 'soft tank iou', 'iou', 'iou');
+  R.iouWater = part(el('rect', { class: 'water debt', x: IOU_X, y: TANK_Y + TANK_H, width: PAIR_W, height: 0 }, back), 'iou');
   // pools
   for (const p of POOLS) {
     const pp = 'pool ' + p.part;
     const o = R.pools[p.id] = {};
     o.box = node(back, p.x, TANK_Y, TANK_W, TANK_H, 'tank', pp, p.part);
     o.water = part(el('rect', { class: 'water ' + p.cls, x: p.x, y: TANK_Y + TANK_H, width: TANK_W, height: 0 }, back), pp);
+    // B6 历史正常区间 band (hidden until the history run is ready / when the country lacks the measure)
+    o.band = part(el('g', { class: 'vband', display: 'none' }, back), pp);
+    o.bandR = el('rect', { class: 'vb-fill', x: p.x, width: TANK_W, y: TANK_Y, height: 0 }, o.band);
+    o.bandP = el('path', { class: 'vb-edge', d: '' }, o.band);
+    o.bandB = el('rect', { class: 'vb-bar', x: p.x + 1.5, width: 3.5, y: TANK_Y, height: 0, rx: 1.5 }, o.band);     // staff-gauge style 'normal range' bar
     const ticks = part(el('g', { class: 'ticks' }, back), pp);
     for (let i = 1; i < 4; i++) el('path', { d: `M${p.x} ${TANK_Y + TANK_H * i / 4} h5` }, ticks);
     // springs: gold has an empty slot
@@ -344,17 +481,27 @@ function build(host) {
       el('path', { d: `M${poolCx(p) - 3} ${418 - 3} L${poolCx(p) + 3} ${418 + 3} M${poolCx(p) + 3} ${418 - 3} L${poolCx(p) - 3} ${418 + 3}` }, g);
     }
   }
-  // cash tank
-  node(back, 210, TANK_Y, 22, TANK_H, 'soft tank', 'cash', 'cash');
-  R.cashWater = part(el('rect', { class: 'water cash', x: 210, y: TANK_Y + TANK_H, width: 22, height: 0 }, back), 'cash');
-  // goods channel (max capacity frame + current river)
-  part(el('rect', { class: 'frame', x: 244, y: TANK_Y, width: 140, height: TANK_H, rx: 10 }, back), 'channel');
-  R.river = node(back, 248, TANK_Y + 4, 132, TANK_H - 8, 'soft', 'channel', 'channel');
+  // cash tank (= all the water, M)
+  node(back, CASH_X, TANK_Y, PAIR_W, TANK_H, 'soft tank', 'cash', 'cash');
+  R.cashWater = part(el('rect', { class: 'water cash', x: CASH_X, y: TANK_Y + TANK_H, width: PAIR_W, height: 0 }, back), 'cash');
+  {   // shared scale ticks: 50% / 100% / 150% / 200% of GDP across both tanks
+    const S = Math.max(curInfo().tank.iou, curInfo().tank.cash);
+    const tg = part(el('g', { class: 'ticks pair' }, back), 'iou cash');
+    for (const k of [0.5, 1, 1.5, 2]) if (k < S) {
+      const y = (TANK_Y + TANK_H - TANK_H * k / S).toFixed(1);
+      el('path', { class: k === 1 ? 'one' : '', d: `M${IOU_X + PAIR_W - 4} ${y} h4 M${CASH_X} ${y} h4` }, tg);
+    }
+  }
+  // goods channel (max capacity frame + current river). B1: river width = capacity, water depth = demand / capacity against the bank line.
+  part(el('rect', { class: 'frame', x: CH_X0, y: TANK_Y, width: CH_W, height: TANK_H, rx: 10 }, back), 'channel');
+  R.river = node(back, CH_X0 + 2, TANK_Y + 4, CH_W - 4, TANK_H - 8, 'soft', 'channel', 'channel');
   R.river.setAttribute('rx', 8);
-  R.chWater = part(el('rect', { class: 'water goods', x: 248, y: TANK_Y + 4, width: 132, height: 0 }, back), 'channel');
+  R.chWater = part(el('rect', { class: 'water goods', x: CH_X0 + 2, y: TANK_Y + 4, width: CH_W - 4, height: 0 }, back), 'channel');
+  R.chOver = part(el('rect', { class: 'ch-over', x: CH_X0 + 2, y: BANK_Y, width: CH_W - 4, height: 0 }, back), 'channel');      // water above the bank = 溢出（通胀）
+  R.bankLn = part(el('path', { class: 'ch-bank', d: '' }, back), 'channel');
   // capacity brackets (Capex widens the channel)
-  R.capL = part(el('path', { class: 'capmark', d: 'M244 332 l-6 -5 v10 z' }, back), 'capex');
-  R.capR = part(el('path', { class: 'capmark', d: 'M384 332 l6 -5 v10 z' }, back), 'capex');
+  R.capL = part(el('path', { class: 'capmark', d: `M${CH_X0} 332 l-5 -4 v8 z` }, back), 'capex');
+  R.capR = part(el('path', { class: 'capmark', d: `M${CH_X0 + CH_W} 332 l5 -4 v8 z` }, back), 'capex');
   // bond seesaw
   R.seesaw = part(el('g', { class: 'seesaw', transform: `translate(${poolCx(POOLS[0])} 358)` }, back), 'pool poolBond');
   R.plank = el('g', { class: 'plank' }, R.seesaw);
@@ -366,7 +513,7 @@ function build(host) {
   /* ---- pipes + chips ---- */
   const pipeLayer = el('g', {}, svg);
   for (const p of PIPES) {
-    const g = part(el('g', { class: `${p.cls} ${p.kind}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, pipeLayer), p.part);
+    const g = part(el('g', { class: `${p.cls} ${p.kind} ${pcOf(p.kind)}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, pipeLayer), p.part);
     const d = 'M' + p.pts.map(q => q.join(' ')).join(' L');
     const bed = el('path', { class: 'bed', d }, g);
     const dash = el('path', { class: 'dash' + (p.slow ? ' slow' : ''), d }, g);
@@ -375,7 +522,7 @@ function build(host) {
   }
   const chipLayer = el('g', {}, svg);
   for (const p of PIPES) {
-    const g = part(el('g', { class: `chip ${p.cls}${p.term ? ' term' : ''}${p.minor || p.kind === 'spring' ? ' minor' : ''}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, chipLayer), p.part);
+    const g = part(el('g', { class: `chip ${p.cls} ${pcOf(p.kind)}${p.term ? ' term' : ''}${p.minor || p.kind === 'spring' ? ' minor' : ''}${p.kind === 'out' ? ' outc' : ''}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, chipLayer), p.part);
     if (p.term) g.setAttribute('data-term', p.term);
     const hit = el('rect', { class: 'hit', rx: 8 }, g);
     const bg = el('rect', { class: 'bg', height: 15, rx: 7.5 }, g);
@@ -390,7 +537,7 @@ function build(host) {
   for (const d of DRAIN_ICONS) R.pipes[d.k].icon = drainIcon(top, d, R.pipes[d.k].def);
   // main drain (principal repayment)
   {
-    const g = el('g', { class: 'drain main repay', 'data-pipe': 'principalRepay', transform: 'translate(40 183)' }, top);
+    const g = el('g', { class: 'drain main repay pc-drain', 'data-pipe': 'principalRepay', transform: 'translate(40 183)' }, top);
     part(g, 'repay');
     el('path', { class: 'body', d: 'M-10 -8 L10 -8 L3.2 2 L3.2 9 L-3.2 9 L-3.2 2 Z' }, g);
     const b = el('g', { class: 'badge', transform: 'translate(11 -9)' }, g);
@@ -403,8 +550,11 @@ function build(host) {
   buildMarks(R, top);   // 洪痕 (behind the texts, inside the top layer)
   // central bank / government
   txt(top, 14, 24, '央行', 'ttl', 'start', 'centralBank');
-  let g = termGroup(top, 'policyRate', [8, 28, 100, 22], 'centralBank', 'rate');
-  R.rate = txt(g, 14, 43, '', 'sub');
+  let g = termGroup(top, 'policyRate', [8, 34, 78, 17], 'centralBank', 'rate');
+  R.rate = txt(g, 14, 46, '', 'sub');
+  // A3: 实际利率 = 政策利率 − 通胀 (rates.realPolicy), the real master valve (Capex, bond, gold, ⑦/⑧ rules)
+  g = termGroup(top, 'realRate', [86, 34, 62, 17], 'centralBank', 'realRate');
+  R.realRate = txt(g, 90, 46, '', 'sub');
   txt(top, 254, 24, '政府', 'ttl', 'start', 'government', 'gov');
   g = termGroup(top, 'govDebtGdp', null, 'government');
   el('rect', { x: 250, y: 32, width: 100, height: 15, rx: 5, fill: 'transparent' }, g);   // touch target only
@@ -416,17 +566,20 @@ function build(host) {
   R.bankTitle = txt(top, 120, 80, '银行', 'ttl', 'start', 'bank', 'bank');
   g = termGroup(top, 'bankApproval', [114, 84, 90, 24], 'bank', 'approval');
   R.bank = txt(g, 120, 102, '', 'sub');
-  // iou tank texts
-  g = termGroup(top, 'M', null, 'iou');
-  txt(g, 189, 131, '欠条箱', 'ttl small', 'start', 'iou');
-  R.iouVal = txt(top, 246, 131, '', 'sub num', 'end', 'iou');
-  txt(top, 189, 141.5, '水是凭空来的，', 'cap ph-hide', 'start', 'iou');
-  txt(top, 189, 150.5, '但不是白来的', 'cap ph-hide', 'start', 'iou');
-  // 占 GDP: private debt / annual GDP (the number the long-cycle dial reads); tappable like the other readings. Phone: the captions are hidden, so it moves up (CSS .iou-gdp)
-  g = termGroup(top, 'pvtDebtGdp', null, 'iou');
-  g.setAttribute('class', 'term iou-gdp');
-  el('rect', { x: 186, y: 150, width: 62, height: 15, rx: 5, fill: 'transparent' }, g);
-  R.iouGdp = txt(g, 189, 160.5, '', 'cap gdp', 'start', 'iou');
+  // 欠条 tank texts (B3). The two captions label the dashed link: a loan creates water AND an IOU.
+  txt(top, 168, 141.5, '放贷：水是凭空来的，', 'cap ph-hide', 'start', 'iou');
+  txt(top, 168, 150.5, '但不是白来的 → 欠条', 'cap ph-hide', 'start', 'iou');
+  g = termGroup(top, 'pvtDebtGdp', [IOU_X - 1, TANK_Y, PAIR_W + 2, 40], 'iou');
+  txt(g, IOU_X + PAIR_W / 2, TANK_Y + 15, '欠', 'ttl pname', 'middle');
+  txt(g, IOU_X + PAIR_W / 2, TANK_Y + 28, '条', 'ttl pname', 'middle');
+  // 「欠条 x% / 水 y% / 占 GDP」 under the pair: private debt / annual GDP (the number the long-cycle dial reads) vs M / GDP
+  g = termGroup(top, 'pvtDebtGdp', [IOU_X - 3, 391, 46, 13], 'iou');
+  g.classList.add('pairlbl');
+  R.iouGdp = txt(g, IOU_X - 1, 400, '', 'cap gdp debt', 'start');
+  g = termGroup(top, 'M', [IOU_X - 3, 403, 46, 12], 'cash');
+  g.classList.add('pairlbl');
+  R.cashGdp = txt(g, IOU_X - 1, 411, '', 'cap gdp cashv', 'start');
+  txt(top, IOU_X - 1, 422, '占 GDP', 'cap', 'start', 'iou cash');
   // household / firm  (cover rect: the collateral loop passes BEHIND the household box)
   node(top, 76, 170, 194, 48, 'cover', 'household');
   R.hhTitle = txt(top, 84, 187, '', 'ttl hh', 'start', 'household', 'hh');
@@ -441,6 +594,7 @@ function build(host) {
     o.val = txt(gg, cx, TANK_Y + 29, '', 'sub num', 'middle');
     o.cap = txt(top, cx, TANK_Y + 42, '', 'cap', 'middle', 'pool ' + p.part, 'housingCap');
     if (p.id !== 'housing') o.cap.removeAttribute('data-lbl');
+    o.stat = txt(top, cx, TANK_Y + 42, '', 'cap vstat', 'middle', 'pool ' + p.part);     // B6: 贵 / 正常 / 便宜 against the band
   }
   // seesaw captions
   txt(top, poolCx(POOLS[0]), 372, '利率↑', 'cap', 'middle', 'pool poolBond');
@@ -451,28 +605,43 @@ function build(host) {
     txt(top, cx, 438, p.spring ? '←' + p.spring.src : '无泉水', 'cap ph-hide', 'middle', 'springs').setAttribute('data-owner', p.part);
   }
   // cash
-  g = termGroup(top, 'cashAsset', [208, TANK_Y, 26, 40], 'cash');
-  txt(g, 221, TANK_Y + 15, '现', 'ttl pname', 'middle');
-  txt(g, 221, TANK_Y + 28, '金', 'ttl pname', 'middle');
-  // channel
-  g = termGroup(top, 'goodsChannel', [250, TANK_Y + 4, 100, 22], 'channel', 'chtitle');
-  R.chTitle = txt(g, 254, TANK_Y + 19, '商品河道', 'ttl', 'start', null, 'channel');
-  g = termGroup(top, 'cpi', [250, TANK_Y + 24, 100, 16], 'channel', 'cpi');
-  R.cpi = txt(g, 254, TANK_Y + 36, '', 'sub');
-  g = termGroup(top, 'unemployment', [250, TANK_Y + 42, 100, 16], 'channel', 'unemp');
-  R.unemp = txt(g, 254, TANK_Y + 54, '', 'sub');
-  R.px = txt(top, 254, 363, '', 'sub', 'start', 'channel');
-  g = termGroup(top, 'capacity', [250, 368, 110, 18], 'capex');
-  R.cap = txt(g, 254, 381, '', 'sub');
-  // level ruler marks next to the channel title: "水位" pill
-  const pill = part(el('g', { class: 'lvlpill' }, top), 'channel');
-  el('rect', { x: 334, y: TANK_Y + 26, width: 26, height: 12, rx: 6 }, pill);
-  txt(pill, 347, TANK_Y + 35, '水位', 'cap', 'middle');
+  g = termGroup(top, 'cashAsset', [CASH_X - 1, TANK_Y, PAIR_W + 2, 40], 'cash');
+  txt(g, CASH_X + PAIR_W / 2, TANK_Y + 15, '现', 'ttl pname', 'middle');
+  txt(g, CASH_X + PAIR_W / 2, TANK_Y + 28, '金', 'ttl pname', 'middle');
+  // channel (texts on the left; the 断面 inset on the right)
+  const cx0 = CH_X0 + 6;
+  g = termGroup(top, 'goodsChannel', [CH_X0 + 2, TANK_Y + 4, 96, 22], 'channel', 'chtitle');
+  R.chTitle = txt(g, cx0, TANK_Y + 19, '商品河道', 'ttl', 'start', null, 'channel');
+  g = termGroup(top, 'cpi', [CH_X0 + 2, TANK_Y + 24, 54, 16], 'channel', 'cpi');
+  R.cpi = txt(g, cx0, TANK_Y + 36, '', 'sub');
+  g = termGroup(top, 'unemployment', [CH_X0 + 2, TANK_Y + 42, 54, 16], 'channel', 'unemp');
+  R.unemp = txt(g, cx0, TANK_Y + 54, '', 'sub');
+  R.px = txt(top, cx0, 363, '', 'sub', 'start', 'channel');
+  g = termGroup(top, 'capacity', [CH_X0 + 2, 368, 54, 18], 'capex');
+  R.cap = txt(g, cx0, 381, '', 'sub');
+  buildSection(R, top);
+  // A2 outlet names under their chips; 企业投资 adds a line (Capex becomes a wider channel), then the GDP sentence
+  // (>=768px: the full name on two lines; phone: the short name on one line)
+  for (const p of PIPES) if (p.kind === 'out') {
+    const x = p.chip[0], nm = p.label;
+    txt(top, x, 418.5, nm.slice(0, nm.length - 2), 'cap oname ph-hide', 'middle', p.part);
+    txt(top, x, 427.5, nm.slice(-2), 'cap oname ph-hide', 'middle', p.part);
+    txt(top, x, 417, p.short, 'cap oname ph-only', 'middle', p.part);
+  }
+  txt(top, 297, 437, '↑变成更宽的河道', 'cap ph-hide', 'middle', 'capex');
+  txt(top, CH_X0 + CH_W / 2 + 2, 447.5, 'GDP = 四个出口拿走的货', 'cap gdpln ph-hide', 'middle', 'channel');
+  txt(top, CH_X0 + CH_W / 2 + 2, 430, 'GDP = 四个出口拿走的货', 'cap gdpln ph-only', 'middle', 'channel');
+  // B2 loop label on the ring's bottom leg: tap = the loop sentence
+  {
+    const lg = part(el('g', { class: 'loop-lbl', 'data-act': 'loop', role: 'button', tabindex: 0, 'aria-label': '收入循环：花钱、企业、工资和利润、家庭' }, top), 'household firm channel');
+    el('rect', { x: 265, y: 263, width: 40, height: 14, rx: 7 }, lg);
+    txt(lg, 285, 273.2, '收入循环', 'cap', 'middle');
+  }
   // spring chips etc are in chip layer; pool caption + legend + unit
   g = termGroup(top, 'assetReservoir', [6, 443, 378, 14], 'pool');
   g.classList.add('ph-hide', 'bd-shift');
   txt(g, 10, 451, '资产池：买资产 = 买取水权，只抬水位', 'cap', 'start');
-  txt(top, 166, 451, '· 只有 Capex 才扩河道', 'cap ph-hide bd-shift', 'start', 'capex');
+  txt(top, 162, 451, '· 灰带 = 历史正常区间', 'cap ph-hide bd-shift', 'start', 'pool');
   buildLegend(top);
   buildBorder(R, top, wrap);
   // valves last (on top)
@@ -487,20 +656,58 @@ function build(host) {
   // ripple strip + popover + zoom banner (HTML overlays)
   const strip = document.createElement('div'); strip.className = 'flow-ripple'; strip.hidden = true; host.appendChild(strip); R.strip = strip;
   const pop = document.createElement('div'); pop.className = 'flow-pop'; pop.hidden = true; host.appendChild(pop); R.pop = pop;
+  const cp = document.createElement('div'); cp.className = 'flow-cpop'; cp.hidden = true; host.appendChild(cp); R.cpop = cp;   // B4 chip details
   const lg = document.createElement('div'); lg.className = 'flow-legend'; lg.hidden = true; lg.innerHTML = legendHtml(); host.appendChild(lg); R.legend = lg;
   const zb = document.createElement('div'); zb.className = 'flow-zoomtag'; zb.hidden = true; host.appendChild(zb); R.zoomTag = zb;
   return R;
+}
+
+// B1 断面 inset: a cross-section of the goods channel. Width = capacity (same factor as the river), depth = demand / capacity (x6 vertical
+// exaggeration, as the plan view), freeboard 超高 = spare capacity = 闲置（失业）; water over the bank top = 漫顶 = 溢出（通胀）. Tap = 产出缺口 card.
+function buildSection(R, top) {
+  const g = termGroup(top, 'outputGap', null, 'channel', 'section');
+  g.classList.add('sec');
+  el('rect', { class: 'sec-bg', x: SEC.x, y: SEC.y, width: SEC.w, height: SEC.h, rx: 6 }, g);
+  const t0 = txt(g, SEC.x + 4, SEC.y + 9.5, '断面', 'cap sec-t', 'start');
+  const ts = el('tspan', { class: 'ph-hide sec-eq' }, t0); ts.textContent = ' 宽×深=需求';
+  const S = R.sec = {};
+  S.ground = el('path', { class: 'sec-ground', d: '' }, g);
+  S.over = el('rect', { class: 'sec-over', x: 0, y: 0, width: 0, height: 0 }, g);
+  S.water = el('rect', { class: 'water goods sec-w', x: 0, y: 0, width: 0, height: 0 }, g);
+  S.bank = el('path', { class: 'sec-bank', d: '' }, g);
+  S.fb = el('path', { class: 'sec-dim fb', d: '' }, g);          // freeboard arrow
+  S.wd = el('path', { class: 'sec-dim', d: '' }, g);             // width dimension under the bed
+  S.t1 = txt(g, SEC.cx, 352, '宽 = 产能', 'cap', 'middle');
+  S.t2 = txt(g, SEC.cx, 363, '', 'cap sec-n', 'middle');
+  S.t3 = txt(g, SEC.cx, 374, '', 'cap sec-n', 'middle');
+  S.t4 = txt(g, SEC.cx, 385, '', 'cap sec-s', 'middle');
+}
+function applySection(R, cur) {
+  const S = R.sec, r = cur.chR, w = cur.chW * 0.4, x0 = SEC.cx - w / 2, x1 = SEC.cx + w / 2, H = SEC.bed - SEC.top, lip = 7;
+  S.ground.setAttribute('d', `M${(x0 - lip).toFixed(1)} ${SEC.top} H${x0.toFixed(1)} V${SEC.bed} H${x1.toFixed(1)} V${SEC.top} H${(x1 + lip).toFixed(1)} V${SEC.bed + 3} H${(x0 - lip).toFixed(1)} Z`);
+  S.bank.setAttribute('d', `M${(x0 - lip).toFixed(1)} ${SEC.top} H${x0.toFixed(1)} V${SEC.bed} H${x1.toFixed(1)} V${SEC.top} H${(x1 + lip).toFixed(1)}`);
+  const wy = SEC.bed - H * r;
+  S.water.setAttribute('x', x0.toFixed(1)); S.water.setAttribute('width', w.toFixed(1));
+  S.water.setAttribute('y', Math.max(SEC.top, wy).toFixed(1)); S.water.setAttribute('height', (SEC.bed - Math.max(SEC.top, wy)).toFixed(1));
+  const ov = r > 1 ? SEC.top - wy : 0;      // over the bank: spreads over both lips
+  S.over.setAttribute('x', (x0 - lip).toFixed(1)); S.over.setAttribute('width', (w + 2 * lip).toFixed(1));
+  S.over.setAttribute('y', (SEC.top - ov).toFixed(1)); S.over.setAttribute('height', ov.toFixed(1));
+  const fx = x1 - 4, gap = wy - SEC.top;
+  S.fb.setAttribute('d', gap > 3 ? `M${fx} ${(SEC.top + 0.5).toFixed(1)} V${(wy - 0.5).toFixed(1)} M${fx - 2} ${(SEC.top + 0.5).toFixed(1)} H${fx + 2} M${fx - 2} ${(wy - 0.5).toFixed(1)} H${fx + 2}` : '');
+  const dy = SEC.bed + 6;
+  S.wd.setAttribute('d', `M${x0.toFixed(1)} ${dy} H${x1.toFixed(1)} M${x0.toFixed(1)} ${dy - 2} V${dy + 2} M${x1.toFixed(1)} ${dy - 2} V${dy + 2}`);
 }
 
 // phone: the legend row is hidden in the SVG; the 图例 button opens this sheet instead
 function legendHtml() {
   const svg = inner => `<svg width="26" height="22" viewBox="-13 -11 26 22" aria-hidden="true">${inner}</svg>`;
   const rows = [
-    [svg(`<circle r="8.5" style="fill:var(--surface);stroke:var(--c-fiscal);stroke-width:2.2"/><path d="M-4 0H4M0 -4V4" style="fill:none;stroke:var(--c-fiscal);stroke-width:2;stroke-linecap:round"/>`), '泵 = 造水', '放贷、QE、财政赤字'],
-    [svg(`<path d="M-8 -6 L8 -6 L2.5 1.5 L2.5 8 L-2.5 8 L-2.5 1.5 Z" style="fill:var(--surface);stroke:var(--c-repay);stroke-width:2;stroke-linejoin:round"/>`), '排水口 = 消水', '还本、QT、财政盈余'],
-    [svg(`<path d="M-10 0 H10" style="fill:none;stroke:var(--muted);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:5 3"/>`), '管道 = 搬水', '管越宽，本季流量越大'],
+    [svg(`<circle r="8.5" style="fill:var(--surface);stroke:var(--c-pump);stroke-width:2.2"/><path d="M-4 0H4M0 -4V4" style="fill:none;stroke:var(--c-pump);stroke-width:2;stroke-linecap:round"/>`), '蓝色 + 泵 = 造水', '放贷、QE、财政赤字'],
+    [svg(`<path d="M-8 -6 L8 -6 L2.5 1.5 L2.5 8 L-2.5 8 L-2.5 1.5 Z" style="fill:var(--surface);stroke:var(--c-drain);stroke-width:2;stroke-linejoin:round"/>`), '红色 − 排水口 = 消水', '还本、QT、财政盈余'],
+    [svg(`<path d="M-10 0 H10" style="fill:none;stroke:var(--c-pipe);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:5 3"/>`), '灰色管道 = 搬水', '管越宽，本季流量越大；管上数字 = 占 GDP（按年算），点一下看金额'],
     [svg(`<path d="M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z" style="fill:var(--surface-2);stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round"/><path d="M0 0 V-8 M-5 -8 H5" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round"/>`), '阀门 = 可拧', '点阀门图标：看是谁的阀门、怎么传导'],
     [svg(`<path d="M-3 -8 v16 M-3 -5 h4 M-3 -1 h4 M-3 3 h4" style="fill:none;stroke:var(--muted);stroke-width:1.4"/>`), '水位 = 结果', '房价、物价、失业…不能直接拧'],
+    [svg(`<rect x="-9" y="-5" width="18" height="10" style="fill:var(--c-band);stroke:var(--muted);stroke-width:1;stroke-dasharray:2 1.5"/>`), '灰带 = 历史正常区间', '1995–2021 中间一半的估值；水在带上 = 贵，带下 = 便宜'],
     [svg(`<path d="M-11 0 H11" style="fill:none;stroke:var(--text);stroke-opacity:.7;stroke-width:1.4;stroke-dasharray:3 2.5"/>`), '虚线 = 到现在为止的最高水位（洪痕）', '旁边写着是哪一年；水面涨到这条线就显示「新高」'],
   ];
   return `<div class="fl-head"><b>图例</b><button type="button" class="fl-x" data-act="legend" aria-label="关闭">✕</button></div>` +
@@ -512,15 +719,16 @@ function buildLegend(top) {
   const g = part(el('g', { class: 'legend' }, top), 'budget');
   const y = 466;
   // pump
-  const p = el('g', { class: 'pump fiscal mini', transform: `translate(14 ${y - 3})` }, g);
+  const p = el('g', { class: 'pump pc-pump mini', transform: `translate(14 ${y - 3})` }, g);
   el('circle', { class: 'body', r: 6 }, p);
   el('path', { class: 'sign', d: 'M-3 0 H3 M0 -3 V3' }, p);
-  txt(g, 24, y, '泵 = 造水', 'cap', 'start');
-  const d = el('g', { class: 'drain repay mini', transform: `translate(88 ${y - 3})` }, g);
+  txt(g, 24, y, '泵 = 造水', 'cap lg-pump', 'start');
+  const d = el('g', { class: 'drain pc-drain mini', transform: `translate(88 ${y - 3})` }, g);
   el('path', { class: 'body', d: 'M-6 -4 L6 -4 L1.8 1.5 L1.8 5 L-1.8 5 L-1.8 1.5 Z' }, d);
-  txt(g, 98, y, '排水口 = 消水', 'cap', 'start');
+  el('path', { class: 'sign', d: 'M-2.5 -7.5 H2.5' }, d);
+  txt(g, 98, y, '排水口 = 消水', 'cap lg-drain', 'start');
   el('path', { class: 'pipeline', d: `M174 ${y - 3} H192` }, g);
-  txt(g, 196, y, '管道 = 搬水', 'cap', 'start');
+  txt(g, 196, y, '灰管 = 搬水', 'cap', 'start');
   const v = el('g', { class: 'valve mini', transform: `translate(272 ${y - 3}) scale(.7)` }, g);
   el('path', { class: 'body', d: 'M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z' }, v);
   el('path', { class: 'stem', d: 'M0 0 V-7 M-5 -7 H5' }, v);
@@ -561,6 +769,14 @@ function buildBorder(R, top, wrap) {
   D.pop = pop;
 }
 
+// phone + border: the 净出口 outlet chip is the border gate (tap = the 国境线 popover); it replaces the old corner pill, whose slot the outlets now use
+function syncNxGate(R) {
+  const c = R.pipes && R.pipes.outNX && R.pipes.outNX.chip;
+  if (!c) return;
+  if (isPhone() && R.hasBorder) { c.setAttribute('data-bd', 'pill'); c.setAttribute('role', 'button'); c.setAttribute('tabindex', '0'); c.setAttribute('aria-label', '净出口 / 国境线：汇率、出口、进口、外国人买国债'); }
+  else { c.removeAttribute('data-bd'); c.removeAttribute('role'); c.removeAttribute('tabindex'); c.removeAttribute('aria-label'); }
+}
+
 const fmtFx = v => (v >= 100 ? String(Math.round(v)) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 function fxChange(c) {      // fxChg4q: + = local currency weaker vs USD
   if (typeof c !== 'number' || !isFinite(c)) return { txt: '', cls: '' };
@@ -574,6 +790,7 @@ function setBorder(R, snap, town) {
   const has = !town && !!B && typeof B === 'object';
   R.svg.classList.toggle('has-border', has);
   if (!!R.hasBorder !== has) { R.hasBorder = has; R.syncVB(); }
+  syncNxGate(R);
   if (!has) { D.pop.hidden = true; return; }
   const num = v => typeof v === 'number' && isFinite(v);
   const fx = B.fxPerUsd, usd = num(fx) && Math.abs(fx - 1) < 1e-9, local = num(fx) && !usd;
@@ -613,8 +830,8 @@ const HWM_MIN_T = 3;            // fewer quarters of history than this: a 'peak'
 const HWM_NEW = 0.01;           // within 1% of the mark (level units) = 新高
 const HWM_ITEMS = [
   ...POOLS.map(p => ({ key: p.id, cur: 'lv.' + p.id, part: 'pool ' + p.part, x: p.x, w: TANK_W, top: TANK_Y, h: TANK_H, label: true, trough: p.id === 'housing' || p.id === 'equity' })),
-  { key: 'cash', cur: 'cash', part: 'cash', x: 210, w: 22, top: TANK_Y, h: TANK_H, label: false, trough: false },   // 22 wide: line only
-  { key: 'iou', cur: 'iou', part: 'iou', x: 184, w: 66, top: 118, h: 48, label: true, trough: false },
+  { key: 'cash', cur: 'cash', part: 'cash', x: CASH_X, w: PAIR_W, top: TANK_Y, h: TANK_H, label: false, trough: false },   // 18 wide: line only
+  { key: 'iou', cur: 'iou', part: 'iou', x: IOU_X, w: PAIR_W, top: TANK_Y, h: TANK_H, label: false, trough: false },
 ];
 const HWM_KEYS = HWM_ITEMS.map(i => i.key);
 
@@ -669,8 +886,7 @@ function hwmObstacles(it, phone, town) {      // y bands that already carry text
   switch (it.key) {
     case 'housing': return [[TANK_Y, TANK_Y + (town ? 47 : 35)]];
     case 'bond': return [[TANK_Y, TANK_Y + 35], [349, 386]];                  // seesaw + its captions
-    case 'iou': return phone ? [[118, 151]] : [[118, 164]];                   // title + 占 GDP reading (phone) / the two captions + reading (>=768px: they fill the tank -> line only)
-    default: return [[TANK_Y, TANK_Y + 35]];                                  // pool name + value
+    default: return [[TANK_Y, TANK_Y + 35]];                                  // pool name + value (+ the 贵/便宜 tag: see applyMarks)
   }
 }
 function hwmSpot(it, y, fs, obs) {            // text baseline above the line, else below it, else null (tank too busy: line only)
@@ -699,6 +915,7 @@ function applyMarks(R, st, cur) {
       o.tr.setAttribute('d', `M${it.x + it.w - 14} ${ty} H${it.x + it.w}`); o.tr.removeAttribute('display');
     } else o.tr.setAttribute('display', 'none');
     const obs = hwmObstacles(it, phone, st.town);
+    if (st.bandState && st.bandState[it.key] && !st.town) obs.push([TANK_Y + 35, TANK_Y + 46]);      // B6 贵 / 便宜 tag row
     o.g.classList.toggle('dim', obs.some(([o0, o1]) => y > o0 - 1 && y < o1 + 1));   // line runs through existing text: keep it faint
     const spot = it.label ? hwmSpot(it, y, fs, obs) : null;
     if (spot == null) { o.lbl.setAttribute('display', 'none'); continue; }
@@ -731,17 +948,31 @@ function applyCur(R, cur) {
     const w = R.pools[p.id].water;
     w.setAttribute('y', (TANK_Y + TANK_H - h).toFixed(1)); w.setAttribute('height', h.toFixed(1));
   }
-  const ih = 48 * cur.iou;
-  R.iouWater.setAttribute('y', (166 - ih).toFixed(1)); R.iouWater.setAttribute('height', ih.toFixed(1));
+  for (const p of POOLS) {      // B6 band: [lo, hi] tank levels (absent = hidden)
+    const o = R.pools[p.id], lo = cur['bl.' + p.id], hi = cur['bh.' + p.id];
+    if (!(isFinite(lo) && isFinite(hi))) { o.band.setAttribute('display', 'none'); continue; }
+    o.band.removeAttribute('display');
+    const y1 = TANK_Y + TANK_H - TANK_H * hi, y0 = TANK_Y + TANK_H - TANK_H * lo;
+    o.bandR.setAttribute('y', y1.toFixed(1)); o.bandR.setAttribute('height', Math.max(0.5, y0 - y1).toFixed(1));
+    o.bandB.setAttribute('y', y1.toFixed(1)); o.bandB.setAttribute('height', Math.max(1.5, y0 - y1).toFixed(1));
+    o.bandP.setAttribute('d', `M${p.x} ${y1.toFixed(1)} h${TANK_W} M${p.x} ${y0.toFixed(1)} h${TANK_W}`);
+  }
+  const ih = TANK_H * cur.iou;
+  R.iouWater.setAttribute('y', (TANK_Y + TANK_H - ih).toFixed(1)); R.iouWater.setAttribute('height', ih.toFixed(1));
   const ch = TANK_H * cur.cash;
   R.cashWater.setAttribute('y', (TANK_Y + TANK_H - ch).toFixed(1)); R.cashWater.setAttribute('height', ch.toFixed(1));
-  const rw = cur.chW, rx = 314 - rw / 2;
+  const rw = cur.chW, rx = CH_CX - rw / 2;
   R.river.setAttribute('x', rx.toFixed(1)); R.river.setAttribute('width', rw.toFixed(1));
-  const wh = (TANK_H - 8) * cur.chLvl;
+  // B1 plan view: water depth against the bank line (r = 1 at the bank); the part above the bank is tinted (溢出)
+  const hb = CH_BOT - BANK_Y, wy = CH_BOT - hb * cur.chR;
   R.chWater.setAttribute('x', rx.toFixed(1)); R.chWater.setAttribute('width', rw.toFixed(1));
-  R.chWater.setAttribute('y', (TANK_Y + TANK_H - 4 - wh).toFixed(1)); R.chWater.setAttribute('height', wh.toFixed(1));
-  R.capL.setAttribute('transform', `translate(${(rx - 244 - 4).toFixed(1)} 0)`);
-  R.capR.setAttribute('transform', `translate(${(rx + rw - 384 + 4).toFixed(1)} 0)`);
+  R.chWater.setAttribute('y', wy.toFixed(1)); R.chWater.setAttribute('height', (CH_BOT - wy).toFixed(1));
+  R.chOver.setAttribute('x', rx.toFixed(1)); R.chOver.setAttribute('width', rw.toFixed(1));
+  R.chOver.setAttribute('y', Math.min(BANK_Y, wy).toFixed(1)); R.chOver.setAttribute('height', Math.max(0, BANK_Y - wy).toFixed(1));
+  R.bankLn.setAttribute('d', `M${rx.toFixed(1)} ${BANK_Y} H${(SEC.x - 1).toFixed(1)}`);
+  R.capL.setAttribute('transform', `translate(${(rx - CH_X0 - 3).toFixed(1)} 0)`);
+  R.capR.setAttribute('transform', `translate(${(rx + rw - CH_X0 - CH_W + 3).toFixed(1)} 0)`);
+  applySection(R, cur);
   R.plank.setAttribute('transform', `rotate(${(-cur.tilt).toFixed(1)})`);
 }
 
@@ -785,7 +1016,7 @@ function setBudget(R, snap, town) {
   R.bar.innerHTML =
     `<div class="fb-mini" role="button" tabindex="0" data-act="fb-toggle" aria-expanded="${open}"><span class="fb-mlab">本季水量</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span>` +
     `<span class="fb-meq">= 泵入 ${num(pTot)} − 排出 ${num(dTot)}</span><span class="fb-caret" aria-hidden="true">▴</span><button type="button" class="fb-legbtn" data-act="legend">图例</button></div>` +
-    `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">单位：${town ? '万元' : curInfo().unitBn} · 管宽 = 本季流量</span></div>` +
+    `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">${town ? '单位：万元 · 管宽 = 本季流量' : `单位：${curInfo().unitBn} · 管上数字 = 占 GDP（按年算），点开看金额`}</span></div>` +
     `<div class="fb-row fb-eq"><span class="fb-grp pump"><span class="fb-k">泵入</span> ${termBtn('newLoans', '放贷')} ${num(pi.loans)} + ${termBtn('qe', 'QE')} ${num(pi.qe)} + ${termBtn('fiscalInjection', '赤字')} ${num(pi.deficit)}</span>` +
     `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '还本')} ${num(dr.repay)}${drainTail}</span></div></div>`;
 }
@@ -799,15 +1030,20 @@ function setTexts(R, snap, prevSnap, st) {
   st.labels = LB;
   for (const p of PIPES) {
     let v = f[p.k] ?? 0, lab = p.label;
-    if (p.k === 'foreignBonds' && v < 0) { v = -v; lab = '外国人卖国债'; }     // foreigners selling: same pipe, the label says so
+    const neg = (p.k === 'foreignBonds' || !!p.signed) && v < 0;
+    if (p.k === 'foreignBonds' && v < 0) lab = '外国人卖国债';     // foreigners selling: same pipe, the label says so
+    if (neg) v = -v;
     const pr = R.pipes[p.k];
-    if (p.k === 'foreignBonds' && !!pr.rev !== ((f[p.k] ?? 0) < 0)) {       // selling: the water runs the other way
+    if (!!pr.rev !== neg) {       // selling / net imports: the water runs the other way
       pr.rev = !pr.rev;
       const d = 'M' + (pr.rev ? [...p.pts].reverse() : p.pts).map(q => q.join(' ')).join(' L');
       pr.bed.setAttribute('d', d); pr.dash.setAttribute('d', d);
     }
     const minorHide = !!p.nochip || ((p.minor || p.kind === 'spring') && v < r * 0.0007 && p.kind !== 'spring');
-    placeChip(pr, p.kind === 'fb' ? p.label : `${lab} ${fmtMoney(v, town)}`);
+    // B4: % of GDP (annualised) by default; the town keeps its 万元 (its lessons count amounts). Outlets: the number only (name under the chip).
+    const sv = neg && p.signed ? -v : v;      // 净出口 keeps its sign; 外国人卖国债 says the direction in its label
+    const val = town ? fmtMoney(sv, town) : pctTxt(shareOf(sv, snap), p.kind === 'out');
+    placeChip(pr, p.kind === 'fb' ? p.label : p.kind === 'out' ? val : `${lab} ${val}`);
     pr.chip.classList.toggle('off', minorHide);
     const idle = p.kind === 'fb' ? false : v < r * 0.0007;
     pr.g.classList.toggle('idle', idle);
@@ -819,6 +1055,8 @@ function setTexts(R, snap, prevSnap, st) {
   }
   // main drain icon follows principalRepay (icon registered above)
   R.rate.textContent = `政策利率 ${pct(snap.rates?.policy ?? 0, 2)}`;
+  { const rr = snap.rates?.realPolicy ?? ((snap.rates?.policy ?? 0) - (m.inflation ?? 0));
+    R.realRate.textContent = `实际 ${pctTxt(rr)}`; R.realRate.classList.toggle('neg', rr < -0.0005); }
   R.gov.textContent = `债务/GDP ${pct(snap.gov?.debtGdp ?? 0, 0)}`;
   { const gq = snap.gov?.spendingGross != null ? snap.gov.spendingGross * 0.25 : (f.taxes ?? 0) + (snap.gov?.deficit ?? 0) * 0.25;   // quarterly gross outlays = taxes + deficit
     R.govGross.textContent = `总支出 ${town ? fmtMoney(gq, town) : Math.round(gq)}`; }
@@ -828,14 +1066,26 @@ function setTexts(R, snap, prevSnap, st) {
   for (const p of POOLS) {
     const px = a[p.id]?.price ?? 0;
     R.pools[p.id].val.textContent = String(Math.round(px));
+    // B6: 贵 / 正常 / 便宜 against the 历史正常区间 (town: the housing caption '镇上10套' keeps the slot)
+    const bs = st.bandState && st.bandState[p.id], o = R.pools[p.id];
+    o.stat.textContent = bs && !town ? { hi: '贵', lo: '便宜', ok: '正常' }[bs.state] : '';
+    o.stat.setAttribute('class', 'cap vstat' + (bs ? ' ' + bs.state : ''));
   }
-  R.iouVal.textContent = fmtMoney(iouOf(snap), town);
-  { const gd = snap.macro?.gdpNominal, ratio = gd > 0 ? iouOf(snap) / gd : null;
-    R.iouGdp.textContent = ratio != null && isFinite(ratio) ? `占 GDP ${pct(ratio, 0)}` : ''; }
+  // B3: 欠条 x% / 水 y% of GDP under the pair (the same scale as the two tanks)
+  { const gd = snap.macro?.gdpNominal, ratio = gd > 0 ? iouOf(snap) / gd : null, mr = gd > 0 ? (a.cash?.level ?? snap.money?.M ?? 0) / gd : null;
+    R.iouGdp.textContent = ratio != null && isFinite(ratio) ? `欠条 ${pct(ratio, 0)}` : '';
+    R.cashGdp.textContent = mr != null && isFinite(mr) ? `水 ${pct(mr, 0)}` : ''; }
   R.cpi.textContent = `CPI ${pct(m.inflation ?? 0)}`;
   R.unemp.textContent = `失业 ${pct(m.unemployment ?? 0)}`;
   R.px.textContent = `物价 ${Math.round(m.priceLevel ?? 0)}`;
   R.cap.textContent = `产能 ${Math.round(100 * (m.capacity ?? 100) / st.cap0)}`;
+  { // B1 断面 numbers: depth = demand / capacity; freeboard (超高) = 1 − depth; over the bank (漫顶) = depth − 1
+    const D = depthOf(snap), gap = Math.round((1 - D) * 100), S = R.sec;
+    S.t2.textContent = `深 ${Math.round(D * 100)}%`;
+    S.t3.textContent = gap >= 0 ? `超高 ${gap}%` : `漫顶 ${-gap}%`;
+    S.t4.textContent = gap > 0 ? '闲置（失业）' : gap < 0 ? '溢出（通胀）' : '刚好齐岸';
+    S.t4.setAttribute('class', 'cap sec-s ' + (gap > 0 ? 'idle' : gap < 0 ? 'over' : ''));
+  }
   R.pools.housing.cap.textContent = LB.housingCap;
   // names that change with scale (fade handled by CSS class on svg)
   R.bankTitle.textContent = LB.bank;
@@ -916,6 +1166,47 @@ function fmtValve(v, x) {
     case 'onoff': return x ? '开' : '关';
     default: return String(x);
   }
+}
+
+/* B4: tap a pipe chip -> its amounts (the chip itself shows % of GDP) */
+function chipPopHtml(st, p) {
+  const snap = st.snap, town = st.town, f = flowsOf(snap, st.prev), iso = curInfo().iso;
+  const v = f[p.k] ?? 0;
+  const money = x => (town ? `${fmtMoney(x, true)} 万元` : fmtBn(x, iso));
+  const signed = x => (x < 0 ? '−' : '') + money(Math.abs(x));
+  const name = p.k === 'foreignBonds' && v < 0 ? '外国人卖国债' : p.label;
+  const kind = { pump: '泵：在这里造出新水（蓝色 +）', drain: '排水口：水在这里被消掉（红色 −）', out: '出口：商品在这里被用掉；钱（水）没有消失，回到收入循环',
+    spring: '泉水：资产自己产生的现金流，只搬水' }[p.kind] || '管道：只把水从一处搬到另一处';
+  const row = (k, val) => `<div class="cp-row"><span>${k}</span><b>${val}</b></div>`;
+  let h = `<button type="button" class="fp-x" data-act="cp-close" aria-label="关闭">✕</button><div class="fp-kind">${esc(kind)}</div><h4>${esc(name)}</h4>`;
+  h += row('占 GDP（按年算）', pctTxt(shareOf(v, snap), p.kind === 'out'));
+  h += row('本季流量', signed(v)) + row('一年大约', signed(v * 4));
+  if (p.kind === 'out') {
+    h += `<div class="cp-note">GDP = 四个出口拿走的货：消费 + 投资 + 政府购买 + 净出口。模型直接算总需求，所以这里的家庭消费 = GDP 减去另外三项` +
+      `（包括借钱、房价上涨多花的部分）。比真实略高：美国真实约 68%。</div>`;
+    if (p.k === 'outI') h += `<div class="cp-note">企业投资（Capex）过一两年变成更宽的河道（产能）。</div>`;
+  }
+  if (p.k === 'toConsumption') h += `<div class="cp-note">只是用新水（新贷款、财政赤字）多花的那一部分，不是全部家庭消费；全部消费看河道下面的「家庭消费」出口。</div>`;
+  if (p.term && hasTerm(p.term)) h += `<div class="fp-btns"><button type="button" class="btn term-btn" data-term="${p.term}">看「${esc(CONCEPTS[p.term].name || name)}」的解释</button></div>`;
+  return h;
+}
+const LOOP_HTML = `<button type="button" class="fp-x" data-act="cp-close" aria-label="关闭">✕</button><div class="fp-kind">收入循环</div>` +
+  `<h4>花钱 → 企业 → 工资、利润 → 家庭</h4><div class="cp-note">水（钱）不会被用掉，它一圈一圈地转：家庭花的钱是企业的收入，企业再把它付成工资和利润，回到家庭。` +
+  `被用掉的是货：河道下面的四个出口（家庭消费、企业投资、政府购买、净出口）拿走的货，加起来就是 GDP。</div>`;
+function openChipPop(host, p, chipEl) {     // p = a PIPES entry, or null = the 收入循环 label
+  const st = host._flow; if (!st) return;
+  const R = st.R;
+  closeValvePopover(); R.legend.hidden = true;
+  R.cpop.innerHTML = p ? chipPopHtml(st, p) : LOOP_HTML;
+  R.cpop.dataset.pipe = p ? p.k : 'loop';
+  R.cpop.hidden = false;
+  const hr = host.getBoundingClientRect(), cr = chipEl.getBoundingClientRect();
+  const pw = Math.min(280, hr.width - 16);
+  R.cpop.style.width = pw + 'px';
+  R.cpop.style.left = clamp(cr.left + cr.width / 2 - hr.left - pw / 2, 8, Math.max(8, hr.width - pw - 8)) + 'px';
+  const below = (cr.top - hr.top) < hr.height * 0.5;
+  R.cpop.style.top = below ? Math.min(cr.bottom - hr.top + 6, Math.max(8, hr.height - R.cpop.offsetHeight - 8)) + 'px' : 'auto';
+  R.cpop.style.bottom = below ? 'auto' : (hr.bottom - cr.top + 6) + 'px';
 }
 
 export function closeValvePopover() {
@@ -1052,6 +1343,25 @@ function wireEvents(host, R) {
       }
       if (tg.closest('.flow-bpop [data-act="bd-close"]') || tg.closest('.flow-bpop .term') || !tg.closest('.flow-bpop')) bp.hidden = true;
     }
+    // B4 chips: tap = amounts popover (not the concept card directly; the popover has a 解释 button). The collateral link keeps its card.
+    const cpOpen = R.cpop.hidden ? null : R.cpop.dataset.pipe;      // what the popover showed before this tap (a second tap on it closes it)
+    if (tg && !tg.closest('.flow-cpop')) R.cpop.hidden = true;
+    if (tg && tg.closest('.flow-cpop [data-act="cp-close"], .flow-cpop [data-term]')) R.cpop.hidden = true;
+    const lp = tg && tg.closest('.flow-svg [data-act="loop"]');
+    if (lp) {
+      e.preventDefault();
+      if (cpOpen !== 'loop') openChipPop(host, null, lp);
+      return;
+    }
+    const chip = tg && tg.closest('.flow-svg g.chip[data-pipe]');
+    if (chip && !chip.hasAttribute('data-bd')) {
+      const p = PIPES.find(x => x.k === chip.getAttribute('data-pipe'));
+      if (p && p.kind !== 'fb') {
+        e.preventDefault(); e.stopPropagation();
+        if (cpOpen !== p.k) openChipPop(host, p, chip);
+        return;
+      }
+    }
     const lgb = e.target.closest && e.target.closest('[data-act="legend"]');
     if (lgb) { e.preventDefault(); toggleLegend(); return; }
     const fbm = e.target.closest && e.target.closest('.fb-mini');
@@ -1081,10 +1391,11 @@ function wireEvents(host, R) {
   });
   host.addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.valve[data-valve]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); }
+    if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); R.cpop.hidden = true; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-bd="pill"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape' && R.bd) R.bd.pop.hidden = true;
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-act="loop"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
 }
 

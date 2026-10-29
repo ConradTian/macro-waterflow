@@ -1,0 +1,59 @@
+/* 总目标 strip (src/ui/objective.js): one row above 本季看点. Tokens come from app.css (light + dark), so no separate dark rules are needed.
+   Lamps are a dot + 2-character name, never colour alone. Tap the text -> 整个经济 card; tap a lamp -> its reason. */
+.objective { position: relative; flex: none; background: var(--surface); border-top: 1px solid var(--border); }
+.objective[hidden] { display: none; }
+.ob-bar { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--gutter); }
+.ob-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 2px 0; border: 0; background: none; color: var(--text);
+  font-size: 12.5px; line-height: 1.3; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.ob-lab { flex: none; color: var(--muted); }
+.ob-long { display: none; }
+.ob-sc { flex: none; font-weight: 700; }
+.ob-n { font-variant-numeric: tabular-nums; }
+.ob-yoy { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--lamp-green); }
+.ob-yoy.neg { color: var(--lamp-red); }
+.ob-lamps { flex: none; display: flex; align-items: center; gap: 2px; margin-right: -6px; }
+.ob-lamp { display: inline-flex; align-items: center; gap: 3px; min-height: 28px; padding: 0 5px; border: 0; background: none; color: var(--text);
+  font-size: 11.5px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.ob-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--lamp-green); box-shadow: 0 0 0 1px var(--border); }
+.ob-lamp[data-level="yellow"] .ob-dot, .ob-dot[data-level="yellow"] { background: var(--lamp-yellow); }
+.ob-lamp[data-level="red"] .ob-dot, .ob-dot[data-level="red"] { background: var(--lamp-red); }
+.ob-lamp[data-level="green"] .ob-dot, .ob-dot[data-level="green"] { background: var(--lamp-green); }
+.ob-lamp[data-level="red"] span { font-weight: 700; }
+/* a lamp lit by a known model gap (US 2023–25): dashed ring + a small 偏差 tag, the reason says why */
+.ob-lamp[data-gap] .ob-dot { outline: 1.5px dashed var(--muted); outline-offset: 1.5px; }
+.ob-lamp[data-gap]::after { content: '模型偏差'; font-size: 9px; color: var(--muted); align-self: flex-start; }
+.ob-main:focus-visible, .ob-lamp:focus-visible, .ob-link:focus-visible, .ob-x:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ob-lamp:active, .ob-main:active { background: var(--surface-2); }
+
+.ob-pop { position: absolute; left: 0; right: 0; top: 100%; z-index: 36; padding: 8px var(--gutter) 10px; background: var(--surface);
+  border-bottom: 1px solid var(--border); box-shadow: 0 8px 16px rgba(0, 0, 0, .18); font-size: 13.5px; line-height: 1.45; }
+.ob-pop[hidden] { display: none; }
+.ob-pop p { margin: 4px 0; }
+.ob-pop-h { display: flex; align-items: center; gap: 6px; }
+.ob-pop-h b { font-size: 14px; }
+.ob-x { margin-left: auto; width: 32px; height: 32px; border: 0; background: none; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; }
+.ob-link { margin-top: 2px; padding: 4px 0; border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; }
+.ob-row { display: flex; gap: 10px; padding: 3px 0; }
+.ob-row b { flex: none; width: 4.5em; color: var(--accent); }
+.ob-note { font-size: 12.5px; }
+.ob-ls { margin: 6px 0 0; padding: 6px 0 0; list-style: none; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.ob-ls .ob-dot { display: inline-block; margin-right: 4px; vertical-align: -1px; }
+
+/* the first town lessons reveal parts one at a time (the town itself hides the strip in JS) */
+body.parts-on .objective { display: none; }
+
+@media (min-width: 768px) {
+  .ob-bar { padding-left: 24px; padding-right: 24px; gap: 10px; }
+  .ob-main { font-size: 13px; }
+  .ob-long { display: inline; }
+  .ob-short { display: none; }
+  .ob-lamp { font-size: 12.5px; gap: 4px; padding: 0 8px; }
+  .ob-pop { padding-left: 24px; padding-right: 24px; max-width: 720px; border-right: 1px solid var(--border); }
+}
+@media (max-width: 420px) {
+  .ob-bar { padding-left: 10px; padding-right: 10px; gap: 4px; }
+  .ob-pop { padding-left: 10px; padding-right: 10px; }
+  .ob-main { font-size: 12px; gap: 4px; }
+  .ob-short, .ob-yl { display: none; }              /* phone: "每人真实消费 5,366 ▼1.5%" (the full wording is in the tap card) */
+  .ob-lamp { padding: 0 4px; font-size: 11px; gap: 2px; }
+}
