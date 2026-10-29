@@ -30,7 +30,10 @@
 - `nextSignal`, `since`: as before.
 
 `snap.cycles.long`: same as before, plus:
-- `fork`: `'B1' | 'B2' | null`. Only in stages ① and ②. B2 is sticky until the stage changes; B1 = the short cycle is in a 物价过热 top.
+- `fork`: `'B1' | 'B2' | null`. Only in stages ① and ②. B1 = the short cycle is in a 物价过热 top.
+  - B2 (2026-10-30): confirmed once its three conditions hold `LT.b2N` (3) quarters in a row; it stays until the long stage moves **or** the short cycle reads 推得动 (the `restart` event: 降息 → 扩张). Before, one quarter confirmed it and only a stage move cleared it (real AUS read B2 2008Q4–2021Q2).
+  - `forkPending`: `{ have, need } | null`, the B2 streak while it builds (shown like `between`: 「B2 待确认 2/3 季」).
+  - `forkExtra`: display-only 加分项 for the B2 card, never in the gate: `{ lvr, hpDraw, bad, badCap, badRes, chargeOff }` (null = no data). Model: average LVR, house price vs its recent peak, bad loans / bank capital. Real US: house price vs its 5-year high, FRED DRSFRMACBS / DRALACBS / CORALACBS; real AUS: house price only (no bank series).
 - `b1Overlay`: bool. True in a later stage when the short cycle is in a 物价过热 top (e.g. ⑦ + B1 in 2023).
 - `forkEvidence`: items (same shape as evidence) for the three B2 conditions while in ①/②, else null. `forkSignal` is the one-line text of the B2 rule.
 
@@ -76,6 +79,8 @@ The old dial was about a year off the real Fed path. Causes: 收紧 meant recess
     - It replaces the old rule "insurance cuts with no prior tightening (1998) leave the dial on 扩张". The US now reads 降息 in 1998Q4–1999Q2 (Fed −0.75pp Sep–Nov 1998) and 2002Q4–2003Q3 (Fed −0.5pp Nov 2002, −0.25pp Jun 2003).
     - `engine_check --country AUS` asserts that the RBA cutting windows 2011Q4–2016Q3 and 2019Q2–2020Q2 read 降息 in most quarters.
 - **B1**: `fork` B1 / `b1Overlay` hold during 过热·物价, and also during 收紧 that came from a price top while inflation is still ≥ 3.5%.
+- **No 过热·物价 while the bank cuts** (2026-10-30): a cut this quarter or ≥ `polFlat` (0.1pp) over the last 2 quarters blocks it (an extra hotP evidence row). Real US no longer reads 过热·物价 in 2008Q3 (oil CPI while the Fed cut).
+- **⑦ (2026-10-30)**: g − r ≥ `LT.gr` (0: nominal GDP growth over 4 quarters minus the 10y yield) **and** gov debt/GDP 4-quarter change ≤ `LT.gov4` (0), for the usual 6 quarters. Real policy rate ≤ `LT.realP7` (0) is a 加分项 row (`support: true`): shown, never in the gate. Evidence items with `support` are skipped by `holds` and by the UI's requirement count.
 - **Long dial**: entering ⑥ from ⑤ needs 4 quarters (`LONG_N_TO`), every other move still needs 6.
   - ⑤ stays at 6: with 4, AUS 2021 would enter ⑤.
   - Every long stage lasts ≥ 4 quarters (the engine_check assert was ≥ 6).
@@ -100,11 +105,12 @@ The old dial was about a year off the real Fed path. Causes: 收紧 meant recess
 | 2006Q2 | | 收紧·衰退（接 物价过热） | label only | hold at 5.25% from Jun 2006 |
 | 2006Q4 | | 收紧·衰退（接 资产过热） | SHORT_TOP asset | |
 | 2007Q4 | | 降息（接 资产过热） | | first cut Sep 2007 (Q3 average −0.2pp) |
-| 2008Q1 | | | **LONG_FORK B2**, handoff 'no' (**推不动**) | |
+| 2008Q1 | | | B2 pending 1/3 (since 2026-10-30; was LONG_FORK here) | |
+| 2008Q3 | | | **LONG_FORK B2**, handoff 'no' (**推不动**) | |
 | 2009Q2 | ⑤ | | handoff still 'no' | |
 | 2010Q2 | ⑥ | | handoff still 'no' | TARP/QE1 2008Q4, ARRA 2009Q1 |
 | 2011Q2 | | 扩张 | | |
-| 2016Q1 | ⑦ | | | |
+| 2015Q1 | ⑦ | | new ⑦ rule (g − r > 0, gov debt/GDP not rising); was 2016Q1 | |
 | 2017Q1 | | 收紧（加息） | 2016: one 25bp hike, round < 0.5pp, so 扩张 | hikes Dec 2015, Dec 2016 → Dec 2018 |
 | 2017Q3 | | 收紧（加息）（接 物价过热） | SHORT_TOP price, b1Overlay | |
 | 2019Q3 | | 降息（接 物价过热） | | cuts Jul–Oct 2019, Mar 2020 |
@@ -117,7 +123,8 @@ engine_check asserts this against the FOMC path (±1 quarter). It checks:
 - the dial reads 收紧 in most hiking quarters;
 - 降息 starts within 1 quarter of each first cut;
 - no 降息 while the rate rose ≥ 0.1pp in the last 2 quarters;
-- the B2 fork falls in 2007Q3–08Q4;
+- the B2 fork falls in 2007Q3–08Q4 (2008-11 推不动 count ≥ 10 quarters, was 12: 2008Q1–Q2 are B2 pending now);
+- no 过热·物价 while the bank cuts;
 - ⑤ is entered in 2008Q3–09Q4 and ⑥ by 2010Q2;
 - 2001–03 推得动 (back to 扩张 by 2004Q2) and 2008–11 推不动.
 

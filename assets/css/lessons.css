@@ -299,6 +299,11 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 .ls-res.ls-all .me { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .ls-freebtn { display: block; margin: 10px 0 4px; text-align: center; text-decoration: none; border: 1px dashed var(--accent); color: var(--accent); border-radius: 10px; padding: 10px; font-weight: 600; }
 @media (max-width: 480px) { .ls-res.ls-all { font-size: 12px; } .ls-res.ls-all th, .ls-res.ls-all td { padding: 4px 3px; } }
+/* course L4 「负资产不等于 B2」: the four-case table (block 'b2cases') wraps on phone; the four questions under it */
+.ls-res.ls-b2c { width: 100%; font-size: 12.5px; }
+.ls-res.ls-b2c td, .ls-res.ls-b2c th { text-align: left; white-space: normal; padding: 4px 5px; line-height: 1.35; vertical-align: top; }
+.ls-res.ls-b2c td:first-child { font-weight: 600; }
+.ls-b2q { margin: 2px 0 6px; padding-left: 22px; font-size: 13.5px; line-height: 1.6; }
 
 /* =====================================================================
    Step field panel:{id,...} (the big lessons 汇率 / 投资者; src/ui/lessons.js syncPanel, contract tools/D-CONTRACT.md 「接线」).

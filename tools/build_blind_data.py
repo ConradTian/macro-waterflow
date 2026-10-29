@@ -71,7 +71,7 @@ DECK = [
     ("AUS", 1989, "危", "利率高到 17–18%，1990–91 年「不得不有的衰退」，地产商和银行亏损。"),
     ("AUS", 1991, "转", "降息后通胀降到 2% 左右，澳洲开始近 30 年没有衰退的扩张。"),
     ("AUS", 2000, "平", "GST 开征、科网泡沫破裂，2001 年小放缓后房价开始快速上涨。"),
-    ("AUS", 2008, "危", "全球金融危机，澳股跌四成，但大降息、财政刺激加中国需求，没有衰退。"),
+    ("AUS", 2008, "危", "全球金融危机，澳股跌四成，但大降息、财政刺激加中国需求，没有衰退。"),  # + REVEAL_WHY below
     ("AUS", 2009, "转", "2009 年股市反弹，矿业繁荣回来，澳联储在发达国家里最早开始加息。"),
     ("AUS", 2015, "平", "矿业投资退潮，降息推高悉尼、墨尔本房价，2017 年监管收紧后房价回落。"),
     ("AUS", 2021, "危", "2022 年起澳联储从 0.1% 加息到 4.35%，房价先跌后涨，股票和国债一起跌。"),
@@ -88,6 +88,10 @@ DECK = [
     ("CHN", 2021, "危", "「三条红线」后恒大等房企违约，房价开始下跌，A 股连跌三年。"),
     ("CHN", 2024, "转", "2024 年 9 月大规模刺激政策，A 股急涨；房价仍在跌。"),
 ]
+# optional second reveal line (reveal.why, src/blind/main.js shows it under `what`); 负资产 ≠ B2 (tools/COURSE-V3.md queue 2c)
+REVEAL_WHY = {
+    "AUS-2008": "为什么不是 B2：房价只小跌、负资产少，银行没伤；降息很快传到浮动利率房贷，推得动。",
+}
 
 # ---------------------------------------------------------------- generic helpers
 def ann(s, how="mean", need=1):
@@ -852,7 +856,7 @@ def build(write=True):
         cards.append({
             "id": cid, "iso": iso, "year": year, "type": typ, "holdout": year + 3 >= 2021, "batch": 1 if cid in BATCH1 else 2,
             "view": v,
-            "reveal": {"ret1": r1, "ret3": r3, "what": what},
+            "reveal": {"ret1": r1, "ret3": r3, "what": what, **({"why": REVEAL_WHY[cid]} if cid in REVEAL_WHY else {})},
             "notes": card_notes(iso, year, v, used, r1, r3),
         })
     blind = {

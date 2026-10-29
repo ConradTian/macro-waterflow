@@ -103,10 +103,13 @@ const USA_BASE = {
       pvtUp: 0.03, pi: 1.10,                       // ②: private debt/GDP +3pp in 3y, house price/income >= 1.10x start
       pvtDown: -0.05, bad: 0.035, zb: 0.0075,      // ⑤: 5pp below the 3y high; bad loans >= 3.5% or policy <= 0.75% (cuts used up)
       govUp: 0.03, deficit: 0.05, qe: 0.01, zb2: 0.005, // ⑥: gov debt +3pp in 3y or deficit >= 5% GDP; and QE >= 1% GDP or policy <= 0.5%
-      realP: -0.01, flat: 0.01, pvtFlat: 0.02,     // ⑦: real policy rate <= -1%; gov debt not rising (+1pp); private debt not re-levering (+2pp)
+      gr: 0, gov4: 0, realP7: 0,                   // ⑦ (2026-10-30): g − r >= 0 (nominal GDP growth over 4 quarters vs the 10y yield) and gov
+                                                   // debt/GDP not up vs a year ago (<= 0); real policy rate <= 0 is a supporting item only
+      realP: -0.01, flat: 0.01,                    // ⑧: real policy rate back above -1% (repression over); gov debt not rising over 3y (+1pp)
       dsrLow: -0.025, badLow: 0.025, i2t: 0.25,    // ⑧: DSR 2.5pp under start, bad loans <= 2.5%, interest/tax <= 25%
       reUp: 0.02, pcg: 0.03,                       // ①: private debt +2pp in 3y and credit growth >= 3%
       hpFall: 0, dsrHi: 0.01, cut: 0.01, ciNeg: -0.005, // B2 fork: house prices falling; debt/DSR high; cut >= 1pp (or near zero) yet credit still shrinking
+      b2N: 3,                                      // B2 confirmed after 3 quarters in a row (2026-10-30); cleared by the stage move or 推得动
     },
     ST: {
       infl: 0.035, hike: 0.005,                    // 过热·物价

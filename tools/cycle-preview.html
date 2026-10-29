@@ -4,17 +4,22 @@
 <div id="box"></div>
 <script type="module">
 // standalone render of the 周期 tab (no diagram) so a tall tab can be screenshotted: ?t=60&mode=history&theme=dark&w=390
+//   &country=AUS  the AUS model;  &real=1  the dials / B2 card on REAL data (src/data/real/real-snapshot.js; the trail stays the model's)
 import { createSim } from '../src/engine/sim.js';
 import { US_Q } from '../src/data/us-quarterly.js';
+import { AUS_Q } from '../src/data/countries/aus-quarterly.js';
 import { render } from '../src/ui/tabs/cycle.js';
 import { initConcepts } from '../src/ui/concepts.js';
 const q = new URLSearchParams(location.search), t = +(q.get('t') || 60), mode = q.get('mode') || 'history';
+const iso = (q.get('country') || 'USA').toUpperCase(), data = iso === 'AUS' ? AUS_Q : US_Q;
 if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
 document.getElementById('box').style.width = (q.get('w') || 390) + 'px';
-const sim = createSim({ data: US_Q, mode });
+const sim = createSim({ data, mode, country: iso });
 while (sim.t < t) sim.step();
-initConcepts({ sim, getSnap: () => sim.snapshot() });
-const ctx = { sim, snap: sim.snapshot(), userSnap: null, real: US_Q, openTerm() {} };
+let snap = sim.snapshot();
+if (q.get('real') === '1') snap = (await import('../src/data/real/real-snapshot.js')).realSnapshot(iso, t) || snap;
+initConcepts({ sim, getSnap: () => snap });
+const ctx = { sim, snap, userSnap: null, real: data, openTerm() {} };
 render(document.getElementById('box'), ctx);
 window.__done = true;
 </script></body></html>

@@ -174,7 +174,17 @@ for (const iso of ['USA', 'AUS']) {
     for (const [a, b] of [['2004Q3', '2006Q2'], ['2022Q2', '2023Q3']]) { const [h, n] = share(a, b, 'tight'); assert(h * 2 > n, `USA real: 收紧 in most of ${a}..${b} (${h}/${n})`); }
     for (const [a, b] of [['2007Q4', '2008Q2'], ['2019Q3', '2019Q4'], ['2024Q3', '2025Q1']]) { const e = firstIn(a, b, c => c.short.phase === 'ease'); assert(e, `USA real: 降息 from ${a} (first ${e})`); }
     const b2 = firstIn('2006Q1', '2009Q4', c => c.long.fork === 'B2'); assert(b2 && b2 >= '2007Q1' && b2 <= '2008Q4', `USA real: B2 fork around 2007-08 (${b2})`);
+    // 2026-10-30 rules: B2 is pending before it is confirmed (3 quarters in a row); ⑦ = g − r > 0 and gov debt/GDP not rising
+    const pend = firstIn('2006Q1', '2009Q4', c => !!c.long.forkPending); assert(pend && b2 && pend < b2, `USA real: B2 pending (${pend}) before confirmed (${b2})`);
+    const b2n = R.filter(c => c.long.fork === 'B2').length; assert(b2n >= 4 && b2n <= 10, `USA real: B2 lasts 4..10 quarters (${b2n}), only in 2007-09`);
+    const s7 = firstIn('1995Q1', D.dates.at(-1), c => c.long.stage === 7); assert(s7 && s7 >= '2021Q1' && s7 <= '2022Q4', `USA real: ⑦ entered in 2021-22 (${s7})`);
+    const hot08 = firstIn('2007Q4', '2009Q2', c => c.short.key === 'hotP'); assert(!hot08, `USA real: no 过热·物价 while the Fed cuts in 2008 (${hot08 || 'none'})`);
   } else {
+    // B2 hysteresis: the evidence held in 2008Q4-09Q1 and 2012Q3 only (never 3 quarters in a row) -> no B2 (it used to stick 2008Q4-2021Q2)
+    const b2a = firstIn('1995Q1', D.dates.at(-1), c => c.long.fork === 'B2'); assert(!b2a, `AUS real: no B2 fork (${b2a || 'none'})`);
+    const pa = firstIn('2008Q1', '2009Q4', c => !!c.long.forkPending); assert(pa, `AUS real: B2 pending in 2008-09, never confirmed (${pa})`);
+    const no09 = firstIn('2008Q4', '2009Q4', c => c.short.handoff === 'no'); assert(!no09, `AUS real: the 2008-09 RBA cuts are not 推不动 (${no09 || 'none'})`);
+    const back09 = firstIn('2009Q1', '2010Q2', c => c.short.phase === 'expand'); assert(back09, `AUS real: 推得动, back to 扩张 by 2010Q2 (${back09})`);
     const e1 = firstIn('2011Q4', '2012Q2', c => c.short.phase === 'ease'); assert(e1, `AUS real: 降息 from the 2011Q4 cut (${e1})`);
     const [h1, n1] = share('2011Q4', '2016Q3', 'ease'); warn(h1 * 2 > n1, `AUS real: 降息 in most of 2011Q4..2016Q3 (${h1}/${n1})`);
     const e2 = firstIn('2019Q2', '2020Q2', c => c.short.phase === 'ease'); assert(e2, `AUS real: 降息 in 2019Q2..2020Q2 (${e2})`);

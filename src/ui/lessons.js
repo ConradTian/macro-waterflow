@@ -1127,6 +1127,19 @@ function blockHtml(name, snap) {
     const sh = [['房产', f.toHousing], ['股票', f.toEquity], ['国债', f.toBond], ['黄金', f.toGold], ['现金', f.toCash]];
     return `<div class="ls-alloc"><div class="ls-note">本季新增资金的去向（占比）</div><div class="ls-srcs">${sh.map(([n, v]) => `<span class="ls-src"><b>${n}</b> ${(100 * (v || 0) / tot).toFixed(0)}%</span>`).join('')}</div></div>`;
   }
+  if (name === 'b2cases') {
+    // 负资产 ≠ B2 (course L4): four real cases (history, not the model), then the four questions in order
+    const R = [
+      ['美国 2008', '多（约四分之一房贷户）', '重伤', '推不动', '是'],
+      ['日本 1990', '多（土地、股票大跌）', '重伤', '推不动', '是'],
+      ['英国 1990 年代初', '多（上百万户）', '轻伤', '推得动', '不是'],
+      ['澳洲 2008', '少（房价小跌）', '没伤', '推得动', '不是'],
+    ];
+    return `<table class="tbl ls-res ls-ro ls-b2c"><tr><th></th><th>负资产</th><th>银行</th><th>降息</th><th>B2？</th></tr>` +
+      R.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td><b>${esc(r[4])}</b></td></tr>`).join('') + '</table>' +
+      '<p class="ls-note">判断 B2，按顺序问四句。前三句回答「B2 有没有可能来」，第四句才确认：</p>' +
+      '<ol class="ls-b2q"><li>借钱买的资产跌了吗？</li><li>负资产多不多？</li><li>银行伤了吗？</li><li><b>降息推不推得动？</b>（推不动，才是 B2）</li></ol>';
+  }
   if (name === 'valves') {
     const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
     return `<div class="ls-two"><div><h4>能拧的：阀门</h4><ul>${li(VALVES.map(v => v.label.replace(/^.*：/, '') + '（' + (v.label.split('：')[0]) + '）'))}</ul></div>` +

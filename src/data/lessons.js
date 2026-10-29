@@ -7,7 +7,7 @@
 //   chain   { links:[{text, term?, pipe?, part?, hl?}], text, next? }         final causal chain; tapping a link lights its pipe
 //   zoom    { date, until?, text, block?:'sources', next?, showAll? }          zoomOut() animation, then the US sim from `date`
 //   any step: do:[effects] at entry, after:[effects] once over (effects: {action}|{valve,value}|{delays}|{rule,on}|{param,value}|{reset:true}); metrics:[{label,get,fmt}] -> 之前/现在 table
-//   reveal block: 'households' | 'budget' | 'valves' | 'sources'
+//   reveal block: 'households' | 'budget' | 'valves' | 'sources' | 'b2cases' (负资产 ≠ B2: four-case table + the four questions)
 //
 //
 // Lesson   = { id, title, oneLine, rulesOn:[ruleId], startDate, endDate, mode:'history', available, steps:[...] }
@@ -291,7 +291,7 @@ export const LESSONS = [
         text: [
           '第二个问题：**四盏灯里，哪一盏这个季度变色了？** 四盏灯各管一件事：信贷灯看水管，偿债灯看还债压力，政策灯看利率松紧，估值灯看价格贵不贵。',
         ],
-        question: '2008Q2 → 2008Q3，哪盏灯变了颜色？（不用算，看顶上「本季看点」的第一条。）',
+        question: '2008Q2 → 2008Q3，哪盏灯变了颜色？（不用算，看顶上「本季看点」里带「灯」字的那一条；排在前面的两条是周期的大事，第 5 步再看。）',
         answerHint: [
           '**估值灯 黄→绿。** 股票 P/E（相对起点的倍数）从 {pe0} 降到 {pe1}，刚好跌破黄线 1.15（房价/收入 {h1}，早就在线下）。',
           '其余三盏没变色：信贷灯一直是红的（信贷脉冲 {ci}，放贷少于还本），偿债灯、政策灯一直是黄的。',
@@ -312,10 +312,11 @@ export const LESSONS = [
         ],
         concept: ['lampValuation', 'lampCredit'] },
 
-      { type: 'reveal', title: '第 3 步：看规则', strip: true, tab: 'ledger', glow: { parts: ['household'], pipes: ['principalRepay'] },
-        stripAt: { date: '2008Q3', has: ['外国「要求更高期限溢价」新触发'] },
+      // 2008Q3 is also the quarter the B2 fork is confirmed: the strip's 3 items are B2 / 推不动 / 估值灯, so this step reads the ledger itself
+      { type: 'reveal', title: '第 3 步：看规则', tab: 'ledger', glow: { parts: ['household'], pipes: ['principalRepay'] },
+        ledgerAt: [{ player: 'foreign', ruleId: 'foreign_funding', date: '2008Q3' }],
         text: [
-          '第三个问题：**谁的规则新触发了？** 每个角色每季度都按规则行动，流水账里每个角色一张卡。但大多数卡片只是在重复上一季。',
+          '第三个问题：**谁的规则新触发了？** 每个角色每季度都按规则行动，流水账里每个角色一张卡。但大多数卡片只是在重复上一季。（这一季「本季看点」只有三格，被周期的大事占了，所以直接看流水账。）',
           '所以流水账默认只显示「★ 新触发」和「做法变了」的卡片；点上面的「全部」才看全部。',
         ],
         question: '2008Q3 流水账里有好几张卡，几乎都在重复上一季。哪一张是这个季度才新触发的？',
@@ -612,7 +613,7 @@ export const LESSONS = [
         text: [
           '**结论：小周期的最后一步是一个问题：降息推得动吗？2001 年推得动，信贷回来了；2008 年推不动。差别在于：泡沫里的资产是不是借钱买的。推不动，就交给大周期：B2 缩水 → ⑤ 私人去杠杆。**',
           '像一条河上的两道调度：小周期是每年的汛期调度（加息关水，降息放水），大周期是水库本身。水库自己被抽干的时候，闸怎么开都没用。',
-          '下面分 3 步：2001 和 2008 并排看 → 差别在哪 → 推不动之后。',
+          '下面分 4 步：2001 和 2008 并排看 → 差别在哪 → 负资产不等于 B2 → 推不动之后。',
           '每一步看两个地方：「周期」页的两个圆环，和左边切到「曲线」的走势图。',
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
@@ -671,16 +672,32 @@ export const LESSONS = [
         ],
         hl: ['bankApproval', 'newLoans', 'assetReservoir', 'policyRate'], concept: ['lvr', 'bankApproval', 'B2'] },
 
-      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 3 步：推不动 → B2 → ⑤', view: 'flow', tab: 'cycle',
+      // 负资产 ≠ B2 (tools/COURSE-V3.md queue 2b): four real cases in a static table (block 'b2cases', src/ui/lessons.js), ending with the four questions
+      { type: 'reveal', title: '第 3 步：负资产不等于 B2', view: 'flow', tab: 'cycle', block: 'b2cases',
+        glow: { parts: ['bank', 'poolHousing', 'household'], pipes: ['collateral'] },
+        text: [
+          '房价跌到房子不值房贷，叫**负资产**：卖了房也还不清债。是不是负资产一多，就一定走上 B2？',
+          '看四次房价下跌：美国 2008、日本 1990、英国 1990 年代初、澳洲 2008。',
+        ],
+        question: '这四次，哪几次走上了 B2？差在哪？',
+        answerHint: [
+          '**美国 2008、日本 1990 走上了 B2。** 借钱买的资产大跌，负资产很多，坏账吃掉银行的资本，银行只能收紧，降息也推不动。',
+          '**英国 1990 年代初没有。** 负资产很多，但银行伤得不重；英国央行 1990 年底开始降息，1992 年退出欧洲汇率机制后降得更快；英国房贷多是浮动利率，房贷利率跟着降，推得动。**澳洲 2008 也没有。** 房价只小跌，负资产少，银行没伤；澳洲央行降息很快传到房贷，推得动。',
+        ],
+        relation: '负资产是 B2 的燃料，不是 B2 本身：负资产要多、并且伤到银行，降息才会推不动。',
+        hl: ['bankApproval', 'newLoans', 'policyRate'], concept: ['B2', 'lvr', 'badLoans'] },
+
+      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 4 步：推不动 → B2 → ⑤', view: 'flow', tab: 'cycle',
         glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
         text: [
           '回到 2007 年，把推不动的那一次慢慢放一遍。',
-          '{e2}，央行第一次降息，小周期走到「降息（推得动吗？）」。{fk}，三件事同时成立：房价比一年前在跌、债务堆高了、降了息信贷还在缩。大周期在 ② 之后的岔路口走上 **B2 缩水**，圆环判成「推不动」。',
+          '{e2}，央行第一次降息，小周期走到「降息（推得动吗？）」。{pd} 起三件事同时成立：房价比一年前在跌、债务堆高了、降了息信贷还在缩，大周期先标「B2 待确认」。连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2 缩水**，圆环判成「推不动」。',
           '银行把闸门关小（审批倍数 {ap}）：新贷款只有 {nl}，还本还有 {rep}（十亿美元/季），排水口在净抽水。',
           '{s5}，大周期盘进 **⑤ 私人去杠杆**：私人不借了，只顾还债。下一课：谁来补水？',
         ],
         vals: [
           { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str' }, { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' },
+          { key: 'pd', get: 'when:cycles.long.forkPending.have=1', fmt: 'str' },
           { key: 'ap', get: 'end:bank.approval', fmt: 'x2' }, { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
           { key: 's5', get: 'when:cycles.long.stage=5', fmt: 'str' },
           { key: 'bc', get: 'chg:assets.bond.price', fmt: 'chg' }, { key: 'hc', get: 'chg:assets.housing.price', fmt: 'chg' },
@@ -695,7 +712,8 @@ export const LESSONS = [
         claims: [
           { get: 'when:cycles.short.phase=ease', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 小周期进「降息」' },
           { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' },
-          { get: 'when:cycles.short.handoff=no', dateBetween: ['2008Q1', '2008Q2'], note: '圆环判成「推不动」' },
+          { get: 'when:cycles.long.forkPending.have=1', dateBetween: ['2008Q1', '2008Q1'], dateBefore: 'when:cycles.long.fork=B2', note: '先「B2 待确认」，连续 3 季后才确认' },
+          { get: 'when:cycles.short.handoff=no', dateBetween: ['2008Q3', '2008Q4'], note: '圆环判成「推不动」（B2 确认的那一季）' },
           { get: 'at:2008Q1:extra.houseYoY', lt: 0, note: '条件 1：房价比一年前在跌' },
           { get: 'at:2008Q1:cycles.long.forkEvidence.1.value', gte: 0.01, note: '条件 2：债务堆高（DSR 比起点高 ≥ 1 个点）' },
           { get: 'at:2008Q1:extra.creditImpulse', lte: -0.005, note: '条件 3：降了息信贷还在缩' },
@@ -788,14 +806,15 @@ export const LESSONS = [
         ],
         explain: [
           '更低：政府债务/GDP 从 {r0} 降到 {r1}。可政府一分钱也没还：债务本身从 {b0} 涨到 {b1}。变轻，是因为分母长得更快：这四年名义 GDP 涨了 {gg}，债务只涨了 {bg}。',
-          '实际利率为负，就是让时间替欠债的人还钱：存钱的人每年亏一点，欠债的人每年轻一点。这叫**金融压制**。{s7}，大周期盘进入 **⑦ 金融压制·增长化债**。',
+          '实际利率为负，就是让时间替欠债的人还钱：存钱的人每年亏一点，欠债的人每年轻一点。这叫**金融压制**。',
+          '大周期盘看的是结果：名义增长跑赢 10 年国债利率（g − r > 0），政府债务/GDP 比一年前不再升，连续 6 季。{s7}，大周期盘进入 **⑦ 金融压制·增长化债**。实际利率为负是它常见的帮手（加分项），不是门槛。',
         ],
         claims: [
           { get: 'start:rates.realPolicy', lt: -0.01, note: '2013Q1 实际利率为负' },
           { get: 'max:rates.realPolicy', lt: -0.005, note: '这四年实际利率一直为负' },
           { get: 'chg:debt.government', gt: 0, note: '政府债务本身在涨（没还）' },
           { get: 'chg:macro.gdpNominal', vs: { get: 'chg:debt.government' }, gt: 0.03, note: '名义 GDP 涨得比债务快' },
-          { get: 'when:cycles.long.stage=7', dateBetween: ['2015Q3', '2016Q4'], note: '大周期进 ⑦' },
+          { get: 'when:cycles.long.stage=7', dateBetween: ['2014Q3', '2016Q4'], note: '大周期进 ⑦' },
         ],
         hl: ['policyRate', 'realRate'], concept: ['realRate', 'govDebtGdp'] },
 
@@ -827,7 +846,7 @@ export const LESSONS = [
           { get: 'chg:macro.gdpNominal', from: '2013Q1', until: '2017Q1', vs: { get: 'chg:debt.government' }, gt: 0.03, note: '① 增长：名义 GDP 比债涨得快' },
           { get: 'dpp:gov.debtGdp', from: '2013Q1', until: '2017Q1', lt: -0.03, note: '债务/GDP 降了' },
           { get: 'avg:macro.inflation', from: '2013Q1', until: '2017Q1', lt: 0.03, note: '② 通胀不高（平均 < 3%）' },
-          { get: 'when:cycles.long.stage=7', from: '2013Q1', until: '2017Q1', dateBetween: ['2015Q3', '2016Q4'], note: '这正是大周期 ⑦' },
+          { get: 'when:cycles.long.stage=7', from: '2013Q1', until: '2017Q1', dateBetween: ['2014Q3', '2016Q4'], note: '这正是大周期 ⑦' },
         ],
         hl: ['realRate'], concept: ['realRate', 'govDebtGdp'] },
 
@@ -1510,22 +1529,23 @@ export const LESSONS = [
         ],
         hl: ['interestPaid', 'assetReservoir'], concept: ['dsr', 'housePrice'] },
 
-      { type: 'watch', until: '2008Q1', title: '第 6 步：2008Q1，大周期走上 B2', view: 'flow', tab: 'cycle',
+      { type: 'watch', until: '2008Q3', title: '第 6 步：2008 年，大周期走上 B2', view: 'flow', tab: 'cycle',
         glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
         text: [
           '央行开始降息：政策利率从 {p0} 降到 {p1}。可信贷没有回来。',
-          '{fk}，大周期在 ② 之后的岔路口选了 **B2 缩水**。三件事同时成立：房价比一年前在跌（{hy}）；债务堆高了（DSR 比起点高 {ds}）；降了息，信贷脉冲还是负的（{ci}）。',
+          '{pd} 起三件事同时成立：房价比一年前在跌（{hy}）；债务堆高了（DSR 比起点高 {ds}）；降了息，信贷脉冲还是负的（{ci}）。先是「B2 待确认」；连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2 缩水**。',
           '这就是第 3 课的圈：房价↓ → 抵押品变差 → 银行把闸门关小（审批倍数 {ap}）→ 新贷款↓。降息只改价格，打不开银行的闸门。',
         ],
         vals: [
           { key: 'p0', get: 'start:rates.policy', fmt: 'pct' }, { key: 'p1', get: 'end:rates.policy', fmt: 'pct' },
-          { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' },
+          { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' }, { key: 'pd', get: 'when:cycles.long.forkPending.have=1', fmt: 'str' },
           { key: 'hy', get: 'end:extra.houseYoY', fmt: 'pct' }, { key: 'ds', get: 'end:cycles.long.forkEvidence.1.value', fmt: 'pp' },
           { key: 'ci', get: 'end:extra.creditImpulse', fmt: 'pct' }, { key: 'ap', get: 'end:bank.approval', fmt: 'x2' },
         ],
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }],
         claims: [
           { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' },
+          { get: 'when:cycles.long.forkPending.have=1', dateBetween: ['2007Q3', '2008Q2'], dateBefore: 'when:cycles.long.fork=B2', note: '先「B2 待确认」，再确认 B2' },
           { get: 'when:cycles.long.fork=B2', from: '2000Q1', until: '2012Q4', dateBetween: ['2007Q3', '2008Q4'], note: '2000Q1 之后第一次 B2 就在这里：2000–03 年间没有 B2' },
           { get: 'end:extra.houseYoY', lt: 0, note: '条件 1：房价比一年前在跌' },
           { get: 'end:cycles.long.forkEvidence.1.value', gte: 0.01, note: '条件 2：DSR 比起点高（>= 1 个点）' },
@@ -1548,8 +1568,8 @@ export const LESSONS = [
         ],
         metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }, { label: '小周期', get: 'cycles.short.label', fmt: 'str' }],
         claims: [
-          { get: 'when:cycles.short.handoff=no', from: '2007Q3', dateBetween: ['2008Q1', '2008Q1'], note: '2008Q1 起：降息，推不动' },
-          { get: 'count:cycles.short.handoff', from: '2008Q1', until: '2011Q1', lt: 1, note: '2008Q1 到 2011Q1 一直是「推不动」' },
+          { get: 'when:cycles.short.handoff=no', from: '2007Q3', dateBetween: ['2008Q3', '2008Q3'], note: '2008Q3 起（B2 确认）：降息，推不动' },
+          { get: 'count:cycles.short.handoff', from: '2008Q3', until: '2011Q1', lt: 1, note: '2008Q3 到 2011Q1 一直是「推不动」' },
           { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2011Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 起小周期在「降息」' },
           { get: 'count:cycles.short.phase', from: '2007Q4', until: '2011Q1', lt: 1, note: '2007Q4 到 2011Q1 小周期一直停在「降息」' },
           { get: 'when:cycles.long.stage=5', dateBetween: ['2008Q4', '2009Q4'], note: '大周期进 ⑤' },
@@ -1739,7 +1759,7 @@ export const LESSONS = [
 
       { type: 'reveal', from: '2008Q3', until: '2014Q4', title: '第 6 步：大周期盘走到哪了', tab: 'cycle',
         text: [
-          '这六年，大周期盘的指针一格一格往前走：② 缓冲池满 → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手；再过一年多，才到 ⑦ 金融压制、增长化债。',
+          '这六年，大周期盘的指针一格一格往前走：② 缓冲池满 → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手；之后才到 ⑦ 金融压制、增长化债。',
           '（切到「周期」页，看盘面和下面的趋势带。）',
         ],
         question: '政府和央行把水补回去之后，大周期盘上哪一格会亮起来？',
@@ -1753,7 +1773,7 @@ export const LESSONS = [
         ],
         relation: '⑥ 不是终点。名义增长 > 利率，债务一年年变轻，才进 ⑦。补水的账，是靠时间慢慢「化」掉的。',
         claims: [{ get: 'when:cycles.long.stage=5', dateBefore: 'when:cycles.long.stage=6', note: '⑤ 先于 ⑥' }, { get: 'when:cycles.long.stage=6', from: '2008Q3', until: '2017Q4', dateBefore: 'when:cycles.long.stage=7', note: '⑥ 先于 ⑦' },
-          { get: 'when:cycles.long.stage=7', from: '2008Q3', until: '2017Q4', dateBetween: ['2015Q1', '2016Q4'], note: '⑦ 在 2014Q4 之后一年多' }],
+          { get: 'when:cycles.long.stage=7', from: '2008Q3', until: '2017Q4', dateBetween: ['2015Q1', '2016Q4'], note: '⑦ 在 2014Q4 之后' }],
         hl: ['fiscalInjection', 'qe'], concept: ['longCycle', 'fiscalInjection'] },
 
       { type: 'chain', title: '第 7 步：把整条因果链串起来',

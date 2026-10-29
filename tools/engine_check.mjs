@@ -480,7 +480,8 @@ function cycleChecks(US_Q) {
       assert(back01 && I(back01) <= I('2004Q2'), 'history: 2001-03 推得动, back to 扩张 by 2004Q2: ' + back01);
       assert(h[I('2008Q4')].cycles.short.handoff === 'no', 'history: 2008Q4 easing does not restart credit (handoff no)');
       const no0812 = win('2008Q1', '2011Q4').filter(x => x.cycles.short.phase === 'ease' && (x.cycles.long.fork === 'B2' || [5, 6].includes(x.cycles.long.stage)));
-      assert(no0812.length >= 12 && no0812.every(x => x.cycles.short.handoff === 'no'), `history: 2008-12 推不动 (handoff 'no' in every ease quarter on B2 / ⑤ / ⑥: ${no0812.length} quarters)`);
+      // >= 10 (was 12): since 2026-10-30 B2 needs 3 quarters in a row to be confirmed, so 2008Q1-Q2 read 'B2 pending', not 推不动 yet
+      assert(no0812.length >= 10 && no0812.every(x => x.cycles.short.handoff === 'no'), `history: 2008-12 推不动 (handoff 'no' in every ease quarter on B2 / ⑤ / ⑥: ${no0812.length} quarters)`);
       const b2at = first(x => x.cycles.long.fork === 'B2', '1995Q1', '2025Q4'), s5 = first(x => x.cycles.long.stage === 5, '1995Q1', '2025Q4'), s6 = first(x => x.cycles.long.stage === 6, '1995Q1', '2025Q4');
       assert(b2at && I(b2at) >= I('2007Q3') && I(b2at) <= I('2008Q4'), 'history: B2 fork in 2007Q3..2008Q4: ' + b2at);
       assert(s5 && I(s5) >= I('2008Q3') && I(s5) <= I('2009Q4'), 'history: ⑤ entered in 2008Q3..2009Q4: ' + s5);
@@ -503,6 +504,9 @@ function cycleChecks(US_Q) {
       }
       const bad = h.map((x, k) => (k >= 2 && x.cycles.short.phase === 'ease' && (POL[k] - POL[k - 1] >= 0.001 || POL[k - 1] - POL[k - 2] >= 0.001) ? x.date : null)).filter(Boolean);
       assert(bad.length === 0, 'history: no 降息 while the policy rate rose (>= 0.1pp) in the last 2 quarters: ' + (bad.join(',') || 'none'));
+      // 2026-10-30: no 过热·物价 while the bank is cutting (>= 0.1pp this quarter or over the last 2 quarters)
+      const hotCut = h.map((x, k) => (k >= 2 && x.cycles.short.key === 'hotP' && Math.min(POL[k] - POL[k - 1], POL[k] - POL[k - 2]) <= -0.001 ? x.date : null)).filter(Boolean);
+      assert(hotCut.length === 0, 'history: no 过热·物价 while the bank cuts: ' + (hotCut.join(',') || 'none'));
       assert(h.every(x => x.cycles.short.phase !== 'tight' || /^收紧(·衰退|（加息）)/.test(x.cycles.short.label)), 'history: 收紧 label is 收紧·衰退 or 收紧（加息）');
       assert(h.some(x => x.cycles.short.label.startsWith('收紧·衰退')) && h.some(x => x.cycles.short.label.startsWith('收紧（加息）')), 'history: both 收紧 sub-labels occur');
       console.log('      FOMC check: hikes ' + HIKES.map(([a, b]) => a + '->' + b).join(', ') + ' | cuts from ' + CUTS.map(c => c[0]).join(', ') + ' | ease starts ' +

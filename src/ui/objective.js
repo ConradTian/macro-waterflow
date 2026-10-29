@@ -101,6 +101,7 @@ export function lampsAt(snap, iso) {
     let level = 'green', reason;
     if (L && L.fork === 'B2') { level = 'red'; reason = '大周期走上了 B2 岔路（降息推不动，债务压垮）。堤坝要垮。'; }
     else if (stage5) { level = 'red'; reason = '大周期在 ⑤ 降息失灵·私人去杠杆。堤坝已经垮了。'; }
+    else if (L && L.forkPending) { level = 'yellow'; reason = `B2 待确认（${L.forkPending.have}/${L.forkPending.need} 季）：房价在跌、债务高、降了息信贷还在缩，再连续几季就是 B2。堤坝出现裂缝。`; }
     else if (badLv !== 'green') { level = 'yellow'; reason = `银行坏账率 ${pc(bad)}，超过正常区间（2%）。堤坝出现裂缝。`; }
     else reason = `大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，没走 B2，坏账率${num(bad) ? ' ' + pc(bad) : ''}在正常区间。堤坝稳。`;
     out.push({ id: 'burst', name: '溃坝', level, reason });

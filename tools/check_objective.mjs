@@ -35,14 +35,14 @@ const read = () => ev(`(()=>{const o=document.querySelector('#objective'); if(!o
     date: document.querySelector('#date').textContent, over: !!o.querySelector('.ob-bar') && o.querySelector('.ob-bar').scrollWidth > o.querySelector('.ob-bar').clientWidth + 1 } })()`);
 const num = s => +String(s).replace(/,/g, '');
 
-// ---- US history t=52 (2008Q1: long cycle on B2 -> 溃坝 red)
+// ---- US history t=52 (2008Q1: B2 pending 1/3 -> 溃坝 amber; since 2026-10-30 B2 needs 3 quarters in a row, confirmed 2008Q3 -> red)
 await go('?pause=1&t=52');
 let r = await read();
 ok(r && !r.hidden && r.before, 'strip visible and sits above the 本季看点 strip');
-ok(r.lamps.length === 4 && r.lamps.join(' ') === '泛滥:green 干涸:red 溃坝:red 透支:yellow', 'US 2008Q1 lamps ' + r.lamps.join(' '));
+ok(r.lamps.length === 4 && r.lamps.join(' ') === '泛滥:green 干涸:red 溃坝:yellow 透支:yellow', 'US 2008Q1 lamps ' + r.lamps.join(' '));
 ok(/每人真实消费/.test(r.text) && num(r.n) > 80 && num(r.n) < 200, 'score text (level, first quarter = 100) ' + r.text);
 await ev(`document.querySelector('[data-lamp="burst"]').click()`); await sleep(150);
-ok(/B2/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), 'tap 溃坝 lamp -> reason mentions B2');
+ok(/B2 待确认/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), 'tap 溃坝 lamp -> reason mentions B2 (pending)');
 await ev(`document.querySelector('.ob-main').click()`); await sleep(500);
 ok(await ev(`!!document.querySelector('#objective .rc-economy')`), 'tap strip -> 整个经济 role card (roleCardHtml)');
 ok(/泛滥/.test(await ev(`document.querySelector('#objective .ob-pop').textContent`)), 'card lists the penalty items');
@@ -59,7 +59,10 @@ ok(num(fresh.n) > 80 && num(fresh.n) < 200, 'level stays an index near 100 in 20
 await ev(`document.querySelector('#btn-step').click()`); await sleep(500);
 ok(num((await read()).n) === s52, 'step forward returns to the same score');
 
-// ---- ⑤ and later
+// ---- B2 confirmed, ⑤ and later
+await go('?pause=1&t=54'); r = await read(); ok(/溃坝:red/.test(r.lamps.join(' ')), '2008Q3 (B2 confirmed) 溃坝 red: ' + r.lamps.join(' '));
+await ev(`document.querySelector('[data-lamp="burst"]').click()`); await sleep(150);
+ok(/B2 岔路/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), '2008Q3: tap 溃坝 lamp -> reason names the B2 fork');
 await go('?pause=1&t=56'); r = await read(); ok(/溃坝:red/.test(r.lamps.join(' ')), '2009Q1 (stage ⑤) 溃坝 red');
 await go('?pause=1&t=110'); r = await read(); ok(!r.hidden && r.lamps.length === 4, '2022Q3 ' + r.lamps.join(' ') + ' score ' + r.n);
 

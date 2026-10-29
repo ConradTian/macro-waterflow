@@ -322,7 +322,7 @@ export const CONCEPTS = {
       const past = win12(c, pvtRatio), r12 = c.past(12) ? pvtRatio(c.past(12)) : null;
       const hi = past.length ? Math.max(r, ...past) : null;
       let t = `现在 ${P(r, 0)}：家庭 ${c.money(s.debt.household)} + 企业 ${c.money(s.debt.firm)}，除以全年 GDP ${c.money(s.macro.gdpNominal)}。`;
-      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}（大周期 ① 要 ≥ +2pp、② 要 ≥ +3pp 才算「债在堆」；⑦ 要 ≤ +2pp 才算「没再加杠杆」）。`;
+      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}（大周期 ① 要 ≥ +2pp、② 要 ≥ +3pp 才算「债在堆」）。`;
       if (ok(hi)) t += `\n较三年高点 ${PP(r - hi)}（⑤ 私人去杠杆要 ≤ −5pp：债比收入先缩下来）。`;
       if (!ok(r12)) t += '\n还没有三年的历史，三年变化暂时算不出来。';
       return t;
@@ -339,8 +339,10 @@ export const CONCEPTS = {
       if (!ok(r)) return '现在读不到政府债务/GDP，这一项暂时没有数。';
       const o = c.past(12), r12 = o ? govRatio(o) : null;
       let t = `现在 ${P(r, 0)}（政府债务约 ${c.money(r * (s.macro?.gdpNominal ?? NaN))}）。`;
-      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}：⑥ 政府接手要它 ≥ +3pp（或赤字 ≥ 5% GDP）；⑦、⑧ 要它 ≤ +1pp，也就是不再快速加债。`;
+      if (ok(r12)) t += `\n三年前 ${P(r12, 0)}，三年变化 ${PP(r - r12)}：⑥ 政府接手要它 ≥ +3pp（或赤字 ≥ 5% GDP）；⑧ 要它 ≤ +1pp，也就是不再快速加债。`;
       else t += '\n还没有三年的历史，三年变化暂时算不出来。';
+      const o4 = c.past(4), r4 = o4 ? govRatio(o4) : null;
+      if (ok(r4)) t += `\n比一年前 ${PP(r - r4)}：⑦ 要它不升（≤ 0），同时名义增长跑赢 10 年国债利率（g − r > 0）。`;
       return t.replace('约 —', '数额未知');
     },
     water: '政府这口大水箱的水位：私人箱子往外舀水时，政府箱子往里加水，总水量才不塌。',
@@ -603,18 +605,19 @@ export const CONCEPTS = {
     logic: '家庭、企业：钱多、实际利率低，拼命买东西\n→ 缓冲池已满，商品河道水位超过产能，漫堤，物价上涨\n→ 央行：被迫加息 → 家庭 DSR 上升（小周期：物价过热 → 收紧）\n→ 再降息：推得动就回到扩张（这是 B1 的常态，如 2000–03）\n→ 若一次次溢出、物价压不住，就成了长期的通胀去杠杆：⑦ + B1（美国 1966–82、2023）\n→ 债券和房产在 B1 通常承压。',
     live: null, fmt: 'txt', liveFn: s => { const L = s.cycles?.long; return (L ? (L.fork === 'B1' || L.b1Overlay) : s.ring?.fork === 'B1') ? '当前处于 B1' : '当前未处于 B1'; } },
   B2: {
-    name: 'B2 资产缩水（通缩）', short: '大周期在 ② 缓冲池满后的另一条岔路：资产价格下跌，欠条还在，信贷收缩，是资产负债表衰退，通向 ⑤。',
+    name: 'B2 资产缩水（通缩）', short: '大周期在 ② 缓冲池满后的另一条岔路，通向 ⑤。B2 怎么来的：借钱买的资产跌了 → 家底变负、债还在 → 大家拼命还债、银行收紧 → 降息也推不动（负资产要多、并且伤到银行才算）。',
     why: (s) => {
       const L = s.cycles?.long, fk = L ? L.fork : s.ring?.fork;
       const on = fk === 'B2', hy = s.extra?.houseYoY, ci = s.lights?.credit?.value, went = L && (L.stage === 5 || L.stage === 6);
       return on ? `现在处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}，抵押品缩水、债还在、信贷在收缩，大周期正转向 ⑤。`
         : went ? `大周期已经走到 ${L.label}，B2 是进入 ⑤ 的那条路，已经走过。现在房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。`
-        : `现在没有处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 要三条同时成立：房价比一年前在跌；DSR 高或私人债务/GDP 已堆高；降息后（或已近零）信贷脉冲仍为负。`;
+        : L && L.forkPending ? `B2 待确认（${L.forkPending.have}/${L.forkPending.need} 季）：三条已同时成立，要连续 ${L.forkPending.need} 季才算。现在房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。`
+        : `现在没有处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 要三条同时成立、连续 3 季：房价比一年前在跌；DSR 高或私人债务/GDP 已堆高；降息后（或已近零）信贷脉冲仍为负。`;
     },
     water: '水位降了，但欠条（债务）一张没少：湖水被抽干，银行关泵，水回不来。',
-    formula: 'B2（三条同时成立）：① 房价比一年前下跌；② DSR 比起点高，或私人债务/GDP 已堆高；③ 央行已降息（或近零），信贷脉冲仍为负 → 通缩，转入 ⑤。美国 2008Q1 进入',
+    formula: 'B2（三条同时成立，连续 3 季才确认）：① 房价比一年前下跌；② DSR 比起点高，或私人债务/GDP 已堆高；③ 央行已降息（或近零），信贷脉冲仍为负 → 通缩，转入 ⑤。降息推得动（回到扩张）就解除。负资产 ≠ B2：英国 1990 年代初、澳洲 2008 都有房价下跌，但降息推得动',
     from: ['lvr', 'badLoans', 'creditImpulse', 'bankApproval', 'housePrice', 'shortCycle'], to: ['bondAsset', 'equityAsset', 'fiscalInjection', 'longCycle', 'ringStage'],
-    logic: '房价下跌 → 家庭：房子缩水，欠条不变，LVR 升高、还不起\n→ 银行：抵押品缩水、坏账吃资本，关泵 → 信贷收缩，通胀很低甚至通缩\n→ 降息不好使（问题是「还不起 + 抵押品缩水」，不是「利息太贵」）：小周期「降息推得动吗」的答案是推不动\n→ 大周期接手：⑤ 私人去杠杆，常需要财政接手（⑥）\n→ 美国 2008 年第一季进入 B2，2008–12 就是这条路。',
+    logic: '房价下跌 → 家庭：房子缩水，欠条不变，LVR 升高、还不起\n→ 银行：抵押品缩水、坏账吃资本，关泵 → 信贷收缩，通胀很低甚至通缩\n→ 降息不好使（问题是「还不起 + 抵押品缩水」，不是「利息太贵」）：小周期「降息推得动吗」的答案是推不动\n→ 大周期接手：⑤ 私人去杠杆，常需要财政接手（⑥）\n→ 美国 2008 年走上 B2（三条从第一季起成立，连续 3 季后确认），2008–12 就是这条路。',
     live: null, fmt: 'txt', liveFn: s => { const L = s.cycles?.long; return (L ? L.fork : s.ring?.fork) === 'B2' ? '当前处于 B2' : '当前未处于 B2'; } },
 
   // ---------- 两个周期表盘（大周期 / 小周期）----------

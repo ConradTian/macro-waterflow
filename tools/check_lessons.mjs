@@ -72,7 +72,7 @@ const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
 const MAIN_TYPES = [...TYPES, 'action', 'zoom'];      // m1: two town action steps, then the zoom to the US
 const MARKS = ['loop', 'outlets', 'objective'];       // step field mark (src/ui/lessons.js MARKS)
-const BLOCKS = ['alloc', 'budget', 'sources'];
+const BLOCKS = ['alloc', 'budget', 'sources', 'b2cases'];
 const FMTS = ['lamp', 'pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'aud', 'ppa', 'apct0', 'apct1', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count', 'qcount'];
 const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');

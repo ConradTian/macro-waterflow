@@ -127,7 +127,7 @@ function revealHtml(c, play) {
   const bias = isLast && n % 10 === 0 ? biasHtml(true) : '';
   const nxt = nextId(c.id);
   return `<section class="bl-box bl-reveal" id="bl-reveal"><h3>揭晓 · ${esc(TYPE_NAME[c.type] || c.type)}</h3>` +
-    `<p class="bl-what">${esc(c.reveal.what)}</p>` +
+    `<p class="bl-what">${esc(c.reveal.what)}</p>` + (c.reveal.why ? `<p class="bl-why">${esc(c.reveal.why)}</p>` : '') +
     `<div class="bl-scores"><div class="bl-sc" data-score="judge"><span>${term('judge', '判断分', true)}</span><b class="bl-sv">${J.total}</b><i>/10</i>` +
     `<small>大周期 ${J.long}/4 · 岔路 ${J.fork}/2 · 小周期 ${J.short}/4</small></div>` +
     `<div class="bl-sc" data-score="ret"><span>${term('ret', '收益分', true)}</span><b class="bl-sv">${Rt.total.toFixed(1)}</b><i>/10</i>` +

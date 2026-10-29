@@ -50,7 +50,7 @@ try {
   const A = await newPage('about:blank');
 
   // ---- 1. the curves view ----
-  await A.go(BASE + '?pause=1&tab=cycle&t=53');
+  await A.go(BASE + '?pause=1&tab=cycle&t=54');     // 2008Q3: B2 confirmed (3 quarters in a row since 2026-10-30) and 推不动
   ok(await A.ev(`document.body.dataset.view`) === 'flow', 'starts on the water diagram');
   ok(await A.ev(`!document.querySelector('#view-toggle').hidden`) && (await A.text('#view-toggle')).includes('曲线'), 'toggle shows 📈 曲线');
   ok(await A.ev(`document.getElementById('wave-view').hidden`), 'wave view hidden');
@@ -65,7 +65,7 @@ try {
   ok(gx[0][0] === gx[1][0], 'the 现在 line is at the same x in both: ' + gx);
   ok(await A.count('#wave-view .wv-b2l') >= 1, 'B2 marker on the long band (2008)');
   ok(await A.count('#wave-view .wv-nopush') >= 1, '推不动 stretch marked on the quarterly chart');
-  ok((await A.text('#wave-view .wvw-now')).includes('2008Q2'), 'header shows the current quarter');
+  ok((await A.text('#wave-view .wvw-now')).includes('2008Q3'), 'header shows the current quarter');
   const d0 = await date(A);
   await A.click('#btn-step'); await sleep(500);
   const d1 = await date(A);
