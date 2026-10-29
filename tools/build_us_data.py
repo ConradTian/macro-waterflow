@@ -8,7 +8,8 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-D432 = ROOT.parent / "dalio_432"
+# dalio_432 sits next to the repo; from a git worktree (.claude/worktrees/<name>) walk up until it is found
+D432 = next((p / "dalio_432" for p in ROOT.parents if (p / "dalio_432").is_dir()), ROOT.parent / "dalio_432")
 DATA = D432 / "data"
 OUT = ROOT / "src" / "data" / "us-quarterly.js"
 
@@ -105,14 +106,23 @@ S["exportsGdp"] = fred_q("EXPGS") / S["gdpNominal"]
 S["importsGdp"] = fred_q("IMPGS") / S["gdpNominal"]
 S["fxPerUsd"] = pd.Series(1.0, index=qidx)
 S["foreignGovHoldShare"] = fred_q("FDHBFIN") / (fred_q("GFDEBTN") / 1000)
+# --- fiscal path (history mode, cp.fiscalRealPath): NIPA federal current deficit and interest payments, % of GDP (both $bn SAAR)
+S["govDeficitGdp"] = -fred_q("FGDEF") / S["gdpNominal"]
+S["govInterestGdp"] = fred_q("A091RC1Q027SBEA") / S["gdpNominal"]
+
+# cross-check against the unified-budget deficit (fiscal years, annual): NIPA current deficit, mean of the FY quarters (Oct-Sep)
+fy = pd.read_csv(ROOT / "data_src" / "fred_us" / "FYFSGDA188S.csv", parse_dates=["observation_date"]).set_index("observation_date")["FYFSGDA188S"]
+for y in (2000, 2007, 2008, 2009, 2010, 2019, 2020, 2021, 2024):
+    q = S["govDeficitGdp"][pd.Period(f"{y - 1}Q4", freq="Q"):pd.Period(f"{y}Q3", freq="Q")].mean()
+    print(f"  FY{y}: NIPA current deficit {100 * q:5.1f}% GDP  vs unified budget {-fy[fy.index.year == y].iloc[0]:5.1f}%")
 
 order = ["policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unemployment", "gdpNominal",
          "gdpRealGrowthYoY", "houseIndex", "equityIndex", "cape", "goldIndex", "oilPrice", "hhDsr",
          "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "bankCredit",
-         "fxPerUsd", "exportsGdp", "importsGdp", "foreignGovHoldShare"]
+         "fxPerUsd", "exportsGdp", "importsGdp", "foreignGovHoldShare", "govDeficitGdp", "govInterestGdp"]
 RATIOS = {"policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unemployment",
           "gdpRealGrowthYoY", "hhDsr", "privateCreditGdp", "hhDebtGdp", "govDebtGdp",
-          "exportsGdp", "importsGdp", "foreignGovHoldShare"}
+          "exportsGdp", "importsGdp", "foreignGovHoldShare", "govDeficitGdp", "govInterestGdp"}
 
 
 def sig(x, n):
@@ -146,6 +156,8 @@ sources = {
     "exportsGdp": "data_src/fred_us/EXPGS.csv (FRED exports of goods and services, $bn SAAR, downloaded 2026-10-29) / gdpNominal",
     "importsGdp": "data_src/fred_us/IMPGS.csv (FRED imports of goods and services, $bn SAAR, downloaded 2026-10-29) / gdpNominal",
     "foreignGovHoldShare": "data_src/fred_us/FDHBFIN.csv (FRED federal debt held by foreign and international investors, $bn) / GFDEBTN.csv (total public debt, $mn / 1000), downloaded 2026-10-29",
+    "govDeficitGdp": "-data_src/fred_us/FGDEF.csv (FRED/BEA NIPA federal government current receipts minus current expenditures = net federal saving, $bn SAAR, downloaded 2026-10-29) / gdpNominal; positive = deficit. Feeds the history-mode fiscal path (cp.fiscalRealPath)",
+    "govInterestGdp": "data_src/fred_us/A091RC1Q027SBEA.csv (FRED/BEA NIPA federal government interest payments, $bn SAAR, downloaded 2026-10-29) / gdpNominal. Real primary deficit = govDeficitGdp - govInterestGdp",
 }
 notes = [
     "Publication lags in macro_monthly.csv were undone so each value sits in its own period: CPIAUCSL, CPILFESL, UNRATE shifted back 1 month; GDP, GDPC1, GFDEGDQ188S shifted back 1 quarter. FEDFUNDS, DGS10, TOTBKCR, DCOILWTICO, CAPE, SP_P were not lagged in the source and are used as is.",
@@ -155,7 +167,8 @@ notes = [
     "goldIndex is built from a monthly-average gold price (datasets/gold-prices) sampled at the last month of each quarter: smoother than a true quarter-end close.",
     "equityIndex is a price-only index from Shiller's monthly-average S&P price, so it is smoother than a true quarter-end close.",
     "Border series (exportsGdp, importsGdp, foreignGovHoldShare) come straight from FRED quarterly files (no publication lag to undo); fxPerUsd is 1 for the USA.",
-    "Quarters from 2022Q1 are the held-out sample of the parent research project (reservedFrom).",
+    "Fiscal series (govDeficitGdp, govInterestGdp) are NIPA federal current-account quarterly values (no publication lag to undo). The NIPA current deficit tracks the unified budget deficit (fiscal-year means: FY2007 1.6% vs 1.1%, FY2008 3.6% vs 3.1%, FY2009 7.6% vs 9.8% - the budget also books TARP and the GSE rescue as outlays, FY2020 13.0% vs 14.7%, FY2024 6.4% vs 6.2%); data_src/fred_us/FYFSGDA188S.csv is kept for that cross-check. In history mode the government's primary deficit follows them (cp.fiscalRealPath); free mode and a government takeover use the rules.",
+    "Quarters from 2022Q1 are the held-out sample of the parent research project (reservedFrom); this includes the fiscal series.",
 ]
 meta = {"sources": {k: sources[k] for k in order}, "notes": notes}
 

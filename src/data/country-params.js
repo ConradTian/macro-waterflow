@@ -44,6 +44,25 @@ const USA = {
   capexShare0: 0.15,          // Capex / GDP at neutral
   taxGdp: 0.185,              // tax revenue / GDP at u = u*
   spendGdp: 0.185,            // primary government outlays / GDP at neutral
+  // fiscalRealPath (history mode): the government's stance follows the data - the real cyclically adjusted primary deficit
+  // (govDeficitGdp - govInterestGdp - the model's own automatic stabilisers at the REAL unemployment gap; us-quarterly.js has the
+  // NIPA series), like cb_real_path for the policy rate; the rules run only in free mode, without the series, or on a takeover.
+  // OFF for the USA until the private-sector block is recalibrated (engine pass 2026-10-29): switched on alone it fails 9/17
+  // targets - the old rule government had been filling a model-made demand hole (model deficit ~13% of GDP in 2007 and ~15% in
+  // 2024-25, real ~2% and ~6.5%), which is also why it 'tightened' in 2008Q3 (interest/tax > 22%). The hole comes from the
+  // capex -> capacity overshoot after every easing and a wealth effect that reacts to the CHANGE in wealth (demand turns in
+  // 2005-06, not 2007-09). The optional mechanisms below are the tested building blocks of that recalibration (all OFF here).
+  fiscalRealPath: false,
+  // optional demand/supply mechanisms (default = the calibrated engine, bit for bit). Value null/undefined = off.
+  //   capGain (0.6)      capacity growth per 1pp of completed Capex/GDP above capexShare0 (economics suggests ~0.15-0.3)
+  //   capexPress (0.4), capexRate (0.6)   Capex share response to demand pressure / to the real funding cost
+  //   savU (1.0)         household saving response to unemployment above u*
+  //   adPull (0.4)       speed at which nominal demand closes the output gap (per year)
+  //   wealthLevel (off)  annual MPC out of housing + equity WEALTH (level form); off = the flow form K.wealthMpc x change in wealth
+  //   firmSpread (0)     share of the risk premium (above 4.5%) that reaches firms' funding cost (credit spread)
+  //   savRp (0)          precautionary saving per 1pp of risk premium above 4.5%
+  //   shockLayoff (0)    unemployment per unit of the lockdown shock (US: temporary layoffs, no job-retention scheme)
+  //   transferMpc (1), xsDrain (0.5)   share of transfers spent at once; the rest is excess saving spent later at xsDrain/yr
   moneyGdp: 0.55,             // starting deposits M / GDP
   mktCapGdp: 1,               // starting equity market cap / GDP
   eqDilution: 0,              // net new share issuance per year: earnings per share grow this much slower than aggregate profits

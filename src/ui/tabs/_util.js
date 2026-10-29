@@ -23,6 +23,7 @@ import { currentCountry, countryInfo } from '../country-info.js';
  *  once the chart's "now" has reached `from`. { key: realKey, from, to (quarters), text } */
 export const MODEL_GAPS = [
   { key: 'equityIndex', from: '2001Q1', to: '2002Q4', text: '模型偏差：真实股市 2001–02 跌约 45%，模型没跌' },
+  { key: 'unemployment', from: '2006Q1', to: '2008Q2', text: '模型偏差：2006–08 模型失业率 6–10%，真实约 4.5–5%' },
   { key: 'unemployment', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
   { key: 'gdpNominal', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
   { key: 'gdpRealGrowthYoY', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
