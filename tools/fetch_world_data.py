@@ -89,8 +89,17 @@ FRED = {
 }
 
 
-def fetch_fred():
-    for sid, note in FRED.items():
+# FX extras for the FX reactor (src/ui/fx-reactor.js) -> src/data/usd-index.js. Separate source key so a refresh does not re-pull the rest.
+FRED_FX = {
+    "DTWEXBGS": "Nominal broad US dollar index (Jan 2006 = 100), daily, 2006+ (Federal Reserve H.10 via FRED)",
+    "TWEXBMTH": "Trade-weighted US dollar index: broad (Jan 1997 = 100), monthly, 1973-2019 (discontinued; splice for pre-2006)",
+    "TWEXB": "Trade-weighted US dollar index: broad (Jan 1997 = 100), weekly, 1995-2019 (discontinued; fallback for the splice)",
+    "PIORECRUSDM": "Global price of iron ore, USD per dry metric ton, monthly (IMF primary commodity prices via FRED): AUS terms-of-trade proxy",
+}
+
+
+def fetch_fred(ids=None):
+    for sid, note in (ids or FRED).items():
         url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}"
         try:
             save("fred", f"{sid}.csv", get(url), url, note)
@@ -213,7 +222,8 @@ def copy_gold():
         LOG.append((f"gold/{src.name}", "copied from ../dalio_432/cache (originally datasets/gold-prices monthly, GitHub)", "2026-10-26", "", src.stat().st_size))
 
 
-SOURCES = {"gold": copy_gold, "bis": fetch_bis, "fred": fetch_fred, "imf": fetch_imf, "oecd": fetch_oecd, "misc": fetch_misc, "population": fetch_population}
+SOURCES = {"gold": copy_gold, "bis": fetch_bis, "fred": fetch_fred, "imf": fetch_imf, "oecd": fetch_oecd, "misc": fetch_misc, "population": fetch_population,
+           "fxextra": lambda: fetch_fred(FRED_FX)}
 
 if __name__ == "__main__":
     which = sys.argv[1:] or list(SOURCES)

@@ -62,7 +62,27 @@ try {
   ok((await A.text('.wm-back')).includes('回到美国水流图'), 'back button text');
   ok((await A.text('.wm-pool')).includes('世界储备水库') && (await A.text('.wm-pool')).includes('美元占'), 'reserve pool labelled 世界储备水库 · 美元占 x%: ' + (await A.text('.wm-pt')));
   ok(await A.count('.wm-pool rect[style*="--c-"]') >= 3, 'reserve legend bar has currency segments');
-  ok(await A.count('.wm-pipe[data-k="trade"]') > 0 && await A.count('.wm-pipe[data-k="trade"]') <= 8, 'trade pipes thinned to the top N (<= 8): ' + await pipes(A, 'trade'));
+  // trade pipes: every named pair above the threshold + ALL 其他国家 (ROW) pipes, grey, at their TRUE width (one scale), drawn behind
+  const tp = await A.ev(`[...document.querySelectorAll('.wm-pipe[data-k="trade"]')].map(g => ({ f: g.dataset.from, t: g.dataset.to, v: +g.dataset.v, w: +g.dataset.w, row: g.dataset.row === '1',
+    col: getComputedStyle(g.querySelector('.wm-dash')).stroke, i: [...g.parentNode.children].indexOf(g) }))`);
+  const rowP = tp.filter(p => p.row), namP = tp.filter(p => !p.row);
+  const rowAll = await A.ev(`import('/src/data/world.js').then(m => { const k = m.WORLD.years.indexOf(2008), I = ['USA','GBR','EA','CHN','JPN','AUS']; let n = 0; for (const a of I) { if (m.WORLD.trade.ROW[a][k] > 0) n++; if (m.WORLD.trade[a].ROW[k] > 0) n++; } return n; })`);
+  ok(rowP.length === rowAll && rowP.length >= 10, `all 其他国家 (ROW) trade pipes drawn (${rowP.length} of ${rowAll}), never thinned out`);
+  const unit = tp.map(p => (p.w - 1.6) / Math.sqrt(p.v));
+  ok(Math.max(...unit) - Math.min(...unit) < 1e-3 * Math.max(...unit), `ROW and named pipes share ONE width scale (true thickness): (w − 1.6)/√v spread ${(Math.max(...unit) - Math.min(...unit)).toExponential(1)}`);
+  ok(rowP.length && rowP.every(p => p.col === rowP[0].col) && namP.length && rowP[0].col !== namP[0].col, `ROW pipes are grey (${rowP[0]?.col}), named pipes green (${namP[0]?.col})`);
+  ok(Math.max(...rowP.map(p => p.i)) < Math.min(...namP.map(p => p.i)), 'ROW pipes are drawn first (behind the named ones)');
+  const pairs = ps => [['AUS', 'CHN'], ['JPN', 'CHN'], ['JPN', 'USA']].map(([a, b]) => ps.some(p => (p.f === a && p.t === b) || (p.f === b && p.t === a)));
+  ok(pairs(namP).every(Boolean), `2008: AUS↔CHN, JPN↔CHN, JPN↔USA pipes present (${pairs(namP)})`);
+  ok(namP.length >= 12, `named pairs above the threshold: ${namP.length} pipes (was top-8 incl. ROW)`);
+  // FX sluices
+  ok(await A.count('.wm-sluice[data-term="fx"]') === 6 && !(await A.count('.wm-sluice[data-iso="ROW"]')), 'a FX sluice under each of the six country boxes (not ROW), data-term="fx"');
+  ok((await A.text('.wm-sluice[data-iso="USA"]')).includes('美元指数') && (await A.text('.wm-sluice[data-iso="AUS"]')).includes('澳元'), `sluices: USA ${await A.text('.wm-sluice[data-iso="USA"]')} · AUS ${await A.text('.wm-sluice[data-iso="AUS"]')}`);
+  await A.click('.wm-sluice[data-iso="AUS"] .wm-sl-bg'); await sleep(600);
+  const fxc = await A.ev(`(()=>{const r=document.getElementById('concept-root'); return r && !r.hidden ? { t: r.querySelector('.cc-title')?.textContent, five: r.querySelectorAll('.fxr-card li').length, go: !!r.querySelector('[data-fxr-lesson="fx"]'), top: +getComputedStyle(r).zIndex } : null})()`);
+  ok(fxc && fxc.t === '汇率' && fxc.five === 5 && fxc.go, `tapping the AUS sluice opens the 汇率 card (five forces + 「去上「汇率」课」): ${JSON.stringify(fxc)}`);
+  ok(await mapOpen(A) && !(await A.ev(`document.querySelector('.wm-box.sel')`)), 'the sluice tap neither closes the map nor selects / deselects');
+  await A.ev(`document.querySelector('#concept-root [data-cc-close]').click()`); await sleep(200);
   ok(await pipes(A, 'cap') >= 1 && await A.count('.wm-pipe[data-k="cap"][data-to="POOL"]') === await pipes(A, 'cap'), 'capital pipes end in the US bond pool: ' + await pipes(A, 'cap'));
   ok(await A.ev(`getComputedStyle(document.body).backgroundColor`) !== 'rgb(15, 20, 27)', 'light theme by default');
   ok(await A.ev(`(()=>{const r=document.querySelector('.wm-svg').getBoundingClientRect(); return [...document.querySelectorAll('.wm-box')].every(b=>{const q=b.getBoundingClientRect(); return q.left>=r.left-1&&q.right<=r.right+1&&q.top>=r.top-1})})()`), 'all boxes inside the stage');
@@ -77,6 +97,11 @@ try {
   ok(await mapOpen(A) && navs.length === nav0, 'selecting does not navigate or close (navigations: ' + (navs.length - nav0) + ')');
   ok((await A.text('.wm-card')).includes('澳洲') && await A.count('.wm-card .wm-rd > div') === 4, 'card shows the name and four readings');
   ok(await A.count('.wm-partners li') === 3, 'card lists the top 3 trade partners');
+  await sleep(500);
+  const rx = await A.ev(`(()=>{const b=document.querySelector('.wm-card .wm-fx .fxr-box'); return b ? { pipes: b.querySelectorAll('[data-fxr-pipe]').length, date: b.dataset.date, con: (b.querySelector('.fxr-con')||{}).textContent } : null})()`);
+  ok(rx && rx.pipes === 2 && rx.date === '2008Q4', `AUS card carries the FX reactor (2008Q4): ${JSON.stringify(rx)}`);
+  await A.click('.wm-card [data-fxr-pipe="cap"]'); await sleep(200);
+  ok(await A.ev(`!!document.querySelector('.wm-card .fxr-forces[open]') && document.querySelector('.wm-card .fxr-grp.hl')?.dataset.grp === 'cap' && document.querySelector('.wm-box.sel')?.dataset.iso === 'AUS'`), 'tapping a reactor pipe in the card opens its five forces (selection kept)');
   ok((await A.text('.wm-card')).includes('汇率') && (await A.text('.wm-card')).includes('AUD'), 'card shows FX per USD: ' + (await A.text('.wm-line')));
   ok(await A.ev(`document.querySelector('.wm-svg').classList.contains('has-sel') && document.querySelectorAll('.wm-pipe.hl').length > 0`), 'selected box lights its pipes, others fade');
   const enter = await A.ev(`(()=>{const b=document.querySelector('.wm-enter'); return b ? { dis: b.disabled, t: b.textContent.trim() } : null})()`);
@@ -103,6 +128,13 @@ try {
   await setYear(A, 2024); await sleep(300);
   ok(!(await A.ev(`document.querySelector('.wm-res').hidden`)) && (await A.text('.wm-res')).includes('保留样本'), '2024 shows 保留样本');
   ok((await A.text('.wm-card h3')).includes('保留样本'), 'card h3 also marks 保留样本');
+  ok((await A.text('.wm-card .wm-fx')).includes('美元指数'), 'USA card: the dollar index block (美元对一篮子货币)');
+  await setYear(A, 2025); await sleep(300);
+  await A.click('.wm-bg'); await sleep(200);
+  const d25 = await A.ev(`[...document.querySelectorAll('.wm-pipe[data-k="trade"]:not([data-row])')].map(g => g.dataset.from + '>' + g.dataset.to)`);
+  const need = ['AUS>CHN', 'CHN>AUS', 'JPN>CHN', 'CHN>JPN', 'JPN>USA', 'USA>JPN'];
+  ok(need.every(k => d25.includes(k)), `2025, nothing selected: both directions of AUS↔CHN, JPN↔CHN, JPN↔USA drawn (${need.filter(k => !d25.includes(k)).join(',') || 'all'})`);
+  await A.click('.wm-box[data-iso="USA"]'); await sleep(200);
   await setYear(A, 1995); await sleep(300);
   ok((await A.text('.wm-yv')) === '1995' && await A.count('.wm-box') === 7, '1995 (null-heavy year) renders: ' + await A.text('.wm-box[data-iso="EA"]'));
   await setYear(A, 2008); await sleep(200);

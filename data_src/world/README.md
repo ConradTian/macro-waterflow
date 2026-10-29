@@ -34,6 +34,10 @@ IMF data comes from the official `api.imf.org` SDMX endpoint (the older DataMapp
 | `fred/SPASTT01EZM661N.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01EZM661N | 2026-10-29 | Euro area share price index |
 | `fred/SPASTT01GBM661N.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01GBM661N | 2026-10-29 | GBR share price index |
 | `fred/SPASTT01JPM661N.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01JPM661N | 2026-10-29 | JPN share price index |
+| `fred/DTWEXBGS.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS | 2026-10-29 | Nominal broad US dollar index (Jan 2006 = 100), daily, 2006+ (fetch source `fxextra`; -> src/data/usd-index.js) |
+| `fred/TWEXBMTH.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=TWEXBMTH | 2026-10-29 | Trade-weighted US dollar index, broad (Jan 1997 = 100), monthly 1973-2019 (discontinued; pre-2006 splice) |
+| `fred/TWEXB.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=TWEXB | 2026-10-29 | Same index, weekly 1995-2019 (fallback for months TWEXBMTH lacks) |
+| `fred/PIORECRUSDM.csv` | https://fred.stlouisfed.org/graph/fredgraph.csv?id=PIORECRUSDM | 2026-10-29 | Global price of iron ore, USD/dmt, monthly (IMF via FRED): AUS terms-of-trade direction for the FX reactor |
 | `gold/gold_github_monthly_2026-10-26.csv` | copied from ../dalio_432/cache (datasets/gold-prices monthly, GitHub) | 2026-10-26 |  |
 | `imf/cofer.csv` | https://api.imf.org/external/sdmx/2.1/data/IMF.STA,COFER/G001....A?startPeriod=1995 | 2026-10-29 | IMF COFER, world, annual, all indicators/currencies |
 | `imf/cpi_jpn_yoy.csv` | https://api.imf.org/external/sdmx/2.1/data/IMF.STA,CPI/JPN.CPI._T.YOY_PCH_PA_PT.M?startPeriod=1994 | 2026-10-29 | IMF CPI Japan all items yoy %, monthly (OECD feed ends 2021-06) |

@@ -256,5 +256,29 @@
   "date": "2026-10-29",
   "note": "World Bank WDI total population (EMU = euro area aggregate); mid-year estimates",
   "bytes": 37109
+ },
+ "fred/DTWEXBGS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS",
+  "date": "2026-10-29",
+  "note": "Nominal broad US dollar index (Jan 2006 = 100), daily, 2006+ (Federal Reserve H.10 via FRED)",
+  "bytes": 104829
+ },
+ "fred/TWEXBMTH.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TWEXBMTH",
+  "date": "2026-10-29",
+  "note": "Trade-weighted US dollar index: broad (Jan 1997 = 100), monthly, 1973-2019 (discontinued; splice for pre-2006)",
+  "bytes": 10984
+ },
+ "fred/TWEXB.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TWEXB",
+  "date": "2026-10-29",
+  "note": "Trade-weighted US dollar index: broad (Jan 1997 = 100), weekly, 1995-2019 (discontinued; fallback for the splice)",
+  "bytes": 25868
+ },
+ "fred/PIORECRUSDM.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=PIORECRUSDM",
+  "date": "2026-10-29",
+  "note": "Global price of iron ore, USD per dry metric ton, monthly (IMF primary commodity prices via FRED): AUS terms-of-trade proxy",
+  "bytes": 12248
  }
 }

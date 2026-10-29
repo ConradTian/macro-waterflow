@@ -11,6 +11,9 @@
 //
 // 国境线 block (snap.border, null-safe): a horizontal dashed border under the springs, 出口 / 进口 pipes on the goods channel, an FX gate on the line,
 //   a foreign-bond pipe into the 长期国债 pool. Desktop: viewBox grows to VB_HB while snap.border exists; phone: one compact gate pill + a tap popover.
+//   FX reactor (src/ui/fx-reactor.js, non-US): under the gate, 资本管 + 商品价格管 push, a needle shows the actual change 比一年前, the gap =
+//   「说不清的部分」, a faint PPP anchor line. Tap a pipe = the five forces (desktop: .fxr-pop; phone: inside the 净出口 gate popover).
+//   USA: the gate shows the broad dollar index (src/data/usd-index.js). Both read the REAL data at snap.date (countryData / US_Q).
 //   The border pipes are normal PIPES entries (part 'border', cls 'border', bd:true) at the END of PIPES, so pipe count == chip count always holds.
 //   ?mockBorder=1 (or =usa) injects fake snap.border values for screenshots before the engine writes them.
 //
@@ -34,6 +37,7 @@ import { CONCEPTS } from '../data/concepts.js';
 import { countryInfo, currentCountry, countryData, fmtBn } from './country-info.js';
 import { createSim } from '../engine/sim.js';
 import { US_Q } from '../data/us-quarterly.js';
+import { computeFxReactor, reactorSvg, reactorHtml, usdIndexAt, usdHtml, reactorLine, wireFxReactor, ensureFxReactorCss, installFxCardHook, openForcesIn } from './fx-reactor.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const VB_W = 390, VB_H = 472;
@@ -41,6 +45,9 @@ const VB_W = 390, VB_H = 472;
 const PH_VB_H = 434;
 // 国境线 block: dashed line at BD_LINE, foreign zone down to BD_BOT; the legend row moves down by BD_LEG while the border is on; VB_HB = taller viewBox then
 const BD_LINE = 461, BD_BOT = 497, BD_LEG = 41, VB_HB = 512;
+// FX reactor inside the band (viewBox units): track x0..x1 (zero = cx, under the gate), pipe rows, needle top..bot, the 说不清 bracket at gapY,
+// pipe names right-aligned at lab, the readings column from tx (right of it the 出口 / 进口 chips start at ~318)
+const FXR = { x0: 150, x1: 246, cx: 198, lab: 146, tx: 252, top: BD_LINE + 4, rows: [BD_LINE + 8, BD_LINE + 16.5], bot: BD_LINE + 21, gapY: BD_LINE + 25, fs: 7.4, range: 25, compact: true };
 const PH_MQ = typeof matchMedia === 'function' ? matchMedia('(max-width: 767.98px)') : null;
 const isPhone = () => !!(PH_MQ && PH_MQ.matches);
 
@@ -744,22 +751,33 @@ function buildLegend(top) {
 function buildBorder(R, top, wrap) {
   const D = R.bd = {};
   txt(top, 24, BD_LINE + 11, '国境线 · 以下是外国', 'cap bd bd-d bd-lbl', 'start', 'border');
-  // FX gate on the line (non-USA): a little sluice + 汇率 value + 4-quarter change
-  let g = termGroup(top, 'fx', [136, BD_LINE - 7, 108, 46], 'border');
+  // FX gate on the line (non-USA): a little sluice (tap = 汇率 card); under it the FX reactor (two pipes + needle + anchor, drawn by setBorder),
+  // and on its right the readings: 本币比一年前 / 汇率 / PPP 锚
+  const gx = FXR.cx;
+  let g = termGroup(top, 'fx', [gx - 15, BD_LINE - 8, 30, 15], 'border');
   g.setAttribute('class', 'term bd bd-d bd-gate');
-  el('rect', { class: 'bd-gbox', x: 178, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
-  el('path', { class: 'bd-gslat', d: `M184 ${BD_LINE - 3} V${BD_LINE + 3} M190 ${BD_LINE - 3} V${BD_LINE + 3} M196 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
+  el('rect', { class: 'bd-gbox', x: gx - 12, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
+  el('path', { class: 'bd-gslat', d: `M${gx - 6} ${BD_LINE - 3} V${BD_LINE + 3} M${gx} ${BD_LINE - 3} V${BD_LINE + 3} M${gx + 6} ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
   D.fx = g;
-  D.fx1 = txt(g, 190, BD_LINE + 18, '', 'sub num', 'middle');
-  D.fx2 = txt(g, 190, BD_LINE + 29, '', 'cap bd-chg', 'middle');
-  // USA: the dollar is the world's reserve currency (no gate: the rate is 1 by definition)
-  g = termGroup(top, 'reserveCurrency', [124, BD_LINE - 7, 132, 46], 'border');
+  D.fxr = part(el('g', { class: 'bd bd-d bd-fxr' }, top), 'border');          // the reactor (innerHTML from fx-reactor.js reactorSvg)
+  g = termGroup(top, 'fx', [FXR.tx - 2, BD_LINE + 2, 52, 31], 'border');
+  g.setAttribute('class', 'term bd bd-d bd-fxt');
+  D.fxt = g;
+  D.fx2 = txt(g, FXR.tx, BD_LINE + 10, '', 'cap bd-chg', 'start');
+  D.fx1 = txt(g, FXR.tx, BD_LINE + 19.5, '', 'cap num', 'start');
+  D.fx3 = txt(g, FXR.tx, BD_LINE + 29, '', 'cap', 'start');
+  // USA: the gate shows the broad dollar index (美元对一篮子货币; tap = 汇率 card) and the reserve-currency line (tap = 储备货币 card)
+  g = termGroup(top, 'fx', [124, BD_LINE - 7, 132, 27], 'border');
   g.setAttribute('class', 'term bd bd-d bd-gate bd-res');
   el('rect', { class: 'bd-gbox', x: 178, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
   el('path', { class: 'bd-gslat', d: `M184 ${BD_LINE - 3} V${BD_LINE + 3} M190 ${BD_LINE - 3} V${BD_LINE + 3} M196 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
   D.res = g;
-  D.res1 = txt(g, 190, BD_LINE + 18, '美元 = 储备货币', 'sub num', 'middle');
-  D.res2 = txt(g, 190, BD_LINE + 29, '', 'cap', 'middle');
+  D.usd1 = txt(g, 190, BD_LINE + 14, '', 'sub num', 'middle');
+  D.usd2 = txt(g, 190, BD_LINE + 23.5, '', 'cap bd-chg', 'middle');
+  g = termGroup(top, 'reserveCurrency', [124, BD_LINE + 25, 132, 11], 'border');
+  g.setAttribute('class', 'term bd bd-d bd-res2');
+  D.resT = g;
+  D.res2 = txt(g, 190, BD_LINE + 33, '', 'cap', 'middle');
   // phone: one compact gate pill (bottom right, under the goods channel); tap = popover with the details
   const pill = part(el('g', { class: 'bd bd-p', 'data-bd': 'pill', role: 'button', tabindex: 0, 'aria-label': '国境线：汇率、出口、进口、外国人买国债' }, top), 'border');
   D.pillBg = el('rect', { class: 'bd-pill', y: 397, height: 24, rx: 12 }, pill);
@@ -767,6 +785,22 @@ function buildBorder(R, top, wrap) {
   D.pill = pill;
   const pop = document.createElement('div'); pop.className = 'flow-bpop'; pop.hidden = true; wrap.parentElement.appendChild(pop);
   D.pop = pop;
+  wireFxReactor(pop);                                  // phone: tap a reactor pipe inside the popover = open the five forces there
+  // desktop: tap a reactor pipe in the band = this popover (the reactor again, larger, with the five forces open)
+  const fp = document.createElement('div'); fp.className = 'fxr-pop'; fp.hidden = true; wrap.parentElement.appendChild(fp);
+  D.fxPop = fp;
+  wireFxReactor(fp);
+  ensureFxReactorCss();
+  installFxCardHook(CONCEPTS.fx && CONCEPTS.fx.name);
+}
+function openFxPop(R, hl) {
+  const D = R.bd, X = D.fxR;
+  if (!X || !X.ok) return;
+  D.fxPop.innerHTML = `<button type="button" class="fxr-x" data-act="fxr-close" aria-label="关闭">✕</button>` + reactorHtml(X, { w: Math.min(440, (R.wrap.clientWidth || 400) - 40), open: true, hl });
+  D.fxPop.style.bottom = ((R.bar && R.bar.offsetHeight) || 0) + 8 + 'px';
+  D.fxPop.hidden = false;
+  openForcesIn(D.fxPop.querySelector('.fxr-box'), hl, false);      // the reactor stays on top; the forces are open below it
+  D.fxPop.scrollTop = 0;
 }
 
 // phone + border: the 净出口 outlet chip is the border gate (tap = the 国境线 popover); it replaces the old corner pill, whose slot the outlets now use
@@ -778,47 +812,65 @@ function syncNxGate(R) {
 }
 
 const fmtFx = v => (v >= 100 ? String(Math.round(v)) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
-function fxChange(c) {      // fxChg4q: + = local currency weaker vs USD
-  if (typeof c !== 'number' || !isFinite(c)) return { txt: '', cls: '' };
-  const n = Math.round(Math.abs(c) * 100);
-  if (c > 0.005 && n >= 1) return { txt: `↓贬 ${n}%`, cls: 'weak' };
-  if (c < -0.005 && n >= 1) return { txt: `↑升 ${n}%`, cls: 'strong' };
-  return { txt: '基本持平', cls: 'flat' };
-}
 function setBorder(R, snap, town) {
   const B = snap.border, D = R.bd;
   const has = !town && !!B && typeof B === 'object';
   R.svg.classList.toggle('has-border', has);
   if (!!R.hasBorder !== has) { R.hasBorder = has; R.syncVB(); }
   syncNxGate(R);
-  if (!has) { D.pop.hidden = true; return; }
+  if (!has) { D.pop.hidden = true; D.fxPop.hidden = true; return; }
   const num = v => typeof v === 'number' && isFinite(v);
   const fx = B.fxPerUsd, usd = num(fx) && Math.abs(fx - 1) < 1e-9, local = num(fx) && !usd;
   D.fx.style.display = local ? '' : 'none';
+  D.fxt.style.display = local ? '' : 'none';
+  D.fxr.style.display = local ? '' : 'none';
   D.res.style.display = usd ? '' : 'none';
-  const ch = fxChange(B.fxChg4q);
+  D.resT.style.display = usd ? '' : 'none';
+  // FX reactor on the REAL data of this country at this quarter (null outside the data, e.g. a free run past 2025Q4)
+  const iso = curInfo().iso, home = local && iso !== 'USA' ? countryData(iso) : null;
+  const X = D.fxR = home ? computeFxReactor(home, US_Q, snap.date, iso) : null;
+  const ccy = curInfo().ccyName;
   if (local) {
-    D.fx1.textContent = `汇率 ${fmtFx(fx)}/美元`;
-    D.fx2.textContent = ch.txt; D.fx2.setAttribute('class', 'cap bd-chg ' + ch.cls);
+    const key = X && X.ok ? `${X.iso}${X.date}` : 'none';
+    if (D.fxrKey !== key) { D.fxrKey = key; D.fxr.innerHTML = X && X.ok ? reactorSvg(X, FXR) : ''; }
+    const v = X && X.ok ? X.actual : (num(B.fxChg4q) ? (1 / (1 + B.fxChg4q) - 1) * 100 : null);   // 本币比一年前, + = stronger
+    D.fx2.textContent = num(v) ? (Math.abs(v) < 0.5 ? `${ccy} 持平` : `${ccy} ${v > 0 ? '↑' : '↓'}${Math.abs(v).toFixed(0)}%`) : '';
+    D.fx2.setAttribute('class', 'cap bd-chg ' + (!num(v) || Math.abs(v) < 0.5 ? 'flat' : v > 0 ? 'strong' : 'weak'));
+    D.fx1.textContent = `${fmtFx(fx)}/美元`;
+    D.fx3.textContent = X && X.ok && X.anchor ? (X.anchor.word === '差不多' ? '比锚差不多' : `比锚${X.anchor.word.replace('偏', '')}${Math.abs(X.anchor.value).toFixed(0)}%`) : '';
+    D.fxt.setAttribute('aria-label', X && X.ok ? reactorLine(X) : '汇率');
   }
-  const resTxt = num(B.reserveShareUsd) ? `占世界外储 ${Math.round(B.reserveShareUsd * 100)}%` : '全世界都存美元';
-  if (usd) D.res2.textContent = resTxt;
+  if (D.fxPop && !D.fxPop.hidden && !(X && X.ok)) D.fxPop.hidden = true;
+  const resTxt = num(B.reserveShareUsd) ? `储备货币 · 占世界外储 ${Math.round(B.reserveShareUsd * 100)}%` : '储备货币：全世界都存美元';
+  const U = usd ? usdIndexAt(snap.date) : null;
+  if (usd) {
+    D.usd1.textContent = U && num(U.level) ? `美元指数 ${Math.round(U.level)}` : '美元 = 储备货币';
+    D.usd2.textContent = U && num(U.chg) ? (Math.abs(U.chg) < 0.5 ? '比一年前基本没变' : `比一年前美元变${U.chg > 0 ? '强' : '弱'} ${Math.abs(U.chg).toFixed(0)}%`) : '';
+    D.usd2.setAttribute('class', 'cap bd-chg ' + (!U || !num(U.chg) || Math.abs(U.chg) < 0.5 ? 'flat' : U.chg > 0 ? 'strong' : 'weak'));
+    D.res2.textContent = resTxt;
+  }
   // phone pill + popover
-  const pt = usd ? '国境 · 美元=储备货币' : local ? `国境 · 汇率 ${fmtFx(fx)} ${ch.txt.replace(' ', '').replace('基本持平', '持平')}` : '国境线 · 进出口';
+  const vChg = local ? (X && X.ok ? X.actual : num(B.fxChg4q) ? (1 / (1 + B.fxChg4q) - 1) * 100 : null) : null;   // 本币比一年前, + = stronger
+  const vTxt = num(vChg) ? (Math.abs(vChg) < 0.5 ? '基本没变' : `${vChg > 0 ? '变强' : '变弱'} ${Math.abs(vChg).toFixed(0)}%`) : '';
+  const pt = usd ? (U && num(U.level) ? `国境 · 美元指数 ${Math.round(U.level)}` : '国境 · 美元=储备货币') : local ? `国境 · 汇率 ${fmtFx(fx)} ${vTxt.replace(' ', '')}` : '国境线 · 进出口';
   const w = Math.ceil(estW(pt, 10.5)) + 22;
   D.pillBg.setAttribute('x', 384 - w); D.pillBg.setAttribute('width', w);
   D.pillTx.setAttribute('x', 384 - w / 2); D.pillTx.textContent = pt;
   const row = (term, label, val) => `<div class="bp-row"><button type="button" class="term" data-term="${term}">${label}</button><b>${val}</b></div>`;
   const m = v => (num(v) ? fmtMoney(v, false) : '—');
   let h = `<div class="bp-head"><b>国境线</b><span>外国水系 ↔ 本国水系</span><button type="button" class="bp-x" data-act="bd-close" aria-label="关闭">✕</button></div>`;
+  // the FX reactor first (phone: this popover is the only place it shows), the dollar index for the USA
+  const was = D.pop.querySelector('.fxr-forces');
+  if (local && X && X.ok) h += reactorHtml(X, { w: Math.min(276, (R.wrap.clientWidth || 300) - 40), title: false, open: !!(was && was.open) });
+  if (usd) h += usdHtml(snap.date);
   h += row('exports', '出口', m(B.exports));
   h += row('imports', '进口', m(B.imports));
   if (num(B.netExports)) h += `<div class="bp-row bp-sub"><span>净出口（出口 − 进口）</span><b>${B.netExports >= 0 ? '+' : '−'}${fmtMoney(Math.abs(B.netExports), false)}</b></div>`;
-  if (local) h += row('fx', '汇率（本币/美元）', `${fmtFx(fx)}${ch.txt ? ` · 比一年前 ${ch.txt}` : ''}`);
-  if (usd) h += row('reserveCurrency', '美元 = 储备货币', resTxt);
+  if (local) h += row('fx', '汇率（本币/美元）', `${fmtFx(fx)}${vTxt ? ` · ${ccy}比一年前${vTxt}` : ''}`);
+  if (usd) h += row('reserveCurrency', '美元 = 储备货币', resTxt.replace('储备货币 · ', ''));
   if (num(B.foreignBondBuy)) h += row('foreignBonds', B.foreignBondBuy < 0 ? '外国人卖国债' : '外国人买国债', `${fmtSigned(B.foreignBondBuy, false)}${num(B.foreignBondShare) ? ` · 持有 ${Math.round(B.foreignBondShare * 100)}%` : ''}`);
   h += `<div class="bp-note">单位：${curInfo().unitBn} / 季；点蓝字看解释</div>`;
-  if (D.pop.innerHTML !== h) D.pop.innerHTML = h;
+  if (D.popH !== h) { D.popH = h; D.pop.innerHTML = h; }
 }
 
 /* =====================================================================================================================
@@ -1333,6 +1385,13 @@ function wireEvents(host, R) {
   };
   host.addEventListener('click', e => {
     const bp = R.bd && R.bd.pop, tg = e.target && e.target.closest ? e.target : null;
+    // FX reactor (desktop band): tap a pipe = the reactor popover with the five forces; tap outside / ✕ closes it
+    const fxp = R.bd && R.bd.fxPop;
+    if (fxp && tg) {
+      const pp = tg.closest('.flow-svg [data-fxr-pipe]');
+      if (pp) { e.preventDefault(); closeValvePopover(); R.legend.hidden = true; openFxPop(R, pp.dataset.fxrPipe); return; }
+      if (!fxp.hidden && (tg.closest('[data-act="fxr-close"]') || !tg.closest('.fxr-pop') || tg.closest('.fxr-pop [data-term]'))) fxp.hidden = true;
+    }
     if (bp && tg) {
       if (tg.closest('[data-bd="pill"]')) {
         e.preventDefault();
@@ -1393,7 +1452,8 @@ function wireEvents(host, R) {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.valve[data-valve]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); R.cpop.hidden = true; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-bd="pill"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape' && R.bd) R.bd.pop.hidden = true;
+    if (e.key === 'Escape' && R.bd) { R.bd.pop.hidden = true; R.bd.fxPop.hidden = true; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.flow-svg [data-fxr-pipe]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini')) { e.preventDefault(); e.target.click(); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-act="loop"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });

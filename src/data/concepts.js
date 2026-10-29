@@ -11,7 +11,9 @@
 //           since(fn) -> { t, date } = first quarter of the current streak in which fn(snapshot) is true }
 // Scenario-aware: c.town is true for the 万元 town (dates look like 第3季); the US wording ("美国第一次是 2008-11") is only used when !c.town.
 
-import { currentCountry, countryInfo, fmtBn } from '../ui/country-info.js';
+import { currentCountry, countryInfo, fmtBn, countryData } from '../ui/country-info.js';
+import { computeFxReactor, reactorLine, anchorLine, usdIndexAt } from '../ui/fx-reactor.js';   // the 汇率 card only (FX reactor numbers, dollar index)
+import { US_Q } from './us-quarterly.js';
 
 const ok = v => typeof v === 'number' && isFinite(v);
 const P = (v, d = 1) => (ok(v) ? (v * 100).toFixed(d) + '%' : '—');
@@ -728,20 +730,30 @@ export const CONCEPTS = {
     live: 'border.imports', fmt: 'bn' },
   fx: {
     name: '汇率', short: '一美元能换多少本币：数字变大 = 本币变弱（贬值），数字变小 = 本币变强。',
+    // country view: the FX reactor's numbers on the real data at this quarter (src/ui/fx-reactor.js); USA: the broad dollar index
     why: (s, p, c) => {
       const B = s.border;
-      if (!B || !ok(B.fxPerUsd)) return '现在没有汇率读数：这个视图没有画国境线（国内水流图默认不画）。';
-      if (Math.abs(B.fxPerUsd - 1) < 1e-9) return '这是美元自己的水系：一美元永远等于一美元，所以不画汇率闸，改画「美元 = 储备货币」。';
-      const ch = B.fxChg4q, r = s.rates?.policy;
-      let t = `现在 1 美元 = ${B.fxPerUsd >= 100 ? Math.round(B.fxPerUsd) : B.fxPerUsd.toFixed(2)} 本币`;
-      if (ok(ch)) t += `，比一年前${Math.abs(ch) < 0.005 ? '基本没变' : (ch > 0 ? '贬了 ' : '升了 ') + P(Math.abs(ch), 0)}`;
-      t += `。\n${ok(r) ? `本国政策利率 ${P(r, 2)}：` : ''}${ok(ch) && ch > 0.03 ? '水从本国往外流，本币在变弱：进口货更贵（CPI 上行），出口更有竞争力。' : ok(ch) && ch < -0.03 ? '水往本国流，本币在变强：进口货更便宜（CPI 下行），出口更吃力。' : '没有明显的单向流动。'}`;
-      return t;
+      if (c.town) return '小镇没有国境线，也就没有汇率。推汇率的五股力：通胀差、利差、生产率、贸易条件、信心。';
+      if (c.iso === 'USA' || (B && ok(B.fxPerUsd) && Math.abs(B.fxPerUsd - 1) < 1e-9)) {
+        const u = usdIndexAt(s.date);
+        const head = ok(u.level) ? `美元指数（美元对一篮子货币）${Math.round(u.level)}${ok(u.chg) ? `，比一年前美元${Math.abs(u.chg) < 0.5 ? '基本没变' : (u.chg > 0 ? '变强 ' : '变弱 ') + Math.abs(u.chg).toFixed(0) + '%'}` : ''}。` : '美元指数：这一季没有数据。';
+        return `${head}\n美元自己是尺子：1 美元永远等于 1 美元，所以美国的闸看美元指数。别国的汇率闸都拿美元比。`;
+      }
+      const R = computeFxReactor(countryData(c.iso), US_Q, s.date, c.iso);
+      if (!R || !R.ok) {
+        if (!B || !ok(B.fxPerUsd)) return '现在没有汇率读数：这个视图没有画国境线（国内水流图默认不画）。';
+        return `现在 1 美元 = ${B.fxPerUsd >= 100 ? Math.round(B.fxPerUsd) : B.fxPerUsd.toFixed(2)} 本币。${R?.reason ? R.reason + '。' : ''}`;
+      }
+      const pp = v => (v >= 0 ? '推强 ' : '推弱 ') + Math.abs(v).toFixed(1) + '%';
+      return `${reactorLine(R)}\n` +
+        `资本管（利差 + 信心）${pp(R.pipes.cap.c)}：利差 ${R.forces.rate.have ? (R.forces.rate.input >= 0 ? '+' : '−') + Math.abs(R.forces.rate.input).toFixed(1) + ' 个点' : '没有数据'}，信心没有数据。\n` +
+        `商品价格管（通胀差 + 生产率 + 贸易条件）${pp(R.pipes.goods.c)}：通胀差 ${R.forces.infl.have ? (R.forces.infl.input >= 0 ? '+' : '−') + Math.abs(R.forces.infl.input).toFixed(1) + ' 个点' : '没有数据'}，生产率没有数据，贸易条件${R.forces.tot.dir ? (R.forces.tot.dir > 0 ? '方向推强' : '方向推弱') + '（铁矿石），大小没有数据' : '没有数据'}。\n` +
+        `${anchorLine(R)}`;
     },
-    water: '两个水系之间那道水闸的水位差：本国利率（水压）比外国高，外面的水就被吸进来，本币变强；水压低，水往外跑，本币变弱。',
-    formula: '汇率 = 每 1 美元换多少本币；比一年前 = 今天 ÷ 四个季度前 − 1（正 = 本币贬值）',
+    water: '国境线上的一道闸，闸两边是两个国家的水库。推闸的有五股力：通胀差、利差、生产率、贸易条件、信心。资本管（利差 + 信心）来得快；商品价格管（通胀差 + 生产率 + 贸易条件）慢，但长期总会把闸拉回锚（PPP）。',
+    formula: '汇率 = 每 1 美元换多少本币；本币比一年前 = 四个季度前的汇率 ÷ 今天的汇率 − 1（正 = 本币变强）\n五股力（「汇率」课）：Δs ≈ 1.0·通胀差 − 0.6·利差 − 0.8·生产率差 − k·贸易条件 + 信心（s 变大 = 本币变弱）\n贸易差额不在里面：数据里它几乎推不动汇率',
     from: ['policyRate'], to: ['cpi', 'exports', 'imports'],
-    logic: '央行：加息 → 本国资产的收益比外国高\n→ 外国人和本国人都愿意把钱放在本国：本币需求上升，本币变强（数字变小）\n→ 本币强：进口货便宜，通胀下降；出口变贵，出口减少\n→ 反过来，降息或资金外流时本币变弱：进口货变贵（CPI 上行），出口更便宜。',
+    logic: '央行：加息 → 本国资产的收益比外国高\n→ 钱流进来先要买本币：本币变强（资本管）\n→ 物价涨得比别国快的国家，本币长期变弱：PPP 锚只看通胀差（商品价格管）\n→ 本币强：进口货便宜，通胀下降；出口变贵，出口减少\n→ 一两年里大部分变化说不清：信心常常就是那一块（2008 年全球恐慌、2022 年英国）。',
     live: 'border.fxPerUsd', fmt: 'num' },
   foreignBonds: {
     name: '外国人买国债', short: '外国人拿钱买本国政府的债：水从国境线外流进长期国债池，把长期利率往下压。',

@@ -1,0 +1,32 @@
+[
+ {
+  "file": "fred/GDPC1.csv",
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDPC1",
+  "downloaded": "2026-10-29",
+  "note": "US real GDP, quarterly SAAR, chained 2017 USD"
+ },
+ {
+  "file": "fred/CPIAUCSL.csv",
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL",
+  "downloaded": "2026-10-29",
+  "note": "US CPI-U all items, monthly SA"
+ },
+ {
+  "file": "fred/CPIAUCNS.csv",
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS",
+  "downloaded": "2026-10-29",
+  "note": "US CPI-U all items, monthly NSA (the headline 比一年前 figure BLS publishes)"
+ },
+ {
+  "file": "fred/UNRATE.csv",
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=UNRATE",
+  "downloaded": "2026-10-29",
+  "note": "US unemployment rate, monthly SA"
+ },
+ {
+  "file": "imf/weo_shocks.csv",
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.RES,WEO/DEU+G163+CHN+USA+JPN.NGDP_RPCH+PCPIPCH+LUR.A?startPeriod=1980&endPeriod=2026",
+  "downloaded": "2026-10-29",
+  "note": "IMF WEO latest vintage: real GDP growth, CPI inflation, unemployment, annual 1980-2026"
+ }
+]

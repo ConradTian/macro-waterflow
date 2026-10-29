@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Shock panels demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/css/app.css">
+<link rel="stylesheet" href="../assets/css/shock-lab.css">
+<style>
+  /* mimics the app shell: phone = panel on top (the diagram's height), lesson text below; >=768px = panel in the diagram column, text on the right */
+  html, body { height: 100%; }
+  .demo { height: 100dvh; display: flex; flex-direction: column; }
+  .demo-top { flex: none; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 4px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .demo-top b { font-size: 18px; white-space: nowrap; }
+  .demo-top span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .demo-top select { margin-left: auto; min-height: 36px; max-width: 46vw; font: inherit; }
+  .demo-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #host { flex: none; height: min(calc(100vw * 1.38), 56dvh); background: var(--surface); border-bottom: 1px solid var(--border); overflow: hidden; }
+  #host > .skp { height: 100%; }
+  #card { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; background: var(--bg); }
+  #card h3 { margin: 0 0 6px; font-size: 16px; color: var(--accent); }
+  #card p { margin: 0 0 8px; }
+  #card .nopanel { color: var(--muted); font-style: italic; }
+  #card ol.ending { margin: 8px 0; padding: 8px 12px 8px 30px; border-radius: 10px; background: var(--surface-2); }
+  @media (min-width: 768px) {
+    .demo-main { display: grid; grid-template-columns: minmax(400px, min(46%, 620px)) 1fr; grid-template-rows: minmax(0, 1fr); }
+    #host { height: auto; border-bottom: 0; border-right: 1px solid var(--border); }
+    #card { padding: 16px 24px; }
+  }
+</style></head>
+<body>
+<div class="demo">
+  <div class="demo-top"><b>冲击</b><span class="muted" id="where"></span><select id="pick" aria-label="步"></select></div>
+  <div class="demo-main"><div id="host"></div><div id="card"></div></div>
+</div>
+<script type="module">
+// tools/shock-lab-demo.html?step=N (lesson step, 0..8) or ?panel=<id>[&group=war][&select=ID]; &theme=dark; &unmount=1 (mount, then unmount: test hook)
+window.__errs = [];
+addEventListener('error', e => window.__errs.push(String(e.message)));
+addEventListener('unhandledrejection', e => window.__errs.push(String(e.reason)));
+const q = new URLSearchParams(location.search);
+if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
+const { mountShockPanel, unmountShockPanel, SHOCK_PANELS } = await import('../src/ui/shock-lab.js');
+const { LESSON_SHOCKS } = await import('../src/data/lesson-shocks.js');
+const host = document.getElementById('host'), card = document.getElementById('card'), pick = document.getElementById('pick');
+const rich = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+pick.innerHTML = LESSON_SHOCKS.steps.map((s, i) => `<option value="${i}">${s.title}</option>`).join('');
+function show(i, panelOverride) {
+  const st = LESSON_SHOCKS.steps[i];
+  const spec = panelOverride || st.panel;
+  unmountShockPanel();
+  const root = spec ? mountShockPanel(host, spec) : null;
+  card.innerHTML = `<h3>${st.title}</h3>` + st.text.map(t => `<p>${rich(t)}</p>`).join('') +
+    (st.question ? `<p><b>问：</b>${rich(st.question)}</p>` + (st.answerHint || []).map(t => `<p>${rich(t)}</p>`).join('') : '') +
+    (st.ending ? `<ol class="ending">${['q1', 'q2', 'q3'].map(k => `<li>${rich(st.ending[k])}</li>`).join('')}</ol>` : '') +
+    (spec ? '' : `<p class="nopanel">（这一步不开面板：在 app 里跑模型 ${st.from || ''} → ${st.until || ''}，占位符 {..} 由 runner 填）</p>`);
+  document.getElementById('where').textContent = spec ? spec.id + (spec.select ? ' · ' + spec.select : '') : '无面板';
+  pick.value = String(i);
+  window.__mounted = !!root;
+}
+pick.addEventListener('change', () => show(+pick.value));
+let i = +(q.get('step') || 0), ov = null;
+if (q.get('panel')) {
+  ov = { id: q.get('panel') }; if (q.get('group')) ov.group = q.get('group'); if (q.get('select')) ov.select = q.get('select');
+  i = Math.max(0, LESSON_SHOCKS.steps.findIndex(s => s.panel && s.panel.id === ov.id && (!ov.select || s.panel.select === ov.select)));
+}
+show(i, ov);
+if (q.get('unmount') === '1') unmountShockPanel();
+window.__shk = { mountShockPanel, unmountShockPanel, SHOCK_PANELS, LESSON_SHOCKS, show };
+window.__done = true;
+</script>
+</body></html>

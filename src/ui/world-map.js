@@ -4,8 +4,14 @@
 // app.js owns the open/close wiring (button, ?map=1, mw:map event); this module owns the DOM inside the host element.
 //   openWorldMap(host, { year, select, country, onEnter(iso), onClose() })   closeWorldMap()   selectOnMap(iso|null)   isMapOpen()
 // Selecting a box (tap) only highlights it and fills the card; only the card's 「进入…」 button calls onEnter.
+// Trade pipes: every named pair above a threshold (TRADE_MIN of the year's largest named flow, or TRADE_SHARE of the exporter's exports), and
+//   ALL 其他国家 (ROW) pipes, grey, at their true width, drawn behind (background). Width is on one scale for all trade pipes.
+// FX: a small sluice hangs under each country box: 1 美元 = x 本币 (annual mean) and the change 比一年前; the USA shows the broad dollar index.
+//   Tap = the 汇率 concept card (data-term="fx", opened by src/ui/concepts.js). The card of a selected country adds the FX reactor
+//   (src/ui/fx-reactor.js, last quarter of the year) or, for the USA, the dollar index.
 import { WORLD } from '../data/world.js';
 import { COUNTRY_DATA, COUNTRY_READY } from '../data/countries/index.js';
+import { computeFxReactor, reactorHtml, usdHtml, usdIndexYear, loadCountry, wireFxReactor, ensureFxReactorCss, installFxCardHook } from './fx-reactor.js';
 
 const ISOS = ['USA', 'GBR', 'EA', 'CHN', 'JPN', 'AUS', 'ROW'];
 const KINDS = [['all', '全部', ''], ['trade', '贸易', 'goods'], ['capital', '资本', 'bond'], ['reserve', '储备', 'bond']];
@@ -16,8 +22,9 @@ const HOLDERS = ['JPN', 'CHN', 'GBR', 'EA', 'ROW'];
 const POS_WIDE = { USA: [.15, .36], GBR: [.37, .12], EA: [.55, .24], CHN: [.74, .42], JPN: [.92, .18], AUS: [.84, .82], ROW: [.52, .75] };
 const POS_TALL = { GBR: [.25, .09], EA: [.73, .13], USA: [.27, .30], CHN: [.74, .34], JPN: [.80, .55], ROW: [.38, .77], AUS: [.78, .87] };
 const YMIN = 1995, YMAX = 2025;
-const TOP_TRADE = 8;          // trade pipes shown in 全部
-const TOP_TRADE_ONE = 14;     // ... and when 贸易 is the only kind
+const TRADE_MIN = 0.08;       // a named pair is drawn if its exports >= 8% of the year's largest named-pair flow ...
+const TRADE_SHARE = 0.15;     // ... or >= 15% of the exporter's total exports (so a small economy's main buyers show: AUS -> CHN, AUS -> JPN)
+const CCY_CN = { AUD: '澳元', GBP: '英镑', JPY: '日元', EUR: '欧元', CNY: '人民币', USD: '美元' };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -53,7 +60,7 @@ function layout(W, H, tall) {
     const g = ser(iso, 'gdpUsd');
     const w = g == null ? wMin : wMin + (wMax - wMin) * Math.sqrt(g / gmax);   // area-ish: side grows with sqrt(GDP), with a floor so the text fits
     const h = Math.max(70 * sf, w * 0.6);
-    const cx = clamp(P[iso][0] * W, w / 2 + 6, W - w / 2 - 6), cy = clamp(P[iso][1] * H, h / 2 + 8, H - h / 2 - 8);
+    const cx = clamp(P[iso][0] * W, w / 2 + 6, W - w / 2 - 6), cy = clamp(P[iso][1] * H, h / 2 + 8, H - h / 2 - 8 - 9 * sf);   // room for the FX sluice under the box
     box[iso] = { iso, cx, cy, w, h, x: cx - w / 2, y: cy - h / 2 };
   }
   const u = box.USA, pw = Math.max(u.w * 1.18, 176 * sf), ph = 112 * sf;
@@ -75,12 +82,12 @@ function collectPipes(L) {
     for (const a of ISOS) for (const b of ISOS) {
       if (a === b) continue;
       const v = tradeV(a, b);
-      if (v != null && v > 0) all.push({ k: 'trade', from: a, to: b, v });
+      if (v != null && v > 0) all.push({ k: 'trade', from: a, to: b, v, row: a === 'ROW' || b === 'ROW' });
     }
-    all.sort((p, q) => q.v - p.v);
-    const keep = new Set(all.slice(0, kind === 'trade' ? TOP_TRADE_ONE : TOP_TRADE));
-    if (st.sel) all.filter(p => p.from === st.sel || p.to === st.sel).slice(0, 6).forEach(p => keep.add(p));
-    out.push(...all.filter(p => keep.has(p)));
+    const named = all.filter(p => !p.row), big = Math.max(1, ...named.map(p => p.v));
+    const exp = {}; for (const p of all) exp[p.from] = (exp[p.from] || 0) + p.v;     // the exporter's total exports (to the six others + ROW)
+    const keep = p => p.row || p.v >= TRADE_MIN * big || p.v >= TRADE_SHARE * exp[p.from] || (!!st.sel && (p.from === st.sel || p.to === st.sel));
+    out.push(...all.filter(keep).sort((p, q) => (q.row - p.row) || (p.v - q.v)));   // ROW (grey background) first, then small to big
   }
   if (kind === 'all' || kind === 'capital') {
     for (const h of HOLDERS) {
@@ -109,12 +116,12 @@ function pipeSvg(p) {
   const Ln = 5 + p.w * 0.7, Hh = 3 + p.w * 0.65, bx = x1 - ux * Ln, by = y1 - uy * Ln;
   const arrow = `${x1.toFixed(1)},${y1.toFixed(1)} ${(bx - uy * Hh).toFixed(1)},${(by + ux * Hh).toFixed(1)} ${(bx + uy * Hh).toFixed(1)},${(by - ux * Hh).toFixed(1)}`;
   const dur = (15 / (14 + 46 * p.f)).toFixed(2);
-  const cls = p.k === 'cap' ? 'bond' : 'goods';
+  const cls = p.k === 'cap' ? 'bond' : p.row ? 'goods row' : 'goods';
   const mx = 0.25 * x0 + 0.5 * cx + 0.25 * x1, my = 0.25 * y0 + 0.5 * cy + 0.25 * y1;
   const lab = fmtBn(p.v), cw = lab.length * 6.4 + 10;
-  const chip = (p.hl || p.f > 0.62) ? `<g class="wm-chip ${cls}" transform="translate(${mx.toFixed(1)} ${my.toFixed(1)})"><rect x="${-cw / 2}" y="-9" width="${cw}" height="17" rx="8.5"/><text y="3.5" text-anchor="middle">${lab}</text></g>` : '';
-  const what = p.k === 'cap' ? `${nameOf(p.from)}持有美债 ${lab}美元` : `${nameOf(p.from)} → ${nameOf(p.to)} 出口 ${lab}美元`;
-  return `<g class="wm-pipe ${cls}${p.hl ? ' hl' : ''}" data-k="${p.k}" data-from="${p.from}" data-to="${p.to}"><title>${esc(what)}</title>
+  const chip = (p.hl || (p.f > 0.62 && !p.row)) ? `<g class="wm-chip ${cls}" transform="translate(${mx.toFixed(1)} ${my.toFixed(1)})"><rect x="${-cw / 2}" y="-9" width="${cw}" height="17" rx="8.5"/><text y="3.5" text-anchor="middle">${lab}</text></g>` : '';
+  const what = p.k === 'cap' ? `${nameOf(p.from)}持有美债 ${lab}美元` : `${nameOf(p.from)} → ${nameOf(p.to)} 出口 ${lab}美元${p.row ? '（灰管 = 其他国家，背景）' : ''}`;
+  return `<g class="wm-pipe ${cls}${p.hl ? ' hl' : ''}" data-k="${p.k}" data-from="${p.from}" data-to="${p.to}" data-v="${p.v}" data-w="${p.w.toFixed(3)}"${p.row ? ' data-row="1"' : ''}><title>${esc(what)}</title>
     <path class="wm-bed" d="${d}" stroke-width="${p.w.toFixed(2)}"/><path class="wm-dash" d="${d}" stroke-width="${Math.max(1, p.w * 0.62).toFixed(2)}" style="animation-duration:${dur}s"/>
     <polygon class="wm-arrow" points="${arrow}"/>${chip}</g>`;
 }
@@ -139,6 +146,39 @@ function boxSvg(b, L) {
     ${cell(col1, b.y + f + 7 + (f * 1.55 + 3) * 2, '利率', fmtPct1(r.rate))}
     ${cell(col2, b.y + f + 7 + (f * 1.55 + 3) * 2, '大环', stage)}
   </g>`;
+}
+// FX sluice under a box: 本币 per USD (annual mean) + 本币比一年前 (+ = stronger); USA: the broad dollar index. Tap = the 汇率 card.
+export function sluiceInfo(iso, year) {
+  if (iso === 'ROW') return null;
+  if (iso === 'USA') {
+    const u = usdIndexYear(year);
+    if (u.level == null) return null;
+    return { usd: true, level: u.level, chg: u.chg, txt: `美元指数 ${Math.round(u.level)}`,
+      tip: `美元指数（美元对一篮子货币）${year} 年平均 ${Math.round(u.level)}${u.chg == null ? '' : `，美元比一年前${Math.abs(u.chg) < 0.5 ? '基本没变' : (u.chg > 0 ? '变强 ' : '变弱 ') + Math.abs(u.chg).toFixed(0) + '%'}`}` };
+  }
+  const a = WORLD.countries[iso]?.fxPerUsd, k = WORLD.years.indexOf(year);
+  const fx = Array.isArray(a) ? num(a[k]) : null, f0 = Array.isArray(a) && k > 0 ? num(a[k - 1]) : null;
+  if (fx == null) return null;
+  const ccy = CCY_CN[WORLD.countries[iso].ccy] || WORLD.countries[iso].ccy, chg = f0 == null ? null : (f0 / fx - 1) * 100;
+  const v = fx >= 100 ? fx.toFixed(0) : fx >= 10 ? fx.toFixed(1) : fx.toFixed(2);
+  return { usd: false, fx, chg, ccy, txt: `${v}${ccy}`,
+    tip: `1 美元 = ${v} ${ccy}（${year} 年平均）${chg == null ? '' : `；${ccy}比一年前${Math.abs(chg) < 0.5 ? '基本没变' : (chg > 0 ? '变强 ' : '变弱 ') + Math.abs(chg).toFixed(0) + '%'}`}` };
+}
+function sluiceSvg(b, L) {
+  const s = sluiceInfo(b.iso, st.year);
+  if (!s) return '';
+  const f = L.fs * 0.86, h = 15 * L.sf;
+  const ch = s.chg == null ? '' : Math.abs(s.chg) < 0.5 ? '持平' : `${s.chg > 0 ? '↑' : '↓'}${Math.abs(s.chg).toFixed(0)}%`;
+  const cls = s.chg == null || Math.abs(s.chg) < 0.5 ? 'flat' : s.chg > 0 ? 'up' : 'dn';
+  const tw = w => { let n = 0; for (const c of w) n += c.charCodeAt(0) > 255 ? f : f * 0.6; return n; };
+  const gw = 13 * L.sf, w = 8 + gw + 4 + tw(s.txt) + (ch ? 5 + tw(ch) : 0) + 8;
+  const x = clamp(b.x + b.w - w - 6, b.x + 4, b.x + b.w - w), y = b.y + b.h - h / 2 + 1;
+  const gx = x + 8, gy = y + (h - 9 * L.sf) / 2, gh = 9 * L.sf;
+  return `<g class="wm-sluice${s.usd ? ' usd' : ''}" data-term="fx" data-iso="${b.iso}" role="button" tabindex="0" aria-label="${esc(s.tip)}"><title>${esc(s.tip + '。点开看「汇率」')}</title>
+    <rect class="wm-sl-bg" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${(h / 2).toFixed(1)}"/>
+    <rect class="wm-sl-gate" x="${gx.toFixed(1)}" y="${gy.toFixed(1)}" width="${gw.toFixed(1)}" height="${gh.toFixed(1)}" rx="2"/>
+    <path class="wm-sl-slat" d="M${(gx + gw * 0.3).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)} M${(gx + gw * 0.5).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)} M${(gx + gw * 0.7).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)}"/>
+    <text x="${(gx + gw + 4).toFixed(1)}" y="${(y + h / 2 + f * 0.36).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-sl-v">${esc(s.txt)}</tspan>${ch ? `<tspan class="wm-sl-c ${cls}" dx="5">${ch}</tspan>` : ''}</text></g>`;
 }
 function poolSvg(L) {
   const p = L.pool, f = L.fs, ri = yi();
@@ -186,7 +226,8 @@ function cardHtml() {
     return `<div class="wm-hint"><b>点一个框，看它的情况</b>
       <p class="wm-more">框里四个读数：<b>资产</b>（实际房价指数）、<b>债务</b>（私人 + 政府，占 GDP）、<b>利率</b>（政策利率）、<b>大环</b>（长周期位置，现在的）。</p>
       <p class="wm-more">框越大，GDP 越大。水位越高，债务越多。</p>
-      <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，只画最大的几条）<br><i class="wm-sw bond"></i> 蓝紫管 = 外国人买美债，流进美国的国债池<br>管越宽，水量越大。</p>
+      <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 外国人买美债，流进美国的国债池<br>管越宽，水量越大。</p>
+      <p class="wm-more"><i class="wm-sw sl"></i> 框下面的小闸 = 汇率：1 美元换多少本币，箭头 = 本币比一年前变强（↑）还是变弱（↓）。美国的闸是美元指数。点闸看「汇率」。</p>
       <p class="wm-mut wm-more">只有卡片里的「进入」按钮才会打开那个国家的水流图。</p></div>`;
   }
   const r = readings(iso), nm = nameOf(iso);
@@ -207,6 +248,7 @@ function cardHtml() {
     </dl>
     <p class="wm-mut wm-note">大环是「现在」的位置，不跟着年份动。</p>
     <p class="wm-line"><b>GDP</b> ${fmtBn(r.gdp)}美元 · <b>汇率</b> ${fx}</p>
+    ${iso === 'ROW' ? '' : `<div class="wm-fx" data-fx="${iso}" data-year="${st.year}">${iso === 'USA' ? usdHtml(null, { year: st.year }) : '<p class="wm-mut">汇率闸：读数据…</p>'}</div>`}
     ${parts ? `<div class="wm-partners"><b>贸易对手前三</b><ol>${parts}</ol></div>` : '<p class="wm-mut">这一年没有贸易数据。</p>'}
     <div class="wm-act"><button type="button" class="btn primary wm-enter" data-act="enter" data-iso="${iso}"${ready ? '' : ' disabled'}>${label}</button>
     ${cov}</div>${iso === 'USA' && here === 'USA' ? '<p class="wm-mut wm-note">美国就是主屏上的水流图，点进入会回到它。</p>' : ''}
@@ -252,7 +294,8 @@ function renderMap() {
   els.svg.innerHTML = `<rect class="wm-bg" x="0" y="0" width="${W}" height="${H}"/>
     <g class="wm-pipes">${pipes.sort((a, b) => a.hl - b.hl).map(pipeSvg).join('')}</g>
     ${poolSvg(L)}
-    <g class="wm-boxes">${ISOS.map(i => boxSvg(L.box[i], L).replace('class="wm-box', `class="wm-box${stateBox(i)}`)).join('')}</g>`;
+    <g class="wm-boxes">${ISOS.map(i => boxSvg(L.box[i], L).replace('class="wm-box', `class="wm-box${stateBox(i)}`)).join('')}</g>
+    <g class="wm-sluices">${ISOS.map(i => sluiceSvg(L.box[i], L).replace('class="wm-sluice', `class="wm-sluice${st.sel === i ? ' sel' : stateBox(i)}`)).join('')}</g>`;
   st.last = { W, H };
   els.svg.dataset.pipes = pipes.length;
 }
@@ -260,6 +303,22 @@ function renderCard() {
   els.card.innerHTML = cardHtml();
   els.card.dataset.sel = st.sel || '';
   if (st.sel && !COUNTRY_READY[st.sel]) loadCoverage(st.sel);
+  if (st.sel && st.sel !== 'USA' && st.sel !== 'ROW') fillReactor(st.sel, st.year);
+}
+// the FX reactor of the selected country at the last quarter of the map's year (async: loads its quarterly data and the US one)
+async function fillReactor(iso, year) {
+  let html;
+  try {
+    const [home, us] = await Promise.all([loadCountry(iso), loadCountry('USA')]);
+    const date = `${Math.min(year, 2025)}Q4`;
+    const box = els.card && els.card.querySelector(`.wm-fx[data-fx="${iso}"][data-year="${year}"]`);
+    if (!box) return;                                  // selection or year changed meanwhile
+    html = reactorHtml(computeFxReactor(home, us, date, iso), { w: Math.max(260, Math.min(420, box.clientWidth - 4 || 320)) });
+    box.innerHTML = html;
+  } catch (e) {
+    const box = els.card && els.card.querySelector(`.wm-fx[data-fx="${iso}"]`);
+    if (box) box.innerHTML = '<p class="wm-mut">汇率闸：没有数据</p>';
+  }
 }
 function renderCtl() {
   els.yv.textContent = st.year;
@@ -302,9 +361,12 @@ function buildDom(host) {
   host.onclick = onClick;
   els.slider.oninput = () => { st.year = clamp(+els.slider.value, YMIN, YMAX); renderAll(); };
   els.svg.addEventListener('keydown', e => {
+    const sl = e.target.closest && e.target.closest('.wm-sluice');
+    if (sl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sl.dispatchEvent(new MouseEvent('click', { bubbles: true })); return; }
     const g = e.target.closest && e.target.closest('.wm-box');
     if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectOnMap(g.dataset.iso); }
   });
+  wireFxReactor(els.card);                           // tap a reactor pipe in the card = its five forces
 }
 function onClick(e) {
   const t = e.target;
@@ -314,6 +376,7 @@ function onClick(e) {
   const kb = t.closest && t.closest('.wm-seg button');
   if (kb) { st.kind = kb.dataset.kind; renderCtl(); renderMap(); return; }
   if (t.closest && t.closest('.wm-svg')) {
+    if (t.closest('.wm-sluice')) return;            // the FX sluice: the document-level [data-term] delegate opens the 汇率 card; no (de)selection
     const g = t.closest('.wm-box');
     if (g) selectOnMap(g.dataset.iso); else if (st.sel) selectOnMap(null);     // tapping empty space deselects
   }
@@ -328,6 +391,8 @@ export function openWorldMap(host, opts = {}) {
   if (!document.querySelector('link[href*="world.css"]')) {
     const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL('../../assets/css/world.css', import.meta.url).href; document.head.appendChild(l);
   }
+  ensureFxReactorCss();
+  installFxCardHook();
   buildDom(host);
   host.hidden = false;
   document.body.dataset.map = '1';

@@ -9,7 +9,9 @@ const warns = [];
 const err = (m) => errors.push(m);
 const warn = (m) => warns.push(m);
 
-const US_KEYS = Object.keys(US_Q.series);
+// US-only series used by the engine's real fiscal path (cp.fiscalRealPath, USA only): other countries need not carry them
+const US_ONLY = new Set(['govDeficitGdp', 'govInterestGdp']);
+const US_KEYS = Object.keys(US_Q.series).filter((k) => !US_ONLY.has(k));
 const EXTRA_KEYS = ['fxPerUsd', 'exportsGdp', 'importsGdp', 'foreignGovHoldShare'];
 const RANGES = {
   policyRate: [-0.01, 0.25], mortgageRate: [-0.01, 0.25], gov10y: [-0.01, 0.25],

@@ -528,6 +528,12 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
 .flow-bpop .bp-note { margin-top: 2px; padding-top: 5px; border-top: 1px dashed var(--border); color: var(--muted); font-size: 11.5px; }
 @media (max-width: 767.98px) { .flow-svg .bd-d { display: none; } }
 @media (min-width: 768px) { .flow-svg .bd-p, .flow-bpop { display: none !important; } }
+/* FX reactor in the band (src/ui/fx-reactor.js reactorSvg; its colours live in assets/css/fx-reactor.css) + the readings column + the US dollar index */
+.flow-svg .bd-fxr text { font-size: 7.4px; }
+.flow-svg .bd-fxt text { font-size: 8px; }
+.flow-svg .bd-fxt .num { fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.flow-svg .bd-chg.flat { fill: var(--muted); }
+.flow-bpop { max-height: calc(100% - 60px); overflow-y: auto; overscroll-behavior: contain; }
 
 /* =====================================================================================================================
    TIME SCRUBBER (src/ui/scrubber.js): the progress line + a 「⌄ 拖动」 handle at its right end; the handle opens a slider row.
