@@ -105,6 +105,11 @@ button { font: inherit; color: inherit; }
   .tab-content { padding: 16px 24px; }
   .timebar { padding-left: 24px; padding-right: 24px; }
   .banner { padding-left: 24px; }
+  /* the diagram scales with its column: cap the column so a desktop does not blow it up ~2x; lighter bold at that size */
+  .main { grid-template-columns: minmax(400px, min(46%, 620px)) 1fr; }
+  .flow-svg .chip text { font-weight: 500; }
+  .flow-svg .ttl { font-weight: 600; }
+  .flow-svg .sub.num { font-weight: 500; }
 }
 
 /* ---------- shared components ---------- */
