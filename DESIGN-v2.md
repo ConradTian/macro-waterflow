@@ -51,6 +51,8 @@ NOT widen the goods channel. Only Capex widens the channel — draw these two pi
 - Ledger ↔ diagram link: tapping a ledger entry / lamp lights the related pipes.
 
 ## 6. Cycle detection: two dials + trail (approved after v2 lock)
+> 已被 tools/B1B2-CONTRACT.md 取代：下面短周期表盘里的「过热(B1) / 缩水(B2)」已不用。B1/B2 属于大周期，是 ② 缓冲池满之后的岔路。
+
 Problem: single ring re-decided every quarter by argmax → jumps around; mixes short and long cycles.
 - **Long-term debt cycle dial (大周期)**: slow variables only (total/private debt-to-GDP trend, policy rate near
   zero bound, interest/tax, deleveraging). Moves rarely (years). Stages: ① 堆债 ② 缓冲池满 ⑤ 降息失灵/私人去杠杆

@@ -44,6 +44,13 @@
 //   view:'waves'|'flow'   (any step) switch the left panel on entry: 'waves' = the curves view over the water diagram (US long-cycle chart,
 //                         quarterly short-cycle chart + the game's own calls, long-cycle band; it moves with the cycle rings), 'flow' = the water diagram.
 //                         Steps without `view` leave it as it is. A lesson starts on 'flow' and leaving the lesson restores 'flow'. Town steps have no curves.
+//   map:{open:true|false, select?:'AUS', year?:2008}   (any step) dispatch mw:map to the world-map page. A step WITHOUT `map` closes a map that the
+//                         lesson opened (so ‹ 上一步 returns to the main screen); leaving the lesson closes it too. open:true without `select` clears the selection.
+// Lesson extras for the world lessons (kind:'world', menu group 「世界」): country:'AUS' = the lesson lives in that country's view; starting it goes to
+//   ?country=AUS&lesson=<id> if COUNTRY_READY[iso] (src/data/countries/index.js), else it shows 「细图制作中」 and cannot be started. draft:true = outline only.
+// WORLD NUMBERS: a vals/claims getter 'world:<path>@<year>' reads WORLD (src/data/world.js), e.g. 'world:countries.CHN.gdpUsd@2008' (USD bn),
+//   'world:trade.CHN.USA@2008' (CHN exports to USA, USD bn), 'world:reserves.USD@2008' (share), 'world:ustForeign.CHN@2008'. '@last' = latest non-null year.
+//   fmt 'bn' = 十亿美元, 'tn' = 万亿美元 (both take USD bn). No scratch sim is run for these.
 // Never shown to the learner, only read by tools/check_lessons.mjs (so a retune cannot silently falsify a text):
 //   predict option.when [cond]   the claim an option makes; exactly the ok option must hold
 //   claims [cond]                every factual sentence of a step.  cond = { get, from?, until?, set?, vs?, mul?, gt|gte|lt|lte, dateBetween?, dateBefore? }
@@ -157,6 +164,7 @@ export const LESSONS = [
       { type: 'valve', title: '第 8 步：政府是另一个水龙头', show: ['government'], do: [{ reset: true }],
         text: [
           '镇政府花得比收得多（赤字）的时候，多出来的部分是新水，叫**财政注入**：这是第二个泵。',
+          '模型里赤字大约一半算新水（另一半是存款人拿已有存款买国债，把已有的钱换个地方）。',
           '反过来，收得比花得多（盈余），多出来的水被收走销毁：这是第二个排水口。',
           '现在镇政府这个季度多花了相当于镇 GDP 5% 的钱。',
         ],
@@ -672,8 +680,8 @@ export const LESSONS = [
 
       { type: 'reveal', title: '第 1 步：小周期的最后一问', tab: 'cycle', view: 'flow',
         text: [
-          '小周期是一个四步的环：**扩张 → 过热 → 收紧·衰退 → 降息**。',
-          '过热有两种：**物价过热**（通胀高、央行加息）和**资产过热**（借钱推起来的繁荣，先是信贷缩、再是房价转弱）。',
+          '小周期是一个四步的环：**扩张 → 过热 → 收紧 → 降息（推得动吗？）**。收紧就是央行加息；加息的同时，失业或信贷也可能转差，那就是「收紧·衰退」。',
+          '过热有两种：**物价过热**（通胀高、还在升）和**资产过热**（借钱推起来的繁荣，先是信贷缩、再是房价转弱）。',
           '第四步「降息」，不是终点，而是一个问题。',
         ],
         question: '央行降息之后，是什么决定这个环能不能再转一圈？',
@@ -689,11 +697,11 @@ export const LESSONS = [
           '**② 缓冲池满**的意思：资产池里装的，已经是借来的水。池子再往里灌，多出来的水只有两条出路。',
           '**一条是溢出成物价（B1）**：水漫进商品河道，物价涨。这条路小周期自己能管：加息关水，再降息放水。',
           '**另一条是缩水（B2）**：资产价格掉下来，水没了，可欠条还在。这条路小周期管不了，要交给大周期。',
-          '2000 年走的是第一条：{d1}，小周期亮「过热·物价」。',
+          '2000 年大周期还在 ①，央行已经在加息，小周期在「收紧（加息）」；{d1} 物价也冒了头，圆环上标出「接 物价过热」（B1 苗头）。',
         ],
-        vals: [{ key: 'd1', get: 'when:cycles.short.top=price', fmt: 'str' }, { key: 'f1', get: 'when:cycles.long.fork=B1', fmt: 'str' }],
+        vals: [{ key: 'd1', get: 'when:cycles.short.via=price', fmt: 'str' }, { key: 'f1', get: 'when:cycles.long.fork=B1', fmt: 'str' }],
         claims: [
-          { get: 'when:cycles.short.top=price', dateBetween: ['2000Q2', '2000Q3'], note: '2000 年小周期亮「过热·物价」' },
+          { get: 'when:cycles.short.via=price', dateBetween: ['2000Q2', '2000Q3'], note: '2000 年小周期在「收紧（加息）」，标出「接 物价过热」' },
           { get: 'when:cycles.long.fork=B1', dateBetween: ['2000Q2', '2000Q3'], note: '大周期岔路口是 B1（溢出）' },
         ],
         glow: { parts: ['pool', 'poolHousing', 'channel'] },
@@ -701,18 +709,18 @@ export const LESSONS = [
 
       { type: 'watch', until: '2001Q4', title: '第 3 步：2000–01，顶来了，央行降息', view: 'waves', tab: 'cycle',
         text: [
-          '先是物价过热，央行加息；{d2}，大周期走到 ② 缓冲池满。{d3}，顶换了一种：**资产过热**，信贷先缩了，可房价还在涨。',
+          '先是物价冒头，央行加息；加到头，央行掉头降息：{e0}，圆环从「收紧」转到「降息（推得动吗？）」。{d2}，大周期走到 ② 缓冲池满。信贷先缩了，可房价还在涨。',
           '央行从 {pm} 一路降息到 {pe}。看曲线：季度图上，真实 GDP 掉到了趋势线下面，这就是小周期的坑。',
           '房价还在涨，大周期没有转到 B2：银行的抵押品好好的，闸门没关。',
         ],
         vals: [
-          { key: 'd2', get: 'when:cycles.long.stage=2', fmt: 'str' }, { key: 'd3', get: 'when:cycles.short.top=asset', fmt: 'str' },
+          { key: 'd2', get: 'when:cycles.long.stage=2', fmt: 'str' }, { key: 'e0', get: 'when:cycles.short.phase=ease', fmt: 'str' },
           { key: 'pm', get: 'max:rates.policy', fmt: 'pct' }, { key: 'pe', get: 'end:rates.policy', fmt: 'pct' },
         ],
         metrics: [{ label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '信贷脉冲', get: 'extra.creditImpulse', fmt: 'pct' }, { label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }],
         claims: [
           { get: 'when:cycles.long.stage=2', dateBetween: ['2001Q1', '2001Q3'], note: '大周期走到 ②' },
-          { get: 'when:cycles.short.top=asset', dateBetween: ['2001Q2', '2001Q4'], note: '小周期换成「过热·资产」' },
+          { get: 'when:cycles.short.phase=ease', dateBetween: ['2001Q1', '2001Q2'], note: '第一次降息，圆环转到「降息（推得动吗？）」' },
           { get: 'dpp:rates.policy', lt: -0.03, note: '降息 3 个点以上' },
           { get: 'min:extra.creditImpulse', lt: 0, note: '信贷先缩' },
           { get: 'min:extra.houseYoY', gt: 0, note: '房价比一年前还在涨' },
@@ -729,7 +737,7 @@ export const LESSONS = [
         vals: [
           { key: 'pol', get: 'start:rates.policy', fmt: 'pct' }, { key: 'ci0', get: 'start:extra.creditImpulse', fmt: 'pct' },
           { key: 'ci1', get: 'end:extra.creditImpulse', fmt: 'pct' }, { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
-          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str' }, { key: 'x1', get: 'when:cycles.short.phase=expand', fmt: 'str' },
+          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2000Q4' }, { key: 'x1', get: 'when:cycles.short.phase=expand', fmt: 'str' },
         ],
         explain: [
           '回来了。{e1} 小周期进「降息」，{x1} 就回到「扩张」：新贷款 {nl}，还本 {rep}（十亿美元/季），信贷脉冲 {ci1}。降息推得动，环转了一圈。',
@@ -738,7 +746,7 @@ export const LESSONS = [
         ],
         claims: [
           { get: 'when:cycles.short.phase=expand', dateBetween: ['2002Q4', '2003Q2'], note: '小周期回到扩张' },
-          { get: 'when:cycles.short.phase=ease', dateBetween: ['2002Q1', '2002Q3'], note: '先进入降息' },
+          { get: 'when:cycles.short.phase=ease', from: '2000Q4', dateBetween: ['2001Q1', '2001Q1'], note: '先进入降息（2001Q1）' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, gt: 0, note: '新贷款多于还本' },
           { get: 'count:cycles.long.stage', lt: 1, note: '大周期没动' },
           { get: 'start:extra.creditImpulse', lt: 0, note: '降息时信贷脉冲还是负的' },
@@ -746,19 +754,20 @@ export const LESSONS = [
 
       { type: 'watch', until: '2007Q3', title: '第 5 步：2005–07，同样的顶又来了', view: 'flow', tab: 'cycle',
         text: [
-          '过了几年，同样的剧本又开始：{hp}，小周期亮「过热·物价」（加息）；{ha} 换成「过热·资产」；{ti} 进入「收紧·衰退」。',
+          '过了几年，同样的剧本又开始：{ti}，央行重新加息，小周期进入「收紧（加息）」；{hp} 物价冒头，标出「接 物价过热」；{tr} 加息之外，失业或信贷也转差，变成「收紧·衰退」；{ha} 顶换了一种，标出「接 资产过热」。',
           '这一次的底色不一样。上一轮的泡沫在股票，这一轮在房子，而且是借钱买的房子：家庭偿债占收入的比例（DSR）到了 {dsr}，房价比一年前已经是 {hy}。',
           '下一个问题又来了：降息之后，推得动吗？',
         ],
         vals: [
-          { key: 'hp', get: 'when:cycles.short.top=price', fmt: 'str' }, { key: 'ha', get: 'when:cycles.short.top=asset', fmt: 'str' }, { key: 'ti', get: 'when:cycles.short.phase=tight', fmt: 'str' },
+          { key: 'ti', get: 'when:cycles.short.phase=tight', fmt: 'str' }, { key: 'hp', get: 'when:cycles.short.via=price', fmt: 'str' }, { key: 'tr', get: 'when:cycles.short.label=收紧·衰退（接 物价过热）', fmt: 'str' }, { key: 'ha', get: 'when:cycles.short.via=asset', fmt: 'str' },
           { key: 'dsr', get: 'end:household.dsr', fmt: 'pct' }, { key: 'hy', get: 'end:extra.houseYoY', fmt: 'pct' },
         ],
         metrics: [{ label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }, { label: '家庭 DSR', get: 'household.dsr', fmt: 'pct' }, { label: '信贷脉冲', get: 'extra.creditImpulse', fmt: 'pct' }],
         claims: [
-          { get: 'when:cycles.short.top=price', dateBetween: ['2004Q4', '2005Q2'], note: '又一次「过热·物价」' },
-          { get: 'when:cycles.short.top=asset', dateBetween: ['2006Q3', '2007Q1'], note: '「过热·资产」' },
-          { get: 'when:cycles.short.phase=tight', dateBetween: ['2007Q1', '2007Q4'], note: '「收紧·衰退」' },
+          { get: 'when:cycles.short.phase=tight', dateBetween: ['2004Q3', '2005Q1'], note: '2004Q4 起小周期在「收紧（加息）」' },
+          { get: 'when:cycles.short.via=price', dateBetween: ['2005Q1', '2005Q3'], note: '又一次标出「接 物价过热」' },
+          { get: 'when:cycles.short.label=收紧·衰退（接 物价过热）', dateBetween: ['2006Q1', '2006Q3'], note: '「收紧·衰退」' },
+          { get: 'when:cycles.short.via=asset', dateBetween: ['2006Q3', '2007Q1'], note: '标出「接 资产过热」' },
           { get: 'end:extra.houseYoY', lt: 0, note: '房价比一年前在跌' },
           { get: 'end:household.dsr', gt: 0.12, note: 'DSR 高' },
         ],
@@ -791,21 +800,21 @@ export const LESSONS = [
 
       { type: 'watch', until: '2010Q3', title: '第 7 步：推不动，大周期接手', view: 'waves', tab: 'cycle',
         text: [
-          '{ea}，小周期走到「降息」，标签写的是：**{ht}**。信贷一直起不来：到这一步结束，新贷款只有 {nl}，还本还有 {rep}（十亿美元/季）。',
+          '{e2}，央行第一次降息，小周期走到「降息」；{ea}，信贷还是起不来，圆环判成「推不动」，标签写的是：**{ht}**。信贷一直起不来：到这一步结束，新贷款只有 {nl}，还本还有 {rep}（十亿美元/季）。',
           '{s5}，大周期盘进 ⑤ 私人去杠杆；{s6} 进 ⑥ 政府接手（第 4 课）。',
           '看曲线：季度图上这个坑又深又长，小周期条在「降息」那一格一停就是几年；最下面的大周期条上，B2 → ⑤ → ⑥ 一格接着一格。',
         ],
         vals: [
-          { key: 'ea', get: 'when:cycles.short.handoff=no', fmt: 'str' }, { key: 'ht', get: 'end:cycles.short.handoffText', fmt: 'str' },
+          { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2007Q3' }, { key: 'ea', get: 'when:cycles.short.handoff=no', fmt: 'str', from: '2007Q3' }, { key: 'ht', get: 'end:cycles.short.handoffText', fmt: 'str' },
           { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
           { key: 's5', get: 'when:cycles.long.stage=5', fmt: 'str' }, { key: 's6', get: 'when:cycles.long.stage=6', fmt: 'str' },
         ],
         metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }, { label: '小周期', get: 'cycles.short.label', fmt: 'str' }],
         claims: [
-          { get: 'when:cycles.short.handoff=no', dateBetween: ['2008Q2', '2008Q2'], note: '2008Q2 起：降息，推不动' },
-          { get: 'count:cycles.short.handoff', from: '2008Q2', until: '2011Q4', lt: 1, note: '2008Q2 到 2011Q4 一直是「推不动」' },
-          { get: 'when:cycles.short.phase=ease', from: '2008Q1', until: '2011Q4', dateBetween: ['2008Q2', '2008Q2'], note: '2008Q2 起小周期在「降息」' },
-          { get: 'count:cycles.short.phase', from: '2008Q2', until: '2011Q4', lt: 1, note: '2008Q2 到 2011Q4 小周期一直停在「降息」' },
+          { get: 'when:cycles.short.handoff=no', from: '2007Q3', dateBetween: ['2008Q1', '2008Q1'], note: '2008Q1 起：降息，推不动' },
+          { get: 'count:cycles.short.handoff', from: '2008Q1', until: '2011Q4', lt: 1, note: '2008Q1 到 2011Q4 一直是「推不动」' },
+          { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2011Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 起小周期在「降息」' },
+          { get: 'count:cycles.short.phase', from: '2007Q4', until: '2011Q4', lt: 1, note: '2007Q4 到 2011Q4 小周期一直停在「降息」' },
           { get: 'when:cycles.long.stage=5', dateBetween: ['2008Q4', '2009Q4'], note: '大周期进 ⑤' },
           { get: 'when:cycles.long.stage=6', dateBetween: ['2010Q1', '2010Q4'], note: '大周期进 ⑥' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' },
@@ -826,14 +835,16 @@ export const LESSONS = [
         vals: [
           { key: 'm1', get: 'min:extra.creditImpulse', fmt: 'pct', from: '2000Q1', until: '2003Q1' },
           { key: 'm2', get: 'min:extra.creditImpulse', fmt: 'pct', from: '2007Q3', until: '2012Q4' },
-          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2001Q4', until: '2003Q1' },
+          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2000Q4', until: '2003Q1' },
           { key: 'x1', get: 'when:cycles.short.phase=expand', fmt: 'str', from: '2001Q4', until: '2003Q1' },
-          { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2008Q1', until: '2012Q4' },
+          { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2007Q3', until: '2012Q4' },
           { key: 'x2', get: 'when:cycles.short.phase=expand', fmt: 'str', from: '2008Q1', until: '2012Q4' },
         ],
         claims: [
           { get: 'min:extra.creditImpulse', from: '2000Q1', until: '2003Q1', vs: { get: 'min:extra.creditImpulse', from: '2007Q3', until: '2012Q4' }, gt: 0.005, note: '2001 年的坑比 2008 年浅' },
+          { get: 'when:cycles.short.phase=ease', from: '2000Q4', until: '2003Q1', dateBetween: ['2001Q1', '2001Q1'], note: '2001 年这圈 2001Q1 进降息' },
           { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q4', '2003Q2'], note: '2001 年这圈 2003Q1 回到扩张' },
+          { get: 'when:cycles.short.phase=ease', from: '2007Q3', until: '2012Q4', dateBetween: ['2007Q4', '2007Q4'], note: '2008 年这圈 2007Q4 进降息' },
           { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2012Q1', '2012Q3'], note: '2008 年这圈 2012 年才回到扩张' },
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
@@ -864,7 +875,7 @@ export const LESSONS = [
       { type: 'chain', title: '第 10 步：把主线串起来',
         text: ['这一课只有一条线：小周期 → 降息推不动 → B2 → 大周期 ⑤。点任何一环，图里对应的地方会亮。'],
         links: [
-          { text: '小周期一圈：扩张 → 过热（物价或资产）→ 收紧·衰退 → 降息；最后一步是一个问题：降息推得动吗？', part: 'cycle', hl: ['policyRate'], term: 'shortCycle' },
+          { text: '小周期一圈：扩张 → 过热（物价或资产）→ 收紧（央行加息，里面可能带衰退）→ 降息；最后一步是一个问题：降息推得动吗？', part: 'cycle', hl: ['policyRate'], term: 'shortCycle' },
           { text: '② 缓冲池满：资产池里是借来的水，多出来的只有两条路：溢出成物价（B1，小周期自己处理），或缩水（B2，交给大周期）', part: ['pool', 'poolHousing'], hl: ['assetReservoir'], term: 'B2' },
           { text: '推得动（2001–03）：银行的闸门开着，降息把信贷带回来，回到扩张，大周期一格没动', pipe: 'newLoans', part: 'bank', hl: ['policyRate'], term: 'creditImpulse' },
           { text: '推不动（2008–12）：房价↓、债高、降了息信贷还在缩 → B2 → ⑤ 私人去杠杆 → ⑥ 政府接手（第 4 课）。曲线上就是又深又长的坑', pipe: 'collateral', part: 'cycle', hl: ['bankApproval'], term: 'longCycle' },
@@ -937,7 +948,7 @@ export const LESSONS = [
         hl: ['qe'], concept: ['qe'] },
 
       { type: 'predict', until: '2012Q4', title: '第 4 步：猜一猜',
-        q: '2010 年底，QE 停了，财政注入也一步步收回；私人部门仍然几乎不借钱。接下来两年，总水量 M 会怎样？',
+        q: '模型里 QE 在 2010 年底停了（真实的美联储后来又做了 QE2、扭曲操作和 QE3），财政注入也一步步收回；私人部门仍然几乎不借钱。接下来两年，总水量 M 会怎样？',
         options: [
           { t: '继续快速上涨', ok: false, when: [{ get: 'chg:money.M', gt: 0.03 }] },
           { t: '停住，略有回落', ok: true, when: [{ get: 'chg:money.M', lt: 0 }, { get: 'chg:money.M', gt: -0.1 }] },
@@ -949,7 +960,7 @@ export const LESSONS = [
           { key: 'dm', get: 'chg:money.M', fmt: 'chg1' },
         ],
         explain: [
-          '两个泵都在缩：财政注入从每季 {fi0} 降到 {fi1}，QE 已经停了。',
+          '两个泵都在缩：财政注入从每季 {fi0} 降到 {fi1}，模型里 QE 已经停了（真实的美联储后来又做了 QE2、扭曲操作和 QE3）。',
           '排水口还在抽：还本平均每季 {rep}，新贷款平均只有 {nl}（十亿美元）。泵入 < 排出，水位慢慢退，这两年总水量 {dm}。',
           '补水一撤，没有人接棒，水就回落。注意：模型里这段私人信贷空窗，比真实世界更深、更长（真实美国 2013 年前后家庭已开始重新借钱）。',
         ],
@@ -1056,7 +1067,7 @@ export const LESSONS = [
 
       { type: 'reveal', until: '2021Q2', title: '第 2 步：政府发钱',
         text: [
-          '2020 年下半年到 2021 年，政府给家庭发了大量的钱：转移支付（紫色分支）一下子变粗。',
+          '从 2020 年二季度起，政府给家庭发了大量的钱。最大的一波在 2020Q2，2021 年初又发一轮。转移支付（紫色分支）一下子变粗。',
           '这是新水（赤字泵），而且几乎全进了家庭的口袋。',
         ],
         question: '河道还没恢复，家庭手里却多了很多钱。这些钱花出去，会怎样？',
@@ -1097,16 +1108,18 @@ export const LESSONS = [
           { key: 'ip', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'p0', get: 'start:rates.policy', fmt: 'pct' }, { key: 'p1', get: 'max:rates.policy', fmt: 'pct' },
           { key: 'i1', get: 'end:macro.inflation', fmt: 'pct' }, { key: 'u0', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'u1', get: 'end:macro.unemployment', fmt: 'pct' },
           { key: 'b1', get: 'when:cycles.short.top=price', fmt: 'str', from: '2019Q1', until: '2023Q4' },
+          { key: 'b2', get: 'when:cycles.short.label=收紧（加息）（接 物价过热）', fmt: 'str', from: '2019Q1', until: '2023Q4' },
         ],
         explain: [
           '加息先改新贷款的价格，再慢慢传到房价、需求。需求压力被压下来，溢出的水少了，通胀回落到 {i1}。',
           '代价是失业：{u0} → {u1}。降温不是免费的。',
-          '看「周期」页：小周期盘要通胀 > 3.5% 且央行在加息，连续几个季度才亮「过热·物价」（溢出成物价，也就是 B1），这次到 {b1} 才亮。它比通胀慢半拍。',
+          '看「周期」页：小周期盘要通胀 ≥ 3.5% 且还在升，连续几个季度才亮「过热·物价」（溢出成物价，也就是 B1），这次 {b1} 就亮了：那时央行还没加息。{b2} 起央行加息了，圆环转到「收紧（加息）」，仍标着「接 物价过热」。',
           'B1 是大周期的岔路之一：缓冲池满后多出来的水溢出成物价，交给小周期去加息、降息。再这样反复溢出，大周期后面的格子上就会多出一个「+ B1」（⑦ + B1，2023 年就是）。',
         ],
         metrics: [{ label: '通胀', get: 'macro.inflation', fmt: 'pct' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
         claims: [{ get: 'dpp:rates.policy', gt: 0.03, note: '利率升了 3 个点以上' }, { get: 'dpp:macro.demandPressure', lt: -0.05, note: '需求压力被压下来' }, { get: 'dpp:macro.unemployment', gt: 0, note: '失业上升' },
-          { get: 'when:cycles.short.top=price', from: '2019Q1', until: '2023Q4', dateBetween: ['2022Q4', '2023Q4'], note: '小周期盘亮「过热·物价」（B1）' },
+          { get: 'when:cycles.short.top=price', from: '2019Q1', until: '2023Q4', dateBetween: ['2021Q3', '2022Q1'], note: '小周期盘亮「过热·物价」（B1）' },
+          { get: 'when:cycles.short.label=收紧（加息）（接 物价过热）', from: '2019Q1', until: '2023Q4', dateBetween: ['2022Q1', '2022Q3'], note: '再往后，圆环转到「收紧（加息）」' },
           { get: 'count:cycles.long.b1Overlay', from: '2019Q1', until: '2023Q4', gt: 0, note: '大周期盘上出现「⑦ + B1」' }],
         hl: ['policyRate', 'cpi'], concept: ['B1', 'policyRate', 'shortCycle'] },
 
@@ -1234,7 +1247,7 @@ export const LESSONS = [
         hl: ['assetReservoir'], concept: ['riskPremium', 'bondAsset', 'cashAsset'] },
 
       { type: 'predict', from: '2021Q4', until: '2023Q3', title: '第 3 步：猜一猜（通胀天）', tab: 'assets',
-        q: '2021 年底，通胀已冲到 {pi}，央行开始加息：政策利率从 {p0} 一路加到 {p1}。这两年里，**长期国债**的价格会？',
+        q: '2022 年起央行加息，通胀最高到 {pi}：政策利率从 {p0} 一路加到 {p1}。这两年里，**长期国债**的价格会？',
         options: [
           { t: '上涨：国债是避风港', ok: false, when: [{ get: 'chg:assets.bond.price', gt: 0.02 }] },
           { t: '下跌：它也躲不开', ok: true, when: [{ get: 'chg:assets.bond.price', lt: -0.02 }] },
@@ -1373,7 +1386,7 @@ export const LESSONS = [
 
       { type: 'watch', until: '2044Q4', title: '第 2 步：小周期一圈圈转', tab: 'cycle',
         text: [
-          '切到「周期」页。小周期盘按「扩张 → 过热（物价或资产）→ 收紧·衰退 → 降息（推得动吗？）」转：推得动，回到扩张；推不动，交给大周期（B2 → ⑤）。有时一圈要很多年。',
+          '切到「周期」页。小周期盘按「扩张 → 过热（物价或资产）→ 收紧 → 降息（推得动吗？）」转（收紧 = 央行加息，里面可能带衰退）：推得动，回到扩张；推不动，交给大周期（B2 → ⑤）。有时一圈要很多年。',
           '大周期盘更慢，要好几年才挪一格。整个 25 年里，小周期一共换了 {n} 次挡，大周期换了 {nl} 次挡。',
         ],
         vals: [{ key: 'n', get: 'count:cycles.short.phase', fmt: 'num', from: '2025Q4', until: '2050Q4' }, { key: 'nl', get: 'count:cycles.long.stage', fmt: 'num', from: '2025Q4', until: '2050Q4' }],
@@ -1431,8 +1444,149 @@ export const LESSONS = [
           { text: '私人去杠杆（⑤）：政府赤字和央行 QE 两个泵接手补水（⑥，第 4 课）', pipe: ['fiscalInjection', 'qe'], part: 'government', term: 'fiscalInjection' },
           { text: '需求冲过产能，溢出成物价（大周期的 B1 岔路，小周期里是「过热·物价」）；产能只有 Capex 能拓宽，且有滞后；央行加息降温（第 5 课）', pipe: ['toConsumption', 'toCapex'], part: 'channel', hl: ['cpi', 'capacity'], term: 'B1' },
           { text: '新增的水在房、股、债、金之间分配：恐慌逃向国债，通胀时国债下跌，QE 时资产高、物价低（第 6 课）', pipe: ['toBond', 'toGold', 'toEquity'], part: 'pool', term: 'assetReservoir' },
-          { text: '小周期（扩张 → 过热 → 收紧·衰退 → 降息）在大周期（⑤ → ⑥ → ⑦ → ⑧ → ①）里一圈圈重复，每次降息都要答「推得动吗」，答不动才轮到大周期；每一圈债务更高、利率谷底是否更低，要看规则（第 7 课）', part: 'cycle', term: 'longCycle' },
+          { text: '小周期（扩张 → 过热 → 收紧 → 降息）在大周期（⑤ → ⑥ → ⑦ → ⑧ → ①）里一圈圈重复，每次降息都要答「推得动吗」，答不动才轮到大周期；每一圈债务更高、利率谷底是否更低，要看规则（第 7 课）', part: 'cycle', term: 'longCycle' },
         ], freeLink: true },
+    ],
+  },
+  /* ============================== 世界课：出了国境（地图 / 国别） ==============================
+   * kind:'world' -> menu group 「世界」. Runs on the US sim at 2008Q4 (annual world data of 2008); steps may switch the screen:
+   *   map:{open:true|false, select?:'AUS', year?:2008}   dispatches mw:map (the map page); a step without `map` closes a map the lesson opened.
+   * Lesson-level country:'AUS' -> starting it goes to ?country=AUS&lesson=<id> (only when COUNTRY_READY.AUS, else 「细图制作中」).
+   * Numbers come from world data: vals get 'world:<path in WORLD>@<year>' (e.g. world:trade.CHN.USA@2008 = CHN exports to USA, USD bn).
+   * fmt 'bn' = 十亿美元, 'tn' = 万亿美元 (input USD bn).
+   */
+  {
+    id: 'w1', kind: 'world', label: '世界 1',
+    title: '出了国境：贸易、汇率和世界储备水库',
+    oneLine: '一个国家就是一个水盆；盆和盆之间只有三种水管：贸易、资本、储备。从美国的国境线出发，经地图，看到中国和澳洲。',
+    rulesOn: 'all',
+    startDate: '2008Q4', endDate: '2008Q4', mode: 'history', available: true,
+    steps: [
+      { type: 'intro', title: '先说结论', view: 'flow', map: { open: false },
+        text: [
+          '**结论：一个国家就是一个水盆。盆和盆之间只有三种水管：贸易（货）、资本（钱）、储备（各国央行存的备用水）。**',
+          '美国这个盆你已经会看了。出了国境没有新规则，只是把别的盆接上来：别国买美国的货，美国买别国的货，别国把赚到的钱又借回来。',
+          '像一条河的上下游：上游盆里水多了会往下游流，下游缺水就要接上游的水。美元是整个流域通用的水，所以美国这个盆的水位，会被全世界的水管牵动。',
+          '下面分 7 步：① 国境线 ② 看地图 ③ 中国的美元去哪 ④ 世界储备水库 ⑤ 澳洲 ⑥ 汇率闸 ⑦ 三句话。',
+          '时间：2008 年（全球金融危机那一年）的年度数据。每个数字都是从数据里读出来的。',
+        ],
+        concept: ['reserveCurrency'] },
+
+      { type: 'reveal', title: '第 1 步：国境线', hl: ['exports', 'imports', 'foreignBonds'], concept: ['exports', 'imports', 'foreignBonds'], map: { open: false },
+        text: [
+          '**图的边上有一条虚线「国境线」，三根水管穿过它：出口、进口、外国人买国债。**',
+          '出口：别国买美国的货，钱流进来。进口：美国买别国的货，钱流出去。外国买国债：外国的钱直接灌进长期债券池，这是资本水管。',
+          '2008 年美国出口相当于 GDP 的 {ex}，进口相当于 {im}：流出去的比流进来的多。差的那一块，要靠外国人把钱借回来补上。',
+        ],
+        vals: [{ key: 'ex', get: 'world:countries.USA.exportsGdp@2008', fmt: 'pct0' }, { key: 'im', get: 'world:countries.USA.importsGdp@2008', fmt: 'pct0' }],
+        claims: [
+          { get: 'world:countries.USA.importsGdp@2008', vs: { get: 'world:countries.USA.exportsGdp@2008' }, gt: 0, note: '美国进口 > 出口' },
+          { get: 'world:countries.USA.currentAccountGdp@2008', lt: 0, note: '美国经常账户为负（流出多于流入）' },
+        ] },
+
+      { type: 'reveal', title: '第 2 步：看地图', map: { open: true, year: 2008 }, concept: ['reserveCurrency'],
+        text: [
+          '**打开地图：一个方块就是一个盆，方块越大，GDP 越大。**',
+          '2008 年美国 {us}，中国 {cn}，澳洲 {au}。盆大，只说明一年里流过的水多，不说明水位高。',
+          '欧元区、日本、英国也在图上；「其他」是把剩下的国家合成一个盆，这样各条贸易水管加起来才对得上。',
+          '在地图上点一个国家只是选中它，它的贸易和资本水管会亮起来，不会走进去。',
+        ],
+        vals: [{ key: 'us', get: 'world:countries.USA.gdpUsd@2008', fmt: 'tn' }, { key: 'cn', get: 'world:countries.CHN.gdpUsd@2008', fmt: 'tn' }, { key: 'au', get: 'world:countries.AUS.gdpUsd@2008', fmt: 'tn' }],
+        claims: [
+          { get: 'world:countries.USA.gdpUsd@2008', vs: { get: 'world:countries.CHN.gdpUsd@2008' }, gt: 0, note: '美国盆 > 中国盆' },
+          { get: 'world:countries.CHN.gdpUsd@2008', vs: { get: 'world:countries.AUS.gdpUsd@2008' }, gt: 0, note: '中国盆 > 澳洲盆' },
+        ] },
+
+      { type: 'predict', title: '第 3 步：猜一猜', map: { open: true, select: 'CHN', year: 2008 },
+        q: '选中中国。中国到美国这根贸易水管很粗：2008 年中国卖给美国 {ex}，美国卖给中国只有 {im}。中国卖货赚到一大堆美元，这些美元后来去哪了？',
+        options: [
+          { t: '都拿去买美国货了', ok: false, when: [{ get: 'world:trade.USA.CHN@2008', vs: { get: 'world:trade.CHN.USA@2008' }, gt: 0 }] },
+          { t: '大头又借回美国，买了美国国债', ok: true, when: [{ get: 'world:ustForeign.CHN@2008', vs: { get: 'world:ustForeign.CHN@2007' }, gt: 150 }, { get: 'world:trade.CHN.USA@2008', vs: { get: 'world:trade.USA.CHN@2008' }, lt: 300 }] },
+          { t: '基本没回美国', ok: false, when: [{ get: 'world:ustForeign.CHN@2008', vs: { get: 'world:ustForeign.CHN@2007' }, lt: 1 }] },
+        ],
+        vals: [
+          { key: 'ex', get: 'world:trade.CHN.USA@2008', fmt: 'bn' }, { key: 'im', get: 'world:trade.USA.CHN@2008', fmt: 'bn' },
+          { key: 'u7', get: 'world:ustForeign.CHN@2007', fmt: 'bn' }, { key: 'u8', get: 'world:ustForeign.CHN@2008', fmt: 'bn' },
+        ],
+        explain: [
+          '大头回来了：中国手里的美国国债，2007 年底有 {u7}，2008 年底有 {u8}。这一年多买的美债，超过当年顺差（卖给美国 {ex}，减去买美国货 {im}）的一半。',
+          '货从中国流向美国，美元流向中国，又以国债的形式流回美国：贸易水管和资本水管，是同一滴水的两段旅程。',
+          '所以美国能一边买得多卖得少，一边利率不至于太高：别国的钱在帮它买国债。',
+        ],
+        claims: [
+          { get: 'world:trade.CHN.USA@2008', vs: { get: 'world:trade.USA.CHN@2008' }, gt: 0, note: '中国 → 美国 出口 > 美国 → 中国' },
+          { get: 'world:ustForeign.CHN@2008', vs: { get: 'world:ustForeign.CHN@2007' }, gt: 150, note: '2008 年中国多买的美债 > 1500 亿（与下一条合起来：> 顺差的一半）' },
+          { get: 'world:trade.CHN.USA@2008', vs: { get: 'world:trade.USA.CHN@2008' }, gt: 100, lt: 300, note: '2008 年顺差在 1000–3000 亿之间' },
+        ],
+        concept: ['foreignBonds', 'exports'] },
+
+      { type: 'reveal', title: '第 4 步：世界储备水库', map: { open: true, select: 'USA', year: 2008 }, hl: ['reserveCurrency'], concept: ['reserveCurrency', 'foreignBonds'],
+        text: [
+          '**美元是世界的备用水：各国央行存起来的外汇储备里，美元占 {usd}，欧元只有 {eur}。**',
+          '每个国家都想存一些最不容易出问题的水，以备急用。存的办法，主要是买美国国债。所以美国可以长期进口多于出口：差额由别国拿美元买国债补回来，水又流回美国这个盆。',
+          '这是美国的特权，也是风险。它靠的是信心：别人相信美元和美债是最安全的水。',
+          '失去信心的那条路是这样的：外国人不再愿意存美元，买国债的水管变细，国债要给更高的利率才有人买，美元也跟着贬值。储备货币的地位一松，盆里的水就会往外流。',
+        ],
+        vals: [{ key: 'usd', get: 'world:reserves.USD@2008', fmt: 'pct0' }, { key: 'eur', get: 'world:reserves.EUR@2008', fmt: 'pct0' }],
+        claims: [
+          { get: 'world:reserves.USD@2008', gt: 0.5, note: '美元占世界储备一半以上' },
+          { get: 'world:reserves.USD@2008', vs: { get: 'world:reserves.EUR@2008' }, gt: 0, note: '美元份额 > 欧元份额' },
+        ] },
+
+      { type: 'reveal', title: '第 5 步：澳洲，原料盆', map: { open: true, select: 'AUS', year: 2008 }, concept: ['fx', 'exports'],
+        text: [
+          '**澳洲是靠卖原料赚钱的盆：铁矿石、煤、天然气，大头卖给中国。**',
+          '2008 年澳洲卖给中国 {ac}，卖给美国只有 {au}。中国要盖房子、修路，澳洲的矿就好卖；中国放慢，澳洲的出口水管就变细。',
+          '所以澳元像一道联动闸：原料价格高、澳洲利率高，外国的水往里涌，澳元强；反过来澳元弱。2007 年 1 美元换 {fx7} 澳元，2009 年要换 {fx9} 澳元：全球危机里澳元变弱了。',
+          '选中澳洲后，卡片上有「进入澳洲的水流图 →」按钮。现在它还是「细图制作中」，做好以后会有专门的一课（世界 2）。',
+        ],
+        vals: [
+          { key: 'ac', get: 'world:trade.AUS.CHN@2008', fmt: 'bn' }, { key: 'au', get: 'world:trade.AUS.USA@2008', fmt: 'bn' },
+          { key: 'fx7', get: 'world:countries.AUS.fxPerUsd@2007', fmt: 'n2' }, { key: 'fx9', get: 'world:countries.AUS.fxPerUsd@2009', fmt: 'n2' },
+        ],
+        claims: [
+          { get: 'world:trade.AUS.CHN@2008', vs: { get: 'world:trade.AUS.USA@2008' }, gt: 0, note: '澳洲 → 中国 出口 > 澳洲 → 美国' },
+          { get: 'world:countries.AUS.fxPerUsd@2009', vs: { get: 'world:countries.AUS.fxPerUsd@2007' }, gt: 0, note: '澳元 2009 比 2007 弱（1 美元换更多澳元）' },
+        ] },
+
+      { type: 'reveal', title: '第 6 步：汇率闸', view: 'flow', map: { open: false }, hl: ['fx'], concept: ['fx', 'foreignBonds'],
+        text: [
+          '**汇率是国境线上的一道闸。利率高，水压高，外国的水往里挤，本国货币变强；利率低，水往外流，货币变弱。**',
+          '回到美国这张图，在国境线上找「汇率」那道闸。2008 年澳洲的政策利率是 {ra}，美国是 {ru}：水压差这么大，钱愿意去澳洲放着。',
+          '但闸不只看水压。全世界害怕的时候，水先逃回美元（避险），再高的利率也拦不住。2008 年底澳元就是这样跌的。',
+          '读汇率，先问两件事：谁的水压更高？现在世界是在冒险还是在避险？',
+        ],
+        vals: [{ key: 'ra', get: 'world:countries.AUS.policyRate@2008', fmt: 'pct' }, { key: 'ru', get: 'world:countries.USA.policyRate@2008', fmt: 'pct' }],
+        claims: [{ get: 'world:countries.AUS.policyRate@2008', vs: { get: 'world:countries.USA.policyRate@2008' }, gt: 0, note: '2008 年澳洲政策利率 > 美国' }] },
+
+      { type: 'recap', title: '第 7 步：三句话', map: { open: false },
+        lines: [
+          '一个国家一个盆；盆和盆之间只有三种水管：贸易（货）、资本（钱）、储备（备用水）。',
+          '货从甲流到乙，钱又以国债等形式流回来；美元是世界的备用水，所以美国能长期进口多于出口，靠的是别人的信心。',
+          '利率是水压，汇率是国境线上的闸：水压高，水往里流，货币强；恐慌时，水先逃向美元。',
+        ],
+        concepts: ['exports', 'imports', 'fx', 'foreignBonds', 'reserveCurrency'], next: 'w2' },
+    ],
+  },
+
+  /* 世界 2 (placeholder, outline only): the AUS country view. Not available until COUNTRY_READY.AUS and the numbers are calibrated;
+   * texts below are DRAFT (no numbers, to be filled with live vals and claims after calibration). */
+  {
+    id: 'w2', kind: 'world', label: '世界 2', country: 'AUS', draft: true,
+    title: '澳洲：同一套水流，换一个国家',
+    oneLine: '同一套水流规则，换成澳洲的数据和几个参数：浮动房贷让利率咬得快，房价没有 2008 式崩盘，2022 年的通胀，今天的小周期收紧。',
+    rulesOn: 'all',
+    startDate: '2008Q4', endDate: '2025Q4', mode: 'history', available: false,
+    steps: [
+      { type: 'intro', title: '先说结论',
+        text: [
+          '**结论：水流的规则没变，变的是几个参数。澳洲最大的不同：房贷大多是浮动利率，央行一调利率，当季的利息就变。**',
+          '下面分 4 步：① 浮动房贷 ② 没有崩的房价 ③ 2022 年的通胀 ④ 今天（草稿，待数据校准后补数字）。',
+        ] },
+      { type: 'reveal', title: '第 1 步：浮动房贷，利率咬得快', text: ['（草稿）美国的房贷大多是长期固定，加息要等存量分批重定价，两年后才咬到（第 2 课）。澳洲的房贷大多是浮动的，加息当季就咬：水管短，水压传得快。待校准：用澳洲数据对比利息支出对政策利率的反应速度。'] },
+      { type: 'reveal', title: '第 2 步：房价没有 2008 式崩盘', text: ['（草稿）2008 年美国房价大跌、银行收紧，圈倒着转；澳洲同一时期房价没有出现这样的崩盘。待校准：用澳洲房价、信贷、移民和供给的数据核对，再讲为什么。'] },
+      { type: 'reveal', title: '第 3 步：2022 年的通胀', text: ['（草稿）疫情后通胀回来，央行快速加息；浮动房贷让加息直接落到家庭的利息支出上，消费被压得更快。待校准：对照澳洲 2022–2023 年的通胀、利率和家庭 DSR。'] },
+      { type: 'reveal', title: '第 4 步：今天，小周期收紧', text: ['（草稿）今天澳洲处在小周期的收紧段：看政策灯、信贷脉冲和失业率，问「降息推得动吗」（第 3.5 课）。待校准：用最新季度数据给出位置。'] },
     ],
   },
 ];

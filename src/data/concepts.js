@@ -107,7 +107,7 @@ export const CONCEPTS = {
     water: '蓄水池里的水量。新贷款=从地下抽水进池，还本=把水抽回地下销毁，所以池水量=历年净借款的累积。',
     formula: 'ΔM = 新贷款 − 还本 + 财政注入 + QE',
     from: ['newLoans', 'principalRepay', 'fiscalInjection', 'qe'], to: ['assetReservoir', 'goodsChannel'],
-    logic: '银行放贷、央行 QE、政府赤字：各自在账上新增存款（泵）\n→ 借款人还本、政府盈余、央行 QT：存款被销毁（排水口）\n→ 其余（工资、消费、利息、税）只是水在各人口袋间搬家\n→ 所以每一块钱都能追溯来源：钱不会凭空消失，只会改道。',
+    logic: '银行放贷、央行 QE、政府赤字：各自在账上新增存款（泵）\n→ 借款人还本、政府盈余、央行 QT：存款被销毁（排水口）\n→ 其余（工资、消费、利息、税）只是水在各人口袋间搬家\n→ 所以每一块钱都能追溯来源：除了排水口，钱不会凭空消失，只会改道。',
     live: 'money.M', fmt: 'bn' },
 
   // ---------- 信贷水流 ----------
@@ -149,12 +149,12 @@ export const CONCEPTS = {
     name: '信贷脉冲', short: '新增信贷对需求的净贡献，看“变化”而不是“水位”。',
     why: (s, p, c) => {
       const f = s.flows || {}, net = (f.newLoans || 0) - (f.principalRepay || 0), v = s.lights?.credit?.value;
-      return `现在 ${P(v, 2)}：新贷款 ${c.money(f.newLoans)} − 还本 ${c.money(f.principalRepay)} = 净增 ${net >= 0 ? '' : '−'}${c.money(Math.abs(net))}。${v < -0.003 ? '转负了：新增购买力在收缩，是进入环 ⑤ 的早信号。' : v > 0.03 ? '很高：信贷在猛烈扩张。' : '为正或接近 0：需求还没被信贷拖累。'}`;
+      return `现在 ${P(v, 2)}：新贷款 ${c.money(f.newLoans)} − 还本 ${c.money(f.principalRepay)} = 净增 ${net >= 0 ? '' : '−'}${c.money(Math.abs(net))}。${v < -0.003 ? '转负了：新增购买力在收缩，是进入环 ⑤ 的早信号。' : v > 0.03 ? '很高：信贷在猛烈扩张。' : (v > 0 ? '脉冲为正 = 信贷在给需求加水；需求要加速，还得脉冲变大。' : '接近 0：信贷既没加水，也没抽水。')}`;
     },
     water: '池子的进水速度减出水速度，再除以经济体量：看的是水位上升的快慢，不是水位本身。',
-    formula: '脉冲 = (新贷款 − 还本) / GDP',
+    formula: '净信贷流 = (新贷款 − 还本) / GDP\n严格说，脉冲是这个流的「变化」；游戏把这个流当作简化的脉冲',
     from: ['newLoans', 'principalRepay'], to: ['lampCredit', 'assetReservoir', 'ringStage'],
-    logic: '银行放贷、借款人还本：两股水一进一出\n→ 净进水占 GDP 的比例 = 脉冲\n→ 需求取决于「新增」购买力：债务/GDP 再高，只要脉冲为正需求仍在扩张\n→ 脉冲转负是进入环 ⑤ 的早期信号。',
+    logic: '银行放贷、借款人还本：两股水一进一出\n→ 净进水占 GDP 的比例 = 净信贷流（游戏里当作脉冲；严格的脉冲是它的变化）\n→ 脉冲为正 = 信贷在给需求加水；需求要加速，还得脉冲变大\n→ 债务/GDP 再高，只要还在净加水，需求就没被信贷拖累\n→ 脉冲转负是进入环 ⑤ 的早期信号。',
     live: 'lights.credit.value', fmt: 'pct' },
   assetReservoir: {
     name: '资产缓冲池', short: '新购买力流向房产、股票等资产的那部分，水位就是资产价格。',
@@ -307,7 +307,7 @@ export const CONCEPTS = {
     water: '地下被抽走水量的总账：欠多少不重要，重要的是每季得还多少。',
     formula: '债务(t) = 债务(t−1) + 新贷款 − 还本',
     from: ['newLoans', 'principalRepay'], to: ['interestPaid', 'dsr', 'lvr'],
-    logic: '家庭：借钱买房、消费 → 欠条累积成存量债务\n→ 每季必须付息、还本，抽走一部分收入\n→ 债务越多，对利率越敏感，DSR 越高（环 ② 到 ⑤ 的主线）。',
+    logic: '家庭：借钱买房、消费 → 欠条累积成存量债务\n→ 每季必须付息、还本，抽走一部分收入\n→ 债务越多，对利率越敏感，DSR 越高（先拖累小周期的收紧，降息还推不动才走向 ⑤）。',
     live: 'debt.household', fmt: 'bn' },
   pvtDebtGdp: {
     name: '私人债务/GDP', short: '家庭加企业欠的总债，相当于一年 GDP 的多少倍：大周期表盘看的就是它升得多快、从高点退了多少。',
@@ -359,7 +359,7 @@ export const CONCEPTS = {
     water: '收入这条河里，被债务管道抽走的比例。',
     formula: 'DSR = (还本 + 付息) / 收入',
     from: ['mortgageEff', 'hhDebt', 'income', 'principalRepay', 'interestPaid'], to: ['bankApproval', 'badLoans', 'newLoans', 'lampDebtService'],
-    logic: '央行加息、房贷重定价 → 家庭：每季付息变多；收入下降则分母变小\n→ DSR 升高，可花的钱变少，新借款意愿下降\n→ 银行看到 DSR 高、坏账升，收紧审批\n→ 它比「债务/GDP」更早报警，是环 ⑤ 的起点；通过重定价拖几个季度才显现。',
+    logic: '央行加息、房贷重定价 → 家庭：每季付息变多；收入下降则分母变小\n→ DSR 升高，可花的钱变少，新借款意愿下降\n→ 银行看到 DSR 高、坏账升，收紧审批\n→ 它比「债务/GDP」更早报警，先是小周期「收紧·衰退」的信号；通过重定价拖几个季度才显现。\n→ 降息之后还推不动，大周期才接手走向 ⑤。',
     live: 'household.dsr', fmt: 'pct' },
   lvr: {
     name: 'LVR 贷款价值比', short: '房贷余额占房价的比例，抵押品还剩多少安全垫。',
@@ -382,7 +382,7 @@ export const CONCEPTS = {
     water: '工厂水轮没转起来的比例：需求不足时，空转的越多。',
     formula: '失业率 ↑ ⇐ 产出缺口为负（经济低于潜力）',
     from: ['outputGap'], to: ['income', 'badLoans', 'policyRate'],
-    logic: '企业：订单不足、产出低于潜力 → 裁员\n→ 家庭：失去工资，收入↓，DSR↑，还不起的变多\n→ 政府自动多发救济（转移），央行倾向降息\n→ 这是衰退传到偿债压力的路径（大周期 ⑤）。',
+    logic: '企业：订单不足、产出低于潜力 → 裁员\n→ 家庭：失去工资，收入↓，DSR↑，还不起的变多\n→ 政府自动多发救济（转移），央行倾向降息\n→ 这是衰退传到偿债压力的路径（小周期「收紧·衰退」；降息还推不动，才轮到大周期 ⑤）。',
     live: 'macro.unemployment', fmt: 'pct' },
 
   // ---------- 企业 / 宏观 ----------
@@ -490,7 +490,7 @@ export const CONCEPTS = {
       return `名义增长 ${P(g)} − 10 年国债 ${P(y, 2)} = ${PP(d)}：${d > 0 ? '增长跑赢利率，债务相对收入在自动变轻（化债，环 ⑦ 靠它）。' : '增长跑不赢利率，债务像滚雪球越滚越重。'}`;
     },
     water: '债务是一个雪球：g > r 时雪球（相对收入）越滚越轻，g < r 时越滚越重。',
-    formula: '债务/收入 的变化 ≈ (r − g)·债务/收入 + 新增赤字',
+    formula: '债务/收入 的变化 ≈ (r − g)·债务/收入 + 基本赤字\n（基本赤字 = 不含利息的赤字；利息已经在 r 里）',
     from: ['policyRate', 'cpi', 'discountRate'], to: ['interestToTax', 'ringStage'],
     logic: '政府、央行：压低利率（金融压制）并容忍通胀\n→ 名义收入和 GDP 增长快于借款利率\n→ 债务/收入自动缩小，不需要违约\n→ 这是环 ⑦（金融压制/增长化债）的核心。',
     live: null, fmt: 'pct',
@@ -553,7 +553,7 @@ export const CONCEPTS = {
     why: lampWhy('debtService'),
     water: '管道抽水比例指示灯。', formula: '绿：DSR 低于历史中位；黄：快速上升；红：高位并伴随坏账上升',
     from: ['dsr', 'badLoans'], to: ['ringStage'],
-    logic: '家庭：还本付息占收入的比例上升 → 偿债灯变色\n→ 银行：看到坏账上升而收紧\n→ 偿债压力是环 ⑤ 的起点，也是「降息能不能重启信贷」的判断依据。',
+    logic: '家庭：还本付息占收入的比例上升 → 偿债灯变色\n→ 银行：看到坏账上升而收紧\n→ 偿债压力升高是小周期「收紧·衰退」的信号，也是「降息能不能重启信贷」的判断依据；降息推不动，才进大周期 ⑤。',
     live: 'lights.debtService.value', fmt: 'pct' },
   lampPolicy: {
     name: '政策灯', short: '货币政策现在是松还是紧（看实际利率）。',
@@ -628,17 +628,17 @@ export const CONCEPTS = {
     logic: '家庭、企业：一轮轮借钱，债务越堆越高（环 ① ②）\n→ ② 缓冲池满后分岔：B1 钱溢出到物价，交给小周期处理（加息，再降息）；反复溢出则成 ⑦ + B1（美国 1966–82、2023）\n→ B2 资产缩水，降息推不动：私人去杠杆（⑤，美国 2008–12）\n→ 政府和央行接手：赤字 + QE（⑥），再用低利率和增长化债（⑦ ⑧）\n→ 一次衰退不等于大周期换挡（2001 年降息就把信贷重新撑起来了）；大周期只顺时针走：① ② ⑤ ⑥ ⑦ ⑧ 再回到 ①\n→ 它和小周期之间只有一个接口：降息之后，推得动吗？',
     live: 'cycles.long.label', fmt: 'txt' },
   shortCycle: {
-    name: '小周期 · 短期债务周期', short: '几年一轮：扩张 → 过热 → 收紧·衰退 → 降息（推得动吗？），最后这一问是两个环之间唯一的接口。',
+    name: '小周期 · 短期债务周期', short: '几年一轮：扩张 → 过热 → 收紧（央行加息）→ 降息（推得动吗？），最后这一问是两个环之间唯一的接口。',
     why: (s) => {
       const S = s.cycles?.short;
       if (!S) return '现在没有小周期的读数。';
       const pr = (S.progress || [])[0];
       return `现在在「${S.label}」${S.since?.date ? `（自 ${S.since.date} 起）` : ''}。${S.handoff === 'no' && S.handoffText ? `\n${S.handoffText}。` : ''}${pr ? `\n朝「${pr.label}」已累计 ${pr.have}/${pr.need} 季证据。` : ''}${S.nextSignal ? `\n下一个信号：${S.nextSignal}` : ''}`;
     },
-    water: '一年的季节性涨落：春耕涨水（扩张）、夏汛涨到顶（过热：要么水漫出河道成物价，要么河床抬高、全靠借来的水撑着）、秋收关闸（收紧·衰退）、冬季放水再开泵（降息）。来年泵开得动吗？开得动是新一年；开不动，就轮到大周期。',
-    formula: '看四盏灯 + 失业率：扩张 → 过热（物价过热：通胀高 + 加息；资产过热：借钱推起的繁荣破了，信贷先缩、房价转头）→ 收紧·衰退（失业率较低点上升，或信贷脉冲大幅为负）→ 降息（央行降息或已近零）。降息后推得动（信贷脉冲回正、失业率不再升）→ 扩张；推不动 → 大周期 B2 → ⑤。证据连续 2–3 季才前进',
+    water: '一年的季节性涨落：春耕涨水（扩张）、夏汛涨到顶（过热：要么水漫出河道成物价，要么河床抬高、全靠借来的水撑着）、秋收关闸（收紧：央行加息，有时还带衰退）、冬季放水再开泵（降息）。来年泵开得动吗？开得动是新一年；开不动，就轮到大周期。',
+    formula: '看央行 + 四盏灯 + 失业率：扩张 → 过热（物价过热：通胀高、还在升；资产过热：借钱推起的繁荣破了，信贷先缩、房价转头、偿债压力高）→ 收紧（央行在加息；加息时若失业率较低点上升、或信贷脉冲大幅为负，标成「收紧·衰退」）→ 降息（政策利率从近期高点降下来，且不再上升）。降息后推得动（信贷脉冲回正、失业率不再升）→ 扩张；推不动 → 大周期 B2 → ⑤。证据连续 2–3 季才前进',
     from: ['lampCredit', 'lampDebtService', 'lampPolicy', 'lampValuation', 'creditImpulse', 'unemployment', 'policyRate'], to: ['B2', 'longCycle'],
-    logic: '银行、家庭、央行：借钱扩张 → 过热，顶有两种：物价过热（通胀 + 加息，即 B1），资产过热（借钱推起的繁荣破了）\n→ 收紧·衰退 → 央行降息\n→ 降息后的一问：推得动吗？推得动（信贷重启）→ 回到扩张（2001–03）；推不动 → 大周期 B2 → ⑤（2008–12）\n→ 这一问是两个环之间唯一的接口，也是本课程的主线\n→ 每个顶点比上一个顶点背的债更多，所以大周期是被一轮轮小周期「棘轮式」推着往前走的。',
+    logic: '银行、家庭、央行：借钱扩张 → 过热，顶有两种：物价过热（通胀高、还在升，即 B1），资产过热（借钱推起的繁荣破了）\n→ 收紧（央行加息，有时还带衰退）→ 央行降息\n→ 降息后的一问：推得动吗？推得动（信贷重启）→ 回到扩张（2001–03）；推不动 → 大周期 B2 → ⑤（2008–12）\n→ 这一问是两个环之间唯一的接口，也是本课程的主线\n→ 每个顶点比上一个顶点背的债更多，所以大周期是被一轮轮小周期「棘轮式」推着往前走的。',
     live: 'cycles.short.label', fmt: 'txt' },
 
   // ---------- 五类资产 ----------
@@ -688,6 +688,86 @@ export const CONCEPTS = {
     from: ['realRate', 'fiscalInjection', 'qe'], to: ['ringStage'],
     logic: '政府、央行：赤字和 QE 让货币变多 → 投资者：对货币的信心下降\n→ 实际利率越低，持有没有利息的黄金越不吃亏\n→ 黄金没有现金流，所以对折现率最敏感；⑥⑦ 阶段的货币贬值使它表现好。',
     live: 'assets.gold.ret', fmt: 'pct' },
+  // ---------- 国境线（snap.border；没有这块读数时 why() 只说明"这个视图没画国境线"）----------
+  exports: {
+    name: '出口', short: '本国卖给外国人的货：外国的水从国境线流进本国的商品河道。',
+    why: (s, p, c) => {
+      const B = s.border;
+      if (!B || !ok(B.exports)) return '现在没有出口读数：这个视图没有画国境线。';
+      const g = s.macro?.gdpNominal, sh = ok(g) && g > 0 ? B.exports / (g / 4) : null;
+      const pv = p?.border?.exports, d = ok(pv) ? vs(B.exports, pv, 0.02) : 'flat';
+      let t = `本季出口 ${c.money(B.exports)}${ok(sh) ? `，约占一个季度 GDP 的 ${P(sh, 0)}` : ''}${d === 'up' ? '，比上季多' : d === 'down' ? '，比上季少' : ''}。`;
+      if (ok(B.imports)) t += `\n进口 ${c.money(B.imports)}：净出口 ${B.exports >= B.imports ? '为正，水在净流入商品河道' : '为负，水在净流出商品河道'}。`;
+      if (ok(B.fxChg4q) && Math.abs(B.fxChg4q) >= 0.02) t += `\n本币比一年前${B.fxChg4q > 0 ? '贬了' : '升了'} ${P(Math.abs(B.fxChg4q), 0)}：${B.fxChg4q > 0 ? '外国人买我们的货更划算，出口更有利' : '外国人买我们的货更贵，出口吃亏'}。`;
+      return t;
+    },
+    water: '国境水闸另一边的水，从出口管流进本国的商品河道：河道水位被外国的需求抬高，工资和利润也多了一份来源。',
+    formula: '净出口 = 出口 − 进口；总需求 = 消费 + 投资 + 政府购买 + 净出口',
+    from: ['fx'], to: ['goodsChannel', 'income', 'cf'],
+    logic: '外国人：买本国的货\n→ 出口订单进入商品河道，等于多出一笔需求（和国内消费一样会抬高水位）\n→ 企业卖得多，利润和工资都增加\n→ 本币贬值时同样的货对外国人更便宜，出口通常更旺；本币升值则相反。',
+    live: 'border.exports', fmt: 'bn' },
+  imports: {
+    name: '进口', short: '本国买外国人的货：水从商品河道经国境线流出去，需求漏到了国外。',
+    why: (s, p, c) => {
+      const B = s.border;
+      if (!B || !ok(B.imports)) return '现在没有进口读数：这个视图没有画国境线。';
+      const g = s.macro?.gdpNominal, sh = ok(g) && g > 0 ? B.imports / (g / 4) : null;
+      const pv = p?.border?.imports, d = ok(pv) ? vs(B.imports, pv, 0.02) : 'flat';
+      let t = `本季进口 ${c.money(B.imports)}${ok(sh) ? `，约占一个季度 GDP 的 ${P(sh, 0)}` : ''}${d === 'up' ? '，比上季多' : d === 'down' ? '，比上季少' : ''}。`;
+      t += `\n国内需求越旺，买外国货越多：国内热的时候进口一般先涨。`;
+      if (ok(B.fxChg4q) && B.fxChg4q >= 0.05) t += `\n本币比一年前贬了 ${P(B.fxChg4q, 0)}，进口货变贵，会推高 CPI。`;
+      return t;
+    },
+    water: '商品河道有一根出水管通到国境线外：国内需求越旺，漏出去买外国货的水越多。',
+    formula: '进口 ≈ 进口倾向 × 国内需求；进口价格 ≈ 外国价格 × 汇率',
+    from: ['goodsChannel'], to: ['goodsChannel'],
+    logic: '家庭、企业：国内需求旺 → 买更多外国货\n→ 这部分水不再留在本国的商品河道，而是流出国境（对本国需求是「漏水」）\n→ 外国卖家拿到本币，要么换成外币，要么拿来买本国的债和资产（见「外国人买国债」）\n→ 本币贬值时进口货变贵，一方面压低进口量，一方面把通胀传进来。',
+    live: 'border.imports', fmt: 'bn' },
+  fx: {
+    name: '汇率', short: '一美元能换多少本币：数字变大 = 本币变弱（贬值），数字变小 = 本币变强。',
+    why: (s, p, c) => {
+      const B = s.border;
+      if (!B || !ok(B.fxPerUsd)) return '现在没有汇率读数：这个视图没有画国境线（国内水流图默认不画）。';
+      if (Math.abs(B.fxPerUsd - 1) < 1e-9) return '这是美元自己的水系：一美元永远等于一美元，所以不画汇率闸，改画「美元 = 储备货币」。';
+      const ch = B.fxChg4q, r = s.rates?.policy;
+      let t = `现在 1 美元 = ${B.fxPerUsd >= 100 ? Math.round(B.fxPerUsd) : B.fxPerUsd.toFixed(2)} 本币`;
+      if (ok(ch)) t += `，比一年前${Math.abs(ch) < 0.005 ? '基本没变' : (ch > 0 ? '贬了 ' : '升了 ') + P(Math.abs(ch), 0)}`;
+      t += `。\n${ok(r) ? `本国政策利率 ${P(r, 2)}：` : ''}${ok(ch) && ch > 0.03 ? '水从本国往外流，本币在变弱：进口货更贵（CPI 上行），出口更有竞争力。' : ok(ch) && ch < -0.03 ? '水往本国流，本币在变强：进口货更便宜（CPI 下行），出口更吃力。' : '没有明显的单向流动。'}`;
+      return t;
+    },
+    water: '两个水系之间那道水闸的水位差：本国利率（水压）比外国高，外面的水就被吸进来，本币变强；水压低，水往外跑，本币变弱。',
+    formula: '汇率 = 每 1 美元换多少本币；比一年前 = 今天 ÷ 四个季度前 − 1（正 = 本币贬值）',
+    from: ['policyRate'], to: ['cpi', 'exports', 'imports'],
+    logic: '央行：加息 → 本国资产的收益比外国高\n→ 外国人和本国人都愿意把钱放在本国：本币需求上升，本币变强（数字变小）\n→ 本币强：进口货便宜，通胀下降；出口变贵，出口减少\n→ 反过来，降息或资金外流时本币变弱：进口货变贵（CPI 上行），出口更便宜。',
+    live: 'border.fxPerUsd', fmt: 'num' },
+  foreignBonds: {
+    name: '外国人买国债', short: '外国人拿钱买本国政府的债：水从国境线外流进长期国债池，把长期利率往下压。',
+    why: (s, p, c) => {
+      const B = s.border;
+      if (!B || !ok(B.foreignBondBuy)) return '现在没有外国人买债的读数：这个视图没有画国境线。';
+      const sh = B.foreignBondShare;
+      const t = B.foreignBondBuy >= 0 ? `本季外国人净买入 ${c.money(B.foreignBondBuy)} 国债` : `本季外国人净卖出 ${c.money(-B.foreignBondBuy)} 国债（水在往外流）`;
+      return `${t}${ok(sh) ? `；外国人手里的国债约占全部国债的 ${P(sh, 0)}` : ''}。\n${B.foreignBondBuy >= 0 ? '多一个买家，国债价格被托高、长期收益率被压低，政府借钱更便宜。' : '少了一个买家，长期收益率会被往上推，政府借钱变贵。'}`;
+    },
+    water: '国境线外的水通过一根专用管道灌进长期国债池：买的人多，池里水位（债价）上涨，长期利率这头就被压下去。',
+    formula: '长期收益率 ≈ 国内收益率 − 外国人需求的压低；占比 = 外国人持有的国债 ÷ 全部国债',
+    from: ['reserveCurrency'], to: ['discountRate', 'bondAsset'],
+    logic: '外国人（央行、基金）：把赚到的外币换成本国国债\n→ 国债多了一个买家，债价上涨、长期收益率下降\n→ 政府和借房贷的人借钱都更便宜\n→ 风险：这些钱可以随时撤走，一撤，长期利率会被往上推（Dalio 的「失去信心」路径）。',
+    live: 'border.foreignBondBuy', fmt: 'bn' },
+  reserveCurrency: {
+    name: '储备货币', short: '全世界都拿来存水的大水库：美元就是。别国把赚到的外币换成美元存起来，再拿去买美国国债。',
+    why: (s, p, c) => {
+      const B = s.border;
+      if (!B) return '现在没有国境线读数：这个视图没有画国境线。';
+      const sh = B.reserveShareUsd;
+      if (Math.abs((B.fxPerUsd ?? 0) - 1) < 1e-9) return `${ok(sh) ? `美元占世界外汇储备约 ${P(sh, 0)}。` : '美元是世界的主要储备货币。'}\n所以美国可以长期进口多过出口：流出去的美元，又以外国人买国债的形式流回来。`;
+      return '这是别国的水系：它的货币不是世界储备货币，外国人愿意存的水少，所以进口多过出口时，更容易遇到汇率和长期利率的压力。';
+    },
+    water: '世界的大水库：各国都把多余的水存进去。因为人人都想存，美国从国境线外抽水（借钱）很容易；风险是哪天大家不想存了。',
+    formula: '美元份额 = 美元计价的外汇储备 ÷ 全球已分配外汇储备（IMF COFER）',
+    from: ['imports'], to: ['foreignBonds', 'discountRate'],
+    logic: '外国央行和企业：出口赚到美元 → 不换回本币，存成美元资产\n→ 最方便的美元资产是美国国债：外国人买国债，美国的长期利率被压低\n→ 所以美国可以进口多于出口（贸易赤字），付出去的美元又回来\n→ 风险：大家一旦失去信心、少存美元，美元和美国国债会同时承压（Dalio 的「失去信心」路径）。',
+    live: 'border.reserveShareUsd', fmt: 'pct' },
 };
 
 // Keyword -> concept id, used to turn plain rule text into clickable terms (longest first matters).
@@ -699,4 +779,5 @@ export const KEYWORDS = [
   ['CPI', 'cpi'], ['通胀预期', 'inflationExp'], ['通胀', 'cpi'], ['失业率', 'unemployment'], ['折现率', 'discountRate'], ['风险溢价', 'riskPremium'],
   ['利息/税收', 'interestToTax'], ['租售比', 'rentYield'], ['房价/收入', 'priceToIncome'], ['房价', 'housePrice'], ['B1', 'B1'], ['B2', 'B2'], ['CF', 'cf'],
   ['物价过热', 'B1'], ['资产过热', 'shortCycle'], ['推不动', 'B2'],
+  ['外国人买国债', 'foreignBonds'], ['储备货币', 'reserveCurrency'], ['出口', 'exports'], ['进口', 'imports'], ['汇率', 'fx'],
 ];

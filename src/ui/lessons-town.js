@@ -129,6 +129,7 @@ export function fmtV(v, f) {
     case 'n3': return v.toFixed(3);
     case 'rate': return (v * 100).toFixed(2) + '%';
     case 'tn': return (v / 1000).toFixed(1) + ' 万亿美元';
+    case 'bn': return Math.round(v).toLocaleString('en-US') + ' 十亿美元';   // input USD bn (same unit as the map labels)
     default: return Math.round(v).toLocaleString('en-US');
   }
 }
@@ -174,7 +175,25 @@ export function scratchRun(data, L, set, from, until) {
   RUNS.set(key, out);
   return out;
 }
+// WORLD getters: 'world:<path in WORLD>@<year|last>'. WORLD (src/data/world.js, annual) is injected by the caller (the UI loads it lazily, the checker
+// imports it) so that this module never depends on a file another agent is still writing.
+let WORLD = null;
+export function setWorldData(W) { WORLD = W || null; }
+export const hasWorldData = () => !!WORLD;
+export const isWorldGet = g => typeof g === 'string' && g.startsWith('world:');
+export function evalWorld(spec) {
+  const m = /^world:([\w.]+)@(\d{4}|last)$/.exec(spec);
+  if (!WORLD || !m || !Array.isArray(WORLD.years)) return null;
+  const a = getPath(WORLD, m[1]);
+  if (!Array.isArray(a)) return null;
+  let v;
+  if (m[2] === 'last') { for (let k = a.length - 1; k >= 0 && v == null; k--) v = a[k]; }
+  else { const k = WORLD.years.indexOf(+m[2]); v = k < 0 ? null : a[k]; }
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
 export function evalGet(data, L, g, win) {
+  if (isWorldGet(g.get)) return evalWorld(g.get);
   const r = scratchRun(data, L, g.set, g.from || win.from, g.until || win.until);
   return aggregate(r.hist, g.get, r.base);
 }

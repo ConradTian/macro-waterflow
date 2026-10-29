@@ -9,6 +9,11 @@
 //   svg children order is fixed: [0] back layer, [1] pipes, [2] chips (same count, same order), [3] icons / texts / valves.
 // Exports: renderFlow, setFlowDuration, setFlowContext, playValveRipple, zoomOut, zoomIn, closeValvePopover, VALVE_SLOTS
 //
+// 国境线 block (snap.border, null-safe): a horizontal dashed border under the springs, 出口 / 进口 pipes on the goods channel, an FX gate on the line,
+//   a foreign-bond pipe into the 长期国债 pool. Desktop: viewBox grows to VB_HB while snap.border exists; phone: one compact gate pill + a tap popover.
+//   The border pipes are normal PIPES entries (part 'border', cls 'border', bd:true) at the END of PIPES, so pipe count == chip count always holds.
+//   ?mockBorder=1 (or =usa) injects fake snap.border values for screenshots before the engine writes them.
+//
 // Snapshot fields used (all optional, graceful fallbacks when an older engine snapshot lacks them):
 //   flows.{toEquity,toBond,toGold,rent,dividends,coupons,qt,govSurplusDrain,fiscalDrain}, assets.*.level, budget, iou, town, extra.qeOn.
 
@@ -18,6 +23,8 @@ const NS = 'http://www.w3.org/2000/svg';
 const VB_W = 390, VB_H = 472;
 // Phone (<768px): "main-trunk" mode. Same DOM, extra captions hidden by CSS (.ph-hide etc.) and the viewBox cropped below the spring sources.
 const PH_VB_H = 434;
+// 国境线 block: dashed line at BD_LINE, foreign zone down to BD_BOT; the legend row moves down by BD_LEG while the border is on; VB_HB = taller viewBox then
+const BD_LINE = 461, BD_BOT = 497, BD_LEG = 41, VB_HB = 512;
 const PH_MQ = typeof matchMedia === 'function' ? matchMedia('(max-width: 767.98px)') : null;
 const isPhone = () => !!(PH_MQ && PH_MQ.matches);
 
@@ -89,6 +96,10 @@ const PIPES = [
   { k: 'govSurplusDrain', part: 'government',  cls: 'repay', kind: 'drain', label: '盈余', pts: [[284, 52], [284, 68]], chip: [284, 60, 'middle'], from: 'government', to: 'government', minor: true },
   // collateral feedback: housing level -> bank approval (dashed loop, not a money flow)
   { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[122, 274], [122, 112]], chip: [130, 134, 'end'], from: 'poolHousing', to: 'bank' },
+  // 国境线 (only drawn while snap.border exists; keep these LAST: lessons.js pairs pipes and chips by index)
+  { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[366, BD_BOT], [366, 390]], chip: [360, 470, 'end'],   from: 'border', to: 'channel',  bd: true },
+  { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[300, 390], [300, BD_BOT]], chip: [307, 488, 'start'], from: 'channel', to: 'border',  bd: true },
+  { k: 'foreignBonds', part: 'border', cls: 'border', kind: 'pipe', label: '外国人买国债', term: 'foreignBonds', pts: [[16, BD_BOT], [16, 390]],   chip: [24, 486, 'start'],  from: 'border', to: 'poolBond', bd: true, maxW: 5 },
 ];
 
 // PUMP icons (on a pipe), DRAIN icons. label = small caption next to the icon.
@@ -178,6 +189,8 @@ function flowsOf(snap, prevSnap) {
   if (gp != null && tr != null && gp + tr > 1e-9) shT = tr / (gp + tr);
   else if (prevSnap && (snap.macro?.unemployment ?? 0) > (prevSnap.macro?.unemployment ?? 0) + 1e-6) shT = 0.6;
   f.transfers = N * shT; f.govPurchases = N * (1 - shT);
+  const B = snap.border;      // 国境线: same units as the other flows (local currency bn per quarter)
+  f.exports = B?.exports ?? 0; f.imports = B?.imports ?? 0; f.foreignBonds = B?.foreignBondBuy ?? 0;
   return f;
 }
 function budgetOf(snap) {
@@ -208,7 +221,7 @@ function targets(snap, prevSnap, st) {
   const cap = snap.macro?.capacity ?? 100;
   if (st.cap0 == null || snap.t === 0) st.cap0 = cap;
   const t = {};
-  for (const p of PIPES) t['w.' + p.k] = p.kind === 'fb' ? 3 : (p.kind === 'spring' ? Math.min(pipeWidth(f[p.k] ?? 0, r * 0.35), 6) : pipeWidth(f[p.k] ?? 0, r));
+  for (const p of PIPES) t['w.' + p.k] = p.bd ? Math.min(pipeWidth(Math.abs(f[p.k] ?? 0), r * 1.5), p.maxW || 7) : p.kind === 'fb' ? 3 : (p.kind === 'spring' ? Math.min(pipeWidth(f[p.k] ?? 0, r * 0.35), 6) : pipeWidth(f[p.k] ?? 0, r));
   const L = levelsOf(snap);
   for (const p of POOLS) t['lv.' + p.id] = L[p.id];
   t.iou = L.iou;
@@ -287,12 +300,18 @@ function build(host) {
     role: 'img', 'aria-label': '宏观水流示意图：泵（造水）、排水口（消水）、管道（搬水）、阀门、资产池与商品河道' }, document.createElement('div'));
   wrap.appendChild(svg);
   const R = { svg, wrap, pipes: {}, pools: {} };
-  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : VB_H}`); wrap.classList.toggle('phone', ph); };
+  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : (R.hasBorder ? VB_HB : VB_H)}`); wrap.classList.toggle('phone', ph); };
+  R.syncVB = syncPhone;
   syncPhone();
   try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', syncPhone) : PH_MQ.addListener(syncPhone)); } catch (e) { /* ignore */ }
 
   /* ---- back layer: nodes, tanks, water ---- */
   const back = el('g', {}, svg);
+  {   // 国境线: the foreign zone (shaded) and the dashed border under the springs
+    const bg = part(el('g', { class: 'bd bd-d bd-bg' }, back), 'border');
+    el('rect', { class: 'bd-zone', x: 0, y: BD_LINE, width: VB_W, height: BD_BOT - BD_LINE }, bg);
+    el('path', { class: 'bd-line', d: `M0 ${BD_LINE} H${VB_W}` }, bg);
+  }
   node(back, 6, 4, 144, 48, '', 'centralBank', 'cb');
   node(back, 244, 4, 140, 48, '', 'government', 'gov');
   node(back, 110, 62, 162, 50, '', 'bank', 'bank');
@@ -342,7 +361,7 @@ function build(host) {
   /* ---- pipes + chips ---- */
   const pipeLayer = el('g', {}, svg);
   for (const p of PIPES) {
-    const g = part(el('g', { class: `${p.cls} ${p.kind}`, 'data-pipe': p.k }, pipeLayer), p.part);
+    const g = part(el('g', { class: `${p.cls} ${p.kind}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, pipeLayer), p.part);
     const d = 'M' + p.pts.map(q => q.join(' ')).join(' L');
     const bed = el('path', { class: 'bed', d }, g);
     const dash = el('path', { class: 'dash' + (p.slow ? ' slow' : ''), d }, g);
@@ -351,7 +370,7 @@ function build(host) {
   }
   const chipLayer = el('g', {}, svg);
   for (const p of PIPES) {
-    const g = part(el('g', { class: `chip ${p.cls}${p.term ? ' term' : ''}${p.minor || p.kind === 'spring' ? ' minor' : ''}`, 'data-pipe': p.k }, chipLayer), p.part);
+    const g = part(el('g', { class: `chip ${p.cls}${p.term ? ' term' : ''}${p.minor || p.kind === 'spring' ? ' minor' : ''}${p.bd ? ' bd bd-d' : ''}`, 'data-pipe': p.k }, chipLayer), p.part);
     if (p.term) g.setAttribute('data-term', p.term);
     const hit = el('rect', { class: 'hit', rx: 8 }, g);
     const bg = el('rect', { class: 'bg', height: 15, rx: 7.5 }, g);
@@ -446,10 +465,11 @@ function build(host) {
   txt(pill, 347, TANK_Y + 35, '水位', 'cap', 'middle');
   // spring chips etc are in chip layer; pool caption + legend + unit
   g = termGroup(top, 'assetReservoir', [6, 443, 378, 14], 'pool');
-  g.classList.add('ph-hide');
+  g.classList.add('ph-hide', 'bd-shift');
   txt(g, 10, 451, '资产池：买资产 = 买取水权，只抬水位', 'cap', 'start');
-  txt(top, 166, 451, '· 只有 Capex 才扩河道', 'cap ph-hide', 'start', 'capex');
+  txt(top, 166, 451, '· 只有 Capex 才扩河道', 'cap ph-hide bd-shift', 'start', 'capex');
   buildLegend(top);
+  buildBorder(R, top, wrap);
   // valves last (on top)
   const valves = el('g', { class: 'valves' }, top);
   for (const v of VALVE_SLOTS) valveIcon(valves, v);
@@ -502,6 +522,81 @@ function buildLegend(top) {
   txt(g, 282, y, '阀门 = 可拧', 'cap', 'start');
   el('path', { class: 'ruler', d: `M338 ${y - 8} v10 M338 ${y - 6} h3 M338 ${y - 3} h3 M338 ${y} h3` }, g);
   txt(g, 345, y, '水位 = 结果', 'cap', 'start');
+}
+
+/* =====================================================================================================================
+   国境线 (snap.border). Everything here carries the class 'bd' (hidden by CSS until the svg has 'has-border') and data-part 'border'.
+   bd-d = the wide drawing (line, pipes, gate; hidden on phone), bd-p = the compact phone pill that opens an HTML popover.
+   ===================================================================================================================== */
+function buildBorder(R, top, wrap) {
+  const D = R.bd = {};
+  txt(top, 24, BD_LINE + 11, '国境线 · 以下是外国', 'cap bd bd-d bd-lbl', 'start', 'border');
+  // FX gate on the line (non-USA): a little sluice + 汇率 value + 4-quarter change
+  let g = termGroup(top, 'fx', [136, BD_LINE - 7, 108, 46], 'border');
+  g.setAttribute('class', 'term bd bd-d bd-gate');
+  el('rect', { class: 'bd-gbox', x: 178, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
+  el('path', { class: 'bd-gslat', d: `M184 ${BD_LINE - 3} V${BD_LINE + 3} M190 ${BD_LINE - 3} V${BD_LINE + 3} M196 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
+  D.fx = g;
+  D.fx1 = txt(g, 190, BD_LINE + 18, '', 'sub num', 'middle');
+  D.fx2 = txt(g, 190, BD_LINE + 29, '', 'cap bd-chg', 'middle');
+  // USA: the dollar is the world's reserve currency (no gate: the rate is 1 by definition)
+  g = termGroup(top, 'reserveCurrency', [124, BD_LINE - 7, 132, 46], 'border');
+  g.setAttribute('class', 'term bd bd-d bd-gate bd-res');
+  el('rect', { class: 'bd-gbox', x: 178, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
+  el('path', { class: 'bd-gslat', d: `M184 ${BD_LINE - 3} V${BD_LINE + 3} M190 ${BD_LINE - 3} V${BD_LINE + 3} M196 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
+  D.res = g;
+  D.res1 = txt(g, 190, BD_LINE + 18, '美元 = 储备货币', 'sub num', 'middle');
+  D.res2 = txt(g, 190, BD_LINE + 29, '', 'cap', 'middle');
+  // phone: one compact gate pill (bottom right, under the goods channel); tap = popover with the details
+  const pill = part(el('g', { class: 'bd bd-p', 'data-bd': 'pill', role: 'button', tabindex: 0, 'aria-label': '国境线：汇率、出口、进口、外国人买国债' }, top), 'border');
+  D.pillBg = el('rect', { class: 'bd-pill', y: 397, height: 24, rx: 12 }, pill);
+  D.pillTx = el('text', { y: 409, 'text-anchor': 'middle', dy: '.35em' }, pill);
+  D.pill = pill;
+  const pop = document.createElement('div'); pop.className = 'flow-bpop'; pop.hidden = true; wrap.parentElement.appendChild(pop);
+  D.pop = pop;
+}
+
+const fmtFx = v => (v >= 100 ? String(Math.round(v)) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+function fxChange(c) {      // fxChg4q: + = local currency weaker vs USD
+  if (typeof c !== 'number' || !isFinite(c)) return { txt: '', cls: '' };
+  const n = Math.round(Math.abs(c) * 100);
+  if (c > 0.005 && n >= 1) return { txt: `↓贬 ${n}%`, cls: 'weak' };
+  if (c < -0.005 && n >= 1) return { txt: `↑升 ${n}%`, cls: 'strong' };
+  return { txt: '基本持平', cls: 'flat' };
+}
+function setBorder(R, snap, town) {
+  const B = snap.border, D = R.bd;
+  const has = !town && !!B && typeof B === 'object';
+  R.svg.classList.toggle('has-border', has);
+  if (!!R.hasBorder !== has) { R.hasBorder = has; R.syncVB(); }
+  if (!has) { D.pop.hidden = true; return; }
+  const num = v => typeof v === 'number' && isFinite(v);
+  const fx = B.fxPerUsd, usd = num(fx) && Math.abs(fx - 1) < 1e-9, local = num(fx) && !usd;
+  D.fx.style.display = local ? '' : 'none';
+  D.res.style.display = usd ? '' : 'none';
+  const ch = fxChange(B.fxChg4q);
+  if (local) {
+    D.fx1.textContent = `汇率 ${fmtFx(fx)}/美元`;
+    D.fx2.textContent = ch.txt; D.fx2.setAttribute('class', 'cap bd-chg ' + ch.cls);
+  }
+  const resTxt = num(B.reserveShareUsd) ? `占世界外储 ${Math.round(B.reserveShareUsd * 100)}%` : '全世界都存美元';
+  if (usd) D.res2.textContent = resTxt;
+  // phone pill + popover
+  const pt = usd ? '国境 · 美元=储备货币' : local ? `国境 · 汇率 ${fmtFx(fx)} ${ch.txt.replace(' ', '').replace('基本持平', '持平')}` : '国境线 · 进出口';
+  const w = Math.ceil(estW(pt, 10.5)) + 22;
+  D.pillBg.setAttribute('x', 384 - w); D.pillBg.setAttribute('width', w);
+  D.pillTx.setAttribute('x', 384 - w / 2); D.pillTx.textContent = pt;
+  const row = (term, label, val) => `<div class="bp-row"><button type="button" class="term" data-term="${term}">${label}</button><b>${val}</b></div>`;
+  const m = v => (num(v) ? fmtMoney(v, false) : '—');
+  let h = `<div class="bp-head"><b>国境线</b><span>外国水系 ↔ 本国水系</span><button type="button" class="bp-x" data-act="bd-close" aria-label="关闭">✕</button></div>`;
+  h += row('exports', '出口', m(B.exports));
+  h += row('imports', '进口', m(B.imports));
+  if (num(B.netExports)) h += `<div class="bp-row bp-sub"><span>净出口（出口 − 进口）</span><b>${B.netExports >= 0 ? '+' : '−'}${fmtMoney(Math.abs(B.netExports), false)}</b></div>`;
+  if (local) h += row('fx', '汇率（本币/美元）', `${fmtFx(fx)}${ch.txt ? ` · 比一年前 ${ch.txt}` : ''}`);
+  if (usd) h += row('reserveCurrency', '美元 = 储备货币', resTxt);
+  if (num(B.foreignBondBuy)) h += row('foreignBonds', B.foreignBondBuy < 0 ? '外国人卖国债' : '外国人买国债', `${fmtSigned(B.foreignBondBuy, false)}${num(B.foreignBondShare) ? ` · 持有 ${Math.round(B.foreignBondShare * 100)}%` : ''}`);
+  h += `<div class="bp-note">单位：十亿美元 / 季；点蓝字看解释</div>`;
+  if (D.pop.innerHTML !== h) D.pop.innerHTML = h;
 }
 
 /* =====================================================================================================================
@@ -618,7 +713,8 @@ function applyCur(R, cur) {
     const w = cur['w.' + p.k];
     r.bed.setAttribute('stroke-width', w.toFixed(2));
     r.dash.setAttribute('stroke-width', Math.max(1, w * 0.62).toFixed(2));
-    const [x1, y1] = p.pts[p.pts.length - 2], [x2, y2] = p.pts[p.pts.length - 1];
+    const pts = r.rev ? [...p.pts].reverse() : p.pts;
+    const [x1, y1] = pts[pts.length - 2], [x2, y2] = pts[pts.length - 1];
     const dx = Math.sign(x2 - x1), dy = Math.sign(y2 - y1);
     const L = 5 + w * 0.7, H = 3 + w * 0.65;
     const bx = x2 - dx * L, by = y2 - dy * L;
@@ -697,10 +793,16 @@ function setTexts(R, snap, prevSnap, st) {
   const LB = labelSet(snap, town);
   st.labels = LB;
   for (const p of PIPES) {
-    const v = f[p.k] ?? 0;
+    let v = f[p.k] ?? 0, lab = p.label;
+    if (p.k === 'foreignBonds' && v < 0) { v = -v; lab = '外国人卖国债'; }     // foreigners selling: same pipe, the label says so
     const pr = R.pipes[p.k];
+    if (p.k === 'foreignBonds' && !!pr.rev !== ((f[p.k] ?? 0) < 0)) {       // selling: the water runs the other way
+      pr.rev = !pr.rev;
+      const d = 'M' + (pr.rev ? [...p.pts].reverse() : p.pts).map(q => q.join(' ')).join(' L');
+      pr.bed.setAttribute('d', d); pr.dash.setAttribute('d', d);
+    }
     const minorHide = !!p.nochip || ((p.minor || p.kind === 'spring') && v < r * 0.0007 && p.kind !== 'spring');
-    placeChip(pr, p.kind === 'fb' ? p.label : `${p.label} ${fmtMoney(v, town)}`);
+    placeChip(pr, p.kind === 'fb' ? p.label : `${lab} ${fmtMoney(v, town)}`);
     pr.chip.classList.toggle('off', minorHide);
     const idle = p.kind === 'fb' ? false : v < r * 0.0007;
     pr.g.classList.toggle('idle', idle);
@@ -736,6 +838,7 @@ function setTexts(R, snap, prevSnap, st) {
   R.hhTitle.classList.toggle('long', town);
   R.chTitle.textContent = LB.channel;
   R.svg.classList.toggle('is-town', town);
+  setBorder(R, snap, town);
   R.bar.dataset.unit = LB.unit;
   setBudget(R, snap, town);
 }
@@ -933,6 +1036,17 @@ function wireEvents(host, R) {
     R.legend.hidden = !show;
   };
   host.addEventListener('click', e => {
+    const bp = R.bd && R.bd.pop, tg = e.target && e.target.closest ? e.target : null;
+    if (bp && tg) {
+      if (tg.closest('[data-bd="pill"]')) {
+        e.preventDefault();
+        const show = bp.hidden;
+        if (show) { R.legend.hidden = true; closeValvePopover(); bp.style.bottom = ((R.bar && R.bar.offsetHeight) || 0) + 8 + 'px'; }
+        bp.hidden = !show;
+        return;
+      }
+      if (tg.closest('.flow-bpop [data-act="bd-close"]') || tg.closest('.flow-bpop .term') || !tg.closest('.flow-bpop')) bp.hidden = true;
+    }
     const lgb = e.target.closest && e.target.closest('[data-act="legend"]');
     if (lgb) { e.preventDefault(); toggleLegend(); return; }
     const fbm = e.target.closest && e.target.closest('.fb-mini');
@@ -963,6 +1077,8 @@ function wireEvents(host, R) {
   host.addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.valve[data-valve]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-bd="pill"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+    if (e.key === 'Escape' && R.bd) R.bd.pop.hidden = true;
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini')) { e.preventDefault(); e.target.click(); }
   });
 }
@@ -1001,8 +1117,22 @@ export function zoomIn() {
 /* =====================================================================================================================
    PUBLIC
    ===================================================================================================================== */
+// ?mockBorder=1 -> a non-USA country (fx 1.2-1.5); ?mockBorder=usa -> the US view (fx 1 + reserve share). Screenshots / UI work before the engine writes snap.border.
+const MOCK_BORDER = (() => { try { const v = new URLSearchParams(location.search).get('mockBorder'); return v ? String(v) : null; } catch (e) { return null; } })();
+function withMockBorder(snap) {
+  if (!MOCK_BORDER || snap.town) return snap;     // overrides a real snap.border on purpose (the engine writes one for the US already)
+  const t = snap.t || 0, g = (snap.macro?.gdpNominal ?? 30000) / 4, usa = MOCK_BORDER === 'usa';
+  const fxAt = k => 1.35 + 0.17 * Math.sin(k / 9);
+  return { ...snap, border: {
+    exports: g * (0.11 + 0.008 * Math.sin(t / 5)), imports: g * (usa ? 0.15 : 0.12) * (1 + 0.04 * Math.cos(t / 7)),
+    netExports: -g * 0.01, fxPerUsd: usa ? 1 : fxAt(t), fxChg4q: usa ? 0 : fxAt(t) / fxAt(t - 4) - 1,
+    foreignBondBuy: g * 0.006 * (Math.sin(t / 3) + 0.4), foreignBondShare: usa ? 0.3 : 0.24, reserveShareUsd: usa ? 0.58 : null,
+  } };
+}
+
 export function renderFlow(host, snap, prevSnap) {
   if (!snap) return;
+  snap = withMockBorder(snap);
   let st = host._flow;
   if (!st) {
     const R = build(host);

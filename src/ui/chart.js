@@ -1,6 +1,7 @@
 // Tiny dependency-free SVG line chart (CONTRACT §3).
 // lineChart(host, { series:[{name, values, style:'real'|'model'|'user'}], dates, reservedFrom,
-//                   currentDate, height, fmt, title, zeroLine })
+//                   currentDate, height, fmt, title, zeroLine, bands:[{from,to,text}] })
+// bands = small 「模型偏差」 notes: a light band over the quarters from..to plus a one-line text; shown once currentDate has reached `from`.
 const W = 360;
 const STYLE = {
   real:  { color: 'var(--text, #222)',        dash: '',    w: 1.8, tag: '实线' },
@@ -22,7 +23,7 @@ const defaultFmt = v => (Math.abs(v) >= 1000 ? v.toFixed(0) : Math.abs(v) >= 100
 export const pctFmt = v => (v * 100).toFixed(Math.abs(v) < 0.1 ? 1 : 0) + '%';
 
 export function lineChart(host, opts) {
-  const { series = [], dates = [], reservedFrom, currentDate, height = 170, fmt = defaultFmt, title, note } = opts;
+  const { series = [], dates = [], reservedFrom, currentDate, height = 170, fmt = defaultFmt, title, note, bands = [] } = opts;
   const H = height, L = 38, R = 8, T = 8, B = 22;
   const n = dates.length || Math.max(0, ...series.map(s => s.values.length));
   let lo = Infinity, hi = -Infinity;
@@ -39,6 +40,18 @@ export function lineChart(host, opts) {
     g += `<rect x="${X(ri)}" y="${T}" width="${W - R - X(ri)}" height="${H - T - B}" class="pn-reserved"/>` +
       `<text x="${(X(ri) + W - R) / 2}" y="${T + 11}" text-anchor="middle" class="pn-ch-note">保留样本·示意</text>`;
   }
+  // model-gap bands (drawn under the lines)
+  const bandTexts = [];
+  const cIdx = currentDate ? dates.indexOf(currentDate) : -1;
+  bands.forEach(b => {
+    const a = dates.indexOf(b.from);
+    if (a < 0 || (cIdx >= 0 && cIdx < a)) return;
+    let z = dates.indexOf(b.to); if (z < 0) z = n - 1;
+    g += `<rect x="${X(a)}" y="${T}" width="${Math.max(2, X(z) - X(a))}" height="${H - T - B}" fill="var(--warn, #d9730d)" opacity=".13"><title>${esc(b.text)}</title></rect>`;
+    const w = [...b.text].length * 9;
+    const right = X(a) + w > W - R;
+    bandTexts.push(`<text x="${right ? W - R - 2 : X(a)}" y="${T + 25}" text-anchor="${right ? 'end' : 'start'}" class="pn-ch-note" style="paint-order:stroke;stroke:var(--bg, #fff);stroke-width:2.5px">${esc(b.text)}</text>`);
+  });
   ticks.forEach(v => {
     g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="pn-grid"/>` +
       `<text x="${L - 4}" y="${Y(v) + 3}" text-anchor="end" class="pn-ch-axis">${esc(fmt(v))}</text>`;
@@ -62,6 +75,7 @@ export function lineChart(host, opts) {
     });
     if (d) g += `<path d="${d}" fill="none" stroke="${st.color}" stroke-width="${st.w}" stroke-dasharray="${st.dash}" stroke-linejoin="round"/>`;
   });
+  g += bandTexts.join('');
   const legend = series.map(s => {
     const st = STYLE[s.style] || STYLE.model;
     return `<span class="pn-lg"><svg width="26" height="8" aria-hidden="true"><line x1="1" x2="25" y1="4" y2="4" stroke="${st.color}" stroke-width="2" stroke-dasharray="${st.dash}"/></svg>${esc(s.name)}（${st.tag}）</span>`;

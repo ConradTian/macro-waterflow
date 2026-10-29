@@ -3,6 +3,7 @@
 import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
 import { renderHeadline } from './ui/headline.js';   // 本季看点 strip under the time bar
+import { initScrubber } from './ui/scrubber.js';     // collapsible time scrubber under the progress line
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -20,8 +21,11 @@ const TABS = [
   { id: 'takeover', label: '接管' },
 ];
 const SPEEDS = [1, 2, 4];
+const CNAME = { USA: '美国', AUS: '澳洲', GBR: '英国', JPN: '日本', EA: '欧元区', CHN: '中国', ROW: '其他' };
 
 let sim, real = null;
+let scrub = null, seeking = false;                    // time scrubber (src/ui/scrubber.js); seeking = a jump in time is replaying (no pause toasts)
+let COUNTRY = 'USA', countryNote = '';              // ?country=ISO: which country's data the sim runs on (USA unless that country's view is ready)
 let mainSim = null, mainReal = null;   // TOWN-LESSONS hook: the US sim/data stay here while a lesson swaps the town sim in (ctx.setSim)
 let snap = null, prevSnap = null;
 let playing = false, speed = 1, timer = 0, tickMs = 1000;
@@ -32,9 +36,20 @@ const tabMods = {}; // id -> module | null (failed)
 
 /* ---------- data + sim ---------- */
 async function boot() {
-  try { real = (await import('./data/us-quarterly.js')).US_Q; } catch (e) { real = null; }
+  // COUNTRY hook (地图 page): ?country=AUS loads that country's quarterly data when its view is ready, else falls back to the USA with a note
+  const want = (params.get('country') || '').toUpperCase();
+  if (want && want !== 'USA') {
+    try {
+      const ci = await import('./data/countries/index.js');
+      if (ci.COUNTRY_READY[want] && ci.COUNTRY_DATA[want]) { real = await ci.COUNTRY_DATA[want](); COUNTRY = want; }
+    } catch (e) { real = null; COUNTRY = 'USA'; }
+    if (COUNTRY === 'USA') countryNote = `${CNAME[want] || want}的水流图还没做好，先回到美国。`;
+  }
+  if (COUNTRY === 'USA') { try { real = (await import('./data/us-quarterly.js')).US_Q; } catch (e) { real = null; } }
+  if (COUNTRY !== 'USA') document.title = `${CNAME[COUNTRY] || COUNTRY} · 宏观水流模拟器`;
   // DIAGRAM v2 screenshot helper: ?scenario=town boots the 万元 town economy (lessons switch scenarios themselves)
-  sim = params.get('scenario') === 'town' ? createSim({ mode: MODE, scenario: 'town' }) : createSim({ data: real, mode: MODE });
+  sim = params.get('scenario') === 'town' ? createSim({ mode: MODE, scenario: 'town' }) : createSim({ data: real, mode: MODE, country: COUNTRY });
+  if (params.get('debug') === '1') window.__mw = { sim: () => sim, snap: () => snap };   // read-only handle for tools/check_scrubber.mjs
   mainSim = sim; mainReal = real;                    // TOWN-LESSONS hook (see ctx.setSim in loadLessons)
   document.body.dataset.view = view; document.body.dataset.follow = following ? '1' : '';
   setFlowContext({ sim: () => sim, setTab, openTerm: id => openTerm(id) });   // DIAGRAM v2 hook: valve popover reads sim.valves, 去接管 button switches tab
@@ -45,9 +60,12 @@ async function boot() {
 
   buildTabbar();
   wireControls();
+  buildScrubber();
   initSync();
   await installConcepts();
   renderAll();
+  if (countryNote) showNote(countryNote);
+  if (params.get('map') === '1') setMap(true, { select: params.get('select'), year: +params.get('year') || 0, kind: params.get('kind') });   // 地图 page by URL (screenshots, lessons)
   if (MODE === 'free') {                            // free-run subpage: full interface, no lessons
     if (params.get('pause') !== '1' && !following) setTimeout(() => setPlaying(true), 600);
     return;
@@ -110,7 +128,7 @@ async function loadLessons() {
   lessonsMod.initLessons({
     sim: () => sim, real: () => real, getSnap: () => snap,
     setPlaying, isPlaying: () => playing, openTerm,
-    setQuiet: q => { lessonQuiet = q; if (q) hideToast(); },          // suppress key-node pause toasts during a lesson
+    setQuiet: q => { lessonQuiet = q; if (q) hideToast(); updateTimeControls(); },   // suppress key-node pause toasts during a lesson (and lock the scrubber)
     refresh: () => { snap = sim.snapshot(); prevSnap = null; renderAll(); },
     setTickMs: ms => { tickMs = ms || 1000; if (playing) setPlaying(true); },   // ms per quarter at 1x (lessons play slowly)
     setTab,
@@ -138,7 +156,7 @@ async function openCourseMenu() { try { (await loadLessons()).openMenu(); } catc
 // Deferred one tick: the event fires inside sim.step(), before advance() has replaced `snap` (the toast prefixes the date).
 document.addEventListener('mw:pause', e => {
   const msg = String(e.detail?.message || '');
-  if (!msg) return;
+  if (!msg || seeking) return;                              // a jump in time replays many quarters: no toast for those
   setTimeout(() => {
     if (lessonQuiet) return;
     const shown = !$('toast').hidden;                       // a key-node pause already showed a toast this same quarter: one toast, both messages
@@ -157,17 +175,22 @@ function showToast(msg, resume) {
   $('toast').hidden = false;
 }
 function hideToast() { $('toast').hidden = true; }
+function showNote(msg) { resumeOnOk = false; $('toast-msg').textContent = msg; $('toast').hidden = false; }   // a plain message (no date prefix)
 
 /* ---------- controls ---------- */
 function wireControls() {
   $('btn-play').onclick = () => { hideToast(); setPlaying(!playing); };
   $('btn-step').onclick = () => { hideToast(); setPlaying(false); advance(); };
+  const back = $('btn-back');                         // ⏮ 退一季 = a seek to t-1
+  if (back) back.onclick = () => { if (timeLock() || sim.t <= 0) return; hideToast(); setPlaying(false); seekTo(sim.t - 1); };
   $('btn-speed').onclick = () => {
     speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     $('btn-speed').textContent = speed + '×';
     if (playing) setPlaying(true);
   };
   $('toast-ok').onclick = () => { hideToast(); if (resumeOnOk) setPlaying(true); };
+  const mapBtn = $('btn-map');                        // 🌍 地图 button -> the world map overlay
+  if (mapBtn) mapBtn.onclick = () => setMap(true);
   const teach = $('btn-teach');                       // fixed 教学 button (top-right) -> course menu
   if (teach && MODE !== 'free') teach.onclick = () => openCourseMenu();
 }
@@ -192,7 +215,7 @@ function renderTabbar() {
    document.dispatchEvent(new CustomEvent('mw:view', { detail: { view } })). The flow diagram's DOM stays alive underneath
    (the curves view only covers it), so lesson highlights keep working. The view needs the US history run: not the town, not free mode. */
 let wvEl = null, vtBtn = null, wvMod = null;
-const wavesOk = () => !!(sim && real && sim.mode === 'history' && sim.scenario !== 'town');
+const wavesOk = () => !!(sim && real && sim.mode === 'history' && sim.scenario !== 'town' && COUNTRY === 'USA');
 function buildViewDom() {
   const host = $('diagram');
   wvEl = document.createElement('div'); wvEl.id = 'wave-view'; wvEl.className = 'wvw wv pn-cycle'; wvEl.hidden = true;
@@ -222,6 +245,116 @@ async function renderView() {
   if (!wvMod) { try { wvMod = await import('./ui/wave-view.js'); } catch (err) { console.error(err); return; } }
   if (view !== 'waves' || !wavesOk()) return;                   // changed while the module loaded
   try { wvMod.renderWaveView(wvEl, { sim, snap, real }); } catch (err) { console.error(err); }
+}
+
+/* ---------- 地图 page (src/ui/world-map.js owns the DOM inside #world-map) ----------
+   Opened by the 🌍 button, ?map=1 (&select=AUS &year=2018 &kind=trade) or document.dispatchEvent(new CustomEvent('mw:map',
+   { detail: { open: true|false, select?: 'AUS', year?, kind? } })). The page is an overlay: the US sim and the diagram keep their state underneath.
+   Only the card's 「进入」 button leaves it: USA = back here, a ready country = ?country=ISO (full reload), not ready = disabled. */
+let wmMod = null, mapWasPlaying = false;
+const mapYear = () => {
+  const s = (sim === mainSim || !mainSim) ? snap : mainSim.snapshot();
+  const y = parseInt(String(s && s.date).slice(0, 4), 10);
+  return Number.isFinite(y) ? Math.max(1995, Math.min(2025, y)) : 2025;
+};
+function mapUrl(open) {
+  try { const u = new URL(location.href); if (open) u.searchParams.set('map', '1'); else { u.searchParams.delete('map'); u.searchParams.delete('select'); u.searchParams.delete('year'); u.searchParams.delete('kind'); } history.replaceState(null, '', u); } catch (e) { /* file:// etc. */ }
+}
+async function setMap(open, o = {}) {
+  if (!open) {
+    if (wmMod) wmMod.closeWorldMap();
+    delete document.body.dataset.map; mapUrl(false);
+    if (mapWasPlaying) setPlaying(true);
+    mapWasPlaying = false;
+    return;
+  }
+  try {
+    if (!wmMod) wmMod = await import('./ui/world-map.js');
+  } catch (e) { console.error(e); showNote('地图加载失败'); return; }
+  let host = $('world-map');
+  if (!host) { host = document.createElement('div'); host.id = 'world-map'; host.className = 'wm'; host.hidden = true; ($('app') || document.body).appendChild(host); }
+  if (!wmMod.isMapOpen()) { mapWasPlaying = playing; setPlaying(false); }
+  hideToast();
+  wmMod.openWorldMap(host, {
+    year: o.year || mapYear(), select: o.select || null, kind: o.kind || 'all', country: COUNTRY,
+    onClose: () => setMap(false),
+    onEnter: iso => {
+      if (iso === COUNTRY) return setMap(false);                      // already looking at it: back to its water diagram
+      if (iso === 'USA') return goCountry('');                         // from a country view: the US is the root page
+      import('./data/countries/index.js').then(ci => { if (ci.COUNTRY_READY[iso]) goCountry(iso); }).catch(() => {});
+    },
+  });
+  mapUrl(true);
+}
+function goCountry(iso) {                                              // a full reload is fine; keep the theme, drop everything else
+  const u = new URL(location.href); const th = u.searchParams.get('theme');
+  u.search = ''; if (th) u.searchParams.set('theme', th); if (iso) u.searchParams.set('country', iso);
+  location.href = u.href;
+}
+document.addEventListener('mw:map', e => {
+  const d = e.detail || {};
+  if (d.open === false) setMap(false);
+  else setMap(true, { select: d.select, year: d.year, kind: d.kind });
+});
+
+/* ---------- time scrubber + ⏮ 退一季 ----------
+   seekTo(t): forward = keep stepping; backward = sim.reset() and step to t (the engine is deterministic and fast). One render at the end.
+   Locked while a lesson runs (lessons drive time), in the town and for a follower. A backward jump clears the takeover (and any rule edits):
+   asks first, with the scrubber's own small confirm bar. */
+const lastT = () => (MODE === 'free' ? 223 : real?.dates ? real.dates.length - 1 : 123);
+function timeLock() {
+  if (!sim) return '';
+  if (sim.scenario === 'town') return '小镇里不能拖动时间';
+  if (lessonQuiet) return '上课时由课程控制时间';                     // set by the lessons runner for the whole lesson (setQuiet)
+  if (following) return '正在跟随另一个窗口，时间由它控制';
+  return '';
+}
+function buildScrubber() {
+  try {
+    scrub = initScrubber({
+      progress: document.querySelector('.topbar .progress'), sim: () => sim, real: () => real, mode: MODE, country: () => COUNTRY,
+      last: lastT, lock: timeLock, createSim,
+      onDragStart: () => { hideToast(); setPlaying(false); },
+      onSeek: t => seekTo(t),
+    });
+  } catch (e) { console.error(e); scrub = null; }
+}
+function updateTimeControls() {
+  const back = $('btn-back');
+  if (back && sim) {
+    const lock = timeLock();
+    back.disabled = !!lock || sim.t <= 0;
+    back.title = lock || (sim.t <= 0 ? '已经在第一季' : '退一季');
+  }
+  if (scrub) scrub.update();
+}
+let seekBusy = false;
+async function seekTo(t) {
+  if (!sim || timeLock() || seekBusy) return false;
+  t = Math.max(0, Math.min(lastT(), Math.round(t)));
+  if (!Number.isFinite(t) || t === sim.t) { updateTimeControls(); return true; }
+  if (t < sim.t) {                                          // going back resets the sim: warn if that throws away the learner's work
+    const msg = sim.takenOver ? '往回拖会清掉你的接管操作，继续吗？' : (scrub && scrub.rulesModified() ? '往回拖会清掉你改过的规则，继续吗？' : '');
+    if (msg && scrub) {
+      seekBusy = true;
+      const yes = await scrub.confirm(msg);
+      seekBusy = false;
+      if (!yes) { updateTimeControls(); return false; }
+      if (timeLock()) return false;
+    }
+  }
+  hideToast(); setPlaying(false);
+  const from = sim.t, before = snap;
+  seeking = true; syncing = true;                           // no pause toasts, no render per quarter
+  try {
+    if (t < sim.t) { sim.reset(); renderFlow($('diagram'), sim.snapshot(), null); }   // the diagram's 产能 index is taken from the first quarter it draws: draw t=0 first, as in a normal run
+    while (sim.t < t && !sim.done) sim.step();
+  } finally { seeking = false; syncing = false; }
+  prevSnap = from + 1 === t ? before : null;
+  snap = sim.snapshot();
+  setFlowDuration($('diagram'), 400);
+  renderAll();
+  return true;
 }
 
 /* ---------- multi-window sync: only the quarter (BroadcastChannel 'macro-waterflow', same origin + same browser) ----------
@@ -279,12 +412,13 @@ function renderAll() {
   $('date').textContent = snap.date;
   const free = MODE === 'free';
   const badge = $('mode-badge');
-  badge.textContent = (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '');
+  badge.textContent = (COUNTRY !== 'USA' && sim.scenario !== 'town' ? (CNAME[COUNTRY] || COUNTRY) + ' · ' : '') + (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '');
   badge.classList.toggle('user', !!sim.takenOver);
-  const last = free ? 223 : real?.dates ? real.dates.length - 1 : 123;
+  const last = lastT();
   $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
   $('btn-step').disabled = sim.done || following;
   $('btn-play').disabled = following;
+  updateTimeControls();
   if (following) badge.textContent += ' · 跟随';
   renderFlow($('diagram'), snap, prevSnap);
   if (!wvEl) buildViewDom();                         // after the first renderFlow: it empties #diagram once when it builds the SVG

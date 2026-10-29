@@ -1,4 +1,7 @@
-// node tools/engine_check.mjs [--verbose]   Engine self-test + yearly table.
+// node tools/engine_check.mjs [--verbose] [--country ISO] [--score]   Engine self-test + yearly table.
+//   --country USA (default): the full US suite (fixture, real US_Q, 17 calibration targets, experiments, lessons, valves, cycles, town).
+//   --country AUS (...)    : generic checks on src/data/countries/<iso>-quarterly.js + that country's target table (COUNTRY_TARGETS).
+//   --score                : scorecard only.
 import { createSim } from '../src/engine/sim.js';
 import { VALVES } from '../src/engine/valves.js';
 import { probe as valveProbe, setScenario as probeScenario, measuredLabel } from './valve_probe.mjs';
@@ -9,11 +12,13 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const verbose = process.argv.includes('--verbose');
+const ci = process.argv.indexOf('--country');
+const COUNTRY = (ci > 0 && process.argv[ci + 1] ? process.argv[ci + 1] : 'USA').toUpperCase();
 let fails = 0;
 const assert = (c, m) => { if (!c) { fails++; console.log('  FAIL:', m); } };
 
 function runAll(data, mode, takeoverAt, rate) {
-  const sim = createSim({ data, mode });
+  const sim = createSim({ data, mode, country: COUNTRY });
   const pauses = [];
   sim.on('pause', p => pauses.push({ date: sim.snapshot().date, p }));
   while (!sim.done) {
@@ -90,7 +95,7 @@ function check(name, data, mode) {
 
 function takeoverTest(name, data) {
   console.log(`\n=== takeover divergence (${name}) ===`);
-  const sim = createSim({ data, mode: 'history' });
+  const sim = createSim({ data, mode: 'history', country: COUNTRY });
   for (let i = 0; i < 40; i++) sim.step();
   sim.takeover('centralBank');
   const sug = sim.suggestion('centralBank');
@@ -103,13 +108,13 @@ function takeoverTest(name, data) {
   assert(Math.abs(u.assets.housing.price - m.assets.housing.price) > 0.1, 'house price diverges');
   console.log(`  t=${m.date} model house ${m.assets.housing.price.toFixed(1)} user ${u.assets.housing.price.toFixed(1)}; mortEff model ${(m.rates.mortgageEff * 100).toFixed(2)} user ${(u.rates.mortgageEff * 100).toFixed(2)}`);
   // branch must not change model path
-  const solo = createSim({ data, mode: 'history' });
+  const solo = createSim({ data, mode: 'history', country: COUNTRY });
   for (let i = 0; i < 60; i++) solo.step();
   assert(JSON.stringify(solo.snapshot('model')) === JSON.stringify(m), 'model branch unaffected by takeover');
   // rule toggle changes behaviour
-  const a = createSim({ data }); a.setRuleEnabled('bank_loosen', false);
+  const a = createSim({ data, country: COUNTRY }); a.setRuleEnabled('bank_loosen', false);
   for (let i = 0; i < 40; i++) a.step();
-  const b = createSim({ data });
+  const b = createSim({ data, country: COUNTRY });
   for (let i = 0; i < 40; i++) b.step();
   assert(a.snapshot().bank.approval !== b.snapshot().bank.approval || a.snapshot().assets.housing.price !== b.snapshot().assets.housing.price, 'rule toggle has effect');
   for (const pl of ['centralBank', 'government', 'bank', 'household', 'firm', 'investor', 'foreign']) {
@@ -424,8 +429,12 @@ function townChecks() {
 function cycleChecks(US_Q) {
   console.log('\n=== CYCLE DIALS: long (大周期) + short (小周期), timeline ===');
   const LORD = [1, 2, 5, 6, 7, 8];
-  const SNEXT = { expand: ['hotP', 'hotA', 'tight'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+  // allowed short moves (regimes.js 2026-10-29 redesign): hot -> ease / tight -> ease directly when the bank cuts; ease -> 过热·物价 skips 扩张 (2021)
+  const SNEXT = { expand: ['hotP', 'hotA', 'tight'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
   const isTop = k => k === 'hotP' || k === 'hotA';
+  // a short-cycle top: entering 过热, or 收紧 picking up the kind of top it is in (`via` set / re-labelled while the bank is already hiking)
+  const topAt = (h, i) => { const a = h[i].cycles.short, b = i > 0 ? h[i - 1].cycles.short : null;
+    return !!b && ((isTop(a.key) && a.key !== b.key) || (a.key === 'tight' && !!a.via && a.via !== b.via && !isTop(b.key))); };
   for (const mode of ['history', 'free']) {
     const h = runAll(US_Q, mode).sim.history();
     const lc = [], sc = [];
@@ -441,12 +450,13 @@ function cycleChecks(US_Q) {
     assert(cw, mode + ': cycle stages only move clockwise');
     const span = arr => arr.map((x, j) => `${x.date} ${x.label}${j + 1 < arr.length ? ' (' + (arr[j + 1].i - x.i) + 'q)' : ' (…end)'}`).join('\n      ');
     console.log(`  [${mode}] LONG stage changes: ${lc.length - 1}\n      ${span(lc)}`);
-    console.log(`  [${mode}] SHORT phase changes: ${sc.length - 1}  (tops: ${sc.filter(x => isTop(x.phase)).map(x => x.date + ' ' + x.phase).join(', ') || 'none'})`);
+    const tops = h.map((x, i) => (topAt(h, i) ? `${x.date} ${x.cycles.short.top || x.cycles.short.via}` : null)).filter(Boolean);
+    console.log(`  [${mode}] SHORT phase changes: ${sc.length - 1}  (tops: ${tops.join(', ') || 'none'})`);
     const pz = h.flatMap(s => s.pauses.map(q => q.code));
     assert(!pz.includes('RING_STAGE'), mode + ': no RING_STAGE pause any more');
     assert(pz.filter(c => c === 'LONG_STAGE').length === lc.length - 1, mode + ': one LONG_STAGE pause per long change');
     assert(!pz.includes('SHORT_FORK'), mode + ': no SHORT_FORK pause any more (B1/B2 belong to the long cycle)');
-    assert(pz.filter(c => c === 'SHORT_TOP').length === sc.filter(x => isTop(x.phase)).length, mode + ': one SHORT_TOP pause per short-cycle top');
+    assert(pz.filter(c => c === 'SHORT_TOP').length === tops.length, mode + `: one SHORT_TOP pause per short-cycle top (${pz.filter(c => c === 'SHORT_TOP').length} vs ${tops.length})`);
     const forks = h.filter((x, i) => x.cycles.long.fork === 'B2' && (i === 0 || h[i - 1].cycles.long.fork !== 'B2')).length;
     assert(pz.filter(c => c === 'LONG_FORK').length === forks, mode + ': one LONG_FORK pause per B2 fork entry');
     assert(h.every(x => ['expand', 'hot', 'tight', 'ease'].includes(x.cycles.short.phase)), mode + ': short phase is one of the 4 Dalio steps');
@@ -457,16 +467,174 @@ function cycleChecks(US_Q) {
       const at = d => h[US_Q.dates.indexOf(d)].cycles.long.stage;
       assert([1, 2].includes(at('2006Q4')), 'history: long stage 2006Q4 is 1 or 2: ' + at('2006Q4'));
       assert([5, 6, 7].includes(at('2012Q4')), 'history: long stage 2012Q4 is 5/6/7: ' + at('2012Q4'));
+      // >= 4 (was 6): entering ⑥ from ⑤ needs 4 quarters now (LONG_N_TO), every other move still 6
       const minDwell = Math.min(...lc.slice(0, -1).map((x, j) => lc[j + 1].i - x.i));
-      assert(lc.length < 2 || minDwell >= 6, 'history: every long stage lasts >= 6 quarters, min ' + minDwell);
-      assert(sc.some(x => isTop(x.phase)), 'history: the short cycle reaches a top');
-      const f01 = h.slice(US_Q.dates.indexOf('2000Q1'), US_Q.dates.indexOf('2003Q4') + 1);
+      assert(lc.length < 2 || minDwell >= 4, 'history: every long stage lasts >= 4 quarters, min ' + minDwell);
+      assert(tops.length > 0, 'history: the short cycle reaches a top');
+      const I = d => US_Q.dates.indexOf(d), win = (a, b) => h.slice(I(a), I(b) + 1);
+      const first = (pred, a, b) => { const k = win(a, b).findIndex(pred); return k < 0 ? null : US_Q.dates[I(a) + k]; };
+      const f01 = win('2000Q1', '2003Q4');
       assert(!f01.some(x => x.cycles.long.fork === 'B2'), 'history: 2000-03 easing works (no B2 fork)');
-      assert(h[US_Q.dates.indexOf('2008Q4')].cycles.short.handoff === 'no', 'history: 2008Q4 easing does not restart credit (handoff no)');
+      const back01 = first(x => x.cycles.short.phase === 'expand', '2001Q1', '2005Q4');
+      assert(back01 && I(back01) <= I('2004Q2'), 'history: 2001-03 推得动, back to 扩张 by 2004Q2: ' + back01);
+      assert(h[I('2008Q4')].cycles.short.handoff === 'no', 'history: 2008Q4 easing does not restart credit (handoff no)');
+      const no0812 = win('2008Q1', '2011Q4').filter(x => x.cycles.short.phase === 'ease' && (x.cycles.long.fork === 'B2' || [5, 6].includes(x.cycles.long.stage)));
+      assert(no0812.length >= 12 && no0812.every(x => x.cycles.short.handoff === 'no'), `history: 2008-12 推不动 (handoff 'no' in every ease quarter on B2 / ⑤ / ⑥: ${no0812.length} quarters)`);
+      const b2at = first(x => x.cycles.long.fork === 'B2', '1995Q1', '2025Q4'), s5 = first(x => x.cycles.long.stage === 5, '1995Q1', '2025Q4'), s6 = first(x => x.cycles.long.stage === 6, '1995Q1', '2025Q4');
+      assert(b2at && I(b2at) >= I('2007Q3') && I(b2at) <= I('2008Q4'), 'history: B2 fork in 2007Q3..2008Q4: ' + b2at);
+      assert(s5 && I(s5) >= I('2008Q3') && I(s5) <= I('2009Q4'), 'history: ⑤ entered in 2008Q3..2009Q4: ' + s5);
+      assert(s6 && I(s6) <= I('2010Q2'), 'history: ⑥ entered by 2010Q2 (TARP/QE1 2008Q4, ARRA 2009Q1; was 2010Q3 with N=6): ' + s6);
+      // the short dial against the real FOMC path (policy rate = cb_real_path in history mode; quarterly averages, so +-1 quarter)
+      const POL = h.map(x => x.rates.policy);
+      const HIKES = [['1999Q3', '2000Q2'], ['2004Q3', '2006Q2'], ['2016Q1', '2018Q4'], ['2022Q2', '2023Q3']];
+      const CUTS = [['2001Q1', '2003Q2'], ['2007Q4', '2008Q4'], ['2019Q3', '2020Q1'], ['2024Q4', null]];
+      for (const [a, b] of HIKES) {
+        assert(POL[I(b)] - POL[I(a) - 1] >= 0.005, `history: data check, policy rate rises ${a}->${b}`);
+        // +-1 quarter: a hiking quarter counts when the dial reads 收紧 then or one quarter later
+        const n = I(b) - I(a) + 1;
+        let hit = 0; for (let k = I(a); k <= I(b); k++) if (h[k].cycles.short.phase === 'tight' || h[k + 1].cycles.short.phase === 'tight') hit++;
+        assert(hit * 2 > n, `history: hiking ${a}->${b} reads 收紧 in most quarters (${hit}/${n})`);
+      }
+      for (const [a, b] of CUTS) {
+        assert(POL[I(a)] < POL[I(a) - 1] - 0.0005 || POL[I(a) + 1] < POL[I(a)] - 0.002, `history: data check, a cut at ${a}`);
+        const e = first(x => x.cycles.short.phase === 'ease', a, b || '2025Q4');
+        assert(e && I(e) <= I(a) + 1, `history: cutting from ${a}: 降息 within 1 quarter (${e})`);
+      }
+      const bad = h.map((x, k) => (k >= 2 && x.cycles.short.phase === 'ease' && (POL[k] - POL[k - 1] >= 0.001 || POL[k - 1] - POL[k - 2] >= 0.001) ? x.date : null)).filter(Boolean);
+      assert(bad.length === 0, 'history: no 降息 while the policy rate rose (>= 0.1pp) in the last 2 quarters: ' + (bad.join(',') || 'none'));
+      assert(h.every(x => x.cycles.short.phase !== 'tight' || /^收紧(·衰退|（加息）)/.test(x.cycles.short.label)), 'history: 收紧 label is 收紧·衰退 or 收紧（加息）');
+      assert(h.some(x => x.cycles.short.label.startsWith('收紧·衰退')) && h.some(x => x.cycles.short.label.startsWith('收紧（加息）')), 'history: both 收紧 sub-labels occur');
+      console.log('      FOMC check: hikes ' + HIKES.map(([a, b]) => a + '->' + b).join(', ') + ' | cuts from ' + CUTS.map(c => c[0]).join(', ') + ' | ease starts ' +
+        CUTS.map(([a, b]) => first(x => x.cycles.short.phase === 'ease', a, b || '2025Q4')).join(', '));
     }
     const s = h[h.length - 1];
     assert(s.cycles.long.evidence.length > 0 && s.cycles.short.evidence.length > 0 && s.cycles.long.since && s.cycles.short.nextSignal, mode + ': evidence / since / nextSignal present');
   }
+}
+
+// ---------------------------------------------------------------- border block (snap.border, WORLD-CONTRACT addendum)
+const BORDER_KEYS = ['exports', 'imports', 'netExports', 'fxPerUsd', 'fxChg4q', 'foreignBondBuy', 'foreignBondShare', 'reserveShareUsd'];
+function borderChecks(name, hist, cp) {
+  let bad = 0;
+  for (const s of hist) {
+    const b = s.border;
+    if (!b || !BORDER_KEYS.every(k => k in b)) { bad++; continue; }
+    if (Math.abs(b.netExports - (b.exports - b.imports)) > 1e-9 || !(b.exports >= 0) || !(b.imports >= 0) || !Number.isFinite(b.fxChg4q) || !Number.isFinite(b.foreignBondBuy)) bad++;
+    if (b.feedback !== !!cp.borderFeedback) bad++;
+    if (cp.iso === 'USA' && b.fxPerUsd !== 1) bad++;
+  }
+  assert(bad === 0, `${name}: snap.border present with contract keys and netExports = exports - imports (${bad} bad quarters)`);
+  const nx = hist.map(s => (s.border ? 4 * s.border.netExports / s.macro.gdpNominal : null));
+  const f0 = hist[0].border?.foreignBondShare, f1 = hist[hist.length - 1].border?.foreignBondShare;
+  console.log(`  border: feedback ${cp.borderFeedback ? 'ON' : 'off (flows reported only)'}; net exports/GDP start ${(nx[0] * 100).toFixed(1)}%, end ${(nx[nx.length - 1] * 100).toFixed(1)}%; foreign share of gov debt ${f0 ?? '-'} -> ${f1 ?? '-'}`);
+}
+
+// ---------------------------------------------------------------- per-country target tables (non-US). Same protocol as the US
+// scorecard: history mode, real policy path exogenous, no real outcomes fed in. Rows marked soft are printed, not counted.
+function scorecardAUS(data, hist) {
+  const S = data.series, D = data.dates, idx = d => D.indexOf(d);
+  const sl = (arr, a, b) => arr.slice(idx(a), idx(b) + 1);
+  const rows = [];
+  const add = (name, val, target, ok, soft = false) => rows.push({ name, val, target, ok, soft });
+  const maxDD = arr => { let pk = -Infinity, dd = 0; for (const x of arr) { pk = Math.max(pk, x); dd = Math.min(dd, x / pk - 1); } return dd; };
+  console.log('\n=== AUS CALIBRATION SCORECARD (real AUS_Q, history mode, no real outcomes fed in) ===');
+  const H = hist.map(s => s.assets.housing.price);
+  const dd08 = maxDD(sl(H, '2007Q1', '2009Q4'));
+  add('A1a no 2008 house bust (max dd 2007-09)', (dd08 * 100).toFixed(1) + '%', '>= -10%', dd08 >= -0.10);
+  const up = H[idx('2007Q4')] / H[0] - 1;
+  add('A1b house 1995->2007 rises', (up * 100).toFixed(0) + '%', '>= +80%', up >= 0.8);
+  const dd17 = maxDD(sl(H, '2017Q1', '2019Q4'));
+  add('A1c 2017-19 house dip', (dd17 * 100).toFixed(1) + '%', '-15%..-2%', dd17 <= -0.02 && dd17 >= -0.15);
+  if (S.houseIndex && S.houseIndex[D.length - 1] != null) {
+    const r = H[H.length - 1] / S.houseIndex[D.length - 1] - 1;
+    add('A1d end-2025 house vs real', `${H[H.length - 1].toFixed(0)} vs ${S.houseIndex[D.length - 1].toFixed(0)}`, 'within +-40%', Math.abs(r) <= 0.4);
+  }
+  const U = hist.map(s => s.macro.unemployment);
+  const u20 = Math.max(...sl(U, '2020Q1', '2021Q2'));
+  add('A2a unemployment 2020 spike', (u20 * 100).toFixed(1) + '%', '6.5..8.5% (real ~7.5%)', u20 >= 0.065 && u20 <= 0.085);
+  const u09 = Math.max(...sl(U, '2008Q3', '2010Q4'));
+  add('A2b unemployment peak 2009-10', (u09 * 100).toFixed(1) + '%', '5..6.8% (real 5.8%)', u09 >= 0.05 && u09 <= 0.068);
+  const uMid = Math.max(...sl(U, '2008Q1', '2016Q4'));
+  add('A2c max unemployment 2008-16', (uMid * 100).toFixed(1) + '%', '<= 7.0%', uMid <= 0.07);
+  const P = hist.map(s => s.macro.inflation);
+  const pi23 = Math.max(...sl(P, '2021Q1', '2023Q4')), iPi = idx('2021Q1') + sl(P, '2021Q1', '2023Q4').indexOf(pi23);
+  add('A3a inflation peak 2021-23', `${(pi23 * 100).toFixed(1)}% ${D[iPi]}`, '6..9.5% (real 7.8%)', pi23 >= 0.06 && pi23 <= 0.095);
+  const piAvg = sl(P, '2005Q1', '2007Q4').reduce((a, b) => a + b, 0) / 12;
+  add('A3b CPI avg 2005-07', (piAvg * 100).toFixed(1) + '%', '<= 4.0%', piAvg <= 0.04);
+  const hd = hist.map(s => s.debt.household / s.macro.gdpNominal);
+  const hdMax = Math.max(...sl(hd, '2015Q1', '2025Q4'));
+  add('A4a hh debt/GDP rises to ~120%', `max 2015-25 ${(hdMax * 100).toFixed(0)}% (start ${(hd[0] * 100).toFixed(0)}%)`, '105..135%', hdMax >= 1.05 && hdMax <= 1.35);
+  add('A4b hh debt/GDP 2007 above start', `${(hd[idx('2007Q4')] * 100).toFixed(0)}%`, '>= start + 20pp', hd[idx('2007Q4')] >= hd[0] + 0.2);
+  const DS = hist.map(s => s.household.dsr);
+  const dDs = DS[idx('2023Q4')] - DS[idx('2022Q2')];
+  add('A5a DSR 2022Q2->2023Q4 (variable rates)', `${(dDs * 100).toFixed(1)}pp`, '>= +2pp', dDs >= 0.02);
+  const dDs2 = DS[idx('2008Q3')] - DS[idx('2006Q1')];
+  add('A5b DSR 2006Q1->2008Q3 (hikes reach DSR)', `${(dDs2 * 100).toFixed(1)}pp`, '>= +1pp', dDs2 >= 0.01);
+  const CI = hist.map(s => s.extra.creditImpulse);
+  const ciMin = Math.min(...sl(CI, '2008Q1', '2010Q4'));
+  add('A5c credit impulse dips 2008-10', `min ${(ciMin * 100).toFixed(1)}pp`, 'min < 0', ciMin < 0);
+  const L = hist.map(s => s.cycles.long);
+  const five = L.findIndex(x => x.stage === 5), b2 = L.findIndex(x => x.fork === 'B2');
+  add('A6 no long-cycle ⑤ in 1995-2025', five >= 0 ? `⑤ at ${D[five]}` : 'never', 'never', five < 0);
+  add('A6b no B2 fork in 1995-2025', b2 >= 0 ? `B2 at ${D[b2]}` : 'never', 'never', b2 < 0, true);
+  if (S.equityIndex && S.equityIndex[0] != null) {
+    const E = hist.map(s => s.assets.equity.price), ch = (a, b) => E[idx(b)] / E[idx(a)] - 1;
+    let mq = 0; for (let t = 1; t < E.length; t++) mq = Math.max(mq, Math.abs(E[t] / E[t - 1] - 1));
+    add('A7a equity 2007Q4->2009Q1', (ch('2007Q4', '2009Q1') * 100).toFixed(0) + '%', '-55%..-25% (ASX ~-45%)', ch('2007Q4', '2009Q1') >= -0.55 && ch('2007Q4', '2009Q1') <= -0.25);
+    add('A7b max single-quarter equity move', (mq * 100).toFixed(0) + '%', '<= 25%', mq <= 0.25);
+    const er = E[E.length - 1] / S.equityIndex[D.length - 1] - 1;
+    add('A7c end-2025 equity vs real', `${E[E.length - 1].toFixed(0)} vs ${S.equityIndex[D.length - 1].toFixed(0)}`, 'within +-50%', Math.abs(er) <= 0.5);
+  }
+  // the cash-rate path is an INPUT in history mode: its shape is checked on the data (sanity), and the Taylor rule against it (soft)
+  const pr = S.policyRate, prMin = Math.min(...pr.filter(x => x != null)), prEnd = Math.max(...sl(pr, '2022Q1', '2025Q4'));
+  add('A8a data: cash 7.5% -> 0.1% -> peak 4.35%', `${(pr[0] * 100).toFixed(2)}% -> ${(prMin * 100).toFixed(2)}% -> ${(prEnd * 100).toFixed(2)}%`, 'input shape', pr[0] >= 0.07 && prMin <= 0.002 && prEnd >= 0.035, true);
+  const tay = (() => { const sim = createSim({ data, mode: 'history', country: COUNTRY }); sim.setRuleEnabled('cb_real_path', false); while (!sim.done) sim.step(); return sim.history().map(s => s.rates.policy); })();
+  const xs = pr.map((x, i) => [x, tay[i]]).filter(([x]) => x != null), mx = a => a.reduce((p, q) => p + q, 0) / a.length;
+  const ma = mx(xs.map(q => q[0])), mb = mx(xs.map(q => q[1]));
+  const corr = xs.reduce((p, [a, b]) => p + (a - ma) * (b - mb), 0) / Math.sqrt(xs.reduce((p, [a]) => p + (a - ma) ** 2, 0) * xs.reduce((p, [, b]) => p + (b - mb) ** 2, 0));
+  add('A8b Taylor path vs RBA cash rate (corr)', corr.toFixed(2), '>= 0.6', corr >= 0.6, true);
+  console.log('check'.padEnd(42) + 'value'.padEnd(34) + 'target'.padEnd(24) + 'result');
+  for (const r of rows) console.log(r.name.padEnd(42) + String(r.val).padEnd(34) + String(r.target).padEnd(24) + (r.ok ? 'PASS' : 'FAIL') + (r.soft ? ' (soft)' : ''));
+  const hard = rows.filter(r => !r.soft);
+  console.log(`  ${hard.filter(r => r.ok).length}/${hard.length} pass (soft rows not counted)`);
+  console.log('\nmodel/real    house        unemp%      infl%       DSR%        hhDebt/GDP%   policy%  10y%   nx/GDP%');
+  const g = (a, t, k = 100, d = 1) => (!a || a[t] == null ? ' - ' : (a[t] * k).toFixed(d));
+  for (let t = 0; t < hist.length; t += 8) {
+    const s = hist[t];
+    console.log(D[t].padEnd(10) + `${s.assets.housing.price.toFixed(0)}/${S.houseIndex?.[t] != null ? S.houseIndex[t].toFixed(0) : '-'}`.padEnd(13) + `${(U[t] * 100).toFixed(1)}/${g(S.unemployment, t)}`.padEnd(12) +
+      `${(P[t] * 100).toFixed(1)}/${g(S.cpiYoY, t)}`.padEnd(12) + `${(DS[t] * 100).toFixed(1)}/${g(S.hhDsr, t)}`.padEnd(12) +
+      `${(hd[t] * 100).toFixed(0)}/${g(S.hhDebtGdp, t, 100, 0)}`.padEnd(14) + `${(s.rates.policy * 100).toFixed(1)}`.padEnd(9) + `${(s.rates.gov10y * 100).toFixed(1)}`.padEnd(7) + `${(4 * s.border.netExports / s.macro.gdpNominal * 100).toFixed(1)}`);
+  }
+  return rows;
+}
+const COUNTRY_TARGETS = { AUS: scorecardAUS };
+
+if (COUNTRY !== 'USA') {
+  // ---- any other country: generic engine checks on its data + its target table
+  const { COUNTRY_PARAMS } = await import(pathToFileURL(join(root, 'src/data/country-params.js')).href);
+  const file = join(root, `src/data/countries/${COUNTRY.toLowerCase()}-quarterly.js`);
+  if (!existsSync(file)) { console.log(`no data yet: ${file}`); process.exit(2); }
+  const mod = await import(pathToFileURL(file).href), data = mod[`${COUNTRY}_Q`];
+  assert(!!data && data.dates.length === 124, `${COUNTRY}_Q exported with 124 quarters`);
+  assert(!!COUNTRY_PARAMS[COUNTRY], `COUNTRY_PARAMS.${COUNTRY} exists (otherwise the engine falls back to USA params)`);
+  const cp = COUNTRY_PARAMS[COUNTRY] || COUNTRY_PARAMS.USA;
+  const seedKeys = ['gdpNominal', 'hhDebtGdp', 'privateCreditGdp', 'govDebtGdp', 'mortgageRate', 'policyRate', 'cpiYoY', 'unemployment', 'gov10y'];
+  const miss = seedKeys.filter(k => !data.series[k] || data.series[k][0] == null);
+  console.log(`seed series missing at t=0 (engine falls back to ${COUNTRY} seed defaults): ${miss.join(', ') || 'none'}`);
+  assert(createSim({ data, country: COUNTRY }).country === COUNTRY, 'sim.country');
+  if (process.argv.includes('--score')) {
+    (COUNTRY_TARGETS[COUNTRY] || (() => console.log('no target table for ' + COUNTRY)))(data, runAll(data, 'history').sim.history());
+    process.exit(0);
+  }
+  const h = check(`real ${COUNTRY}_Q`, data, 'history');
+  borderChecks(`${COUNTRY} history`, h, cp);
+  if (COUNTRY_TARGETS[COUNTRY]) COUNTRY_TARGETS[COUNTRY](data, h);
+  const hf = check(`real ${COUNTRY}_Q`, data, 'free');
+  borderChecks(`${COUNTRY} free`, hf, cp);
+  freeScore(hf);
+  takeoverTest(`real ${COUNTRY}`, data);
+  console.log(fails ? `\n${fails} FAILURES` : '\nALL CHECKS PASSED');
+  process.exit(fails ? 1 : 0);
 }
 
 if (process.argv.includes('--score')) {
@@ -483,7 +651,10 @@ takeoverTest('fixture', FIXTURE_US_Q);
 const real = join(root, 'src/data/us-quarterly.js');
 if (existsSync(real)) {
   const { US_Q } = await import(pathToFileURL(real).href);
-  scorecard(US_Q, check('real US_Q', US_Q, 'history'));
+  const { COUNTRY_PARAMS } = await import(pathToFileURL(join(root, 'src/data/country-params.js')).href);
+  const hUS = check('real US_Q', US_Q, 'history');
+  borderChecks('US history', hUS, COUNTRY_PARAMS.USA);
+  scorecard(US_Q, hUS);
   freeScore(check('real US_Q', US_Q, 'free'));
   experiments(US_Q);
   lessonNumbers(US_Q);

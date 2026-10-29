@@ -1,25 +1,21 @@
 // Economy: seed, player decisions (rule-driven), quarterly settlement, snapshot builder.
 // State S is a flat plain object; K holds seed-calibrated constants (immutable).
+// Country-specific numbers (labour share, u*, inflation target, mortgage pricing/repricing, starting stocks, lamp bands, cycle
+// thresholds ...) live in src/data/country-params.js and reach the engine as K.cp (plus a few hot ones copied onto K, e.g. K.ws).
 import { RULE_BY_ID, ruleText as ruleTextOf } from './rules.js';
 import { computeLamps, detectRing, detectPauses, advanceCycles } from './regimes.js';
+import { countryParams } from '../data/country-params.js';
 
 export const DT = 0.25;
-export const WS = 0.66;          // labour-income share of nominal GDP
-export const USTAR = 0.055;      // natural unemployment (neutral)
-export const TARGET = 0.02;
 const TRANSFER_SHARE = 0.35;       // share of baseline government outlays that are transfers to households
-const STIM_TRANSFER_SHARE = 0.95;  // share of a discretionary stimulus (adj>0) delivered as transfers/tax cuts/relief      // inflation target
-// ---- tuned constants (see tools/engine_check.mjs scorecard)
-const MORT_REPRICE = 0.0992;      // quarterly speed at which the effective mortgage rate converges to the new-loan rate
-const RATE_SENS = 0.589;        // sensitivity of household borrowing demand to the real mortgage rate
-const WEALTH_MPC = 0.0192;      // consumption out of quarterly change in housing + equity wealth
-const GAP_SLOPE = 0.212;        // Phillips-curve slope when demand exceeds capacity
+const STIM_TRANSFER_SHARE = 0.95;  // share of a discretionary stimulus (adj>0) delivered as transfers/tax cuts/relief
+// ---- tuned constants (see tools/engine_check.mjs scorecard). Country-tuned ones (repricing speed, rate sensitivity,
+// wealth MPC, Phillips slope, mortgage share) moved to country-params.js.
 const EARN_EMA = 0.102;         // equity earnings index: EMA weight on current profit (investors price smoothed earnings)
 const ERP0 = 0.045, ERP_RP = 0.2, ERP_BAD = 0.171;  // equity risk premium = 4.5% + 0.2*(rp-4.5%) + 0.171*(bad loans-1.5%)
 const PE_FLOOR_DEN = 0.0375;    // floor of (yield + ERP - growth): caps the fundamental P/E near 27
 const PE_REV = 0.08, PE_MOM = 0.6;   // P/E reversion to fundamental / momentum of last change
 const PE_STEP = 0.17, PE_LO = 8, PE_HI = 40;   // per-quarter P/E move limit (+-17%) and P/E range
-const MORT_SHARE = 0.8;          // mortgage share of household debt
 const REG_TARGET = 0.075;        // capital ratio banks aim to hold (lending headroom)
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const pct = x => (x * 100).toFixed(1) + '%';
@@ -45,55 +41,91 @@ function gauss(rng) {
 }
 
 // ---------------------------------------------------------------- exogenous
-export function exogenous(data, t) {
+export function exogenous(data, t, cp = countryParams()) {
   const s = data.series, n = data.dates.length;
   const get = (k, i) => (s[k] && i >= 0 && i < n && s[k][i] != null ? s[k][i] : null);
+  // border series: the last known value at or before quarter i (free mode past the data holds it); null when the series is missing
+  const last = (k, i) => { if (!s[k]) return null; for (let j = Math.min(Math.max(0, i), n - 1); j >= 0; j--) if (s[k][j] != null) return s[k][j]; return null; };
+  // trailing mean of the last w known values (structural trade share: the cyclical swing comes from the model's own import leak)
+  const trail = (k, i, w) => { let a = 0, c = 0; for (let j = i - w + 1; j <= i; j++) { const x = last(k, j); if (x != null) { a += x; c++; } } return c ? a / c : null; };
   const oil = get('oilPrice', t), oil4 = get('oilPrice', t - 4);
   const g = get('gdpRealGrowthYoY', t);
   return {
     policyRate: get('policyRate', t),
     oilYoY: oil != null && oil4 != null ? oil / oil4 - 1 : 0,
-    // a collapse of real output far beyond a normal recession (yoy < -5%) is treated as a combined supply+demand shock
-    // (lockdown-type event); the depth beyond -5% is amplified x4 because one yoy number understates a one-quarter shutdown
-    shock: g != null ? 4 * Math.max(0, -0.05 - g) : 0,
+    // a collapse of real output far beyond a normal recession (yoy < cp.shockFloor, US -5%) is treated as a combined supply+demand
+    // shock (lockdown-type event); the depth beyond the floor is amplified (x4) because one yoy number understates a one-quarter shutdown
+    shock: g != null ? cp.shockMult * Math.max(0, cp.shockFloor - g) : 0,
     inData: t < n,
+    // border (国境线): trade shares of GDP, local currency per USD now and 4 quarters ago, share of government debt held abroad
+    exportsGdp: trail('exportsGdp', t, cp.tradeTrail), importsGdp: trail('importsGdp', t, cp.tradeTrail), fx: last('fxPerUsd', t), fx4: last('fxPerUsd', t - 4),
+    fShare: last('foreignGovHoldShare', t), fSharePrev: last('foreignGovHoldShare', t - 1), reserveShareUsd: last('reserveShareUsd', t),
+  };
+}
+
+// ---------------------------------------------------------------- border (国境线)
+// Export / import shares of GDP in force this quarter. Exports: data (held after it ends), else the country param.
+// Imports: data in history mode; the country param in free mode (the foreign_trade rule adds the demand-pressure response on top).
+function borderShares(K, ex, mode) {
+  const cp = K.cp;
+  return { x: ex.exportsGdp ?? cp.exportsGdp, m: mode === 'free' ? cp.importsGdp : (ex.importsGdp ?? cp.importsGdp) };
+}
+// snap.border (WORLD-CONTRACT addendum). Flows in local currency bn per quarter, like snap.flows. Reported for every country;
+// they move the macro path only when cp.borderFeedback (USA: false, so the US path is the calibrated one).
+function borderBlock(K, ex, mode, gdp, resp, foreignBuy, yFor, fxPush) {
+  const sh = borderShares(K, ex, mode);
+  const exports = sh.x * gdp * DT, imports = (sh.m + (resp || 0)) * gdp * DT;
+  return {
+    exports, imports, netExports: exports - imports,
+    fxPerUsd: ex.fx ?? (K.cp.iso === 'USA' ? 1 : null),
+    fxChg4q: ex.fx != null && ex.fx4 != null && ex.fx4 > 0 ? ex.fx / ex.fx4 - 1 : 0,
+    foreignBondBuy: foreignBuy,
+    foreignBondShare: ex.fShare,
+    reserveShareUsd: K.cp.iso === 'USA' ? (ex.reserveShareUsd ?? K.cp.reserveShareUsd) : null,
+    // extras (not in the contract list): does the border move the macro path, and by how much this quarter
+    feedback: !!K.cp.borderFeedback, foreignYield: yFor || 0, fxInflation: fxPush || 0,
   };
 }
 
 // ---------------------------------------------------------------- seed
+// opts.cp: country params (src/data/country-params.js; default USA). opts.HV0: housing stock override (town).
 export function seed(data, opts = {}) {
+  const cp = opts.cp || countryParams(), fb = cp.seed;
   const s = data.series, g0 = k => (s[k] && s[k][0] != null ? s[k][0] : null);
-  const gdp0 = g0('gdpNominal') ?? 7600;
-  const hhDG = g0('hhDebtGdp') ?? 0.65;
-  const priv = g0('privateCreditGdp') ?? 1.1;
+  const gdp0 = g0('gdpNominal') ?? fb.gdp0;
+  const hhDG = g0('hhDebtGdp') ?? fb.hhDebtGdp;
+  const priv = g0('privateCreditGdp') ?? fb.privateCreditGdp;
   const Dh = hhDG * gdp0;
   const Df = Math.max(0.25, priv - hhDG) * gdp0 * 0.8;
-  const Dg = (g0('govDebtGdp') ?? 0.5) * gdp0;
-  const mort0 = g0('mortgageRate') ?? 0.0765;
-  const policy0 = g0('policyRate') ?? 0.055;
-  const cpi0 = clamp(g0('cpiYoY') ?? 0.028, 0.01, 0.05);
-  const inc0 = WS * gdp0;
+  const Dg = (g0('govDebtGdp') ?? fb.govDebtGdp) * gdp0;
+  const mort0 = g0('mortgageRate') ?? fb.mortgageRate;
+  const policy0 = g0('policyRate') ?? fb.policyRate;
+  const cpi0 = clamp(g0('cpiYoY') ?? fb.cpiYoY, 0.01, 0.05);
+  const inc0 = cp.ws * gdp0;
   let dsr0 = g0('hhDsr');
   let alphaH;
-  if (dsr0 == null) { alphaH = 0.035; dsr0 = (mort0 + alphaH) * Dh / inc0; } // backfill: rate x debt / income
+  if (dsr0 == null) { alphaH = cp.alphaH; dsr0 = (mort0 + alphaH) * Dh / inc0; } // backfill: rate x debt / income
   else alphaH = Math.max(0.025, dsr0 * inc0 / Dh - mort0);
-  const u0 = g0('unemployment') ?? 0.056;
+  const u0 = g0('unemployment') ?? fb.unemployment;
   const p0 = { gdp0, Dh, Df, Dg, mort0, policy0, cpi0, inc0, dsr0, alphaH, u0 };
-  const gov10y0 = g0('gov10y') ?? 0.065;
+  const gov10y0 = g0('gov10y') ?? fb.gov10y;
   const rp0 = 0.045;
   const piE0 = cpi0;
   const peDen = Math.max(0.02, gov10y0 + rp0 - (piE0 + 0.02));
   const pe0 = 1 / peDen;
   const mortNew0 = mort0;
   const K = {
-    gdp0, inc0, dsr0, alphaH, alphaF: 0.10, HV0: MORT_SHARE * Dh / 0.38, rent0: 0, profit0: 0.10 * gdp0, mkt0: gdp0, pe0,
-    gBase: 0.04, gT: 0.022, c0: 0.15, s0: 0.07, tau0: 0.185, gr0: 0.185, fInj: 0.5,
+    gdp0, inc0, dsr0, alphaH, alphaF: 0.10, HV0: cp.mortShare * Dh / cp.lvr0, rent0: 0, profit0: 0.10 * gdp0, mkt0: cp.mktCapGdp * gdp0, pe0,
+    gBase: cp.gBase, gT: cp.gT, c0: cp.capexShare0, s0: cp.sav0, tau0: cp.taxGdp, gr0: cp.spendGdp, fInj: 0.5,
     a0: (alphaH + 0.05) * Dh / inc0, realMort0: mortNew0 - piE0, y0: Math.max(0.025, mortNew0 - piE0 + 0.01),
-    rfr0: gov10y0 * 0.5 + policy0 * 0.5 + 0.02 - piE0, spread: 0.017,
-    bondShare: 0.75, gold0: 0.06 * gdp0, kBondFlow: 0.3, kGoldFlow: 0.8, kEqFlow: 1.5,
+    rfr0: gov10y0 * 0.5 + policy0 * 0.5 + 0.02 - piE0, spread: cp.mortSpread,
+    bondShare: cp.bondShare, gold0: 0.06 * gdp0, kBondFlow: 0.3, kGoldFlow: 0.8, kEqFlow: 1.5,
+    // country params read in the hot path (copied for brevity); the rest is read through K.cp
+    cp, ws: cp.ws, uStar: cp.uStar, target: cp.piTarget, mortShare: cp.mortShare, mortReprice: cp.mortReprice,
+    rateSens: cp.rateSens, wealthMpc: cp.wealthMpc, gapSlope: cp.gapSlope,
   };
   if (opts.HV0) K.HV0 = opts.HV0;
-  K.rent0 = 0.05 * K.HV0;
+  K.rent0 = cp.rentYield0 * K.HV0;
   const Ystar = gdp0, P = 1;
   const pipelineQ = K.c0 * Ystar * DT;
   const B0 = Dh + Df;
@@ -101,20 +133,23 @@ export function seed(data, opts = {}) {
     t: 0, P, Ystar, capLoss: 0, shock: 0, Y: Ystar, gdp: gdp0, AD: gdp0, pi: cpi0, piE: piE0, piY: cpi0, u: u0,
     uHist: new Array(8).fill(u0), policy: policy0, emaPolicy: policy0, gov10y: gov10y0, mortNew: mortNew0, mortEff: mort0,
     firmEff: 0.5 * gov10y0 + 0.5 * policy0 + 0.02, govEff: gov10y0, rp: rp0, qeStock: 0, qeOn: false,
-    M: 0.55 * gdp0, Dh, Df, Dg, E: 0.10 * B0, approval: 1, bad: 0.012, badH: 0.012, badF: 0.012,
+    M: cp.moneyGdp * gdp0, Dh, Df, Dg, E: 0.10 * B0, approval: 1, bad: 0.012, badH: 0.012, badF: 0.012,
     H: 100, Hret: 0.01, inc: inc0, incPrev: inc0, pe: pe0, pePrev: pe0, earnIdx: 1, eqPrice: 100, eqRet: 0.01, eqCap: K.mkt0,
     bondPrice: 100, goldPrice: 100, cashPrice: 100, real10y: gov10y0 - piE0, HV: K.HV0,
-    pipeline: new Array(6).fill(pipelineQ / P), spendRatio: null, dsRatio: null, nxRatio: -0.03, sav: K.s0,
+    pipeline: new Array(6).fill(pipelineQ / P), spendRatio: null, dsRatio: null, nxRatio: cp.nx0, sav: K.s0,
     sm: 0.05 * B0 / gdp0, smH: [0.05 * B0 / gdp0, 0.05 * B0 / gdp0], impulse: 0, flowRatio: 0.05 * B0 / gdp0,
     adj: 0, capexMult: 1, pressure: 0, ovh: 0, dean: 0, Hpk: 100, nlH: inc0 * (((alphaH + 0.05) * Dh / inc0)) * DT, nlF: Df * (0.10 + 0.03) * DT,
     taxes: K.tau0 * gdp0, govSpend: K.gr0 * gdp0, interest: Dg * gov10y0, deficit: Dg * gov10y0, i2t: Dg * gov10y0 / (K.tau0 * gdp0),
-    deficitGdp: Dg * gov10y0 / gdp0, profit: 0.10 * gdp0, capex: K.c0 * gdp0, dsr: dsr0, lvr: MORT_SHARE * Dh / K.HV0,
+    deficitGdp: Dg * gov10y0 / gdp0, profit: 0.10 * gdp0, capex: K.c0 * gdp0, dsr: dsr0, lvr: cp.mortShare * Dh / K.HV0,
     Ph: new Array(5).fill(P), Hh: new Array(5).fill(100), Eh: new Array(5).fill(100), gdpH: new Array(5).fill(gdp0),
     dsrH: new Array(5).fill(dsr0), polH: new Array(5).fill(policy0), hpQPrev: 0,
-    bondFlow: 0, bondTR: 100, Gh: new Array(5).fill(100), distrust: 0, Mstart: 0.55 * gdp0, lastDiv: 0,
+    bondFlow: 0, bondTR: 100, Gh: new Array(5).fill(100), distrust: 0, Mstart: cp.moneyGdp * gdp0, lastDiv: 0,
     ringProbs: null, ringStage: 1, mem: { last: {}, outBand: false, ciSign: 0, falling: false, dsrRed: false, capLow: false, i2t: false, stage: null },
     flows: null, wealthPrev: K.HV0 + K.mkt0,
   };
+  K.f0 = exogenous(data, 0, cp).fShare;   // share of government debt held abroad at the start (foreign-yield effect is measured from it)
+  if (cp.borderFeedback) S.nxRatio = null;  // border feeds back: the first quarter has no "previous" net-export ratio (no jump at t=1)
+  S.border = borderBlock(K, exogenous(data, 0, cp), opts.mode || 'history', gdp0, 0, 0, 0, 0);
   S.v = makeView(S, K);
   return { S, K, p0 };
 }
@@ -136,7 +171,7 @@ function makeView(S, K) {
     hpYoY, hpQ: S.Hret, hpQPrev: S.hpQPrev, eqYoY: S.t >= 4 ? S.eqPrice / eq4 - 1 : 0, piY,
     pressure: S.pressure ?? 0, ci: S.impulse, pcg: 4 * netCredit / B, dsr: S.dsr, dsr0: K.dsr0, dDsr4: S.dsr - S.dsrH[0],
     bad: S.bad, capR: S.E / B, dd: 1 - S.H / (S.Hpk ?? S.H), u: S.u, adj: S.adj, qeOn: S.qeOn, gr: (S.t >= 4 ? gdpYoY : 0.04) - S.gov10y,
-    PI: 4 * (S.H / 100) / (S.inc / K.inc0), PIrel: (S.H / 100) / (S.inc / K.inc0), peRel: S.pe / K.pe0,
+    PI: K.cp.pi0 * (S.H / 100) / (S.inc / K.inc0), PIrel: (S.H / 100) / (S.inc / K.inc0), peRel: S.pe / K.pe0,
     realP: S.policy - piY, policy: S.policy, dPol4: S.policy - S.polH[0], i2t: S.i2t, lvr: S.lvr,
     goldYoY: S.t >= 4 ? S.goldPrice / S.Gh[0] - 1 : 0,
   };
@@ -160,10 +195,10 @@ const cnd = (name, value, dir, threshold, fmt = 'pct', term) => ({ name, value, 
 export function ruleBasedPolicy(S, K, ex, env) {
   const v = S.v;
   if (env.mode === 'history' && env.en('cb_real_path') && ex.policyRate != null)
-    return { policy: ex.policyRate, ruleId: 'cb_real_path', text: '真实联储路径（外生）' };
+    return { policy: ex.policyRate, ruleId: 'cb_real_path', text: `真实${K.cp.cbName}路径（外生）` };
   if (env.en('cb_taylor')) {
     const p = env.P('cb_taylor');
-    const gap = (USTAR - S.u) * 2;
+    const gap = (K.uStar - S.u) * 2;
     const priv = (S.Dh + S.Df) / S.gdp;
     const rStar = p.rStar - p.debtDrag * Math.max(0, priv - p.debtBase);   // 债务棘轮：私人债务越重，中性利率越低
     const tgt = rStar + v.piY + p.wInfl * (v.piY - p.target) + p.wGap * gap;
@@ -251,7 +286,7 @@ export function decideAll(S, K, ex, env) {
         } else if (adj < 0) {
           adj = Math.min(0, adj + p.unwind);   // 紧缩结束后财政立场逐步回到中性
         } else if (adj > 0) {
-          const rec = S.u - USTAR < 0.015 && v.pressure > -0.01;
+          const rec = S.u - K.uStar < 0.015 && v.pressure > -0.01;
           const na = Math.max(0, adj - (rec ? p.unwind * 2 : p.unwind));
           if (adj - na > 0.003) entries.push(mkEntry(S, 'government', 'gov_stimulus', `景气${rec ? '恢复' : '趋稳'}：失业率 ${pct(S.u)}`, '景气稳定 → 逐步收回财政支持', `财政注入 ${pct(adj)} → ${pct(na)} GDP/年`,
             { immediate: '政府支出下降', delayed: '赤字收窄；若私人部门未恢复则需求回落' }));
@@ -266,7 +301,7 @@ export function decideAll(S, K, ex, env) {
       const p = P('gov_bank_recap');
       if (v.capR < p.cap) {
         dec.recap = p.rate * (p.target - v.capR) * (S.Dh + S.Df);
-        entries.push(mkEntry(S, 'government', 'gov_bank_recap', `银行资本充足率 ${pct(v.capR)}，坏账率 ${pct(v.bad)}`, null, `政府注资银行 ${dec.recap.toFixed(0)} 亿美元（计入政府债务），目标资本充足率 ${pct(p.target)}`,
+        entries.push(mkEntry(S, 'government', 'gov_bank_recap', `银行资本充足率 ${pct(v.capR)}，坏账率 ${pct(v.bad)}`, null, `政府注资银行 ${dec.recap.toFixed(0)} ${K.cp.ccyUnit}（计入政府债务），目标资本充足率 ${pct(p.target)}`,
           { cond: [cnd('银行资本充足率', v.capR, '<=', p.cap, 'pct', 'bankCapital')] }));
       }
     }
@@ -411,8 +446,14 @@ export function decideAll(S, K, ex, env) {
 
   // ---- foreign
   {
-    let nx = -0.03, termAdd = 0;
-    if (en('foreign_trade')) nx = -0.03 - P('foreign_trade').k * clamp(v.pressure, -0.1, 0.1);
+    // net exports / GDP = exports - imports. The foreign_trade rule is the import leak's response to demand pressure (resp).
+    // Without border feedback the level is the old constant nx0 (only CHANGES of nx move demand, so a constant level is neutral).
+    const sh = borderShares(K, ex, env.mode);
+    const resp = en('foreign_trade') ? P('foreign_trade').k * clamp(v.pressure, -0.1, 0.1) : 0;
+    const nxBase = K.cp.borderFeedback ? sh.x - sh.m : K.cp.nx0;
+    let nx = nxBase, termAdd = 0;
+    if (en('foreign_trade')) nx = nxBase - resp;
+    dec.nxResp = resp;
     if (en('foreign_funding')) {
       const p = P('foreign_funding');
       if (S.deficitGdp > p.def && v.piY > p.pi) {
@@ -447,35 +488,40 @@ export function settle(S0, K, ex, dec, env) {
   S.qeStock = S0.qeStock + qe;
   S.emaPolicy = S0.emaPolicy + (dl ? 0.12 : 1) * (S.policy - S0.emaPolicy);
   const fiscalRisk = 0.08 * Math.max(0, S0.i2t - 0.2);
-  const yPath = 0.55 * S.emaPolicy, yInfl = 0.45 * (S0.piE + 0.02), yTerm = 0.008 + fiscalRisk + dec.termAdd, yQe = -Math.min(0.012, 0.15 * S.qeStock / S0.gdp);
-  S.gov10y = clamp(yPath + yInfl + yTerm + yQe, 0.005, 0.15);
-  S.yParts = { expectedPath: yPath, inflationRisk: yInfl, termPremium: yTerm, qe: yQe };
+  const yPath = 0.55 * S.emaPolicy, yInfl = 0.45 * (S0.piE + 0.02), yTerm = K.cp.termPrem0 + fiscalRisk + dec.termAdd, yQe = -Math.min(0.012, 0.15 * S.qeStock / S0.gdp);
+  // foreigners' holdings of government bonds (border): more held abroad than at the start lowers the 10y slightly (capped at 1pp)
+  const fb = K.cp.borderFeedback;
+  const yFor = fb && ex.fShare != null && K.f0 != null ? clamp(-K.cp.kForeignYield * (ex.fShare - K.f0), -0.01, 0.01) : 0;
+  S.gov10y = clamp(yPath + yInfl + yTerm + yQe + yFor, 0.005, 0.15);
+  S.yParts = { expectedPath: yPath, inflationRisk: yInfl, termPremium: yTerm, qe: yQe, ...(fb ? { foreign: yFor } : {}) };
   const rpT = 0.04 + Math.max(0, S0.bad - 0.015) + 1.2 * Math.max(0, -S0.impulse) + 0.15 * Math.max(0, S0.u - 0.06) - 0.03 * S.qeStock / S0.gdp;
   S.rp = clamp(S0.rp + 0.4 * (rpT - S0.rp), 0.025, 0.11);
   S.approval = dec.approval; S.capexMult = dec.capexMult; S.adj = dec.adj;
   const mAdj = 0.015 * (1 - S.approval) + 0.2 * Math.max(0, S0.bad - 0.02);
-  S.mortNew = 0.75 * (S.gov10y + K.spread) + 0.25 * (S.policy + 0.035) + mAdj; // 25% floating-rate / short-reset share
-  S.mortEff = S0.mortEff + (dl ? MORT_REPRICE : 1) * (S.mortNew - S0.mortEff);
+  // new-loan mortgage rate: the fixed-rate share prices off the 10y, the rest floats with the policy rate (US: 25% floating / short-reset)
+  const mf = K.cp.mortFixed;
+  S.mortNew = mf * (S.gov10y + K.spread) + (1 - mf) * (S.policy + K.cp.mortVarSpread) + mAdj;
+  S.mortEff = S0.mortEff + (dl ? K.mortReprice : 1) * (S.mortNew - S0.mortEff);
   const firmNew = 0.5 * S.gov10y + 0.5 * S.policy + 0.02 + 0.1 * Math.max(0, S0.bad - 0.02);
   S.firmEff = S0.firmEff + (dl ? 0.15 : 1) * (firmNew - S0.firmEff);
   S.govEff = S0.govEff + (dl ? 0.06 : 1) * (S.gov10y - S0.govEff);
   const rFirmReal = S.firmEff - S0.piE;
 
   // 2. saving, income
-  const inc = WS * S0.gdp;
-  const sT = clamp(K.s0 + 1.0 * (S0.u - USTAR) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj, 0.01, 0.2);
+  const inc = K.ws * S0.gdp;
+  const sT = clamp(K.s0 + 1.0 * (S0.u - K.uStar) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj, 0.01, 0.2);
   S.sav = S0.sav + (dl ? 0.5 : 1) * (sT - S0.sav);
 
   // 3. credit: min(demand, LVR cap, DSR cap, capital cap) x approval
   const hpY = v0.hpYoY;
   const tractionLoss = env.en('hh_overhang') ? env.P('hh_overhang').traction * dec.ovh : 0;   // 悬压越大，利率传导越弱
-  const demHr = clamp(K.a0 + 0.25 * hpY - RATE_SENS * (1 - tractionLoss) * ((S.mortNew - S0.piE) - K.realMort0), 0.04, 0.15);
+  const demHr = clamp(K.a0 + 0.25 * hpY - K.rateSens * (1 - tractionLoss) * ((S.mortNew - S0.piE) - K.realMort0), 0.04, 0.15);
   const demH = inc * demHr * dec.borrowMult * dt;
   const HV0prev = K.HV0 * S0.H / 100;
   const lvrMax = env.P('bank_lvr_cap').lvrMax + 0.10 * (S.approval - 1);
   const lvrFloor = env.en('bank_tighten_collateral') ? env.P('bank_tighten_collateral').floor : 0;   // 合格购房者始终存在
-  const lvrCap = Math.max(lvrFloor * demH, Math.max(0, lvrMax * HV0prev - MORT_SHARE * S0.Dh) * 0.4);
-  const dsrMax = K.dsr0 + 0.06 + 0.03 * (S.approval - 1);
+  const lvrCap = Math.max(lvrFloor * demH, Math.max(0, lvrMax * HV0prev - K.mortShare * S0.Dh) * 0.4);
+  const dsrMax = K.dsr0 + K.cp.dsrRoom + 0.03 * (S.approval - 1);   // banks lend until DSR is dsrRoom above its start (US 6pp)
   const dsrCap = Math.max(0, dsrMax - S0.dsr) * inc / (S.mortNew + K.alphaH) * 0.3;
   const nlH0 = Math.min(demH, lvrCap, dsrCap);
   const demFr = clamp(K.alphaF + 0.03 + 1.0 * clamp(v0.pressure, -0.1, 0.1) - 1.5 * (rFirmReal - 0.04), 0, 0.25);
@@ -505,9 +551,9 @@ export function settle(S0, K, ex, dec, env) {
   S.E = Math.max(0.01 * B1, S0.E + net - payout * Math.max(0, net)) + dec.recap;
 
   // 4. fiscal
-  const tauR = K.tau0 - 0.8 * (S0.u - USTAR) * K.tau0 * 1.0;
+  const tauR = K.tau0 - 0.8 * (S0.u - K.uStar) * K.tau0 * 1.0;
   const taxes_a = tauR * S0.gdp;
-  const primaryRatio = K.gr0 + S.adj + 0.4 * (S0.u - USTAR);
+  const primaryRatio = K.gr0 + S.adj + 0.4 * (S0.u - K.uStar);
   const primary_a = primaryRatio * S0.gdp;
   const interest_a = S0.Dg * S.govEff;
   const deficit_a = interest_a + primary_a - taxes_a;
@@ -518,7 +564,7 @@ export function settle(S0, K, ex, dec, env) {
   //   transfers      = households' branch (benefits, tax cuts, relief): 35% of baseline outlays + automatic stabiliser 0.4*(u-u*) (all benefits)
   //                    + discretionary stance adj: 95% transfers when adj>0 (stimulus episodes: cheques, relief), 35% when adj<0 (cuts)
   //   govPurchases   = primary outlays - transfers (orders to firms / goods channel)
-  const trBase = TRANSFER_SHARE * K.gr0 * S0.gdp, trAuto = 0.4 * (S0.u - USTAR) * S0.gdp, trDisc = (S.adj > 0 ? STIM_TRANSFER_SHARE : TRANSFER_SHARE) * S.adj * S0.gdp;
+  const trBase = TRANSFER_SHARE * K.gr0 * S0.gdp, trAuto = 0.4 * (S0.u - K.uStar) * S0.gdp, trDisc = (S.adj > 0 ? STIM_TRANSFER_SHARE : TRANSFER_SHARE) * S.adj * S0.gdp;
   const transfers_a = clamp(trBase + trAuto + trDisc, 0, Math.max(0, primary_a));
   const govPurchases_a = primary_a - transfers_a;
   S.taxes = taxes_a; S.govSpend = primary_a + interest_a; S.interest = interest_a; S.deficit = deficit_a;
@@ -561,11 +607,11 @@ export function settle(S0, K, ex, dec, env) {
   const intDebtQ = (S.mortEff + K.alphaH) * S0.Dh * dt + (S.firmEff + K.alphaF) * S0.Df * dt;
   const dsRatio = 4 * intDebtQ / S0.AD;
   const HVnew = null; // placeholder (computed after housing); wealth effect uses last quarter change to avoid simultaneity
-  const wealthSpend = WEALTH_MPC * (S0.HV + S0.eqCap - S0.wealthPrev);
+  const wealthSpend = K.wealthMpc * (S0.HV + S0.eqCap - S0.wealthPrev);
   const spendRatio = 4 * (0.35 * consCredit + capex_q + primary_a * dt + wealthSpend) / S0.AD;
   const nxRatio = dec.nx;
   const d = (a, b) => (b == null ? 0 : a - b);
-  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - WS * (S.sav - S0.sav) - 0.4 * v0.pressure * dt;
+  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - K.ws * (S.sav - S0.sav) - 0.4 * v0.pressure * dt;
   S.spendRatio = spendRatio; S.dsRatio = dsRatio; S.nxRatio = nxRatio;
   S.AD = S0.AD * (1 + gNom) * demandShockF;
 
@@ -575,8 +621,12 @@ export function settle(S0, K, ex, dec, env) {
   const pressure = Dreal / capEff - 1;
   S.pressure = pressure;
   const oilPush = env.en('firm_oil_passthrough') ? env.P('firm_oil_passthrough').k * clamp(ex.oilYoY, env.P('firm_oil_passthrough').lo, env.P('firm_oil_passthrough').hi) : 0;
-  const gapTerm = pressure > 0 ? GAP_SLOPE * pressure + 5 * pressure * pressure : 0.12 * pressure;
-  const raw = S0.piE + gapTerm + oilPush;
+  const gapTerm = pressure > 0 ? K.gapSlope * pressure + 5 * pressure * pressure : 0.12 * pressure;
+  // FX pass-through (border): a weaker currency raises import prices; push = fxPass x import share x change vs 4 quarters ago
+  const shB = borderShares(K, ex, env.mode);
+  const fxChg = ex.fx != null && ex.fx4 != null && ex.fx4 > 0 ? ex.fx / ex.fx4 - 1 : 0;
+  const fxPush = fb ? K.cp.fxPass * shB.m * clamp(fxChg, -0.3, 0.3) : 0;
+  const raw = S0.piE + gapTerm + oilPush + fxPush;
   S.pi = 0.5 * S0.pi + 0.5 * raw;
   S.P = S0.P * (1 + S.pi * dt);
   S.Y = Math.min(S.AD / S.P, capEff);
@@ -587,16 +637,16 @@ export function settle(S0, K, ex, dec, env) {
     const p = env.P('hh_infl_deanchor');
     S.dean = 0.8 * S0.dean + 0.2 * clamp((S.piY - p.pi) / 0.03, 0, 1);
     const gapPi = S.piY - S0.piE;
-    S.piE = S0.piE + (p.speed + p.extra * S.dean) * (gapPi > 0 ? 1 : p.down) * gapPi + p.anchor * (1 - S.dean) * (TARGET - S0.piE);
+    S.piE = S0.piE + (p.speed + p.extra * S.dean) * (gapPi > 0 ? 1 : p.down) * gapPi + p.anchor * (1 - S.dean) * (K.target - S0.piE);
   } else {
     S.dean = 0;
-    S.piE = S0.piE + 0.08 * (S.piY - S0.piE) + 0.03 * (TARGET - S0.piE);
+    S.piE = S0.piE + 0.08 * (S.piY - S0.piE) + 0.03 * (K.target - S0.piE);
   }
   const slack = 1 - S.Y / S.Ystar;
-  const uT = USTAR - 0.15 * clamp(pressure, 0, 0.08) + 0.6 * Math.max(0, slack);
+  const uT = K.uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack);
   S.u = S0.u + 0.5 * (uT - S0.u);
   S.uHist.push(S.u); S.uHist.shift();
-  S.inc = WS * S.gdp; S.incPrev = S0.inc;
+  S.inc = K.ws * S.gdp; S.incPrev = S0.inc;
 
   // 9. profits, bad loans, DSR, LVR
   S.profit = S.gdp * (0.13 + 0.6 * clamp(pressure, -0.1, 0.1)) - S.firmEff * S.Df;
@@ -615,7 +665,7 @@ export function settle(S0, K, ex, dec, env) {
     valPull = -p.k * Math.max(0, Math.log(((S0.H / 100) / incRatio) / p.ceil)) * dt;
   }
   const mom = env.en('inv_momentum') && dl ? env.P('inv_momentum').hpMom * S0.Hret : 0;
-  const creditPush = 0.4 * (toHousing - MORT_SHARE * repayH) / HVprev - 0.0025;
+  const creditPush = 0.4 * (toHousing - K.mortShare * repayH) / HVprev - 0.0025;
   let forced = 0;
   if (env.en('hh_forced_sales')) {
     const p = env.P('hh_forced_sales');
@@ -632,20 +682,21 @@ export function settle(S0, K, ex, dec, env) {
   S.H = S0.H * Math.exp(hrC);
   S.Hh.push(S.H); S.Hh.shift();
   S.HV = K.HV0 * S.H / 100;
-  S.lvr = MORT_SHARE * S.Dh / S.HV;
+  S.lvr = K.mortShare * S.Dh / S.HV;
   const rent = K.rent0 * (S.inc / K.inc0);
   const rentYield = rent / S.HV;
   const housingRet = (Math.exp(hrC) - 1) + rentYield * dt * 0.8;
 
   // bad-loan dynamics
-  const badHt = 0.012 + 0.5 * Math.max(0, S.dsr - K.dsr0) + 0.8 * Math.max(0, S.lvr - 0.42) + 0.35 * Math.max(0, S.u - 0.06);
+  const badHt = 0.012 + K.cp.badDsr * Math.max(0, S.dsr - K.dsr0) + 0.8 * Math.max(0, S.lvr - K.cp.lvrBad) + 0.35 * Math.max(0, S.u - 0.06);
   const badFt = 0.012 + 0.3 * Math.max(0, S.u - 0.06) + 0.25 * Math.max(0, -pressure - 0.02);
   S.badH = 0.7 * S0.badH + 0.3 * badHt; S.badF = 0.7 * S0.badF + 0.3 * badFt;
   S.bad = (S.badH * S.Dh + S.badF * S.Df) / B1;
 
   // 11. equity, bond, gold, cash
   const profitQ = S.profit;
-  S.earnIdx = (1 - EARN_EMA) * S0.earnIdx + EARN_EMA * profitQ / K.profit0;
+  // earnings PER SHARE: aggregate profit diluted by net new share issuance (cp.eqDilution per year; US 0, the index is price-only)
+  S.earnIdx = (1 - EARN_EMA) * S0.earnIdx + EARN_EMA * profitQ / K.profit0 / Math.pow(1 + K.cp.eqDilution, S.t * DT);
   // equity risk premium: only a fraction of the credit-spread-like swings in `rp` reaches equities, plus a slow bank-stress term (bad loans peak late)
   const erp = ERP0 + ERP_RP * (S.rp - 0.045) + ERP_BAD * Math.max(0, S.bad - 0.015);
   const peF = 1 / Math.max(PE_FLOOR_DEN, S.gov10y + erp - (S0.piE + 0.02));
@@ -665,7 +716,10 @@ export function settle(S0, K, ex, dec, env) {
   // + inflation compensation (S.yParts); flows add a transient flight-to-safety / QE pressure that mean-reverts.
   const dy = S.gov10y - S0.gov10y;
   const bondPxRet = -8 * dy + 0.5 * 90 * dy * dy;
-  S.bondFlow = 0.8 * S0.bondFlow + K.kBondFlow * toBond / Math.max(1, K.bondShare * S0.Dg * S0.bondPrice / 100);
+  // foreigners' net purchases of government bonds (border): a flow into the bond pool from abroad. It is a PIPE (not new water):
+  // it never enters toBond / M. It adds price pressure on the bond pool only when the border feeds back.
+  const foreignBuy = ex.fShare != null && ex.fSharePrev != null ? ex.fShare * S.Dg - ex.fSharePrev * S0.Dg : 0;
+  S.bondFlow = 0.8 * S0.bondFlow + K.kBondFlow * (fb ? toBond + foreignBuy : toBond) / Math.max(1, K.bondShare * S0.Dg * S0.bondPrice / 100);
   const bondFlowRet = S.bondFlow - S0.bondFlow;
   const bondCoupon = S0.gov10y * dt;
   const bondRet = bondPxRet + bondFlowRet + bondCoupon;
@@ -699,7 +753,7 @@ export function settle(S0, K, ex, dec, env) {
   S.smH = [S0.smH[1], S.sm];
 
   // flows block
-  const wages = WS * S.gdp * dt, profits = Math.max(0, S.profit) * dt, taxesQ = taxes_a * dt;
+  const wages = K.ws * S.gdp * dt, profits = Math.max(0, S.profit) * dt, taxesQ = taxes_a * dt;
   S.flows = {
     newLoans, principalRepay, interestPaid: intDebtQ, fiscalInjection, qe,
     toHousing, toFinancial, toEquity, toBond, toGold, toConsumption, toCapex, toCash,
@@ -712,6 +766,7 @@ export function settle(S0, K, ex, dec, env) {
   };
 
   // view for the next quarter / detectors
+  S.border = borderBlock(K, ex, env.mode, S.gdp, dec.nxResp, foreignBuy, yFor, fxPush);
   S.v = makeView(S, K);
 
   // ledger: exogenous shock events
@@ -749,6 +804,7 @@ export function settle(S0, K, ex, dec, env) {
       { factor: '需求超过产能（缺口）', contribution: 0.5 * gapTerm },
       { factor: '油价/供给冲击', contribution: 0.5 * oilPush },
       { factor: '上季惯性（粘性）', contribution: 0.5 * S0.pi },
+      ...(fb ? [{ factor: '汇率/进口价格', contribution: 0.5 * fxPush }] : []),
     ],
   };
   const cutH = demH - nlH0;
@@ -771,18 +827,18 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
   let lamps, ring, pauses, cycles;
   if (base) { lamps = base.lights; ring = base.ring; pauses = base.pauses; cycles = base.cycles; }
   else {
-    lamps = computeLamps(v);
+    lamps = computeLamps(v, K.cp);
     ring = detectRing(v, S.ringProbs);
     S.ringProbs = ring.probs; S.ringStage = ring.stage;
     // two dials (long / short debt cycle): state machine carried in S.cyc (replaced, never mutated)
     const cy = advanceCycles(S.cyc || null, {
       ...v, pvt: (S.Dh + S.Df) / S.gdp, gov: S.Dg / S.gdp, qeGdp: S.qeStock / S.gdp, defGdp: S.deficitGdp ?? 0,
       gap: S.Y / (S.Ystar * (1 - S.capLoss)) - 1,
-    }, S.t, dateOf(S, S.t));
+    }, S.t, dateOf(S, S.t), K.cp.cycle);
     S.cyc = cy.state; cycles = cy.out;
-    pauses = S.t > 0 ? detectPauses(v, S.mem, S.t, S.scenario === 'town' ? [] : cy.events) : [];
+    pauses = S.t > 0 ? detectPauses(v, S.mem, S.t, S.scenario === 'town' ? [] : cy.events, K.cp) : [];
   }
-  const f = S.flows || zeroFlows(S);
+  const f = S.flows || zeroFlows(S, K);
   // water budget: pumps create water, drains destroy it, pipes (everything else) only move it. Exact identity: M_after - M_before = net
   const pumpedIn = { loans: S.flows ? f.newLoans : 0, qe: S.flows ? f.qe : 0, deficit: S.flows ? f.fiscalInjection : 0 };
   const drainedOut = { repay: S.flows ? f.principalRepay : 0, surplus: S.flows ? f.govSurplusDrain : 0, qt: S.flows ? f.qt : 0 };
@@ -816,6 +872,7 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
       gold: { price: S.goldPrice, ret: gr, realRet: real(gr), level: K.gold0 * S.goldPrice / 100, distrust: S.distrust },
     },
     flows: { ...f },
+    border: S.scenario === 'town' || !S.border ? null : { ...S.border },
     budget, iou,
     scenario: S.scenario || 'us',
     lights: lamps,
@@ -829,11 +886,11 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
   };
 }
 
-function zeroFlows(S) {
+function zeroFlows(S, K) {
   const B = S.Dh + S.Df;
   const nl = (0.05 + 0.04) * B * DT, rep = 0.04 * B * DT;
   return { newLoans: nl, principalRepay: rep, interestPaid: 0.075 * B * DT, fiscalInjection: 0.5 * S.deficit * DT, qe: 0,
     toHousing: nl * 0.5, toFinancial: nl * 0.1, toEquity: nl * 0.06, toBond: nl * 0.03, toGold: nl * 0.01, toConsumption: nl * 0.25, toCapex: nl * 0.1, toCash: nl * 0.05,
-    wages: WS * S.gdp * DT, profits: S.profit * DT, taxes: S.taxes * DT, spillToGoods: nl * 0.3, fiscalDrain: 0, govSurplusDrain: 0, qt: 0, writeoff: 0,
+    wages: K.ws * S.gdp * DT, profits: S.profit * DT, taxes: S.taxes * DT, spillToGoods: nl * 0.3, fiscalDrain: 0, govSurplusDrain: 0, qt: 0, writeoff: 0,
     rent: 0, dividends: 0, coupons: S.interest * DT, govPurchases: 0, transfers: 0 };
 }

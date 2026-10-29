@@ -2,6 +2,7 @@
 // Diagram elements carry data-part="<part ids>" (groups/rects/texts) and data-pipe="<flow key>" (pipe + chip).
 // Part ids: bank pool repay household firm channel cash centralBank government capex interest
 //   v2 additions: poolHousing poolEquity poolBond poolGold (pool = group of the 4), budget (水量平衡条 + legend), iou (欠条箱), springs, valves
+// Pipe keys (v3, 国境线): exports imports foreignBonds   part id: border
 // Pipe keys: newLoans principalRepay interestPaid qe fiscalInjection taxes toHousing toEquity toBond toGold toCash toConsumption wages profits
 //   toCapex spillToGoods rent dividends coupons qt govSurplusDrain collateral   ('toFinancial' is an alias of toEquity+toBond+toGold)
 // Tab ids (only used for lesson unlocking): ledger cycle assets takeover
@@ -137,10 +138,16 @@ export const CONCEPT_TARGETS = {
   lampDebtService: { self: ['n:household', 'p:interestPaid', 'p:principalRepay'], note: '家庭方块的 DSR，加上「付息」「还本」管道' },
   lampPolicy:      { self: ['t:policyRate', 'v:policyRate'], note: '央行的「政策利率」' },
   lampValuation:   { self: ['n:poolEquity', 'n:poolHousing'], note: '股票池、房产池的水位' },
+  // 国境线 (flow.js: pipes exports / imports / foreignBonds, term fx / reserveCurrency; on phones the compact pill .bd-p stands for all of them)
+  exports:         { self: ['p:exports', 'n:channel', 'css:.bd-p'], note: '国境线上的「出口」管道（只有开了国境线的视图才有）' },
+  imports:         { self: ['p:imports', 'n:channel', 'css:.bd-p'], note: '国境线上的「进口」管道（只有开了国境线的视图才有）' },
+  fx:              { self: ['t:fx', 'css:.bd-p'], note: '国境线上的「汇率」水闸（只有开了国境线的视图才有）' },
+  foreignBonds:    { self: ['p:foreignBonds', 'n:poolBond', 'css:.bd-p'], note: '国境线上通向「长期国债」池的管道（只有开了国境线的视图才有）' },
+  reserveCurrency: { self: ['t:reserveCurrency', 'p:foreignBonds', 'css:.bd-p'], note: '国境线上的「美元 = 储备货币」标签（美国视图才有）' },
   // cycles: nothing in the diagram -> note only
   ringStage:       { self: [], note: '「周期」标签页里的债务环' },
   longCycle:       { self: [], note: '「周期」标签页里的大周期表盘（② 之后分岔 B1 / B2）' },
-  shortCycle:      { self: [], note: '「周期」标签页里的小周期表盘（扩张→过热→收紧·衰退→降息）' },
+  shortCycle:      { self: [], note: '「周期」标签页里的小周期表盘（扩张→过热→收紧→降息）' },
   B1:              { self: ['p:spillToGoods', 'n:channel', 't:policyRate'], note: '商品河道溢出（「溢出」管道）和央行加息（水漫出河道变成物价）' },
   B2:              { self: ['n:poolHousing', 'p:collateral'], note: '房产池水位下降和「抵押品」回路（水位降了，欠条还在）' },
   // five assets

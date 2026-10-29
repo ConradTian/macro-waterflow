@@ -6,7 +6,7 @@ import { WAVES } from '../../data/waves.js';
 import { LONG_LABEL } from '../../engine/regimes.js';
 
 // short-cycle steps (snap.cycles.short.key) -> legend label / colour. The colours are CSS vars from cycle.css; the fallback is only a safety net.
-export const SHORT_LEGEND = { expand: '扩张', hotP: '过热·物价', hotA: '过热·资产', tight: '收紧·衰退', ease: '降息（推得动吗？）' };
+export const SHORT_LEGEND = { expand: '扩张', hotP: '过热·物价', hotA: '过热·资产', tight: '收紧（加息/衰退）', ease: '降息（推得动吗？）' };
 const P_FALLBACK = { expand: '#2a9547', hotP: '#d9a000', hotA: '#8a3fb0', tight: '#d33f3f', ease: '#1f6fc2' };
 const pcol = k => `var(--cy-p-${k}, ${P_FALLBACK[k] || '#888'})`;
 const skey = s => (s ? s.key || s.phase : null);

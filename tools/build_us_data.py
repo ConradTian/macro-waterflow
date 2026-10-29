@@ -93,11 +93,26 @@ S["hhDebtGdp"] = (hh / 100).reindex(qidx)
 S["govDebtGdp"] = q_series_unlagged("GFDEGDQ188S", qidx) / 100
 S["bankCredit"] = q_mean(m["TOTBKCR"])
 
+
+# --- border (国境线): trade shares and foreign holdings of federal debt, FRED downloads in data_src/fred_us (quarterly, unlagged)
+def fred_q(sid):
+    f = pd.read_csv(ROOT / "data_src" / "fred_us" / f"{sid}.csv", parse_dates=["observation_date"]).set_index("observation_date")[sid]
+    f.index = f.index.to_period("Q")
+    return pd.to_numeric(f, errors="coerce").groupby(level=0).mean().reindex(qidx)
+
+
+S["exportsGdp"] = fred_q("EXPGS") / S["gdpNominal"]
+S["importsGdp"] = fred_q("IMPGS") / S["gdpNominal"]
+S["fxPerUsd"] = pd.Series(1.0, index=qidx)
+S["foreignGovHoldShare"] = fred_q("FDHBFIN") / (fred_q("GFDEBTN") / 1000)
+
 order = ["policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unemployment", "gdpNominal",
          "gdpRealGrowthYoY", "houseIndex", "equityIndex", "cape", "goldIndex", "oilPrice", "hhDsr",
-         "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "bankCredit"]
+         "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "bankCredit",
+         "fxPerUsd", "exportsGdp", "importsGdp", "foreignGovHoldShare"]
 RATIOS = {"policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unemployment",
-          "gdpRealGrowthYoY", "hhDsr", "privateCreditGdp", "hhDebtGdp", "govDebtGdp"}
+          "gdpRealGrowthYoY", "hhDsr", "privateCreditGdp", "hhDebtGdp", "govDebtGdp",
+          "exportsGdp", "importsGdp", "foreignGovHoldShare"}
 
 
 def sig(x, n):
@@ -127,6 +142,10 @@ sources = {
     "hhDebtGdp": "dalio_432/cache/bis_total_credit_2026-10-26.zip series Q:US:H:A:M:770:A (BIS household credit, % GDP, quarterly), /100",
     "govDebtGdp": "macro_monthly.csv GFDEGDQ188S (FRED federal debt % GDP; quarterly lag undone), /100",
     "bankCredit": "macro_monthly.csv TOTBKCR (FRED all commercial banks credit, $bn), quarterly mean",
+    "fxPerUsd": "constant 1 (USD per USD, WORLD-CONTRACT)",
+    "exportsGdp": "data_src/fred_us/EXPGS.csv (FRED exports of goods and services, $bn SAAR, downloaded 2026-10-29) / gdpNominal",
+    "importsGdp": "data_src/fred_us/IMPGS.csv (FRED imports of goods and services, $bn SAAR, downloaded 2026-10-29) / gdpNominal",
+    "foreignGovHoldShare": "data_src/fred_us/FDHBFIN.csv (FRED federal debt held by foreign and international investors, $bn) / GFDEBTN.csv (total public debt, $mn / 1000), downloaded 2026-10-29",
 }
 notes = [
     "Publication lags in macro_monthly.csv were undone so each value sits in its own period: CPIAUCSL, CPILFESL, UNRATE shifted back 1 month; GDP, GDPC1, GFDEGDQ188S shifted back 1 quarter. FEDFUNDS, DGS10, TOTBKCR, DCOILWTICO, CAPE, SP_P were not lagged in the source and are used as is.",
@@ -135,6 +154,7 @@ notes = [
     "hhDebtGdp is the quarterly BIS household credit/GDP series (not interpolated, not JST).",
     "goldIndex is built from a monthly-average gold price (datasets/gold-prices) sampled at the last month of each quarter: smoother than a true quarter-end close.",
     "equityIndex is a price-only index from Shiller's monthly-average S&P price, so it is smoother than a true quarter-end close.",
+    "Border series (exportsGdp, importsGdp, foreignGovHoldShare) come straight from FRED quarterly files (no publication lag to undo); fxPerUsd is 1 for the USA.",
     "Quarters from 2022Q1 are the held-out sample of the parent research project (reservedFrom).",
 ]
 meta = {"sources": {k: sources[k] for k in order}, "notes": notes}

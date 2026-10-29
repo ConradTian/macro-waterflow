@@ -479,3 +479,126 @@ body[data-view="waves"] .wv-btn .b { display: inline; }
 body[data-view="waves"] .wv-btn .a { display: none; }
 body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follow"] { display: none; }
 @media (max-width: 420px) { .wvw-head { padding-right: 88px; } }
+
+/* =====================================================================================================================
+   国境线 block (src/ui/flow.js buildBorder / setBorder; snap.border). Everything carries .bd and is hidden until the svg has .has-border.
+   .bd-d = wide drawing (>=768px: dashed line under the springs, 出口 / 进口 / 外国人买国债 pipes, FX gate); .bd-p = phone pill + .flow-bpop popover.
+   ===================================================================================================================== */
+:root { --c-border: #be185d; }   /* 国境线 / 外国水系 pink */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-border: #f472b6; } }
+:root[data-theme="dark"] { --c-border: #f472b6; }
+
+.flow-svg:not(.has-border) .bd { display: none; }
+.flow-svg .border { --pc: var(--c-border); }
+.flow-svg .bd-zone { fill: var(--c-border); fill-opacity: .07; }
+.flow-svg .bd-line { fill: none; stroke: var(--c-border); stroke-width: 1.6; stroke-dasharray: 7 4; }
+.flow-svg .bd-lbl { fill: var(--c-border); font-weight: 600; }
+.flow-svg .bd-gbox { fill: var(--surface); stroke: var(--c-border); stroke-width: 1.6; }
+.flow-svg .bd-gslat { stroke: var(--c-border); stroke-width: 1.4; stroke-linecap: round; fill: none; }
+.flow-svg .bd-chg { font-weight: 600; fill: var(--muted); }
+.flow-svg .bd-chg.weak { fill: var(--c-repay); }
+.flow-svg .bd-chg.strong { fill: var(--c-goods); }
+.flow-svg .bd-pill { fill: var(--surface); stroke: var(--c-border); stroke-width: 1.4; stroke-dasharray: 4 2.5; }
+.flow-svg .bd-p { cursor: pointer; }
+.flow-svg .bd-p text { fill: var(--text); font-size: 10.5px; font-weight: 600; }
+.flow-svg .bd-p:focus-visible .bd-pill { stroke-width: 2.6; outline: none; }
+.flow-svg.has-border .legend { transform: translateY(41px); }          /* the legend row moves under the border zone */
+.flow-svg.has-border .bd-shift { transform: translateX(14px); }        /* make room for the foreign-bond pipe at x = 16 */
+.flow-svg g.bd-gate.cc-hl > .bd-gbox { stroke-width: 2.6; }
+.flow-bpop { position: absolute; right: 8px; bottom: 44px; z-index: 19; width: min(300px, calc(100% - 16px)); background: var(--surface);
+  border: 1.5px solid var(--c-border); border-radius: 14px; box-shadow: var(--shadow); padding: 6px 12px 8px; font-size: 13px; }
+.flow-bpop[hidden] { display: none; }
+.flow-bpop .bp-head { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+.flow-bpop .bp-head span { color: var(--muted); font-size: 11.5px; flex: 1; }
+.flow-bpop .bp-x { width: 36px; height: 32px; margin-right: -8px; border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+.flow-bpop .bp-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--border); min-height: 36px; }
+.flow-bpop .bp-row b { font-variant-numeric: tabular-nums; text-align: right; }
+.flow-bpop .bp-sub { color: var(--muted); font-size: 12px; min-height: 28px; }
+.flow-bpop .bp-note { margin-top: 2px; padding-top: 5px; border-top: 1px dashed var(--border); color: var(--muted); font-size: 11.5px; }
+@media (max-width: 767.98px) { .flow-svg .bd-d { display: none; } }
+@media (min-width: 768px) { .flow-svg .bd-p, .flow-bpop { display: none !important; } }
+
+/* =====================================================================================================================
+   TIME SCRUBBER (src/ui/scrubber.js): the progress line + a 「⌄ 拖动」 handle at its right end; the handle opens a slider row.
+   Marks on the track: grey bands = real recessions, hatch = 保留样本, triangles = long-cycle stage changes (tap = jump).
+   ⏮ 退一季 (#btn-back) is a normal .icon-btn next to ⏭.
+   ===================================================================================================================== */
+.topbar { position: relative; }
+.prow { display: flex; align-items: center; }
+.prow .progress { flex: 1; min-width: 0; }
+.prow.has-scrub { min-height: 24px; }
+.scrub-handle { flex: none; position: relative; height: 24px; padding: 0 var(--gutter) 0 12px; border: 0; background: none; color: var(--accent);
+  font-size: 12px; font-weight: 600; line-height: 24px; white-space: nowrap; cursor: pointer; }
+.scrub-handle::after { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -6px; }
+.scrub-handle[hidden] { display: none; }
+.scrub-handle:active { color: var(--text); }
+.scrub-panel { background: var(--surface); border-top: 1px solid var(--border); padding: 6px var(--gutter) 6px; }
+.scrub-panel[hidden] { display: none; }
+.scrub-row { display: flex; align-items: flex-start; gap: 10px; }
+.scrub-q { flex: none; min-width: 68px; height: 36px; line-height: 34px; text-align: center; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface-2); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.scrub-q.drag { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.scrub-track { position: relative; flex: 1; min-width: 0; }
+.scrub-lane { position: relative; height: 36px; }
+/* the marks box spans exactly the thumb-centre travel (thumb is 22px wide: 11px inset each side), so percentages line up with the thumb */
+.scrub-marks { position: absolute; left: 11px; right: 11px; top: 11px; height: 14px; border-radius: 7px; background: var(--surface-2);
+  border: 1px solid var(--border); overflow: hidden; }
+.scrub-marks .sm-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.scrub-marks .sm-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--muted) 55%, transparent); }
+.scrub-marks .sm-hatch { position: absolute; top: 0; bottom: 0;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 70%, transparent) 0 1.5px, transparent 1.5px 5px); border-left: 1.5px solid var(--muted); }
+.scrub-marks .sm-free { position: absolute; top: 0; bottom: 0; border-left: 1.5px dashed var(--muted); background: color-mix(in srgb, var(--muted) 10%, transparent);
+  font-size: 10.5px; line-height: 12px; color: var(--muted); padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
+.scrub-range { position: absolute; left: 0; top: 0; width: 100%; height: 36px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.scrub-range:focus { outline: none; }
+.scrub-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scrub-range:focus-visible::-moz-range-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scrub-range::-webkit-slider-runnable-track { height: 36px; background: transparent; border: 0; }
+.scrub-range::-moz-range-track { height: 36px; background: transparent; border: 0; }
+.scrub-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: 7px; border-radius: 50%;
+  background: var(--accent); border: 3px solid var(--surface); box-shadow: var(--shadow); }
+.scrub-range::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: var(--shadow); }
+.scrub-range:disabled { cursor: not-allowed; }
+.scrub-range:disabled::-webkit-slider-thumb { background: var(--muted); }
+.scrub-range:disabled::-moz-range-thumb { background: var(--muted); }
+.scrub-panel.locked .scrub-q, .scrub-panel.locked .scrub-marks, .scrub-panel.locked .scrub-tris { opacity: .55; }
+.scrub-tris { position: relative; height: 20px; margin: -2px 11px 0; }
+.scrub-tri { position: absolute; top: calc(var(--row, 0) * 20px); transform: translateX(-50%); width: 30px; height: 20px; padding: 0; border: 0; background: none;
+  display: flex; flex-direction: column; align-items: center; color: var(--c-repay); font-size: 11px; font-weight: 700; line-height: 11px; cursor: pointer; }
+.scrub-tri::after { content: ""; position: absolute; left: -3px; right: -3px; top: -8px; bottom: -8px; }   /* bigger tap area, may overlap the slider's lower edge */
+.scrub-tri i { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 7px solid currentColor; }
+.scrub-tri b { font-weight: 700; }
+.scrub-tri.b2 { color: var(--lamp-red); }
+.scrub-tri:focus-visible { outline: 2px solid var(--accent); border-radius: 6px; }
+.scrub-panel.locked .scrub-tri { pointer-events: none; }
+.scrub-note { min-height: 18px; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--muted); }
+.scrub-note b { color: var(--text); font-variant-numeric: tabular-nums; }
+.scrub-note .lg-sp { display: inline-block; width: 12px; }
+.scrub-note .lg-b, .scrub-note .lg-h { display: inline-block; width: 16px; height: 8px; margin-right: 4px; vertical-align: -0.5px; border-radius: 2px; border: 1px solid var(--border); }
+.scrub-note .lg-b { background: color-mix(in srgb, var(--muted) 55%, transparent); }
+.scrub-note .lg-h { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 70%, transparent) 0 1.5px, transparent 1.5px 4px); }
+.scrub-note .lg-t { color: var(--c-repay); font-size: 9px; margin-right: 3px; }
+/* confirm bar (backward jump that would clear a takeover / rule edits) */
+.scrub-confirm { position: absolute; left: var(--gutter); right: var(--gutter); top: calc(100% + 6px); z-index: 60; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 10px 12px; background: var(--surface); border: 1.5px solid var(--c-repay); border-radius: 12px; box-shadow: var(--shadow); }
+.scrub-confirm[hidden] { display: none; }
+.scrub-confirm .sc-msg { flex: 1 1 200px; font-size: 14px; font-weight: 600; }
+.scrub-confirm .btn { min-height: 36px; padding: 0 14px; }
+@media (min-width: 768px) {
+  .scrub-panel { padding-left: 24px; padding-right: 24px; }
+  .scrub-confirm { left: auto; right: 24px; width: 420px; }
+  .prow .scrub-handle { padding-right: 24px; }
+}
+@media (max-width: 420px) {
+  .scrub-row { gap: 8px; }
+  .scrub-q { min-width: 60px; font-size: 14px; }
+  .scrub-handle { padding-right: 10px; }
+  .scrub-panel { padding-left: 10px; padding-right: 10px; }
+  .scrub-confirm { left: 10px; right: 10px; }
+}
+/* phone: the extra ⏮ button must not squeeze the date / mode badge */
+@media (max-width: 420px) {
+  .timebar { gap: 4px; }
+  .icon-btn { min-width: 34px; }
+  .badge { flex: none; }
+}

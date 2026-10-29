@@ -29,9 +29,9 @@ const LONG_MARK = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' }
 const LONG_NAME = { 1: '堆债', 2: '缓冲池满', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '金融压制·增长化债', 8: '修复' };
 const LONG_NODE = { 1: '堆债', 2: '缓冲池满', 5: '私人去杠杆', 6: '政府接手', 7: '压制化债', 8: '修复' };
 // short names for the dial (cards and texts use KEY_LABEL). B1/B2 are NOT short-cycle names any more: they are the long cycle's fork after ②.
-const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧·衰退', ease: '降息' };
+const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息' };
 const SHORT_GLYPH = { expand: '扩', hot: '热', tight: '紧', ease: '降' };
-const KEY_SHORT = { expand: '扩张', hotP: '物价过热', hotA: '资产过热', tight: '收紧·衰退', ease: '降息' };
+const KEY_SHORT = { expand: '扩张', hotP: '物价过热', hotA: '资产过热', tight: '收紧', ease: '降息' };
 const keyPhase = k => (k === 'hotP' || k === 'hotA' ? 'hot' : k);          // internal key -> dial node
 const RING_NEXT = { expand: 'hot', hot: 'tight', tight: 'ease', ease: 'expand' };
 
@@ -118,7 +118,7 @@ function longDial(L) {
 }
 
 function shortDial(S) {
-  // four steps on a ring: 扩张 -> 过热 -> 收紧·衰退 -> 降息（推得动吗？）; from 降息 two ways out: 推得动 -> 扩张 (ring edge) or 推不动 -> 大周期 B2 -> ⑤ (dashed exit)
+  // four steps on a ring: 扩张 -> 过热 -> 收紧（央行加息；带衰退证据时标「收紧·衰退」）-> 降息（推得动吗？）; from 降息 two ways out: 推得动 -> 扩张 (ring edge) or 推不动 -> 大周期 B2 -> ⑤ (dashed exit)
   const cx = 150, cy = 128;
   const nodes = {
     expand: { x: cx, y: cy - 75, glyph: SHORT_GLYPH.expand, name: SHORT_NAME.expand, dy: -26 },
@@ -132,6 +132,10 @@ function shortDial(S) {
   // kind of top, small, under 过热 (top while hot; via = which kind this round came from, kept during tight / ease)
   const topTxt = S.top ? TOP_LABEL[S.top] : S.via ? `接${TOP_LABEL[S.via]}` : '物价或资产';
   const hotSub = `<text x="${f1(H.x + 26)}" y="${f1(H.y + 17)}" class="cy-sub${S.top ? ' top' : S.via ? '' : ' dim'}">${esc(topTxt)}</text>`;
+  // 收紧 = the bank is hiking; the sub-text 加息 / 衰退 is read from the engine label (「收紧（加息）」 or 「收紧·衰退」)
+  const tightKind = /收紧·衰退/.test(S.label || '') ? '衰退' : '加息';
+  const T = nodes.tight;
+  const tightSub = `<text x="${f1(T.x)}" y="${f1(T.y + 52)}" text-anchor="middle" class="cy-sub${ph === 'tight' ? ' top' : ' dim'}">${ph === 'tight' ? tightKind : '加息 / 衰退'}</text>`;
   const easeSub = `<text x="${f1(E.x - 26)}" y="${f1(E.y + 13)}" text-anchor="end" class="cy-sub${ph === 'ease' ? ' top' : ''}">推得动吗？</text>`;
   // exit towards the long cycle (dashed, ⑤ colour; solid + filled when handoff === 'no') and the label of the normal edge back
   const exit = `<g class="cy-exit${no ? ' on' : ''}"><line x1="${f1(E.x - 3)}" y1="${f1(E.y + 21)}" x2="${f1(E.x - 12)}" y2="${f1(E.y + 76)}" class="cy-exit-l"/>` +
@@ -144,13 +148,13 @@ function shortDial(S) {
   const bk = (S.between || []).map(keyPhase);
   const between = bk.length === 2 && bk[0] !== bk[1] && RING_NEXT[bk[0]] === bk[1] ? bk : null;
   const cand = (S.progress || []).filter(p => RING_NEXT[ph] === keyPhase(p.target) && p.have > 0).sort((a, b) => b.have / b.need - a.have / a.need)[0];
-  const c1 = ph === 'hot' && S.top ? TOP_LABEL[S.top] : SHORT_NAME[ph];
+  const c1 = ph === 'hot' && S.top ? TOP_LABEL[S.top] : ph === 'tight' ? `收紧（${tightKind}）` : SHORT_NAME[ph];
   const nm = S.between ? S.between.map(k => KEY_SHORT[k] || k) : null;
   const c2 = no ? '推不动 → 交给大周期' : nm ? null : '随四盏灯·以季计';
   const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${esc(c1)}</text>` +
     (c2 ? `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2${no ? ' no' : ''}">${esc(c2)}</text>`
       : `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">介于 ${esc(nm[0])}</text><text x="${cx}" y="${cy + 27}" text-anchor="middle" class="cy-c2">与 ${esc(nm[1])} 之间</text>`);
-  return dialSvg({ id: 'S', nodes, edges, cur: ph, between, centre, under: exit + back, over: hotSub + easeSub,
+  return dialSvg({ id: 'S', nodes, edges, cur: ph, between, centre, under: exit + back, over: hotSub + tightSub + easeSub,
     progress: cand ? { from: ph, to: RING_NEXT[ph], frac: cand.have / cand.need } : null,
     aria: `小周期，当前 ${S.label}${S.between ? `，在 ${nm[0]} 与 ${nm[1]} 之间` : ''}${no ? '，降息推不动，交给大周期 B2 到 ⑤' : ''}` });
 }
@@ -254,7 +258,7 @@ function trailSvg(hist, t, total, dates, mode) {
     g += `<rect x="${f1(x)}" y="${top}" width="${f1(X1 - x)}" height="${bandB - top}" fill="url(#cy-fut)" class="cy-future"/>` +
       `<text x="${f1((x + X1) / 2)}" y="${top + 40}" text-anchor="middle" class="cy-lbl2">尚未发生</text>`;
   }
-  // short cycle: waves riding inside the band. height = where in the short cycle we are (peak = 过热 物价/资产, trough = 收紧·衰退)
+  // short cycle: waves riding inside the band. height = where in the short cycle we are (peak = 过热 物价/资产, trough = 收紧)
   const LV = { expand: 0.5, hotP: 0.95, hotA: 0.95, tight: 0.06, ease: 0.28 };
   const raw = hist.slice(0, t + 1).map(h => LV[h.cycles.short.key]);
   const sm = raw.map((_, i) => { let a = 0, n = 0; for (let k = i - 1; k <= i + 1; k++) if (k >= 0 && k < raw.length) { a += raw[k]; n++; } return a / n; });
@@ -302,7 +306,7 @@ function legend() {
   const sw = (cls, txt, pat) => `<span class="cy-lg"><i class="cy-sw ${cls}${pat ? ' ' + pat : ''}"></i>${txt}</span>`;
   return `<div class="cy-legend">
     <div class="cy-lgrow"><b>大周期</b>${LONG_ORDER.map(s => `<span class="cy-lg"><i class="cy-sw cy-s${s}"></i>${LONG_MARK[s]}${LONG_NODE[s]}</span>`).join('')}</div>
-    <div class="cy-lgrow"><b>小周期</b>${sw('p-expand', '扩张')}${sw('p-hotP', '物价过热（波峰）')}${sw('p-hotA', '资产过热（波峰）')}${sw('p-tight', '收紧·衰退（斜纹·波谷）', 'hatch')}${sw('p-ease', '降息（点纹）', 'dots')}${sw('p-no', '推不动 → 交给大周期（橙斜纹）')}</div>
+    <div class="cy-lgrow"><b>小周期</b>${sw('p-expand', '扩张')}${sw('p-hotP', '物价过热（波峰）')}${sw('p-hotA', '资产过热（波峰）')}${sw('p-tight', '收紧（加息 / 衰退，斜纹·波谷）', 'hatch')}${sw('p-ease', '降息（点纹）', 'dots')}${sw('p-no', '推不动 → 交给大周期（橙斜纹）')}</div>
     <div class="cy-lgrow cy-lgfork"><span class="cy-lg"><i class="cy-fkmk"></i>大周期走上 B2 岔路（带上方的 ▼）：降了息信贷还在缩，之后接 ⑤ 私人去杠杆</span></div>
   </div>`;
 }

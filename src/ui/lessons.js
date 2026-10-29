@@ -1,9 +1,11 @@
 // Lesson runner + course menu. Driven by src/data/lessons.js (+ optional src/data/role-lessons.js).
 // App contract (see app.js): initLessons(ctx) where ctx = {
 //   sim():sim, real():US_Q, getSnap(), setPlaying(bool), isPlaying(), refresh(), openTerm(id), setQuiet(bool),
-//   setTickMs(ms), setTab(id) }
+//   setTickMs(ms), setTab(id), country?():iso }
 // and the app calls onRender() after every renderAll().
 // Step types: intro watch predict experiment recap (see data/lessons.js header) + reveal + takeover.
+// WORLD lessons (kind:'world'): step field map:{open,select?,year?} dispatches 'mw:map' (the map page); lesson field country:'AUS' navigates to ?country=AUS&lesson=<id>
+// when COUNTRY_READY[iso]; vals/claims getters 'world:<path>@<year>' read WORLD (src/data/world.js, loaded lazily).
 // TOWN lessons (L.scenario === 'town', see src/ui/lessons-town.js): the displayed sim is swapped for the town sim via ctx.setSim(sim, data)
 // (ctx.setSim(null) restores the US sim) and the world is rebuilt by replay at every step. Extra step types:
 //   action  { action | actions, text, question?, answerHint?, relation?, show?, quarters?, metrics? }  tap performs a townAction + water droplet
@@ -23,7 +25,7 @@ import { compareChart } from './tabs/_util.js';
 import { pctFmt } from './chart.js';
 import { pulseHeadline, closeHeadline } from './headline.js';   // lesson step field strip:true -> the 本季看点 strip pulses
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
-import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep } from './lessons-town.js';
+import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep, setWorldData } from './lessons-town.js';
 
 const P = new URLSearchParams(location.search);
 const KEY = 'mw.lessons.v1';
@@ -40,7 +42,7 @@ const touched = new Map(); // 'rule.key' -> default value (captured before first
 /* ---------- lesson registry (core lessons + optional role lessons) ---------- */
 let ROLE_LESSONS = [];
 let rolesReady = Promise.resolve();
-const isAvail = L => !!L && L.available !== false && Array.isArray(L.steps) && L.steps.length > 0;
+const isAvail = L => !!L && L.available !== false && Array.isArray(L.steps) && L.steps.length > 0 && countryOk(L);
 const all = () => [...LESSONS, ...ROLE_LESSONS];
 function lookup(id) {            // numeric/string id, or 'role:<playerId>'
   if (id == null) return null;
@@ -49,9 +51,11 @@ function lookup(id) {            // numeric/string id, or 'role:<playerId>'
   return all().find(l => String(l.id) === s) || null;
 }
 function loadRoles() {
+  const countries = import('../data/countries/index.js').then(m => { COUNTRY_READY = m.COUNTRY_READY || {}; }).catch(() => { COUNTRY_READY = {}; });
   rolesReady = import('../data/role-lessons.js')
     .then(m => { ROLE_LESSONS = Array.isArray(m.ROLE_LESSONS) ? m.ROLE_LESSONS.filter(Boolean) : []; })
     .catch(() => { ROLE_LESSONS = []; })
+    .then(() => countries)
     .then(() => { setAvailableRoles(ROLE_LESSONS.filter(isAvail).map(l => l.role)); if (!cur && ctx) ctx.refresh(); });
 }
 const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : (L.label || `第 ${L.id} 课`));
@@ -67,6 +71,25 @@ const sim = () => ctx.sim();
 // left panel: 'flow' (water diagram) | 'waves' (curves view). app.js owns the state and listens for mw:view; a step's `view` field sets it.
 const setView = v => document.dispatchEvent(new CustomEvent('mw:view', { detail: { view: v } }));
 const freeUrl = () => new URL('free/', location.href).href;
+// the world map page (owned by another module) listens for mw:map { open, select, year }. mapOpen = the lesson itself opened it.
+let mapOpen = false;
+const mapEvent = detail => document.dispatchEvent(new CustomEvent('mw:map', { detail }));
+function applyMap(st) {
+  const m = st && st.map;
+  if (m) { const open = m.open !== false; mapEvent({ open, select: open ? (m.select ?? null) : null, year: m.year }); mapOpen = open; }
+  else if (mapOpen) { mapEvent({ open: false }); mapOpen = false; }   // a step without `map` is a main-screen step
+}
+// country views: COUNTRY_READY[iso] from src/data/countries/index.js (may not exist yet -> nothing is ready)
+let COUNTRY_READY = {};
+const curCountry = () => (ctx && ctx.country ? ctx.country() : null) || P.get('country') || 'USA';
+const countryOk = L => !L.country || L.country === 'USA' || !!COUNTRY_READY[L.country];
+// world data (annual) for 'world:' getters: loaded lazily, only when a lesson uses them
+let worldTried = null;
+const usesWorld = L => JSON.stringify(L).includes('"world:');
+function loadWorld() {
+  worldTried ||= import('../data/world.js').then(m => setWorldData(m.WORLD)).catch(() => setWorldData(null));
+  return worldTried;
+}
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { done: {}, step: {} }; } catch (e) { return { done: {}, step: {} }; } }
 function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* ignore */ } }
@@ -203,15 +226,15 @@ function syncPad() {
 }
 
 /* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
-// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 3.5 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7
-const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, '3b', 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7];
+// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 3.5 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7 → 世界 1 → 世界 2
+const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, '3b', 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7, 'w1', 'w2'];
 const REC = Object.fromEntries(REC_ORDER.map((k, i) => [k, i + 1]));
 function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
   const ok = isAvail(L);
   const title = L ? L.title : fallbackTitle, one = L ? L.oneLine : fallbackOne;
   const id = L ? L.id : '';
   let st;
-  if (!ok) st = '<span class="ls-st soon">即将开放</span>';
+  if (!ok) st = `<span class="ls-st soon">${L && L.country && !COUNTRY_READY[L.country] ? '细图制作中' : '即将开放'}</span>`;
   else if (p.done[id] || (L.role && isRoleLearned(L.role))) st = '<span class="ls-st done">已完成 ✓</span>';
   else if (p.step[id] > 0) st = `<span class="ls-st doing">进行中 · 第 ${p.step[id] + 1}/${L.steps.length} 步</span>`;
   else st = '<span class="ls-st">未开始</span>';
@@ -230,13 +253,15 @@ export async function openMenu() {
     const L = ROLE_LESSONS.find(l => l.role === r);
     return menuItem(L, p, ROLE_NAME[r].slice(0, 1), 'role:' + r, `${ROLE_NAME[r]}课`, '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。');
   }).join('');
-  const cycles = LESSONS.filter(L => L.id >= 1 || L.kind === 'cycle').map(L => menuItem(L, p, String(L.id).replace(/^3b$/, '3½'), L.id)).join('');
+  const cycles = LESSONS.filter(L => (L.id >= 1 || L.kind === 'cycle') && L.kind !== 'world').map(L => menuItem(L, p, String(L.id).replace(/^3b$/, '3½'), L.id)).join('');
+  const worlds = LESSONS.filter(L => L.kind === 'world').map(L => menuItem(L, p, String(L.id).replace(/^w(\d+)$/, '世$1'), L.id)).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 第 3.5 课（两个环怎么接上）→ 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
+    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 第 3.5 课（两个环怎么接上）→ 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7 → 世界 1（出了国境）→ 世界 2（澳洲）。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
     `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
     `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
     `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
+    (worlds ? `<h3 class="ls-sec">世界 <small>出了国境：地图、贸易、汇率、储备；再进入一个国家</small></h3><ol class="ls-list">${worlds}</ol>` : '') +
     `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>`;
   menu.hidden = false;
   requestAnimationFrame(() => menu.classList.add('open'));
@@ -253,6 +278,17 @@ export async function startLesson(id, step = 0) {
   await rolesReady;
   const L = lookup(id);
   if (!isAvail(L)) return;
+  // lessons live in one country view: a lesson with `country` goes to ?country=ISO, every other US lesson goes back to the US (no `country` param)
+  const want = L.country || 'USA';
+  if (L.scenario !== 'town' && !L.role && curCountry() !== want) {
+    const u = new URL(location.href);
+    ['country', 'lesson', 'step', 'map', 'view'].forEach(k => u.searchParams.delete(k));
+    if (want !== 'USA') u.searchParams.set('country', want);
+    u.searchParams.set('lesson', String(L.id)); if (step) u.searchParams.set('step', String(step));
+    location.href = u.href;
+    return;
+  }
+  if (usesWorld(L)) await loadWorld();
   ensureDom(); closeMenu();
   const prev = cur;
   if (!prev) setView('flow');                              // a fresh lesson starts on the water diagram (its highlights live there); a step may switch with `view`
@@ -273,6 +309,7 @@ export function exitLesson() {
   if (!cur) return;
   leaveStep();
   setView('flow');                                         // leaving a lesson restores the water diagram
+  if (mapOpen) { mapEvent({ open: false }); mapOpen = false; }   // ... and closes the map the lesson opened
   const wasTown = cur.world === 'town';
   const tBack = wasTown ? cur.usT0 : dateT(ctx.getSnap().date);
   const L = cur.L;
@@ -334,6 +371,7 @@ function continueEnter(i) {
   const st = L.steps[i];
   const town = pos[i].world === 'town';
   if (st.view) setView(st.view);                            // step field view: 'waves' | 'flow' (curves view only exists on the US history run)
+  applyMap(st);                                             // step field map: { open, select?, year? } -> mw:map (world-map page); no field = main screen
   ensureWorld(pos[i].world);
   if (town) {
     busy = true;
@@ -792,7 +830,7 @@ function draw() {
       }).join('') + '</div>';
     if (ss.picked != null) {
       body += `<div class="ls-explain">${st.options[ss.picked].ok ? '<b class="g">猜对了。</b>' : '<b class="r">差一点。</b>'}${st.explain.map(t => `<p>${rich(t)}</p>`).join('')}</div>` + readout(st, snap) + (st.block ? blockHtml(st.block, snap) : '') +
-        `<div class="ls-status">${snap.t >= dateT(pos[i].until) ? `已播放到 ${lab(pos[i].until)}` : `${ctx.isPlaying() ? '播放中' : '已暂停'} → ${lab(pos[i].until)}，看结果`}</div>`;
+        (pos[i].until === pos[i].from ? '' : `<div class="ls-status">${snap.t >= dateT(pos[i].until) ? `已播放到 ${lab(pos[i].until)}` : `${ctx.isPlaying() ? '播放中' : '已暂停'} → ${lab(pos[i].until)}，看结果`}</div>`);
     } else canNext = false;
   } else if (st.type === 'experiment') {
     body += paras;

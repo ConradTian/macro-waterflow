@@ -18,6 +18,14 @@ export const LAMP_SYMBOL = { green: '●', yellow: '▲', red: '■' };   // sha
 export const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 
 import { lineChart } from '../chart.js';
+/** Known places where the model is clearly off the real world. Drawn as a small band + note on the real-vs-model charts (by realKey),
+ *  once the chart's "now" has reached `from`. { key: realKey, from, to (quarters), text } */
+export const MODEL_GAPS = [
+  { key: 'equityIndex', from: '2001Q1', to: '2002Q4', text: '模型偏差：真实股市 2001–02 跌约 45%，模型没跌' },
+  { key: 'unemployment', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
+  { key: 'gdpNominal', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
+  { key: 'gdpRealGrowthYoY', from: '2023Q1', to: '2025Q4', text: '模型偏差：2023–25 模型里出现了一次衰退，真实没有' },
+];
 /** Real (to now) / model / user comparison chart. modelFn maps a snapshot -> number. */
 export function compareChart(host, ctx, { title, realKey, modelFn, fmt, note, height = 150 }) {
   const t = ctx.sim.t, dates = ctx.real.dates, n = dates.length;
@@ -27,5 +35,6 @@ export function compareChart(host, ctx, { title, realKey, modelFn, fmt, note, he
   series.push({ name: '模型', style: 'model', values: pad(ctx.sim.history('model').map(modelFn)) });
   const uh = ctx.sim.history('user');
   if (uh && uh.length) series.push({ name: '你的版本', style: 'user', values: pad(uh.map(modelFn)) });
-  lineChart(host, { series, dates, reservedFrom: ctx.real.reservedFrom, currentDate: dates[Math.min(t, n - 1)], fmt, title, note, height });
+  const bands = MODEL_GAPS.filter(b => b.key === realKey);
+  lineChart(host, { series, dates, reservedFrom: ctx.real.reservedFrom, currentDate: dates[Math.min(t, n - 1)], fmt, title, note, height, bands });
 }

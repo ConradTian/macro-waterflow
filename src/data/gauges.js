@@ -50,6 +50,8 @@ const gAnn = (s, sim) => {
 const bn = (a, b, verdict, extra = {}) => ({ a, b, fmt: 'bn', verdict, ...extra });
 const both = (a, b) => ok(a.v) && ok(b.v);
 
+const bdShare = k => s => { const v = s.border?.[k], g = gdp(s); return ok(v) && ok(g) && g > 0 ? v / (g / 4) : null; };
+
 export const GAUGES = {
   // ---------- rates ----------
   policyRate: { get: s => s.rates?.policy, fmt: 'pct', label: '' },
@@ -143,6 +145,19 @@ export const GAUGES = {
       return both(a, b) ? { a, b, fmt: 'pct', verdict: a.v >= b.v ? '租金盖得住利息' : '靠涨价才赚钱' } : null;
     },
   },
+
+  // ---------- 国境线 (null while a view has no snap.border: the gauge then has no number and shows its empty state) ----------
+  exports: {
+    get: bdShare('exports'), fmt: 'pct', label: '占 GDP',
+    pair: s => { const a = { label: '出口', v: s.border?.exports }, b = { label: '进口', v: s.border?.imports }; return both(a, b) ? bn(a, b, a.v >= b.v ? '卖出去的比买进来的多：水在净流入' : '买进来的比卖出去的多：水在净流出') : null; },
+  },
+  imports: {
+    get: bdShare('imports'), fmt: 'pct', label: '占 GDP',
+    pair: s => { const a = { label: '出口', v: s.border?.exports }, b = { label: '进口', v: s.border?.imports }; return both(a, b) ? bn(a, b, a.v >= b.v ? '卖出去的比买进来的多：水在净流入' : '买进来的比卖出去的多：水在净流出') : null; },
+  },
+  fx: { get: s => s.border?.fxPerUsd, fmt: 'num', label: '本币 / 美元（变大 = 本币变弱）' },
+  foreignBonds: { get: bdShare('foreignBondBuy'), fmt: 'pct', label: '占 GDP' },
+  reserveCurrency: { get: s => s.border?.reserveShareUsd, fmt: 'pct', label: '美元占世界外储' },
 
   // ---------- the four lamps ----------
   lampCredit: { get: s => s.lights?.credit?.value, fmt: 'pct', label: '占 GDP', bands: lamp('credit') },

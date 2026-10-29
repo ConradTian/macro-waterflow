@@ -1,0 +1,254 @@
+{
+ "bis/WS_TC_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_TC_csv_col.zip",
+  "date": "2026-10-29",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 680227
+ },
+ "bis/WS_DSR_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_DSR_csv_col.zip",
+  "date": "2026-10-29",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 10740
+ },
+ "bis/WS_SPP_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_SPP_csv_col.zip",
+  "date": "2026-10-29",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 135216
+ },
+ "bis/WS_CBPOL_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_CBPOL_csv_col.zip",
+  "date": "2026-10-29",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 285704
+ },
+ "fred/IRLTLT01AUM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRLTLT01AUM156N",
+  "date": "2026-10-29",
+  "note": "AUS 10y gov yield, monthly (OECD via FRED)",
+  "bytes": 19449
+ },
+ "fred/IRLTLT01GBM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRLTLT01GBM156N",
+  "date": "2026-10-29",
+  "note": "GBR 10y gov yield",
+  "bytes": 14641
+ },
+ "fred/IRLTLT01JPM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRLTLT01JPM156N",
+  "date": "2026-10-29",
+  "note": "JPN 10y gov yield",
+  "bytes": 7758
+ },
+ "fred/IRLTLT01EZM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRLTLT01EZM156N",
+  "date": "2026-10-29",
+  "note": "Euro area 10y gov yield",
+  "bytes": 20359
+ },
+ "fred/LRUNTTTTAUM156S.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=LRUNTTTTAUM156S",
+  "date": "2026-10-29",
+  "note": "AUS unemployment rate, monthly SA (OECD via FRED)",
+  "bytes": 11731
+ },
+ "fred/LRUNTTTTJPM156S.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=LRUNTTTTJPM156S",
+  "date": "2026-10-29",
+  "note": "JPN unemployment rate, monthly SA (OECD via FRED)",
+  "bytes": 12933
+ },
+ "fred/SPASTT01AUM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01AUM661N",
+  "date": "2026-10-29",
+  "note": "AUS share price index (OECD via FRED)",
+  "bytes": 17219
+ },
+ "fred/SPASTT01GBM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01GBM661N",
+  "date": "2026-10-29",
+  "note": "GBR share price index",
+  "bytes": 17225
+ },
+ "fred/SPASTT01JPM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01JPM661N",
+  "date": "2026-10-29",
+  "note": "JPN share price index",
+  "bytes": 17209
+ },
+ "fred/SPASTT01EZM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01EZM661N",
+  "date": "2026-10-29",
+  "note": "Euro area share price index",
+  "bytes": 9577
+ },
+ "fred/SPASTT01CNM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01CNM661N",
+  "date": "2026-10-29",
+  "note": "CHN share price index",
+  "bytes": 6722
+ },
+ "fred/EXUSAL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXUSAL",
+  "date": "2026-10-29",
+  "note": "USD per AUD, monthly average",
+  "bytes": 12066
+ },
+ "fred/EXUSUK.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXUSUK",
+  "date": "2026-10-29",
+  "note": "USD per GBP, monthly average",
+  "bytes": 12066
+ },
+ "fred/EXJPUS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXJPUS",
+  "date": "2026-10-29",
+  "note": "JPY per USD, monthly average",
+  "bytes": 13331
+ },
+ "fred/EXUSEU.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXUSEU",
+  "date": "2026-10-29",
+  "note": "USD per EUR, monthly average (1999+)",
+  "bytes": 6018
+ },
+ "fred/EXCHUS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXCHUS",
+  "date": "2026-10-29",
+  "note": "CNY per USD, monthly average",
+  "bytes": 9906
+ },
+ "fred/EXGEUS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXGEUS",
+  "date": "2026-10-29",
+  "note": "DEM per USD, monthly average (EA pre-1999: /1.95583)",
+  "bytes": 6720
+ },
+ "fred/MCOILWTICO.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MCOILWTICO",
+  "date": "2026-10-29",
+  "note": "WTI crude oil $/bbl, monthly",
+  "bytes": 8372
+ },
+ "imf/weo.csv": {
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.RES,WEO/G001+G163+USA+CHN+JPN+GBR+AUS.NGDPD+NGDP_RPCH+BCA_NGDPD+GGXWDG_NGDP+PCPIPCH.A?startPeriod=1990&endPeriod=2026",
+  "date": "2026-10-29",
+  "note": "IMF WEO latest vintage, annual, 1990-2026",
+  "bytes": 44175
+ },
+ "imf/cofer.csv": {
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.STA,COFER/G001....A?startPeriod=1995",
+  "date": "2026-10-29",
+  "note": "IMF COFER, world, annual, all indicators/currencies",
+  "bytes": 33714
+ },
+ "imf/imts_trade.csv": {
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.STA,IMTS/USA+CHN+G163+JPN+GBR+AUS.MG_CIF_USD.USA+CHN+G163+JPN+GBR+AUS+G001.A?startPeriod=1995&endPeriod=2025",
+  "date": "2026-10-29",
+  "note": "IMF IMTS (ex-DOTS): XG_FOB_USD & MG_CIF_USD, six economies (G163 = euro area) vs partners and World G001",
+  "bytes": 110699
+ },
+ "imf/qnea_gdp.csv": {
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.STA,QNEA/AUS+GBR+JPN+CHN+G163.B1GQ....Q?startPeriod=1993",
+  "date": "2026-10-29",
+  "note": "IMF QNEA GDP B1GQ, V=current prices, Q=volume, SA/NSA, quarterly",
+  "bytes": 143651
+ },
+ "oecd/cpi_yoy.csv": {
+  "url": "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0/...",
+  "date": "2026-10-29",
+  "note": "OECD CPI yoy growth (GY), _T all items and _TXCP01_NRG all items excl food & energy; M and Q",
+  "bytes": 106017
+ },
+ "tic/mfhhis01.txt": {
+  "url": "https://ticdata.treasury.gov/resource-center/data-chart-center/tic/Documents/mfhhis01.txt",
+  "date": "2026-10-29",
+  "note": "TIC Major Foreign Holders of Treasury securities",
+  "bytes": 98034
+ },
+ "tic/mfh.txt": {
+  "url": "https://ticdata.treasury.gov/Publish/mfh.txt",
+  "date": "2026-10-29",
+  "note": "TIC Major Foreign Holders of Treasury securities",
+  "bytes": 7486
+ },
+ "worldbank/NE.EXP.GNFS.ZS.json": {
+  "url": "https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/NE.EXP.GNFS.ZS?format=json&per_page=20000&date=1995:2025",
+  "date": "2026-10-29",
+  "note": "World Bank WDI",
+  "bytes": 43233
+ },
+ "worldbank/NE.IMP.GNFS.ZS.json": {
+  "url": "https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/NE.IMP.GNFS.ZS?format=json&per_page=20000&date=1995:2025",
+  "date": "2026-10-29",
+  "note": "World Bank WDI",
+  "bytes": 43230
+ },
+ "worldbank/SL.UEM.TOTL.ZS.json": {
+  "url": "https://api.worldbank.org/v2/country/AUS;GBR;JPN;CHN;USA;EMU/indicator/SL.UEM.TOTL.ZS?format=json&per_page=20000&date=1995:2025",
+  "date": "2026-10-29",
+  "note": "World Bank WDI",
+  "bytes": 46539
+ },
+ "rba/f05hist.xlsx": {
+  "url": "https://www.rba.gov.au/statistics/tables/xls/f05hist.xlsx",
+  "date": "2026-10-29",
+  "note": "RBA F5 indicator lending rates",
+  "bytes": 855307
+ },
+ "boe/IUMTLMV.csv": {
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=IUMTLMV&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-29",
+  "note": "BoE IADB IUMTLMV: monthly average of quoted household mortgage SVR",
+  "bytes": 6814
+ },
+ "ecb/mir_housing_new.csv": {
+  "url": "https://data-api.ecb.europa.eu/service/data/MIR/M.U2.B.A2C.AM.R.A.2250.EUR.N?format=csvdata",
+  "date": "2026-10-29",
+  "note": "ECB MIR housing loans new business rate, euro area",
+  "bytes": 13344
+ },
+ "ons/mgsx.csv": {
+  "url": "https://www.ons.gov.uk/generator?format=csv&uri=/employmentandlabourmarket/peoplenotinwork/unemployment/timeseries/mgsx/lms",
+  "date": "2026-10-29",
+  "note": "ONS MGSX unemployment rate 16+, SA",
+  "bytes": 15931
+ },
+ "fred/LRHUTTTTEZM156S.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=LRHUTTTTEZM156S",
+  "date": "2026-10-29",
+  "note": "Euro area unemployment rate monthly SA (OECD via FRED; used for 1995-1999)",
+  "bytes": 11135
+ },
+ "eurostat/une_rt_m_EA21.csv": {
+  "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/une_rt_m/M.SA.TOTAL.PC_ACT.T.EA21?format=SDMX-CSV&startPeriod=1995-01",
+  "date": "2026-10-29",
+  "note": "Eurostat une_rt_m euro area EA21 (from 2000), SA, % of active population",
+  "bytes": 4267
+ },
+ "imf/cpi_jpn_yoy.csv": {
+  "url": "https://api.imf.org/external/sdmx/2.1/data/IMF.STA,CPI/JPN.CPI._T.YOY_PCH_PA_PT.M?startPeriod=1994",
+  "date": "2026-10-29",
+  "note": "IMF CPI Japan all items yoy %, monthly (OECD feed ends 2021-06)",
+  "bytes": 20191
+ },
+ "fred/IRSTCB01JPM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRSTCB01JPM156N",
+  "date": "2026-10-29",
+  "note": "JPN central bank rate (call money), monthly (OECD via FRED; fills BIS gaps 2002-05, 2014-15)",
+  "bytes": 12321
+ },
+ "fred/IRSTCB01CNM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRSTCB01CNM156N",
+  "date": "2026-10-29",
+  "note": "CHN central bank rate, monthly (OECD via FRED; gap filler for BIS)",
+  "bytes": 6547
+ },
+ "gold/gold_github_monthly_2026-10-26.csv": {
+  "url": "copied from ../dalio_432/cache (datasets/gold-prices monthly, GitHub)",
+  "date": "2026-10-26",
+  "note": "",
+  "bytes": 35730
+ }
+}

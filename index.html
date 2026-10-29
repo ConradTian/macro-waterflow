@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="./assets/css/cycle.css">
 <link rel="stylesheet" href="./assets/css/concept-hl.css">
 <link rel="stylesheet" href="./assets/css/headline.css">
+<link rel="stylesheet" href="./assets/css/world.css">
 </head>
 <body>
 <div id="app">
@@ -20,8 +21,10 @@
       <span class="badge" id="mode-badge">历史</span>
       <span class="spacer"></span>
       <button class="icon-btn" id="btn-play" aria-label="播放/暂停">▶</button>
+      <button class="icon-btn" id="btn-back" aria-label="退一季" title="退一季">⏮</button>
       <button class="icon-btn" id="btn-step" aria-label="前进一个季度">⏭</button>
       <button class="icon-btn speed" id="btn-speed" aria-label="速度">1×</button>
+      <button class="map-btn" id="btn-map" aria-label="打开世界地图"><span class="mb-i">🌍</span><span class="mb-t"> 地图</span></button>
       <button class="teach-btn" id="btn-teach" aria-label="打开教学菜单">教学</button>
     </div>
     <div class="progress"><i id="progress-bar"></i></div>
@@ -35,6 +38,8 @@
       <nav class="tabbar" id="tabbar" role="tablist"></nav>
     </section>
   </main>
+
+  <div class="wm" id="world-map" aria-label="世界地图" hidden></div>
 
   <div class="toast" id="toast" role="status" hidden>
     <div class="toast-msg" id="toast-msg"></div>

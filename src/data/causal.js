@@ -152,6 +152,18 @@ export const EDGES = [
   ['transfers', 'income', +1, '立刻', { why: '钱直接到家庭' }],
   ['gMinusR', 'govDebtGdp', -1, '2–3 年', { w: 0.5, why: '增长跑赢利率，债变轻' }],
 
+  // ---- 国境线（出口 / 进口 / 汇率 / 外国人买国债 / 储备货币）。fx 的数字 = 每美元换多少本币：变大 = 本币变弱 ----
+  ['exports', 'goodsChannel', +1, '立刻', { why: '外国人的订单是额外需求' }],
+  ['exports', 'income', +1, '立刻', { w: 0.7, why: '卖出去的货变成工资' }],
+  ['exports', 'cf', +1, '立刻', { w: 0.6, why: '卖得多，赚得多' }],
+  ['imports', 'goodsChannel', -1, '立刻', { why: '需求漏到国外' }],
+  ['goodsChannel', 'imports', +1, '立刻', { w: 0.5, why: '国内旺，买外国货也多' }],
+  ['fx', 'cpi', +1, '1–2 季', { why: '本币弱，进口货变贵' }],
+  ['fx', 'exports', +1, '1–2 季', { why: '本币便宜，外国人更爱买' }],
+  ['policyRate', 'fx', -1, '1–2 季', { why: '利率高，水往这里流，本币变强' }],
+  ['foreignBonds', 'discountRate', -1, '立刻', { why: '多一个买家，长端利率被压低' }],
+  ['reserveCurrency', 'foreignBonds', +1, '立刻', { w: 0.7, why: '全世界都想存美元债' }],
+
   // ---- 读数（指示灯）----
   ['creditImpulse', 'lampCredit', +1, '立刻'],
   ['dsr', 'lampDebtService', +1, '立刻'],
@@ -173,4 +185,6 @@ export const METRIC = {
   cf: 'firm.profit', fiscalInjection: 'flows.fiscalInjection', transfers: 'flows.transfers', govPurchases: 'flows.govPurchases',
   goodsChannel: 'macro.demandPressure', creditImpulse: 'lights.credit.value', priceToIncome: 'assets.housing.priceToIncome',
   rentYield: 'assets.housing.rentYield', interestToTax: 'gov.interestToTax', govDebtGdp: 'gov.debtGdp', cashAsset: 'assets.cash.ret', qe: 'flows.qe',
+  // 国境线 (snap.border; null / missing in the US history and the town, so check_causal skips them there)
+  exports: 'border.exports', imports: 'border.imports', fx: 'border.fxPerUsd', foreignBonds: 'border.foreignBondBuy',
 };

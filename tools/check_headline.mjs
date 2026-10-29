@@ -47,18 +47,21 @@ const us = run('US history', createSim({ data: US_Q, mode: 'history' }), 123);
 ok(us.dist[0] > 0 && us.dist[0] < us.n, 'US: some quarters are 平稳, not all');
 ok(us.dist[3] > 0 && us.dist[3] < us.n, 'US: some quarters have 3 items, not all');
 ok(us.dist[1] + us.dist[2] > 0, 'US: some quarters have 1-2 items');
-// the link between the dials: B2 fork (2008Q1) and 降息推不动 (2008Q2) each show up as a headline, first in the list; no B1/B2 as short-cycle names
+// the link between the dials: B2 fork and 降息推不动 both in 2008Q1 (the dial is in 降息 from the first cut, 2007Q4, so 推不动 shows the
+// quarter the long cycle takes the B2 fork), first and second in the list; no B1/B2 as short-cycle names
 {
   const at = d => us.examples.byDate[d] || [];
   ok(at('2008Q1')[0]?.startsWith('大周期走上 B2 岔路'), `2008Q1: B2 fork headline first (${at('2008Q1')[0]})`);
-  ok(at('2008Q2')[0]?.startsWith('降息推不动 → 交给大周期'), `2008Q2: 推不动 headline first (${at('2008Q2')[0]})`);
+  ok(at('2008Q1')[1]?.startsWith('降息推不动 → 交给大周期'), `2008Q1: 推不动 headline second (${at('2008Q1')[1]})`);
+  ok(at('2007Q4').some(x => x.startsWith('小周期 收紧→降息')), `2007Q4: the first Fed cut moves the short dial to 降息 (${at('2007Q4').join(' | ')})`);
+  ok(at('2022Q2').some(x => x.startsWith('小周期 过热·物价→收紧')), `2022Q2: the first hike moves the short dial to 收紧 (${at('2022Q2').join(' | ')})`);
   const all = Object.values(us.examples.byDate).flat();
   ok(all.filter(x => x.startsWith('大周期走上 B2 岔路')).length === 1, 'B2 fork headline fires exactly once in US history');
   ok(all.filter(x => x.startsWith('降息推不动')).length === 1, '推不动 headline fires exactly once in US history');
   ok(!all.some(x => /小周期[^[]*B[12]/.test(x)), 'no B1/B2 in short-cycle headline texts');
   ok(all.some(x => /小周期 [^→]*→过热·(物价|资产)/.test(x) || /小周期 过热·(物价|资产)→/.test(x)), 'short-cycle moves use KEY_LABEL (过热·物价 / 过热·资产)');
 }
-for (const d of ['2008Q1', '2008Q2', '2008Q3', '2008Q4', '2009Q1', '2020Q2', '2022Q2']) console.log(`  ${d}: ${(us.examples.byDate[d] || []).join('  ||  ') || '(平稳)'}`);
+for (const d of ['2007Q4', '2008Q1', '2008Q2', '2008Q4', '2009Q1', '2019Q3', '2020Q2', '2021Q4', '2022Q2', '2024Q4']) console.log(`  ${d}: ${(us.examples.byDate[d] || []).join('  ||  ') || '(平稳)'}`);
 
 const fr = run('free mode', createSim({ data: US_Q, mode: 'free' }), 223);
 ok(fr.n === 223, 'free: 223 quarters');

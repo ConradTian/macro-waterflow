@@ -3,27 +3,36 @@ import { RULE_DEFS, RULE_BY_ID, makeRuleState, makeRuleParams } from './rules.js
 import { seed, exogenous, decideAll, settle, buildSnapshot, qLabel, dateOf } from './economy.js';
 import { TOWN_DATA, TOWN_HV0, makeTown, townBlock, evolveTown, applyTownAction, zeroFlowsTown } from './town.js';
 import { VALVES } from './valves.js';
+import { COUNTRY_PARAMS } from '../data/country-params.js';
 
 const HIST_LAST = 123;   // 2025Q4
 const FREE_LAST = 223;   // 2050Q4
 
-// createSim({ data, mode, seed, scenario: 'us' | 'town', delays })
-//  scenario 'us'  : real data required (data = US_Q), delays always on.
+// createSim({ data, mode, seed, scenario: 'us' | 'town', delays, country })
+//  scenario 'us'  : real data required (data = US_Q, or a country's <ISO>_Q), delays always on.
+//  country        : ISO id, default 'USA'. Picks COUNTRY_PARAMS[country] (src/data/country-params.js) for the engine (K.cp) and its
+//                   rule-parameter overrides. A country without params runs on the USA params (sim.countryParamsFallback = true).
+//                   The town always runs on USA params.
 //  scenario 'town': synthetic 万元 economy (data optional, TOWN_DATA is used). delays default false: no repricing lag,
 //                   no smoothing, no momentum, short (2q) Capex lag, so one action shows its effect at once. delays:true restores them.
-export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, scenario = 'us', delays } = {}) {
+export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, scenario = 'us', delays, country = 'USA' } = {}) {
   const isTown = scenario === 'town';
   if (isTown && !data) data = TOWN_DATA;
   if (!data) throw new Error('createSim: data (US_Q) required');
+  const iso = isTown ? 'USA' : String(country || 'USA').toUpperCase();
+  const cp = COUNTRY_PARAMS[iso] || COUNTRY_PARAMS.USA;
+  // rule defaults for this country: RULE_DEFS params with the country's overrides on top (also what reset() restores)
+  const ruleParams = () => { const p = makeRuleParams(); for (const [id, o] of Object.entries(cp.rules || {})) if (p[id]) Object.assign(p[id], o); return p; };
   const listeners = {};
   const emit = (e, x) => (listeners[e] || []).forEach(fn => fn(x));
   let enabled = makeRuleState();
-  let params = makeRuleParams();   // per-sim copy; sim.rules[i].params are these same objects
+  let params = ruleParams();   // per-sim copy; sim.rules[i].params are these same objects
   let K = null;
   let model = null, user = null;
 
   const sim = {
     t: 0, mode, done: false, takenOver: null, scenario: isTown ? 'town' : 'us',
+    country: iso, countryParams: cp, countryParamsFallback: !COUNTRY_PARAMS[iso],
     delays: isTown ? !!delays : true,
     // rule text is a getter: always generated from the live params (never drifts from the numbers)
     rules: RULE_DEFS.map(r => Object.defineProperty({ id: r.id, player: r.player, enabled: r.enabled, params: params[r.id], paramDoc: r.paramDoc }, 'text',
@@ -42,7 +51,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
 
   function advance(br, name) {
     const S0 = br.S;
-    const ex = exogenous(data, S0.t + 1);
+    const ex = exogenous(data, S0.t + 1, cp);
     const e = env(name === 'user' ? br : null, name === 'model');
     const dec = decideAll(S0, K, ex, e);
     const { S, extra } = settle(S0, K, ex, dec, e);
@@ -55,7 +64,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
 
   function init(m) {
     sim.mode = m; sim.t = 0; sim.done = false; sim.takenOver = null; user = null;
-    const sd = seed(data, isTown ? { HV0: TOWN_HV0 } : {});
+    const sd = seed(data, isTown ? { HV0: TOWN_HV0, cp, mode: m } : { cp, mode: m });
     K = sd.K;
     sd.S.scenario = isTown ? 'town' : 'us';
     if (isTown) {
@@ -63,7 +72,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
       // quarter so a valve turned at t=0 acts at once (US keeps its calibrated cold start).
       const trial = structuredClone(sd.S);
       const e0 = env(null);
-      const t1 = settle(trial, K, exogenous(data, 1), decideAll(trial, K, exogenous(data, 1), e0), e0).S;
+      const t1 = settle(trial, K, exogenous(data, 1, cp), decideAll(trial, K, exogenous(data, 1, cp), e0), e0).S;
       sd.S.spendRatio = t1.spendRatio; sd.S.dsRatio = t1.dsRatio;
     }
     if (isTown) { sd.S.town = makeTown(); sd.S.town.sales = (1 - sd.S.sav) * sd.S.inc * 0.25; sd.S.flows = zeroFlowsTown(); }
@@ -79,7 +88,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
     reset(m = sim.mode) {
       for (const r of sim.rules) r.enabled = RULE_BY_ID[r.id].enabled;
       enabled = makeRuleState();
-      const fresh = makeRuleParams();
+      const fresh = ruleParams();
       for (const r of sim.rules) { for (const k of Object.keys(r.params)) delete r.params[k]; Object.assign(r.params, fresh[r.id]); }
       init(m);
       emit('reset');
@@ -117,7 +126,7 @@ export function createSim({ data, mode = 'history', seed: rngSeed = 20251028, sc
       user.decisions[playerId] = next;
     },
     suggestion(playerId) {
-      const S = model.S, ex = exogenous(data, S.t + 1);
+      const S = model.S, ex = exogenous(data, S.t + 1, cp);
       const dec = decideAll(S, K, ex, env(null, false));
       const mine = dec.entries.filter(x => x.player === playerId);
       const text = mine.length ? mine.map(x => `${x.rule}：${x.action}`).join('；') : '无规则触发：维持现状';

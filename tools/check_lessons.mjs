@@ -6,7 +6,15 @@
 //  4. claims      each step's `claims` (the factual sentences of the text) hold on the engine; experiment claims compare counterfactual runs
 // --text prints every filled text (to proofread the numbers). Exit code 1 on any FAIL.
 // Lessons 0 and the role lessons are checked by tools/check_role_lessons.mjs.
+// WORLD lessons (kind:'world', 'w1'...): same checks, plus
+//  5. world getters  'world:<path>@<year>' must resolve on WORLD (src/data/world.js; --world=<file> checks against another file)
+//  6. map steps      map:{open, select?, year?}: select is a country id of WORLD, year is in WORLD.years
+//  7. no typed numbers: a world text may only contain years, step/lesson numbers and '1 美元'; every other number comes from vals
+//  8. draft lessons (draft:true, e.g. w2 until the AUS view is ready) are only checked structurally and must stay unavailable until COUNTRY_READY
+// Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 import { US_Q } from '../src/data/us-quarterly.js';
 import { LESSONS } from '../src/data/lessons.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
@@ -14,7 +22,16 @@ import { CONCEPTS } from '../src/data/concepts.js';
 import { RULE_BY_ID } from '../src/engine/rules.js';
 import { createSim } from '../src/engine/sim.js';
 import { headlineItems } from '../src/ui/headline.js';
-import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr } from '../src/ui/lessons-town.js';
+import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr, setWorldData, evalWorld } from '../src/ui/lessons-town.js';
+
+const worldArg = (process.argv.find(a => a.startsWith('--world=')) || '').slice(8);
+let WORLD = null, COUNTRY_READY = {};
+try { WORLD = (await import(worldArg ? pathToFileURL(resolve(worldArg)).href : '../src/data/world.js')).WORLD; } catch (e) { console.log('  (no world data: ' + e.message.split('\n')[0] + ')'); }
+try { COUNTRY_READY = (await import('../src/data/countries/index.js')).COUNTRY_READY || {}; } catch (e) { /* no country views yet */ }
+setWorldData(WORLD);
+const PENDING_CONCEPTS = ['exports', 'imports', 'fx', 'foreignBonds', 'reserveCurrency'];   // border cards, written by the border-UI agent
+const BORDER_TERMS = ['exports', 'imports', 'fx', 'foreignBonds', 'reserveCurrency'];       // data-term ids of the border block in the diagram
+const pendingSeen = new Set();
 
 const verbose = process.argv.includes('--verbose'), showText = process.argv.includes('--text');
 let fails = 0, warns = 0;
@@ -24,19 +41,24 @@ const warn = (c, m) => { if (!c) { warns++; console.log('  WARN:', m); } };
 const flowSrc = readFileSync(new URL('../src/ui/flow.js', import.meta.url), 'utf8');
 const PIPES = [...flowSrc.matchAll(/\{ k: '(\w+)',\s+part:/g)].map(m => m[1]);
 const PARTS = ['bank', 'pool', 'repay', 'household', 'firm', 'channel', 'cash', 'centralBank', 'government', 'capex', 'interest', 'poolHousing', 'poolEquity', 'poolBond', 'poolGold', 'iou', 'springs', 'valves', 'budget', 'ledger', 'cycle', 'assets', 'takeover'];
-const FLOW_TERMS = ['policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'principalRepay', 'assetReservoir', 'goodsChannel', 'cpi', 'capacity', 'capex', 'qe', 'fiscalInjection'];
+const FLOW_TERMS = ['policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'principalRepay', 'assetReservoir', 'goodsChannel', 'cpi', 'capacity', 'capex', 'qe', 'fiscalInjection', ...BORDER_TERMS];
 const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
-const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain'];
+const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
 const BLOCKS = ['alloc', 'budget', 'sources'];
-const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'num', 'str'];
+const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count'];
 const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');          // numeric ids 1..7 plus half-step cycle lessons ('3b')
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
+const WORLDL = LESSONS.filter(l => l.kind === 'world');                  // 世界 1, 世界 2 ...
+const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)$/.test(g);
+const isoOk = c => !!(WORLD && WORLD.countries && WORLD.countries[c]);
+// a world text may only carry years, step/lesson numbers and '1 美元'; every other number must be a {placeholder}
+const typedNumbers = t => String(t).replace(/\{[^}]*\}/g, '').replace(/第 ?[\d.]+ ?[课步]|下面分 \d+ 步|世界 ?\d|1 美元|\b(19|20)\d\d\b/g, '').match(/\d+/g);
 const stripSim = createSim({ data: US_Q, mode: 'history' });
 const stripAt = date => { const t = US_Q.dates.indexOf(date); while (stripSim.t < t && !stripSim.done) stripSim.step(); return headlineItems(stripSim.snapshot('model', t), null, stripSim).map(i => i.text); };
 const lessonIds = new Set([...LESSONS.map(l => String(l.id)), ...ROLE_LESSONS.map(l => String(l.id))]);
 
-const specOk = s => typeof s === 'string' && AGGS.includes(s.split(':')[0]);
+const specOk = s => typeof s === 'string' && (AGGS.includes(s.split(':')[0]) || specWorldOk(s));
 function checkSet(set, w) {
   for (const [id, on] of Object.entries((set && set.rules) || {})) { ok(RULE_BY_ID[id] && typeof on === 'boolean', w + 'set rule ' + id); }
   for (const [k, v] of Object.entries((set && set.params) || {})) { const [r, p] = k.split('.'); ok(RULE_BY_ID[r] && p in RULE_BY_ID[r].params && typeof v === 'number', w + 'set param ' + k); }
@@ -64,18 +86,27 @@ function evalCond(L, c, win) {
 }
 const condName = c => c.note || c.get;
 
-for (const L of [...ROUTINE, ...CYC]) {
-  console.log(`\n=== lesson ${L.id} (${L.title}) ===`);
+for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
+  const isW = L.kind === 'world', draft = !!L.draft;
+  console.log(`\n=== lesson ${L.id} (${L.title})${draft ? ' [draft: structure only]' : ''} ===`);
   const pos = lessonPositions(L);
   const w0 = `L${L.id} `;
-  ok(L.available === true, w0 + 'available');
+  ok(draft ? L.available === false : L.available === true, w0 + (draft ? 'draft stays unavailable' : 'available'));
   ok(L.rulesOn === 'all', w0 + 'rulesOn all');
   ok(L.scenario !== 'town', w0 + 'US scenario');
   ok(US_Q.dates.includes(L.startDate) || L.mode === 'free', w0 + 'startDate');
   ok(L.steps[0].type === 'intro', w0 + 'intro first');
-  ok(L.steps[L.steps.length - 1].type === 'chain', w0 + 'ends with a chain step');
-  ok(L.steps.filter(s => s.type === 'chain').length === 1, w0 + 'exactly one chain');
-  ok(L.steps.some(s => s.type === 'predict'), w0 + 'has a predict step (猜一猜)');
+  if (isW) {
+    ok(draft || L.steps[L.steps.length - 1].type === 'recap', w0 + 'ends with a recap step');
+    ok(draft || (L.steps[L.steps.length - 1].lines || []).length === 3, w0 + 'recap has 3 lines');
+    ok(draft || L.steps.some(s => s.type === 'predict'), w0 + 'has a predict step (猜一猜)');
+    ok(WORLD && WORLD.years && WORLD.countries, w0 + 'world data (src/data/world.js) loads');
+    if (L.country) { ok(isoOk(L.country), w0 + 'country ' + L.country); if (COUNTRY_READY[L.country]) warn(!draft && L.available, w0 + 'COUNTRY_READY.' + L.country + ' is true: calibrate the lesson and set available'); else ok(L.available === false, w0 + 'country view not ready -> lesson stays unavailable'); }
+  } else {
+    ok(L.steps[L.steps.length - 1].type === 'chain', w0 + 'ends with a chain step');
+    ok(L.steps.filter(s => s.type === 'chain').length === 1, w0 + 'exactly one chain');
+    ok(L.steps.some(s => s.type === 'predict'), w0 + 'has a predict step (猜一猜)');
+  }
   ok(!L.steps.some(s => s.quiz || s.type === 'quiz'), w0 + 'no quiz');
   ok(JSON.stringify(L).indexOf('NaN') < 0, w0 + 'no NaN literal');
   L.steps.forEach((st, i) => {
@@ -83,10 +114,20 @@ for (const L of [...ROUTINE, ...CYC]) {
     ok(TYPES.includes(st.type), w + 'type');
     ok(st.title, w + 'title');
     (st.hl || []).forEach(h => ok(FLOW_TERMS.includes(h), w + 'hl ' + h));
-    (st.concept || []).forEach(c => ok(CONCEPTS[c], w + 'concept ' + c));
+    [...(st.concept || []), ...(st.concepts || [])].forEach(c => { if (!CONCEPTS[c] && PENDING_CONCEPTS.includes(c)) { pendingSeen.add(c); warn(false, w + 'concept ' + c + ' is not in concepts.js yet (PENDING: border-UI agent)'); } else ok(CONCEPTS[c], w + 'concept ' + c); });
+    if (st.map) {
+      ok(typeof st.map === 'object' && Object.keys(st.map).every(k => ['open', 'select', 'year'].includes(k)), w + 'map keys');
+      if (st.map.select) ok(isoOk(st.map.select), w + 'map.select ' + st.map.select);
+      if (st.map.year) ok(WORLD && WORLD.years.includes(st.map.year), w + 'map.year ' + st.map.year);
+      if (st.map.select || st.map.year) ok(st.map.open !== false, w + 'map.select/year need open:true');
+    }
     if (st.tab) ok(TABS.includes(st.tab), w + 'tab ' + st.tab);
     if (st.block) ok(BLOCKS.includes(st.block), w + 'block ' + st.block);
     if (st.glow) { arr(st.glow.parts).forEach(p => ok(PARTS.includes(p), w + 'glow part ' + p)); arr(st.glow.pipes).forEach(p => ok(PIPES.includes(p), w + 'glow pipe ' + p)); }
+    if (isW && !draft) {
+      const typed = [st.title, ...arr(st.text), st.q, ...arr(st.explain), ...arr(st.answerHint), ...arr(st.relation), ...arr(st.lines), ...(st.options || []).map(o => o.t)].filter(Boolean).flatMap(t => typedNumbers(t) || []);
+      ok(typed.length === 0, w + 'no typed numbers in the text (use vals)' + (typed.length ? ': ' + typed.join(',') : ''));
+    }
     for (const d of [st.from, st.until]) if (d) ok(US_Q.dates.includes(d) || (L.mode === 'free' && /^20\d\dQ[1-4]$/.test(d)), w + 'date ' + d);
     (st.metrics || []).forEach(m => { ok(specOk(m.get) || m.get.indexOf(':') < 0, w + 'metric spec ' + m.get); ok(!m.fmt || FMTS.includes(m.fmt), w + 'metric fmt ' + m.fmt); });
     (st.vals || []).forEach(v => { ok(v.key && specOk(v.get) && FMTS.includes(v.fmt), w + 'val ' + v.key); checkSet(v.set, w + 'val ' + v.key + ' '); });
@@ -109,7 +150,7 @@ for (const L of [...ROUTINE, ...CYC]) {
     }
     if (st.type === 'watch') ok(st.until, w + 'until');
     if (st.type === 'predict') {
-      ok(st.until && st.q && st.options.length === 3, w + 'predict shape');
+      ok((isW || st.until) && st.q && st.options.length === 3, w + 'predict shape');
       ok(st.options.filter(o => o.ok).length === 1, w + 'exactly one ok');
       ok(st.explain.length >= 2, w + 'explain');
     }
@@ -120,6 +161,7 @@ for (const L of [...ROUTINE, ...CYC]) {
       ok(st.metrics.every(m => m.key), w + 'every metric has a key (live insight)');
       if (st.compareAll) ok(st.choices.every(c => c.short), w + 'compareAll needs short labels');
     }
+    if (st.type === 'recap') { ok(st.lines && st.lines.length >= 1, w + 'recap lines'); if (st.next != null) ok(lessonIds.has(String(st.next)), w + 'next ' + st.next); }
     if (st.type === 'chain') {
       ok(st.links.length >= 4, w + 'chain has >= 4 links');
       st.links.forEach((l, k) => {
@@ -184,6 +226,9 @@ for (const L of [...ROUTINE, ...CYC]) {
 
 /* ---------- cross-lesson ---------- */
 console.log('\n--- cross-lesson ---');
+if (pendingSeen.size) console.log('  PENDING concept cards (not written yet, world lessons point at them): ' + [...pendingSeen].join(', '));
+ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LESSONS.length - 2, 'world lessons w1, w2 sit after the cycle lessons');
+ok(WORLDL.every(l => l.label && l.title), 'world lessons have label and title');
 ok(CYC.map(l => l.id).join() === '1,2,3,3b,4,5,6,7', 'cycle lessons 1..7 (+ 3b) all present, in order');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
 ok(CYC.every((l, k) => k === CYC.length - 1 || l.steps[l.steps.length - 1].next === CYC[k + 1].id), 'each cycle lesson hands over to the next');
