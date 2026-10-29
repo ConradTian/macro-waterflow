@@ -11,6 +11,7 @@
 // Effect objects: { action:{...townAction} } | { valve:id, value } | { delays:bool } | { rule:id, on:bool } | { param:'rule.key', value } | { reset:true }
 import { VALVES } from '../engine/valves.js';
 import { createSim } from '../engine/sim.js';
+import { lampsAt } from './objective.js';      // 总目标 lamps ('lamp.<id>' getters); objective.js is DOM-free at import time
 
 const arr = x => (x == null ? [] : Array.isArray(x) ? x : [x]);
 export { arr };
@@ -75,6 +76,14 @@ export function replayTown(s, L, upto, pos = lessonPositions(L)) {
 }
 
 // path into a snapshot. 'share.toCash' (also toHousing/toEquity/toBond/toGold) = that pool's share of the quarter's new money
+// Derived paths (main-line course, 2026-10-29):
+//   'gdp.<path>'   a QUARTERLY flow as a share of GDP, annualised (x 4 / macro.gdpNominal: the same base as the diagram chips), e.g. gdp.flows.wages
+//   'out.C|I|G|NX' the four outlets of the goods channel as shares of GDP, the same formula as outletsOf() in src/ui/flow.js (C = the residual)
+//   'lamp.flood|drought|burst|overdraft'  level of a 总目标 lamp ('green'|'yellow'|'red', lampsAt of src/ui/objective.js, US view);
+//   'lamps.lit'    how many of the four lamps are not green
+//   '<a>/<b>'      ratio of two plain paths (annual stocks), e.g. gov.deficit/macro.gdpNominal
+const GDP = o => o && o.macro && o.macro.gdpNominal;
+const plain = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 export const getPath = (o, p) => {
   p = String(p);
   if (p.startsWith('share.')) {
@@ -82,7 +91,22 @@ export const getPath = (o, p) => {
     const tot = (f.toHousing || 0) + (f.toEquity || 0) + (f.toBond || 0) + (f.toGold || 0) + (f.toCash || 0);
     return tot > 1e-9 ? (f[p.slice(6)] || 0) / tot : null;
   }
-  return p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+  if (p.startsWith('gdp.')) { const v = plain(o, p.slice(4)), g = GDP(o); return typeof v === 'number' && g > 0 ? v * 4 / g : null; }
+  if (p.startsWith('out.')) {
+    const g = GDP(o); if (!(g > 0)) return null;
+    const I = (o.firm?.capex ?? 0) / 4, G = o.flows?.govPurchases ?? 0, NX = o.border?.netExports ?? 0, C = Math.max(0, g / 4 - I - G - NX);
+    const v = { C, I, G, NX }[p.slice(4)];
+    return v == null ? null : v * 4 / g;
+  }
+  if (p.startsWith('lamp.') || p === 'lamps.lit') {
+    if (!o || !o.macro || o.scenario === 'town') return null;
+    const L = lampsAt(o, 'USA');
+    if (p === 'lamps.lit') return L.filter(l => l.level !== 'green').length;
+    const l = L.find(x => x.id === p.slice(5));
+    return l ? l.level : null;
+  }
+  if (p.includes('/')) { const [a, b] = p.split('/'), x = plain(o, a), y = plain(o, b); return typeof x === 'number' && typeof y === 'number' && y !== 0 ? x / y : null; }
+  return plain(o, p);
 };
 
 // 'try' step: run `n` quarters from the state at step i with a given set of effects; returns the snapshots of those quarters
@@ -114,7 +138,7 @@ export const dateT = d => (typeof d === 'number' ? d : (+d.slice(0, 4) - 1995) *
 
 export function fmtV(v, f) {
   if (v == null || (typeof v === 'number' && !Number.isFinite(v))) return '—';
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') return f === 'lamp' ? ({ green: '绿灯', yellow: '黄灯', red: '红灯' }[v] || v) : v;
   switch (f) {
     case 'pct': return (v * 100).toFixed(1) + '%';
     case 'pct0': return (v * 100).toFixed(0) + '%';

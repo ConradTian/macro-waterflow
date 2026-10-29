@@ -14,19 +14,27 @@
 // COUNTRY lessons (country:'AUS', e.g. w2): every scratch run uses that country's data and sim (createSim({ data, mode, country }));
 //  the lesson may only be available when COUNTRY_READY[country]; getters 'real:<agg>:<series>' read the country's REAL quarterly series
 //  (data.series); a step's wavesNow:{iso,has} is checked against the country's NOW label in src/data/waves.js
+// MAIN LINE (kind:'main', m1..m5, menu order = COURSE.main of src/data/lessons.js): the same checks as the cycle lessons, plus
+//  9. outline     the intro's '下面分 N 步：A → B → ...' lists exactly N items (arrows, no circled numbers: those are the long-cycle stages)
+// 10. town steps  (m1 starts in the 万元 town, then zooms to the US): townClaims [{ at:'before'|'after', get, minus?:'before', gt|gte|lt|lte }] are
+//                 checked on a town replay with the SAME code as the UI (replayTown + the tap); the US steps after the zoom run the usual checks
+// 11. mark / roleCard ids exist; ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
+// 12. handover   m1 -> m2 -> ... -> m5 -> the first 选学 lesson (last step `next`); COURSE lists every lesson / role lesson exactly once
+// Claims may test strings: eq:'red' / ne:'green' (getters 'lamp.<id>', 'lamps.lit', 'out.C', 'gdp.<flow>', '<a>/<b>': see src/ui/lessons-town.js).
 // Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { US_Q } from '../src/data/us-quarterly.js';
 import { WAVES } from '../src/data/waves.js';
-import { LESSONS } from '../src/data/lessons.js';
+import { LESSONS, COURSE } from '../src/data/lessons.js';
+import { ROLE_CARD_ORDER } from '../src/data/role-cards.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
 import { CONCEPTS } from '../src/data/concepts.js';
 import { RULE_BY_ID } from '../src/engine/rules.js';
 import { createSim } from '../src/engine/sim.js';
 import { headlineItems } from '../src/ui/headline.js';
-import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr, setWorldData, evalWorld } from '../src/ui/lessons-town.js';
+import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr, setWorldData, evalWorld, replayTown, applyAll, tapEffects, getPath } from '../src/ui/lessons-town.js';
 
 const worldArg = (process.argv.find(a => a.startsWith('--world=')) || '').slice(8);
 let WORLD = null, COUNTRY_READY = {}, COUNTRY_DATA = {};
@@ -47,13 +55,16 @@ const warn = (c, m) => { if (!c) { warns++; console.log('  WARN:', m); } };
 const flowSrc = readFileSync(new URL('../src/ui/flow.js', import.meta.url), 'utf8');
 const PIPES = [...flowSrc.matchAll(/\{ k: '(\w+)',\s+part:/g)].map(m => m[1]);
 const PARTS = ['bank', 'pool', 'repay', 'household', 'firm', 'channel', 'cash', 'centralBank', 'government', 'capex', 'interest', 'poolHousing', 'poolEquity', 'poolBond', 'poolGold', 'iou', 'springs', 'valves', 'budget', 'ledger', 'cycle', 'assets', 'takeover'];
-const FLOW_TERMS = ['policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'principalRepay', 'assetReservoir', 'goodsChannel', 'cpi', 'capacity', 'capex', 'qe', 'fiscalInjection', ...BORDER_TERMS];
+const FLOW_TERMS = ['realRate', 'policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'principalRepay', 'assetReservoir', 'goodsChannel', 'cpi', 'capacity', 'capex', 'qe', 'fiscalInjection', ...BORDER_TERMS];
 const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
+const MAIN_TYPES = [...TYPES, 'action', 'zoom'];      // m1: two town action steps, then the zoom to the US
+const MARKS = ['loop', 'outlets', 'objective'];       // step field mark (src/ui/lessons.js MARKS)
 const BLOCKS = ['alloc', 'budget', 'sources'];
-const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'aud', 'ppa', 'apct0', 'apct1', 'num', 'str'];
+const FMTS = ['lamp', 'pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'aud', 'ppa', 'apct0', 'apct1', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count', 'qcount'];
-const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');          // numeric ids 1..7 plus half-step cycle lessons ('3b')
+const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');
+const MAIN = LESSONS.filter(l => l.kind === 'main');                     // 主线 m1..m5          // numeric ids 1..7 plus half-step cycle lessons ('3b')
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
 const WORLDL = LESSONS.filter(l => l.kind === 'world');                  // 世界 1, 世界 2 ...
 const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)(>\d{4})?$/.test(g);
@@ -82,6 +93,10 @@ function evalCond(L, c, win) {
     const b = evalGet(D, L, { ...g, get: c.dateBefore }, win);
     return { pass: typeof b === 'string' && dateT(a) < dateT(b), msg: `${a} before ${b}` };
   }
+  if (c.eq !== undefined || c.ne !== undefined) {
+    const pass = c.eq !== undefined ? String(a) === String(c.eq) : String(a) !== String(c.ne);
+    return { pass, msg: `${c.get} = ${a} vs ${c.eq !== undefined ? 'eq ' + c.eq : 'ne ' + c.ne}` };
+  }
   let b = 0, bs = '';
   if (c.vs) {
     const vg = { get: c.vs.get || c.get, set: c.vs.set !== undefined ? c.vs.set : c.set, from: c.vs.from || c.from, until: c.vs.until || c.until };
@@ -94,18 +109,19 @@ function evalCond(L, c, win) {
 }
 const condName = c => c.note || c.get;
 
-for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
-  const isW = L.kind === 'world', draft = !!L.draft;
+const mkTown = L => createSim({ scenario: 'town', delays: !!L.delays });
+for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
+  const isW = L.kind === 'world', draft = !!L.draft, isM = L.kind === 'main';
   const D = DATA[L.country || 'USA'];
   console.log(`\n=== lesson ${L.id} (${L.title})${draft ? ' [draft: structure only]' : ''} ===`);
   const pos = lessonPositions(L);
   const w0 = `L${L.id} `;
   ok(draft ? L.available === false : L.available === true, w0 + (draft ? 'draft stays unavailable' : 'available'));
   ok(L.rulesOn === 'all', w0 + 'rulesOn all');
-  ok(L.scenario !== 'town', w0 + 'no town scenario');
+  ok(L.scenario !== 'town' || (isM && L.steps.some(s => s.type === 'zoom')), w0 + 'no town scenario (a main lesson may start in the town and zoom to the US)');
   ok(!!D, w0 + 'quarterly data for ' + (L.country || 'USA') + ' loads');
   if (!D) continue;
-  ok(D.dates.includes(L.startDate) || L.mode === 'free', w0 + 'startDate');
+  ok(D.dates.includes(L.startDate) || L.mode === 'free' || (L.scenario === 'town' && D.dates.includes((L.steps.find(s => s.type === 'zoom') || {}).date)), w0 + 'startDate (or the zoom date)');
   ok(L.steps[0].type === 'intro', w0 + 'intro first');
   if (isW) {
     ok(draft || L.steps[L.steps.length - 1].type === 'recap', w0 + 'ends with a recap step');
@@ -113,6 +129,11 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
     ok(draft || L.steps.some(s => s.type === 'predict'), w0 + 'has a predict step (猜一猜)');
     ok(WORLD && WORLD.years && WORLD.countries, w0 + 'world data (src/data/world.js) loads');
     if (L.country) { ok(isoOk(L.country), w0 + 'country ' + L.country); if (COUNTRY_READY[L.country]) warn(!draft && L.available, w0 + 'COUNTRY_READY.' + L.country + ' is true: calibrate the lesson and set available'); else ok(L.available === false, w0 + 'country view not ready -> lesson stays unavailable'); ok(L.available !== true || COUNTRY_READY[L.country], w0 + 'available only when COUNTRY_READY.' + L.country); if (!draft && L.available) ok(L.steps[0].text.some(t => /^下面分 \d+ 步/.test(t)) && L.steps.some(s => s.map && s.map.open), w0 + 'country lesson has the N-steps line and opens the map'); }
+  } else if (isM) {
+    const last = L.steps[L.steps.length - 1];
+    ok(last.next != null, w0 + 'last step hands over (next)');
+    ok(L.steps.length >= 4 && L.steps.length <= 10, w0 + `4-10 steps (${L.steps.length})`);
+    ok(L.label && /^第 \d 课$/.test(L.label), w0 + 'label 第 N 课');
   } else {
     ok(L.steps[L.steps.length - 1].type === 'chain', w0 + 'ends with a chain step');
     ok(L.steps.filter(s => s.type === 'chain').length === 1, w0 + 'exactly one chain');
@@ -122,7 +143,10 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
   ok(JSON.stringify(L).indexOf('NaN') < 0, w0 + 'no NaN literal');
   L.steps.forEach((st, i) => {
     const w = `L${L.id} step ${i + 1} (${st.type}) `;
-    ok(TYPES.includes(st.type), w + 'type');
+    ok((isM ? MAIN_TYPES : TYPES).includes(st.type), w + 'type');
+    arr(st.mark).forEach(m => ok(MARKS.includes(m), w + 'mark ' + m));
+    if (st.roleCard) ok(ROLE_CARD_ORDER.includes(st.roleCard), w + 'roleCard ' + st.roleCard);
+    if (st.next != null) ok(i === L.steps.length - 1 || ['chain', 'zoom', 'recap'].includes(st.type), w + 'next only on the last step');
     ok(st.title, w + 'title');
     (st.hl || []).forEach(h => ok(FLOW_TERMS.includes(h), w + 'hl ' + h));
     [...(st.concept || []), ...(st.concepts || [])].forEach(c => { if (!CONCEPTS[c] && PENDING_CONCEPTS.includes(c)) { pendingSeen.add(c); warn(false, w + 'concept ' + c + ' is not in concepts.js yet (PENDING: border-UI agent)'); } else ok(CONCEPTS[c], w + 'concept ' + c); });
@@ -151,8 +175,14 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
       if (line) {
         const n = +line.match(/\d+/)[0];
         ok(n === L.steps.length - 1, w + `N (${n}) matches the number of steps (${L.steps.length - 1})`);
-        const circ = (line.match(/[①-⑫]/g) || []).length;
-        ok(circ === n, w + `outline lists ${circ} circled steps`);
+        if (isM) {
+          const items = line.replace(/^下面分 \d+ 步：/, '').replace(/。$/, '').split('→').map(x => x.trim()).filter(Boolean);
+          ok(items.length === n, w + `outline lists ${items.length} items (A → B → ...)`);
+          items.forEach((t, k) => { const tt = (L.steps[k + 1].title || '').replace(/^第 \d+ 步：/, ''); ok(tt.includes(t.slice(0, 2)) || t.includes(tt.slice(0, 2)), w + `outline item ${k + 1} "${t}" ~ step title "${tt}"`); });
+        } else {
+          const circ = (line.match(/[①-⑫]/g) || []).length;
+          ok(circ === n, w + `outline lists ${circ} circled steps`);
+        }
       }
     }
     if (st.type === 'reveal') ok(!st.question || st.answerHint, w + 'question has answerHint');
@@ -186,8 +216,27 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
       });
       if (st.next != null) ok(lessonIds.has(String(st.next)) && LESSONS.concat(ROLE_LESSONS).find(x => String(x.id) === String(st.next)).available !== false, w + 'next ' + st.next);
     }
-    // ---- 2. templates
     const win = pos[i];
+    if (win.world === 'town') {         // ---- 10. town steps (main line m1): replay with the UI's code, tap, check townClaims
+      ok(['intro', 'action'].includes(st.type) && !st.vals && !st.claims, w + 'town step: intro/action only, no US vals/claims');
+      if (st.type === 'action') {
+        const s = mkTown(L); replayTown(s, L, i, pos); applyAll(s, st.do, L);
+        const before = s.snapshot();
+        const res = applyAll(s, tapEffects(st), L);
+        ok(res.every(r => !r || r.ok !== false), w + 'town action works' + (res.find(r => r && r.ok === false) ? ': ' + res.find(r => r && r.ok === false).reason : ''));
+        const after = s.snapshot();
+        ok((st.townClaims || []).length > 0, w + 'town step has townClaims');
+        for (const c of st.townClaims || []) {
+          const v = getPath(c.at === 'after' ? after : before, c.get) - (c.minus === 'before' ? getPath(before, c.get) : 0);
+          const tests = [['gt', v > c.gt], ['gte', v >= c.gte], ['lt', v < c.lt], ['lte', v <= c.lte]].filter(([k]) => c[k] !== undefined);
+          const pass = typeof v === 'number' && tests.length > 0 && tests.every(t => t[1]);
+          if (verbose || !pass) console.log(`   town claim [${c.note || c.get}] ${pass ? 'holds' : 'FAILS'}: ${c.at} ${c.get}${c.minus ? ' - before' : ''} = ${v}`);
+          ok(pass, w + 'town claim: ' + (c.note || c.get));
+        }
+      }
+      return;
+    }
+    // ---- 2. templates
     const you = st.slider ? st.slider.def : null;
     const tbl = buildTable(D, L, st, win, you);
     const miss = [];
@@ -228,6 +277,10 @@ for (const L of [...ROUTINE, ...CYC, ...WORLDL]) {
       if (verbose || !r.pass) console.log(`   claim [${condName(c)}] ${r.pass ? 'holds' : 'FAILS'}: ${r.msg}`);
       ok(r.pass, w + 'claim: ' + condName(c));
     });
+    for (const lc of st.ledgerAt || []) {   // ---- 11. the quarter's ledger has that rule entry
+      const d = lc.date || win.from, r = scratchRun(D, L, {}, d, d);
+      ok(r.base && r.base.ledger.some(e => e.player === lc.player && e.ruleId === lc.ruleId), w + `ledger ${d}: ${lc.player} fired ${lc.ruleId}`);
+    }
     if (st.ledgerClaim) {
       const r = scratchRun(D, L, {}, win.from, win.until);
       const n = r.hist.filter(h => h.ledger.some(e => e.player === st.ledgerClaim.player && new RegExp(st.ledgerClaim.re).test(e.rule + e.action))).length;
@@ -243,7 +296,28 @@ ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LE
 ok(WORLDL.every(l => l.label && l.title), 'world lessons have label and title');
 ok(CYC.map(l => l.id).join() === '1,2,3,3b,4,5,6,7', 'cycle lessons 1..7 (+ 3b) all present, in order');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
-ok(CYC.every((l, k) => k === CYC.length - 1 || l.steps[l.steps.length - 1].next === CYC[k + 1].id), 'each cycle lesson hands over to the next');
+// old chain 1 -> 2 -> 3 -> 3b -> 4 -> 5; lesson 5 (选学) now hands over to 7 (选学), 6 (旧版) to 7, 7 to w2 (选学)
+const NEXT_OF = { 5: 7, 6: 7, 7: 'w2' };
+ok(CYC.every((l, k) => String(l.steps[l.steps.length - 1].next) === String(NEXT_OF[l.id] ?? CYC[k + 1].id)), 'each cycle lesson hands over to the next (5 -> 7 -> w2 in the 选学 group)');
+/* ---------- main line + menu (COURSE) ---------- */
+ok(MAIN.map(l => l.id).join() === COURSE.main.join() && COURSE.main.join() === 'm1,m2,m3,m4,m5', 'main line m1..m5, in LESSONS in menu order');
+ok(MAIN.every(l => l.available === true), 'main lessons available');
+MAIN.forEach((l, k) => { const nx = l.steps[l.steps.length - 1].next, want = k < MAIN.length - 1 ? MAIN[k + 1].id : COURSE.advanced[0]; ok(String(nx) === String(want), `${l.id} hands over to ${want} (got ${nx})`); });
+ok(MAIN[0].scenario === 'town' && MAIN[0].steps.findIndex(s => s.type === 'zoom') === 3, 'm1: steps 1-2 in the town, step 3 zooms to the US');
+const mainSteps = MAIN.reduce((a, l) => a + l.steps.length, 0);
+ok(mainSteps <= 32, `main line is about an hour: ${mainSteps} steps (<= 32, ~2 min each)`);
+{ const m1 = MAIN[0].steps, m5 = MAIN[4].steps;
+  ok(arr(m1[3].mark).includes('loop') && arr(m1[4].mark).includes('outlets') && arr(m1[5].mark).includes('objective'), 'm1 marks: 水转圈 = loop, 四个出口 = outlets, 总目标 = objective');
+  ok(m5.slice(1).map(s => s.roleCard).join() === ROLE_CARD_ORDER.join(), 'm5 opens the 8 role cards in ROLE_CARD_ORDER');
+  ok(MAIN[4].startDate === '2008Q3' && dateT('2008Q3') === 54 && m5.every(s => !s.from && !s.until), 'm5 stays at 2008Q3 (t=54)');
+  ok(arr(m5[m5.length - 1].mark).includes('objective') && (m5[m5.length - 1].claims || []).some(c => c.get === 'start:lamps.lit' && c.gte === 4), 'm5 ends on the 总目标 strip with all 4 lamps lit (claimed)'); }
+const menuKeys = [...COURSE.main, ...COURSE.advanced, ...COURSE.later, ...COURSE.legacy].map(String);
+ok(new Set(menuKeys).size === menuKeys.length, 'COURSE lists no lesson twice');
+for (const l of LESSONS) ok(menuKeys.includes(String(l.id)), `lesson ${l.id} is in the menu (COURSE)`);
+for (const l of ROLE_LESSONS) ok(menuKeys.includes('role:' + l.role), `role lesson ${l.id} is in the menu (旧版)`);
+for (const k of menuKeys) ok(k.startsWith('role:') ? ROLE_LESSONS.some(l => l.role === k.slice(5)) : LESSONS.some(l => String(l.id) === k), 'menu key exists: ' + k);
+ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,6', '旧版课程 = lesson 0, 0.5, the 7 role lessons and cycle lessons 1-4 (+3b), 6');
+ok(COURSE.advanced.join() === '5,7,w2' && COURSE.later.join() === 'w1' && COURSE.soon.map(s => s.title).join() === '汇率,投资者', '选学 = 5, 7, w2; then 世界 1 and the two 制作中 placeholders');
 ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
 ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
 const L7 = CYC[CYC.length - 1];

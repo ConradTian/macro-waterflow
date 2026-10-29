@@ -1,0 +1,97 @@
+/* SIMPLE MODE panel (src/ui/simple.js; app.css decides when it shows). The two cycle dials as a compact read-only pair, the 本季看点 details
+   (wide screens) and the 「更多」 button. Colours only from tokens (app.css / panels.css / cycle.css .pn-cycle), so light and dark both work. */
+.simple { flex: 1; min-height: 0; flex-direction: column; background: var(--bg); }
+.sp-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px var(--gutter) 10px;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.sp-scroll > * { max-width: 760px; }
+
+/* the dial pair: the whole card is one button (→ 周期 page) */
+.sp-dials { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sp-dial { min-width: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 6px 8px 8px; color: var(--text); cursor: pointer; }
+.sp-long { border-top: 4px solid var(--cy-s6); }
+.sp-short { border-top: 4px solid var(--cy-p-hotP); }
+.sp-dial:active { background: var(--surface-2); }
+.sp-dial:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sp-dh { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.sp-dh b { font-size: 15px; }
+.sp-dh small { color: var(--muted); font-size: 12px; }
+.sp-svg { flex: 1; display: flex; align-items: center; }
+.sp-svg .cy-dial { pointer-events: none; }
+/* compact: drop the smallest print of the 周期 tab's dial, names a little larger (the full story is one tap away) */
+.sp-dial .cy-fk-s, .sp-dial .cy-exit-s, .sp-dial .cy-back, .sp-dial .cy-sub:not(.top) { display: none; }
+.sp-dial .cy-nm { font-size: 15px; }
+.sp-dial .cy-c1 { font-size: 17px; }
+.sp-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 14px; line-height: 1.35; }
+.sp-now small { color: var(--muted); font-size: 12px; }
+.sp-hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+.sp-empty { margin: 8px 0; padding: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+
+/* 本季看点 details (the strip's own tags: headline.css .hl-tag / .hl-t / .hl-w) */
+.sp-hl { margin-top: 12px; }
+.sp-h { margin: 0 0 4px; font-size: 15px; }
+.sp-h small { color: var(--muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sp-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.sp-list li + li { border-top: 1px dashed var(--border); }
+.sp-item, .sp-quiet { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; background: none;
+  color: var(--text); text-align: left; font: inherit; font-size: 14px; }
+.sp-item { cursor: pointer; }
+.sp-item:active { background: var(--surface-2); }
+.sp-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sp-item.hl-next .hl-tag { border-style: dashed; }
+.sp-item.hl-next .hl-t { font-weight: 600; }
+
+/* 「更多」 + the 历史盲测 link: where the tab bar was */
+.sp-foot { flex: none; display: flex; align-items: stretch; border-top: 1px solid var(--border); background: var(--surface); }
+.sp-foot .sp-more { flex: 1; border-top: 0; }
+.sp-blind { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 18px var(--safe-b); border-left: 1px solid var(--border);
+  color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.sp-blind i { font-style: normal; }
+.sp-blind:active { background: var(--surface-2); }
+.sp-blind:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sp-more { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 var(--gutter) var(--safe-b);
+  border: 0; border-top: 1px solid var(--border); background: var(--surface); color: var(--accent); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.sp-more small { color: var(--muted); font-weight: 400; font-size: 13px; }
+.sp-more i { font-style: normal; }
+.sp-more:active { background: var(--surface-2); }
+.sp-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+@media (min-width: 768px) {
+  .sp-scroll { padding: 14px 24px 16px; }
+  .sp-dials { gap: 12px; }
+  .sp-dial { padding: 8px 10px 10px; }
+}
+/* iPad portrait / narrow windows: the right column is ~400px, too narrow for two readable dials side by side -> one above the other */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .sp-dials { grid-template-columns: 1fr; }
+  .sp-svg .cy-dial { max-width: 330px; }
+}
+
+/* phone: diagram, then the dials row. The dials are ~170px wide here: keep the ring, the names and the centre line, drop the small print */
+@media (max-width: 767.98px) {
+  .sp-scroll { padding: 6px 8px; }
+  .sp-dials { gap: 6px; }
+  .sp-dial { padding: 4px 6px 6px; border-radius: 12px; }
+  .sp-dh b { font-size: 14px; }
+  .sp-dh small { font-size: 11px; }
+  .sp-hl, .sp-hint { display: none; }
+  /* the row must fit under the diagram (56dvh) and the top bar: ~130px of dial on a 844px phone, never under 90px */
+  .sp-svg .cy-dial { max-height: max(90px, min(130px, calc(44dvh - 240px))); }
+  .sp-now { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sp-now small { display: none; }
+  .sp-now { font-size: 12.5px; }
+  .sp-now small { font-size: 11px; }
+  /* simple.js crops the svg to the ring: node names, fork / exit print go; the glyphs (①② / 扩热紧降) and the centre line stay */
+  .sp-dial .cy-nm, .sp-dial .cy-fk-t, .sp-dial .cy-sub, .sp-dial .cy-exit, .sp-dial .cy-c3, .sp-dial .cy-c2:not(.no) { display: none; }
+  .sp-dial .cy-c1 { font-size: 19px; }
+  .sp-dial .cy-c2.no { font-size: 14px; }
+  .sp-more { min-height: 46px; font-size: 15px; }
+}
+@media (max-width: 420px) { .sp-more small { font-size: 12px; } }
+
+/* phone: a long country badge (澳洲·历史) pushed 教学 off the right edge at 390px */
+@media (max-width: 420px) {
+  .timebar .badge:has(.bd-c) .bd-m { display: none; }   /* 澳洲 · 历史 -> 澳洲 */
+  .timebar .date { font-size: 19px; }
+  .sp-blind { padding: 0 12px var(--safe-b); font-size: 13px; }
+}

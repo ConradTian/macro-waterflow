@@ -82,7 +82,8 @@ try {
   ok(await A.hidden('#scrub-panel'), 'reload: stays collapsed');
 
   // ---- 2. marks (from the engine at runtime) ----
-  await A.open(BASE + '?pause=1&t=52&debug=1', true);
+  // full=1: section 3 compares the visible tab panel after a seek with a fresh ?tab=ledger run (the default page is the simple layout)
+  await A.open(BASE + '?pause=1&t=52&debug=1&full=1', true);
   for (let i = 0; i < 30 && !(await A.count('.scrub-tri')); i++) await sleep(250);
   ok(await A.count('.sm-band') === 3, 'recession bands: ' + await A.count('.sm-band') + ' (WAVES.usQ.recessions has 3)');
   ok(await A.count('.sm-hatch') === 1, 'hatched 保留样本 from reservedFrom');

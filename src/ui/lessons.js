@@ -17,8 +17,8 @@ import { createSim } from '../engine/sim.js';
 import * as RULES from '../engine/rules.js';
 import { VALVES } from '../engine/valves.js';
 import { TOWN_DATA } from '../engine/town.js';
-import { LESSONS } from '../data/lessons.js';
-import { linkify } from './concepts.js';
+import { LESSONS, COURSE } from '../data/lessons.js';
+import { linkify, roleCardHtml } from './concepts.js';
 import { CONCEPTS as CONC } from '../data/concepts.js';
 import { flash, clearFlash, ROLE_ORDER, ROLE_NAME, setAvailableRoles, isRoleLearned, markRoleLearned } from './links.js';
 import { compareChart } from './tabs/_util.js';
@@ -58,7 +58,10 @@ function loadRoles() {
     .then(() => countries)
     .then(() => { setAvailableRoles(ROLE_LESSONS.filter(isAvail).map(l => l.role)); if (!cur && ctx) ctx.refresh(); });
 }
-const lessonLabel = L => (L.role ? `${ROLE_NAME[L.role] || L.role}课` : (L.label || `第 ${L.id} 课`));
+// old lessons (COURSE.legacy) carry a 「旧版」 prefix on the card, so their 「第 N 课」 never clashes with the main line's numbers
+const LEGACY = new Set((COURSE?.legacy || []).map(String));
+const isLegacy = L => !!L && (LEGACY.has(String(L.id)) || (L.role && LEGACY.has('role:' + L.role)));
+const lessonLabel = L => (isLegacy(L) ? '旧版 · ' : '') + (L.role ? `${ROLE_NAME[L.role] || L.role}课` : (L.label || `第 ${L.id} 课`));
 
 /* ---------- helpers ---------- */
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -146,7 +149,22 @@ function metricsFor(L, o, step) {
 
 /* ---------- highlights (class on [data-term] in the diagram, re-applied after each render) ---------- */
 let hlIds = [];
+// step field mark:[...] = a steady glow (class ls-mark) on things that have no data-term: the 收入循环 ring, the four outlets, the 总目标 strip.
+// Re-applied after every render (the strip rewrites its className each quarter).
+const MARKS = {
+  loop: '#diagram .flow-svg g.loop, #diagram .flow-svg g.loop-lbl',
+  outlets: '#diagram .flow-svg [data-pipe="outC"], #diagram .flow-svg [data-pipe="outI"], #diagram .flow-svg [data-pipe="outG"], #diagram .flow-svg [data-pipe="outNX"], #diagram .flow-svg .oname, #diagram .flow-svg .gdpln',
+  objective: '#objective',
+};
+export const MARK_IDS = Object.keys(MARKS);
+function applyMarks() {
+  document.querySelectorAll('.ls-mark').forEach(n => n.classList.remove('ls-mark'));
+  const st = cur && cur.L.steps[cur.i];
+  if (!st || !st.mark || ss.zooming) return;
+  for (const m of arr(st.mark)) if (MARKS[m]) document.querySelectorAll(MARKS[m]).forEach(n => n.classList.add('ls-mark'));
+}
 function applyHl() {
+  applyMarks();
   const host = document.getElementById('diagram');
   if (!host) return;
   host.querySelectorAll('.ls-hl, .ls-hl-pipe').forEach(n => n.classList.remove('ls-hl', 'ls-hl-pipe'));
@@ -225,16 +243,25 @@ function syncPad() {
   document.documentElement.style.setProperty('--ls-h', h + 'px');
 }
 
-/* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
-// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 3.5 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7 → 世界 1 → 世界 2
-const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, '3b', 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7, 'w1', 'w2'];
-const REC = Object.fromEntries(REC_ORDER.map((k, i) => [k, i + 1]));
-function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
+/* ---------- course menu (COURSE in data/lessons.js): 主线 / 选学 / 接下来 / 旧版课程 (collapsed) ---------- */
+// recommended path = the main line m1..m5 (badge 「推荐 n」); everything else is optional
+const REC = Object.fromEntries((COURSE.main || []).map((k, i) => [k, i + 1]));
+// badge (the round number on the left) per menu key
+function badgeOf(key, L) {
+  const s = String(key);
+  if (s.startsWith('role:')) return (ROLE_NAME[s.slice(5)] || '?').slice(0, 1);
+  if (L && L.kind === 'main') return String(COURSE.main.indexOf(L.id) + 1);
+  if (s === '0b') return '½';
+  if (s === '3b') return '3½';
+  if (/^w\d+$/.test(s)) return s.replace(/^w(\d+)$/, '世$1');
+  return s;
+}
+function menuItem(L, p, badge, key, fallbackTitle, fallbackOne, soonText) {
   const ok = isAvail(L);
   const title = L ? L.title : fallbackTitle, one = L ? L.oneLine : fallbackOne;
   const id = L ? L.id : '';
   let st;
-  if (!ok) st = `<span class="ls-st soon">${L && L.country && !COUNTRY_READY[L.country] ? '细图制作中' : '即将开放'}</span>`;
+  if (!ok) st = `<span class="ls-st soon">${soonText || (L && L.country && !COUNTRY_READY[L.country] ? '细图制作中' : '即将开放')}</span>`;
   else if (p.done[id] || (L.role && isRoleLearned(L.role))) st = '<span class="ls-st done">已完成 ✓</span>';
   else if (p.step[id] > 0) st = `<span class="ls-st doing">进行中 · 第 ${p.step[id] + 1}/${L.steps.length} 步</span>`;
   else st = '<span class="ls-st">未开始</span>';
@@ -242,27 +269,30 @@ function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
   return `<li><button type="button" class="ls-item" data-act="start" data-id="${esc(id)}" ${ok ? '' : 'disabled'}>` +
     `<span class="ls-no">${esc(badge)}</span><span class="ls-it"><b>${esc(title)}${rec}</b><small>${esc(one)}</small>${st}</span></button></li>`;
 }
+const ROLE_FALLBACK_ONE = '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。';
+function itemFor(key, p) {
+  const L = lookup(key), s = String(key);
+  if (s.startsWith('role:')) { const r = s.slice(5); return menuItem(L, p, badgeOf(key, L), key, `${ROLE_NAME[r] || r}课`, ROLE_FALLBACK_ONE); }
+  return L ? menuItem(L, p, badgeOf(key, L), key) : '';
+}
+let oldOpen = false;                                       // the 旧版课程 group remembers whether it was opened (this page view only)
 export async function openMenu() {
   ensureDom();
   await rolesReady;
   const p = load();
-  const L0 = lookup(0);
-  const intro = menuItem(L0, p, '0', 0, '第 0 课 搭出水流系统', '') +
-    LESSONS.filter(L => L.kind === 'routine').map(L => menuItem(L, p, String(L.id).replace(/^0b$/, '½'), L.id)).join('');
-  const roles = ROLE_ORDER.map(r => {
-    const L = ROLE_LESSONS.find(l => l.role === r);
-    return menuItem(L, p, ROLE_NAME[r].slice(0, 1), 'role:' + r, `${ROLE_NAME[r]}课`, '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。');
-  }).join('');
-  const cycles = LESSONS.filter(L => (L.id >= 1 || L.kind === 'cycle') && L.kind !== 'world').map(L => menuItem(L, p, String(L.id).replace(/^3b$/, '3½'), L.id)).join('');
-  const worlds = LESSONS.filter(L => L.kind === 'world').map(L => menuItem(L, p, String(L.id).replace(/^w(\d+)$/, '世$1'), L.id)).join('');
+  const list = keys => (keys || []).map(k => itemFor(k, p)).join('');
+  const soon = (COURSE.soon || []).map(s => menuItem(null, p, '…', 'soon:' + s.key, s.title, s.oneLine, '制作中')).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 第 3.5 课（两个环怎么接上）→ 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7 → 世界 1（出了国境）→ 世界 2（澳洲）。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
-    `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
-    `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
-    `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
-    (worlds ? `<h3 class="ls-sec">世界 <small>出了国境：地图、贸易、汇率、储备；再进入一个国家</small></h3><ol class="ls-list">${worlds}</ol>` : '') +
-    `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>`;
+    `<p class="ls-lead"><b>先学主线：5 课，约 1 小时。</b>第 1 课从一个 5 户人家的小镇讲起，再放大到真实的美国季度数据。学完主线，选学按兴趣挑。</p>` +
+    `<h3 class="ls-sec">主线 <small>按顺序学，约 1 小时</small></h3><ol class="ls-list ls-main">${list(COURSE.main)}</ol>` +
+    `<h3 class="ls-sec">选学 <small>学完主线以后，按兴趣挑</small></h3><ol class="ls-list">${list(COURSE.advanced)}</ol>` +
+    `<h3 class="ls-sec">接下来 <small>出了国境；下面两课正在做</small></h3><ol class="ls-list">${list(COURSE.later)}${soon}</ol>` +
+    `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>` +
+    `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、7 个角色课、旧的周期课；内容已并进主线</small></summary>` +
+    `<ol class="ls-list">${list(COURSE.legacy)}</ol></details>`;
+  const det = menu.querySelector('.ls-old');
+  if (det) det.addEventListener('toggle', () => { oldOpen = det.open; });
   menu.hidden = false;
   requestAnimationFrame(() => menu.classList.add('open'));
 }
@@ -739,6 +769,14 @@ function sourcesBlock() {
     `<div class="ls-tblh">图表怎么区分</div><div class="ls-legend"><span>${sw('', 1.8)} 实线 = 真实</span><span>${sw('6 3', 1.8)} 虚线 = 模型</span><span>${sw('1.5 3', 2.2)} 点线 = 你的版本</span><span class="ls-grey">灰色区 = 2022 后·保留样本·示意</span></div></div>`;
 }
 
+// 「下一课」 button (primary, pulled into the nav bar by draw). A lesson of the 选学 group says so.
+function nextLessonBtn(next) {
+  const nx = lookup(next);
+  if (!isAvail(nx)) return `<button type="button" class="btn primary ls-run" data-act="nextlesson">回到课程菜单</button>`;
+  const adv = (COURSE.advanced || []).some(k => String(k) === String(nx.id));
+  return `<button type="button" class="btn primary ls-run" data-act="nextlesson">${adv ? '选学' : '下一课'}：${esc(nx.title)} →</button>`;
+}
+
 function draw() {
   if (!cur) return;
   const { L, i, pos } = cur, n = L.steps.length;
@@ -753,7 +791,10 @@ function draw() {
       `<span class="ls-mini"><button type="button" class="btn" data-act="play">${playing ? '⏸ 暂停' : '▶ 播放'}</button><button type="button" class="btn" data-act="replay">↺ 重播</button></span></div>`;
   };
   let canNext = i < n - 1;
-  if (st.type === 'intro') {
+  if (st.roleCard && !ss.zooming) { try { body += `<div class="ls-rc">${roleCardHtml(st.roleCard)}</div>`; } catch (e) { /* roles module missing: text only */ } }
+  if (st.type === 'zoom' && ss.zooming) {                    // the live numbers are not filled yet while the zoom animates
+    body += `<p class="ls-status">放大看……小镇的名字淡出，万元换成十亿美元。</p>`;
+  } else if (st.type === 'intro') {
     body += paras + chips(st.concept);
   } else if (st.type === 'watch') {
     body += paras + chips(st.concept) + readout(st, snap) + (st.block ? blockHtml(st.block, snap) : '') + playLine();
@@ -858,6 +899,10 @@ function draw() {
     const nx = lookup(st.next);
     body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`;
   }
+  // handover: the LAST step of any other type with `next` gets the 下一课 button too (main line), once its question is answered
+  if (i === n - 1 && st.next != null && !['chain', 'zoom', 'recap'].includes(st.type) && !ss.zooming
+    && !(st.type === 'reveal' && st.question && !ss.revealed) && !(st.type === 'predict' && ss.picked == null)
+    && !((st.type === 'action' || st.type === 'valve') && !ss.done)) body += nextLessonBtn(st.next);
   if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开自由运行 ↗（新窗口，自己玩）</a>`;
   // the primary button (揭晓 / 做做看 / 拧一拧 / 跑 N 季 / 下一课) is pulled out of the scrolling body so it is always visible
   let cta = '';

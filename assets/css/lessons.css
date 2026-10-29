@@ -10,6 +10,19 @@
 @keyframes ls-pulse { 0%, 100% { fill-opacity: .08; stroke-opacity: .5; } 50% { fill-opacity: .26; stroke-opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .flow-svg g.ls-hl > rect.hit { animation: none; } }
 
+/* step field mark:[...] (main line): a steady glow on the 收入循环 ring, the four outlets and the 总目标 strip */
+.flow-svg g.loop.ls-mark .loop-ring { stroke: var(--accent); stroke-width: 3; stroke-opacity: 1; animation: ls-mark-op 1.4s ease-in-out infinite; }
+.flow-svg g.loop.ls-mark .loop-arr { fill: var(--accent); fill-opacity: 1; }
+.flow-svg g.loop-lbl.ls-mark rect { stroke: var(--accent); stroke-width: 1.6; }
+.flow-svg g.loop-lbl.ls-mark text { fill: var(--accent); font-weight: 700; }
+.flow-svg g.ls-mark .bed { filter: drop-shadow(0 0 2.5px var(--accent)); }
+.flow-svg g.chip.ls-mark rect.bg { stroke: var(--accent); stroke-width: 2.4; }
+.flow-svg text.ls-mark { fill: var(--accent); font-weight: 700; }
+#objective.ls-mark { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; animation: ls-mark-ring 1.4s ease-in-out infinite; }
+@keyframes ls-mark-op { 0%, 100% { stroke-opacity: .55; } 50% { stroke-opacity: 1; } }
+@keyframes ls-mark-ring { 0%, 100% { outline-color: color-mix(in srgb, var(--accent) 45%, transparent); } 50% { outline-color: var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .flow-svg g.loop.ls-mark .loop-ring, #objective.ls-mark { animation: none; } }
+
 /* leave room under the tab content for the docked card */
 body.lesson-on .tab-content { padding-bottom: calc(var(--ls-h, 0px) + 12px); }
 
@@ -203,6 +216,16 @@ body.parts-on[data-vis~="takeover"] .tabbar [data-part="takeover"]::after
 .ls-free-link { display: block; margin: 16px 0 4px; padding: 12px; text-align: center; border: 1px dashed var(--border);
   border-radius: 12px; color: var(--accent); text-decoration: none; font-weight: 600; }
 body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ls-lead b { color: var(--text); }
+/* 旧版课程: collapsed group at the bottom of the menu */
+.ls-old { margin: 14px 0 4px; border-top: 1px solid var(--border); padding-top: 6px; }
+.ls-old > summary { cursor: pointer; padding: 8px 2px; font-size: 14px; font-weight: 600; color: var(--muted); list-style-position: inside; }
+.ls-old > summary small { font-weight: 400; font-size: 12px; margin-left: 4px; }
+.ls-old[open] > summary { color: var(--text); }
+.ls-old .ls-list { margin-top: 4px; }
+/* a role card inside the lesson card (main line lesson 5; .rc styles come from roles.css) */
+.ls-rc { margin: 2px 0 8px; }
+.ls-rc .rc { margin: 0; }
 .ls-try { margin: 6px 0; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--accent); }
 .ls-try b { color: var(--accent); }
 

@@ -94,6 +94,15 @@ button { font: inherit; color: inherit; }
 .tabbar button { flex: 1; min-height: 48px; background: none; border: 0; cursor: pointer;
   color: var(--muted); font-size: 14px; border-top: 3px solid transparent; }
 .tabbar button[aria-selected="true"] { color: var(--accent); font-weight: 700; border-top-color: var(--accent); }
+.tabbar .tb-simple { flex: 0 0 auto; padding: 0 14px; font-size: 13px; border-left: 1px solid var(--border); }
+body.lesson-on .tabbar .tb-simple { display: none; }
+
+/* SIMPLE MODE (app.js: body[data-layout="simple"]; src/ui/simple.js fills #simple; looks in simple.css): the simple panel takes the tabs' place.
+   A running lesson (body.lesson-on) always gets the full layout: its card docks inside .panel above the tab bar. */
+.simple { display: none; }
+body[data-layout="simple"]:not(.lesson-on) .simple { display: flex; }
+body[data-layout="simple"]:not(.lesson-on) .tab-content,
+body[data-layout="simple"]:not(.lesson-on) .tabbar { display: none; }
 
 /* ---------- wide: iPad / desktop two columns ---------- */
 @media (min-width: 768px) {
@@ -101,7 +110,10 @@ button { font: inherit; color: inherit; }
   .diagram { height: auto; align-self: stretch; border-bottom: 0; align-items: flex-start;
     border-right: 1px solid var(--border); padding: 8px; max-height: 100%; }
   .flow-wrap { height: auto; }
-  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - 190px); }
+  /* the row is the screen below the top bar: a tall diagram must not push the panel's bottom bar (tabs / 更多) off screen.
+     210px = time bar + progress + 总目标 + 本季看点 (~140) + the water budget bar under the diagram + padding */
+  .main { grid-template-rows: minmax(0, 1fr); }
+  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - 210px); }
   .tab-content { padding: 16px 24px; }
   .timebar { padding-left: 24px; padding-right: 24px; }
   .banner { padding-left: 24px; }

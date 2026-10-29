@@ -1,4 +1,5 @@
-// App shell: time bar, play loop, fixed water diagram (or the curves view over it), 4 tabs, pause toast, multi-window quarter sync.
+// App shell: time bar, play loop, fixed water diagram (or the curves view over it), simple panel (two cycle dials) or the 4 tabs, pause toast,
+// multi-window quarter sync.
 // ENGINE SWAP: the orchestrator replaces the next import with './engine/sim.js'.
 import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
@@ -35,6 +36,11 @@ let view = params.get('view') === 'waves' ? 'waves' : 'flow';   // left panel: '
 let following = params.get('follow') === '1';                    // mirror another window's quarter (BroadcastChannel); a follower never plays its own timer
 let activeTab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'ledger';
 const tabMods = {}; // id -> module | null (failed)
+// SIMPLE MODE: 'simple' = diagram + the two cycle dials + 本季看点 + 「更多」; 'full' = the 4 tabs. See "layout" below.
+const LAYOUT_KEY = 'mw.layout';
+const storedLayout = () => { try { return localStorage.getItem(LAYOUT_KEY); } catch (e) { return null; } };
+let layout = params.get('full') === '1' || params.has('tab') ? 'full' : params.get('full') === '0' ? 'simple' : storedLayout() === 'full' ? 'full' : 'simple';
+document.body.dataset.layout = layout;
 
 /* ---------- data + sim ---------- */
 async function boot() {
@@ -135,15 +141,17 @@ async function loadLessons() {
     setQuiet: q => { lessonQuiet = q; if (q) hideToast(); updateTimeControls(); },   // suppress key-node pause toasts during a lesson (and lock the scrubber)
     refresh: () => { snap = sim.snapshot(); prevSnap = null; renderAll(); },
     setTickMs: ms => { tickMs = ms || 1000; if (playing) setPlaying(true); },   // ms per quarter at 1x (lessons play slowly)
-    setTab,
+    setTab: id => setTab(id, { save: false }),       // a lesson runs in the full layout anyway (body.lesson-on); it never changes the viewer's stored choice
     // TOWN-LESSONS hook: show another sim (the town) in the same diagram; setSim(null) restores the US sim
     setSim: (s, r) => { sim = s || mainSim; real = s ? (r || mainReal) : mainReal; snap = sim.snapshot(); prevSnap = null; renderAll(); },
   });
   return lessonsMod;
 }
-function setTab(id) {
+function setTab(id, o = {}) {
   if (!TABS.some(t => t.id === id)) return;
-  activeTab = id; $('tab-content').scrollTop = 0; renderTabbar(); renderTab();
+  activeTab = id; $('tab-content').scrollTop = 0; renderTabbar();
+  if (!isFull()) setLayout('full', o);                 // anything that asks for a tab (strip item, 去接管 button, dial) opens the full layout
+  else renderTab();
 }
 // a lesson with startParts hides what is not yet revealed: body.parts-on + body[data-vis="bank pool ledger"]
 function tabLocked(id) {
@@ -208,11 +216,53 @@ function buildTabbar() {
     b.onclick = () => setTab(t.id);
     bar.appendChild(b);
   }
+  const back = document.createElement('button');      // SIMPLE MODE: way back from the full layout (hidden during a lesson)
+  back.type = 'button'; back.className = 'tb-simple'; back.dataset.act = 'simple'; back.textContent = '◂ 简洁';
+  back.setAttribute('aria-label', '收起四页，回到简洁版（水流图 + 两个周期表盘）');
+  back.onclick = () => setLayout('simple');
+  bar.appendChild(back);
   renderTabbar();
 }
 function renderTabbar() {
-  for (const b of $('tabbar').children) b.setAttribute('aria-selected', String(b.dataset.tab === activeTab));
+  for (const b of $('tabbar').children) if (b.dataset.tab) b.setAttribute('aria-selected', String(b.dataset.tab === activeTab));
 }
+
+/* ---------- layout: simple (default) / full ----------
+   body[data-layout] = the viewer's choice: 'simple' = diagram + the two cycle dials + 本季看点 details + 「更多」 (src/ui/simple.js);
+   'full' = the 4 tabs. A running lesson (body.lesson-on, set by lessons.js) always shows the full layout and never changes the choice.
+   URL: ?full=1 or any ?tab= opens full, ?full=0 forces simple (neither is stored). Otherwise the stored choice (localStorage 'mw.layout').
+   The 「更多」 button, a dial tap, ◂ 简洁, and anything that calls setTab (strip items, the valve popover's 去接管) change it and store it.
+   Others may ask with document.dispatchEvent(new CustomEvent('mw:layout', { detail: { layout: 'full' | 'simple', tab?, save? } })). */
+const isFull = () => layout === 'full' || document.body.classList.contains('lesson-on');
+let shownFull = null;                                   // what the panel currently shows (for the lesson-on switch below)
+function setLayout(l, o = {}) {
+  layout = l === 'full' ? 'full' : 'simple';
+  document.body.dataset.layout = layout;
+  if (o.save !== false) {
+    try { localStorage.setItem(LAYOUT_KEY, layout); } catch (e) { /* private window etc. */ }
+    try { const u = new URL(location.href); u.searchParams.delete('full'); u.searchParams.delete('tab'); history.replaceState(null, '', u); } catch (e) { /* file:// etc. */ }
+  }
+  if (o.tab && TABS.some(t => t.id === o.tab)) { activeTab = o.tab; $('tab-content').scrollTop = 0; renderTabbar(); }
+  renderPanel();
+}
+function renderPanel() {
+  if (!sim || !snap) return;
+  shownFull = isFull();
+  if (shownFull) renderTab(); else renderSimple();
+}
+let simpleMod = null;
+async function renderSimple() {
+  if (!simpleMod) { try { simpleMod = await import('./ui/simple.js'); } catch (e) { console.error(e); return; } }
+  if (isFull()) return;                                 // changed while the module loaded
+  try { simpleMod.renderSimple($('simple'), { sim, snap, openTerm, openFull: tab => (tab ? setTab(tab) : setLayout('full')) }); } catch (e) { console.error(e); }
+}
+// a lesson starting / ending flips what the panel shows: draw the side that just appeared
+new MutationObserver(() => { if (shownFull !== null && isFull() !== shownFull) renderPanel(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+document.addEventListener('mw:layout', e => {
+  const d = e.detail || {};
+  if (d.tab && d.layout !== 'simple') return setTab(d.tab, { save: d.save });
+  setLayout(d.layout, { save: d.save });
+});
 
 /* ---------- left panel: water diagram or curves view ----------
    body.dataset.view = 'waves' | 'flow'. Anyone (the buttons, a lesson step with view:, the URL &view=waves) sets it through
@@ -416,7 +466,10 @@ function renderAll() {
   $('date').textContent = snap.date;
   const free = MODE === 'free';
   const badge = $('mode-badge');
-  badge.textContent = (COUNTRY !== 'USA' && sim.scenario !== 'town' ? (CNAME[COUNTRY] || COUNTRY) + ' · ' : '') + (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '');
+  // the country part is its own span so a 390px phone can drop the mode part (simple.css) instead of pushing 教学 off screen
+  const cn = COUNTRY !== 'USA' && sim.scenario !== 'town' ? CNAME[COUNTRY] || COUNTRY : '';
+  badge.innerHTML = (cn ? `<span class="bd-c">${cn}</span><span class="bd-m"> · ` : '<span class="bd-m">') + (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '') + '</span>';
+  badge.title = badge.textContent;
   badge.classList.toggle('user', !!sim.takenOver);
   const last = lastT();
   $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
@@ -429,7 +482,7 @@ function renderAll() {
   renderView();
   try { renderObjective($('objective'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
-  renderTab();
+  renderPanel();                                     // the 4 tabs (full layout) or the simple panel
   if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers
   schedulePost();
 }

@@ -85,7 +85,7 @@ function dialSvg({ id, nodes, edges, cur, between, progress, centre, aria, under
   return `<svg viewBox="-40 0 380 270" class="cy-dial" role="img" aria-label="${esc(aria)}">${g}</svg>`;
 }
 
-function longDial(L) {
+export function longDial(L) {
   const cx = 150, cy = 135, R = 76, nodes = {};
   LONG_ORDER.forEach((s, i) => {
     const [x, y] = polar(cx, cy, R, -90 + i * 60), c = Math.cos((-90 + i * 60) * Math.PI / 180), sn = Math.sin((-90 + i * 60) * Math.PI / 180);
@@ -117,7 +117,7 @@ function longDial(L) {
     aria: `大周期，当前 ${L.label}${L.between ? `，在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : ''}${L.fork ? `，岔路 ${L.fork}` : ''}${L.b1Overlay ? '，叠着 B1 溢出' : ''}` });
 }
 
-function shortDial(S) {
+export function shortDial(S) {
   // four steps on a ring: 扩张 -> 过热 -> 收紧（央行加息；带衰退证据时标「收紧·衰退」）-> 降息（推得动吗？）; from 降息 two ways out: 推得动 -> 扩张 (ring edge) or 推不动 -> 大周期 B2 -> ⑤ (dashed exit)
   const cx = 150, cy = 128;
   const nodes = {
