@@ -85,6 +85,10 @@ export function initScrubber(o) {
   let open = lsGet(), dragging = false, builtKey = '', buildSeq = 0, markList = [], pinnedTri = null, haveBands = false, haveHatch = false;
 
   const setFill = v => { const last = +range.max || 1; fill.style.width = (100 * v / last) + '%'; };
+  // 真实 / 模型 mode (app.js): o.now() = the quarter on screen (the real quarter in 真实 mode, else sim.t); o.realMarks() = the long-cycle
+  // marks on REAL data in 真实 mode (null in 模型 mode = the scratch model run below)
+  const nowT = () => (typeof o.now === 'function' ? o.now() : o.sim().t);
+  const realMarks = () => (typeof o.realMarks === 'function' ? o.realMarks() : null);
 
   function legend() {
     const lock = o.lock();
@@ -111,8 +115,8 @@ export function initScrubber(o) {
     tris.style.height = Math.max(1, ends.length) * 20 + 'px';
   }
   async function buildMarks() {
-    const real = o.real(), last = o.last(), mode = o.mode, country = o.country();
-    const key = `${mode}|${country}|${last}|${real && real.dates ? real.dates.length : 0}`;
+    const real = o.real(), last = o.last(), mode = o.mode, country = o.country(), rm = realMarks();
+    const key = `${mode}|${country}|${last}|${real && real.dates ? real.dates.length : 0}|${rm ? 'real' : 'model'}`;
     if (key === builtKey) return;
     builtKey = key; const seq = ++buildSeq;
     marksEl.querySelectorAll('.sm-band,.sm-hatch,.sm-free').forEach(n => n.remove());
@@ -146,7 +150,7 @@ export function initScrubber(o) {
     // stage triangles: a scratch run of the whole range (after the panel has painted)
     await new Promise(r => setTimeout(r, 30));
     if (seq !== buildSeq) return;
-    markList = computeStageMarks(o.createSim, real, mode, country);
+    markList = rm || computeStageMarks(o.createSim, real, mode, country);
     for (const m of markList) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'scrub-tri' + (m.kind === 'b2' ? ' b2' : ''); b.dataset.t = m.t; b.dataset.kind = m.kind;
@@ -174,7 +178,7 @@ export function initScrubber(o) {
   range.addEventListener('change', async () => {
     dragging = false; q.classList.remove('drag');
     const t = +range.value, sim = o.sim();
-    if (sim && t !== sim.t) await o.onSeek(t);
+    if (sim && t !== nowT()) await o.onSeek(t);
     update();
   });
   range.addEventListener('blur', () => { if (dragging) { dragging = false; q.classList.remove('drag'); update(); } });
@@ -206,7 +210,8 @@ export function initScrubber(o) {
     if (!avail) { panel.hidden = true; if (pending) pending(false); return; }
     const last = o.last(), lock = o.lock();
     range.max = last;
-    if (!dragging) { range.value = sim.t; q.textContent = ql(sim.t); setFill(sim.t); }
+    const now = nowT();
+    if (!dragging) { range.value = now; q.textContent = ql(now); setFill(now); }
     range.disabled = !!lock; range.title = lock || ''; panel.title = lock || '';
     handle.title = lock || '';
     panel.classList.toggle('locked', !!lock);
@@ -216,7 +221,7 @@ export function initScrubber(o) {
     panel.hidden = !open;
     if (open) {
       buildMarks();
-      if (pinnedTri && pinnedTri.t !== sim.t) pinnedTri = null;
+      if (pinnedTri && pinnedTri.t !== now) pinnedTri = null;
       if (!dragging) showNote(pinnedTri);
     }
   }

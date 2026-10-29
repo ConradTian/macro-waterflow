@@ -16,7 +16,7 @@ import { currentCountry } from './country-info.js';
 const num = x => typeof x === 'number' && Number.isFinite(x);
 const RANK = { green: 0, yellow: 1, red: 2 };
 const worse = (a, b) => (RANK[b] > RANK[a] ? b : a);
-const LV = { green: '绿', yellow: '黄', red: '红' };
+const LV = { green: '绿', yellow: '黄', red: '红', none: '—' };
 const pp = (v, d = 1) => (v * 100).toFixed(d) + 'pp';
 const pc = (v, d = 1) => (v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(d) + '%';
 const sgn = (v, d = 1) => (v < 0 ? '−' : '+') + Math.abs(v * 100).toFixed(d) + '%';
@@ -120,11 +120,35 @@ export function lampsAt(snap, iso) {
   return out;
 }
 
-export function objectiveState(sim, snap, iso) {
+// 真实 mode (app.js passes realSnap): the 溃坝 lamp reads the long-cycle dial run on REAL data (src/data/real/real-snapshot.js):
+// red = B2 confirmed (fork 'B2', b2N quarters in a row) or ⑤; yellow = the B2 evidence holds (real.b2Now) but is not confirmed yet; else green.
+function realBurstLamp(rs) {
+  const L = rs.cycles?.long, bad = rs.bank?.badLoanRate, b2Now = !!rs.real?.b2Now;
+  const stage5 = L && (L.stage === 5 || /^⑤/.test(String(L.label || '')));
+  const badTxt = num(bad) ? `（银行坏账率 ${pc(bad)}）` : '';
+  let level = 'green', reason;
+  if (L && L.fork === 'B2') { level = 'red'; reason = `真实数据：B2 已确认，大周期走上了 B2 岔路（降息推不动，债务压垮）${badTxt}。堤坝要垮。`; }
+  else if (stage5) { level = 'red'; reason = `真实数据：大周期在 ⑤ 降息失灵·私人去杠杆${badTxt}。堤坝已经垮了。`; }
+  else if (b2Now || (L && L.forkPending)) {
+    level = 'yellow';
+    reason = `真实数据：B2 的证据这一季成立${L && L.forkPending ? `（${L.forkPending.have}/${L.forkPending.need} 季）` : ''}，还没连续够季数，没确认${badTxt}。堤坝出现裂缝。`;
+  } else reason = `真实数据：大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，B2 没成立${badTxt}。堤坝稳。`;
+  return { id: 'burst', name: '溃坝', level, reason, real: true };
+}
+
+// 真实 mode: the score and 泛滥 / 干涸 / 透支 are still the model's (marked est = 模型估算); after the model's last quarter (realSnap.t is past
+// the model snapshot's t) they have no value (none: 「—」, a grey lamp)
+export const EST_NOTE = '真实模式下这一项仍是模型算的';
+export function objectiveState(sim, snap, iso, realSnap) {
   if (!sim || !snap || sim.scenario === 'town') return null;
   iso = iso || currentCountry(sim);
-  const sc = scoreAt(sim, snap, iso);
-  return { ...(sc || { score: null, level: null, yoy: null, perPerson: false }), lamps: lampsAt(snap, iso), iso };
+  const RS = realSnap && realSnap.cycles ? realSnap : null, gone = !!RS && RS.t !== snap.t;
+  const sc = gone ? null : scoreAt(sim, snap, iso);
+  let lamps = lampsAt(snap, iso);
+  if (RS) lamps = lamps.map(l => (l.id === 'burst' ? realBurstLamp(RS) : gone
+    ? { id: l.id, name: l.name, level: 'none', est: true, reason: `${EST_NOTE}；模型只算到 ${snap.date}，这一季没有模型的数。` }
+    : { ...l, est: true, reason: `${EST_NOTE}（模型估算）。${l.reason}` }));
+  return { ...(sc || { score: null, level: null, yoy: null, perPerson: false }), lamps, iso, est: !!RS, gone };
 }
 
 /* ------------------------------------------------------------------ the 整个经济 card, inline fallback (tools/AB-CONTRACT.md A1) */
@@ -145,22 +169,24 @@ export function renderObjective(el, ctx) {
   host = el; last = ctx;
   const { sim, snap } = ctx;
   let st = null;
-  try { st = objectiveState(sim, snap); } catch (e) { console.error(e); }
+  try { st = objectiveState(sim, snap, undefined, ctx.realSnap || null); } catch (e) { console.error(e); }
   if (!st) { el.hidden = true; pop = null; return; }
   el.hidden = false;
   last.state = st;
   const pp1 = st.perPerson ? '每人' : '';
   const yoy = st.yoy == null ? '' : `<span class="ob-yoy ${st.yoy < 0 ? 'neg' : 'pos'}" title="这一季的${pp1}真实消费比一年前${sgn(st.yoy)}"><span class="ob-yl">比一年前 </span>${st.yoy < 0 ? '▼' : '▲'}${pc(Math.abs(st.yoy))}</span>`;
-  const lamps = st.lamps.map(l => `<button type="button" class="ob-lamp" data-lamp="${l.id}" data-level="${l.level}"${l.gap ? ' data-gap="1"' : ''} aria-expanded="${pop && pop.id === l.id}" ` +
-    `title="${esc(l.name)}：${LV[l.level]}。${esc(l.reason)}" aria-label="${esc(l.name)}${LV[l.level]}灯，点开看原因"><i class="ob-dot" aria-hidden="true"></i><span>${l.name}</span></button>`).join('');
+  const lamps = st.lamps.map(l => `<button type="button" class="ob-lamp${l.est ? ' v-est' : ''}" data-lamp="${l.id}" data-level="${l.level}"${l.gap ? ' data-gap="1"' : ''}${l.real ? ' data-real="1"' : ''} aria-expanded="${pop && pop.id === l.id}" ` +
+    `title="${esc(l.name)}：${LV[l.level]}。${esc(l.reason)}" aria-label="${esc(l.name)}${LV[l.level]}灯${l.est ? '（模型估算）' : ''}，点开看原因"><i class="ob-dot" aria-hidden="true"></i><span>${l.name}</span></button>`).join('');
   // headline = this quarter's level (first quarter = 100): a beginner reads 134 as "比起点多 34%". The cumulative total (the area under the curve,
   // which is what the goal maximises) goes in the tooltip and the card.
   const score = st.level == null ? '—' : fmtScore(st.level);
-  const tip = st.level == null ? '' : `这一季的${pp1}真实消费，第一季 = 100。总目标是把它长期累计得最多：累计 ${fmtScore(st.score)}（每季加一次）。点开看这张「整个经济」卡片。`;
-  el.className = 'objective' + (pop ? ' open' : '');
-  el.innerHTML = `<div class="ob-bar"><button type="button" class="ob-main" data-act="card" aria-label="总目标，点开整个经济卡片" title="${esc(tip)}">` +
+  // 真实 mode: the score is the model's — grey + a 「模型估算」 tag (phone: grey + dotted underline only, objective.css / real-mode.css)
+  const estTag = st.est ? '<span class="ob-est">模型估算</span>' : '';
+  const tip = (st.est ? EST_NOTE + '。' : '') + (st.level == null ? (st.gone ? `模型只算到 ${snap.date}，这一季没有模型的数。` : '') : `这一季的${pp1}真实消费，第一季 = 100。总目标是把它长期累计得最多：累计 ${fmtScore(st.score)}（每季加一次）。点开看这张「整个经济」卡片。`);
+  el.className = 'objective' + (pop ? ' open' : '') + (st.est ? ' ob-est-on' : '');
+  el.innerHTML = `<div class="ob-bar"><button type="button" class="ob-main" data-act="card" aria-label="总目标，点开整个经济卡片${st.est ? '（模型估算）' : ''}" title="${esc(tip)}">` +
     `<span class="ob-lab"><span class="ob-long">总目标：长期运出最多的真实东西给人用 — </span><span class="ob-short">总目标 · </span></span>` +
-    `<b class="ob-sc">${pp1}真实消费 <span class="ob-n">${score}</span></b>${yoy}</button>` +
+    `<b class="ob-sc${st.est ? ' v-est' : ''}">${pp1}真实消费 <span class="ob-n">${score}</span></b>${yoy}${estTag}</button>` +
     `<span class="ob-lamps" role="group" aria-label="四个扣分项" data-layer="L-gov">${lamps}</span></div>` + popHtml(st);
   if (wiredEl !== el) { wiredEl = el; el.addEventListener('click', onClick); document.addEventListener('click', onOutside); document.addEventListener('keydown', onKey); }
 }
@@ -175,7 +201,8 @@ function popHtml(st) {
   }
   const rows = pop.html || ECONOMY_CARD.map(([k, v]) => `<div class="ob-row"><b>${k}</b><span>${esc(v)}</span></div>`).join('');
   const ls = st.lamps.map(l => `<li><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><b>${l.name}</b> ${LV[l.level]}　<span class="muted">${esc(l.reason)}</span></li>`).join('');
-  const note = st.level == null ? '' : `<p class="muted ob-note">条上的数 = 这一季的${st.perPerson ? '每人' : ''}真实消费（家庭消费 ÷ 物价 ÷ 人口），第一季 = 100，现在 ${Math.round(st.level)}。总目标看的是它长期累计的量：衰退少掉的那几季，以后补不回来。累计到现在：${fmtScore(st.score)}。</p>`;
+  const estP = st.est ? `<p class="ob-note ob-estnote">${EST_NOTE}：条上的数和泛滥、干涸、透支三盏灯是模型的估算（灰色）；只有溃坝灯读真实数据。${st.gone ? '这一季在模型的范围之后，所以是「—」。' : ''}</p>` : '';
+  const note = st.level == null ? estP : estP + `<p class="muted ob-note">条上的数 = 这一季的${st.perPerson ? '每人' : ''}真实消费（家庭消费 ÷ 物价 ÷ 人口），第一季 = 100，现在 ${Math.round(st.level)}。总目标看的是它长期累计的量：衰退少掉的那几季，以后补不回来。累计到现在：${fmtScore(st.score)}。</p>`;
   return `<div class="ob-pop ob-card" role="dialog" aria-label="整个经济"><div class="ob-pop-h">${pop.html ? '' : '<b>整个经济</b>'}<button type="button" class="ob-x" data-act="close" aria-label="关闭">×</button></div>` +
     `${rows}${note}<ul class="ob-ls">${ls}</ul></div>`;
 }
