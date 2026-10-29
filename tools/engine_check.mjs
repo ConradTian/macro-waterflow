@@ -187,8 +187,8 @@ function scorecard(data, hist) {
   add('6d end-2025 equity vs real', `${E[E.length - 1].toFixed(0)} vs ${S.equityIndex[E.length - 1].toFixed(0)}`, 'within +-50%', Math.abs(eqEndR) <= 0.5);
   const piAvg = P.slice(idx('2005Q1'), idx('2007Q4') + 1).reduce((a, b) => a + b, 0) / 12;
   add('7a CPI avg 2005-07', (piAvg * 100).toFixed(1) + '%', '<= 4.0%', piAvg <= 0.04);
-  const b2 = hist.findIndex((s, i) => s.cycles.short.phase === 'B2' && (i === 0 || hist[i - 1].cycles.short.phase !== 'B2') && i >= idx('2006Q3') && i <= idx('2009Q2'));
-  add('7b short cycle enters B2', b2 >= 0 ? D[b2] : 'never in window', '2006Q3..2009Q2', b2 >= 0);
+  const b2 = hist.findIndex((s, i) => s.cycles.long.fork === 'B2' && (i === 0 || hist[i - 1].cycles.long.fork !== 'B2') && i >= idx('2006Q3') && i <= idx('2009Q2'));
+  add('7b long cycle takes the B2 fork', b2 >= 0 ? D[b2] : 'never in window', '2006Q3..2009Q2', b2 >= 0);
   console.log('check'.padEnd(42) + 'value'.padEnd(34) + 'target'.padEnd(24) + 'result');
   for (const r of rows) console.log(r.name.padEnd(42) + String(r.val).padEnd(34) + String(r.target).padEnd(24) + (r.ok ? 'PASS' : 'FAIL'));
   console.log(`  ${rows.filter(r => r.ok).length}/${rows.length} pass`);
@@ -424,14 +424,15 @@ function townChecks() {
 function cycleChecks(US_Q) {
   console.log('\n=== CYCLE DIALS: long (大周期) + short (小周期), timeline ===');
   const LORD = [1, 2, 5, 6, 7, 8];
-  const SNEXT = { expand: ['B1', 'B2', 'tight'], B1: ['B2', 'tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+  const SNEXT = { expand: ['hotP', 'hotA', 'tight'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+  const isTop = k => k === 'hotP' || k === 'hotA';
   for (const mode of ['history', 'free']) {
     const h = runAll(US_Q, mode).sim.history();
     const lc = [], sc = [];
     h.forEach((s, i) => {
       const L = s.cycles.long, S = s.cycles.short;
       if (i === 0 || L.stage !== h[i - 1].cycles.long.stage) lc.push({ i, date: s.date, stage: L.stage, label: L.label });
-      if (i === 0 || S.phase !== h[i - 1].cycles.short.phase) sc.push({ i, date: s.date, phase: S.phase, label: S.label });
+      if (i === 0 || S.key !== h[i - 1].cycles.short.key) sc.push({ i, date: s.date, phase: S.key, label: S.label });
     });
     // clockwise only (long may wrap 8 -> 1 and skip at most one stage; short moves along SNEXT)
     let cw = true;
@@ -440,11 +441,15 @@ function cycleChecks(US_Q) {
     assert(cw, mode + ': cycle stages only move clockwise');
     const span = arr => arr.map((x, j) => `${x.date} ${x.label}${j + 1 < arr.length ? ' (' + (arr[j + 1].i - x.i) + 'q)' : ' (…end)'}`).join('\n      ');
     console.log(`  [${mode}] LONG stage changes: ${lc.length - 1}\n      ${span(lc)}`);
-    console.log(`  [${mode}] SHORT phase changes: ${sc.length - 1}  (fork entries: ${sc.filter(x => x.phase === 'B1' || x.phase === 'B2').map(x => x.date + ' ' + x.phase).join(', ') || 'none'})`);
+    console.log(`  [${mode}] SHORT phase changes: ${sc.length - 1}  (tops: ${sc.filter(x => isTop(x.phase)).map(x => x.date + ' ' + x.phase).join(', ') || 'none'})`);
     const pz = h.flatMap(s => s.pauses.map(q => q.code));
     assert(!pz.includes('RING_STAGE'), mode + ': no RING_STAGE pause any more');
     assert(pz.filter(c => c === 'LONG_STAGE').length === lc.length - 1, mode + ': one LONG_STAGE pause per long change');
-    assert(pz.filter(c => c === 'SHORT_FORK').length === sc.filter(x => x.phase === 'B1' || x.phase === 'B2').length, mode + ': one SHORT_FORK pause per fork entry');
+    assert(!pz.includes('SHORT_FORK'), mode + ': no SHORT_FORK pause any more (B1/B2 belong to the long cycle)');
+    assert(pz.filter(c => c === 'SHORT_TOP').length === sc.filter(x => isTop(x.phase)).length, mode + ': one SHORT_TOP pause per short-cycle top');
+    const forks = h.filter((x, i) => x.cycles.long.fork === 'B2' && (i === 0 || h[i - 1].cycles.long.fork !== 'B2')).length;
+    assert(pz.filter(c => c === 'LONG_FORK').length === forks, mode + ': one LONG_FORK pause per B2 fork entry');
+    assert(h.every(x => ['expand', 'hot', 'tight', 'ease'].includes(x.cycles.short.phase)), mode + ': short phase is one of the 4 Dalio steps');
     if (mode === 'history') {
       console.log('      ' + span(sc));
       assert(lc.length - 1 <= 6, 'history: long stage changes <= 6, got ' + (lc.length - 1));
@@ -454,7 +459,10 @@ function cycleChecks(US_Q) {
       assert([5, 6, 7].includes(at('2012Q4')), 'history: long stage 2012Q4 is 5/6/7: ' + at('2012Q4'));
       const minDwell = Math.min(...lc.slice(0, -1).map((x, j) => lc[j + 1].i - x.i));
       assert(lc.length < 2 || minDwell >= 6, 'history: every long stage lasts >= 6 quarters, min ' + minDwell);
-      assert(sc.some(x => x.phase === 'B1' || x.phase === 'B2'), 'history: the short cycle reaches a B1/B2 fork');
+      assert(sc.some(x => isTop(x.phase)), 'history: the short cycle reaches a top');
+      const f01 = h.slice(US_Q.dates.indexOf('2000Q1'), US_Q.dates.indexOf('2003Q4') + 1);
+      assert(!f01.some(x => x.cycles.long.fork === 'B2'), 'history: 2000-03 easing works (no B2 fork)');
+      assert(h[US_Q.dates.indexOf('2008Q4')].cycles.short.handoff === 'no', 'history: 2008Q4 easing does not restart credit (handoff no)');
     }
     const s = h[h.length - 1];
     assert(s.cycles.long.evidence.length > 0 && s.cycles.short.evidence.length > 0 && s.cycles.long.since && s.cycles.short.nextSignal, mode + ': evidence / since / nextSignal present');

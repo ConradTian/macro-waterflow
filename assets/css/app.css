@@ -428,3 +428,54 @@ button.term:hover { text-decoration-style: solid; }
   /* valve popover: keep 看传导 / 去接管页拧它 reachable when the causal chain is long */
   .flow-pop .fp-btns { position: sticky; bottom: -10px; margin: 0 -12px -10px; padding: 8px 12px 10px; background: var(--surface); border-top: 1px solid var(--border); }
 }
+
+/* =====================================================================================================================
+   CURVES VIEW over the water diagram (src/ui/wave-view.js, state in app.js: body[data-view="waves"|"flow"]) + view / sync buttons.
+   The wave view root carries .wv and .pn-cycle, so it inherits --wv-* and the --cy-* colours (cycle.css) and their dark variants.
+   The flow diagram stays in the DOM (only visibility:hidden) so lesson highlights and measuring keep working.
+   ===================================================================================================================== */
+.view-toggle { position: absolute; top: 8px; right: 8px; z-index: 30; min-height: 36px; padding: 0 12px; border-radius: 18px;
+  border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: var(--shadow); white-space: nowrap; }
+.view-toggle:active { background: var(--surface-2); }
+.view-toggle[hidden], .wvw[hidden] { display: none; }
+.view-toggle[aria-pressed="true"] { background: var(--accent); color: #fff; }
+#diagram.wv-on > .flow-wrap { visibility: hidden; }
+.wvw { position: absolute; inset: 0; z-index: 25; overflow-y: auto; overflow-x: hidden; background: var(--surface); border: 0; border-radius: 0;
+  padding: 8px 10px 16px; text-align: left; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.wvw-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding-right: 96px; min-height: 30px; }
+.wvw-head b { font-size: 15px; }
+.wvw-head small { color: var(--muted); font-size: 12px; }
+.wvw-now { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; margin: 2px 0 4px; padding: 5px 8px; border-radius: 8px;
+  background: var(--surface-2); font-size: 13px; line-height: 1.45; }
+.wvw-now > b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.wvw-np { font-weight: 700; color: var(--cy-p-tight, #d33f3f); }
+.wvw-sec { margin: 8px 0 0; padding-top: 6px; border-top: 1px solid var(--border); }
+.wvw-t { margin: 0 0 2px; font-size: 13.5px; line-height: 1.35; }
+.wvw-t small { display: block; margin-top: 1px; color: var(--muted); font-weight: 400; font-size: 11.5px; }
+.wvw-empty { color: var(--muted); padding: 24px 8px; }
+.wvw .wv-keys { font-size: 11.5px; gap: 2px 10px; }
+
+/* chart extras (shared builders in tabs/_cycle-waves.js) */
+.wv-vg { stroke: var(--pn-border); stroke-width: .6; stroke-dasharray: 1 3; }
+.wv-nopush { fill: var(--cy-p-tight, #d33f3f); fill-opacity: .1; stroke: var(--cy-p-tight, #d33f3f); stroke-width: 1.1; stroke-dasharray: 3 2; }
+.wv-nopt { font-size: 9.5px; font-weight: 700; fill: var(--cy-p-tight, #d33f3f); paint-order: stroke; stroke: var(--pn-surface); stroke-width: 2.5px; }
+.wv-sw.np { height: 9px; width: 12px; border: 1.3px dashed var(--cy-p-tight, #d33f3f); border-radius: 2px; background: color-mix(in srgb, var(--cy-p-tight, #d33f3f) 12%, transparent); }
+.wv-sw.b2 { height: 9px; width: 12px; border: 0; border-bottom: 3px solid var(--pn-text); border-radius: 0; }
+.wv-b2l { stroke: var(--pn-text); stroke-width: 1.3; stroke-dasharray: 3 2; }
+.wv-b2m { fill: var(--pn-text); }
+.wv-b2bar { fill: var(--pn-text); }
+.wv-b2t { font-size: 9.5px; font-weight: 700; fill: var(--pn-text); }
+
+/* buttons at the top of the 周期 tab's "真实世界的三条线" box */
+.wv-act { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.wv-btn { min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--pn-border); background: var(--pn-surface);
+  color: var(--pn-text); font: inherit; font-size: 13px; cursor: pointer; }
+.wv-btn[data-act="wv-left"] { border-color: var(--pn-accent); color: var(--pn-accent); font-weight: 700; }
+.wv-btn[aria-pressed="true"] { background: var(--pn-accent); border-color: var(--pn-accent); color: #fff; font-weight: 700; }
+.wv-btn:focus-visible, .view-toggle:focus-visible { outline: 2px solid var(--pn-accent, var(--accent)); outline-offset: 2px; }
+.wv-btn .b { display: none; }
+body[data-view="waves"] .wv-btn .b { display: inline; }
+body[data-view="waves"] .wv-btn .a { display: none; }
+body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follow"] { display: none; }
+@media (max-width: 420px) { .wvw-head { padding-right: 88px; } }

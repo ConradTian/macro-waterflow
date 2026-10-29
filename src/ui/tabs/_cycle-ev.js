@@ -48,6 +48,8 @@ function requirements(items) {
 }
 const reqText = r => r.items.map(reqLabel).join(' 或 ');
 function missing(items) { return requirements(items).filter(r => !r.met).map(reqText); }
+/** true when every requirement (AND of rows / OR-groups) of these items holds (B2 fork sub-conditions) */
+export const reqMet = items => requirements(items).every(r => r.met);
 
 /** { text, target } for one dial. headOf(targetKey) -> '⑤ 私人去杠杆' / '降息重启'.
  *  Short cycle: of the candidate phases the one with the fewest missing conditions (then the longest streak) is shown. */
@@ -70,7 +72,8 @@ export function nextText(kind, C, headOf) {
 const pins = new Map();            // key -> { kind, target, name, term, label, mark }
 let pinSim = null;
 const ROWS = new Map();            // key -> row info of the current render (so the toggle can read it)
-const pinKey = (kind, e) => `${kind}|${e.target}|${e.name}`;
+// src = 'fork' marks the long card's B2-fork rows (snap.cycles.long.forkEvidence: they carry no target, and are not in .evidence)
+const pinKey = (kind, e, src) => `${kind}|${src || ''}|${e.target}|${e.name}`;
 const watched = new WeakSet();
 
 export function syncPinHighlight() {
@@ -93,10 +96,11 @@ function onStep(snap) {
   for (const [key, p] of pins) {
     const C = snap?.cycles?.[p.kind];
     if (!C) continue;
-    const it = (C.evidence || []).find(x => x.name === p.name && x.target === p.target);
+    const list = (p.src === 'fork' ? C.forkEvidence : C.evidence) || [];
+    const it = list.find(x => x.name === p.name && x.target === p.target);
     if (!it) { pins.delete(key); continue; }                    // that stage was left: the row no longer exists
     if (it.ok) {
-      const items = C.evidence.filter(x => x.target === p.target);
+      const items = list.filter(x => x.target === p.target);
       const miss = missing(items);
       fired.push(`「${p.label}」达标了（${p.mark} ${miss.length ? '还差 ' + miss.slice(0, 2).join('；') + (miss.length > 2 ? '…' : '') : '条件已凑齐'}）`);
       pins.delete(key);
@@ -118,23 +122,23 @@ export function initPins(ctx) {
 }
 
 /* ---------- rows ---------- */
-function trailOf(ctx, kind, e) {
+function trailOf(ctx, kind, e, src) {
   const out = [], sim = ctx.sim, snap = ctx.snap;
   if (!sim || !snap) return out;
   const br = snap.branch || 'model';
   for (let k = 8; k >= 1; k--) {
     if (snap.t - k < 0) continue;
     let it = null;
-    try { const s = sim.snapshot(br, snap.t - k); it = s?.cycles?.[kind]?.evidence?.find(x => x.name === e.name && x.target === e.target); } catch (err) { it = null; }
+    try { const s = sim.snapshot(br, snap.t - k); it = (src === 'fork' ? s?.cycles?.[kind]?.forkEvidence : s?.cycles?.[kind]?.evidence)?.find(x => x.name === e.name && x.target === e.target); } catch (err) { it = null; }
     if (it && ok(it.value)) out.push(it.value);
   }
   return out;
 }
 
 function rowHtml(e, o) {
-  const key = pinKey(o.kind, e), place = placeOf(e.term), pinned = pins.has(key);
-  ROWS.set(key, { kind: o.kind, target: e.target, name: e.name, term: e.term, label: reqLabel(e), mark: o.mark, ok: e.ok });
-  const bar = thresholdBarHtml({ value: e.value, threshold: e.threshold, dir: e.dir, fmt: e.fmt, trail: trailOf(o.ctx, o.kind, e) });
+  const key = pinKey(o.kind, e, o.src), place = placeOf(e.term), pinned = pins.has(key);
+  ROWS.set(key, { kind: o.kind, src: o.src, target: e.target, name: e.name, term: e.term, label: reqLabel(e), mark: o.mark, ok: e.ok });
+  const bar = thresholdBarHtml({ value: e.value, threshold: e.threshold, dir: e.dir, fmt: e.fmt, trail: trailOf(o.ctx, o.kind, e, o.src) });
   const bits = [e.ok ? '' : `<span class="cy-gap">还差 ${fmtGap(e)}</span>`, place ? `<span class="cy-where">看：${esc(place)}</span>` : ''].filter(Boolean).join('');
   const pin = e.ok ? '' : `<button type="button" class="cy-pin-btn" data-pk="${esc(key)}" aria-pressed="${pinned}" title="盯住这一项：它达标时暂停并提醒你">${pinned ? '★ 盯住中' : '☆ 盯住'}</button>`;
   return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}${pinned ? ' pinned' : ''}${e.ok ? '' : ' has-pin'}">` +
@@ -144,7 +148,7 @@ function rowHtml(e, o) {
     `<span class="cy-l2">${bar}<span class="cy-l2t">${bits}</span></span><span class="cy-sr">${e.ok ? '已达标' : '未达标'}</span></button>${pin}</li>`;
 }
 
-/** items: one target's evidence; o = { kind: 'long'|'short', ctx, mark } (mark = how the target is called in the pause message) */
+/** items: one target's evidence; o = { kind: 'long'|'short', ctx, mark, src? } (mark = how the target is called in the pause message; src 'fork' = B2-fork rows of the long card) */
 export function evidenceList(items, o) {
   const out = [], seen = new Set();
   for (const e of items) {

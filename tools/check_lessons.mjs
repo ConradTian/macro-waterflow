@@ -30,7 +30,7 @@ const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain'];
 const BLOCKS = ['alloc', 'budget', 'sources'];
 const FMTS = ['pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count'];
-const CYC = LESSONS.filter(l => l.id >= 1);
+const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');          // numeric ids 1..7 plus half-step cycle lessons ('3b')
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
 const stripSim = createSim({ data: US_Q, mode: 'history' });
 const stripAt = date => { const t = US_Q.dates.indexOf(date); while (stripSim.t < t && !stripSim.done) stripSim.step(); return headlineItems(stripSim.snapshot('model', t), null, stripSim).map(i => i.text); };
@@ -184,12 +184,13 @@ for (const L of [...ROUTINE, ...CYC]) {
 
 /* ---------- cross-lesson ---------- */
 console.log('\n--- cross-lesson ---');
-ok(CYC.map(l => l.id).join() === '1,2,3,4,5,6,7', 'cycle lessons 1..7 all present');
+ok(CYC.map(l => l.id).join() === '1,2,3,3b,4,5,6,7', 'cycle lessons 1..7 (+ 3b) all present, in order');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
-ok(CYC.every((l, k) => k === CYC.length - 1 || l.steps[l.steps.length - 1].next === l.id + 1), 'each cycle lesson hands over to the next');
+ok(CYC.every((l, k) => k === CYC.length - 1 || l.steps[l.steps.length - 1].next === CYC[k + 1].id), 'each cycle lesson hands over to the next');
 ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
 ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
-ok(CYC[6].steps.some(s => s.freeLink) && CYC[6].mode === 'free', 'lesson 7 runs the free mode and has the free-run link');
+const L7 = CYC[CYC.length - 1];
+ok(L7.steps.some(s => s.freeLink) && L7.mode === 'free', 'lesson 7 runs the free mode and has the free-run link');
 ok(LESSONS[0].id === 0 && LESSONS[0].available, 'lesson 0 still there');
 // the rule thresholds quoted via R() exist
 for (const [r, k] of [['bank_loosen', 'hp'], ['bank_tighten_collateral', 'lvr'], ['cb_qe', 'floorRate'], ['cb_qe', 'uOn'], ['cb_qe', 'sizeGdp'], ['inv_riskoff', 'rp'], ['hh_chase', 'up']]) ok(RULE_BY_ID[r].params[k] !== undefined, `rule param ${r}.${k}`);

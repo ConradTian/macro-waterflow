@@ -1,4 +1,4 @@
-// App shell: time bar, play loop, fixed water diagram, 4 tabs, pause toast.
+// App shell: time bar, play loop, fixed water diagram (or the curves view over it), 4 tabs, pause toast, multi-window quarter sync.
 // ENGINE SWAP: the orchestrator replaces the next import with './engine/sim.js'.
 import { createSim } from './engine/sim.js';
 import { renderFlow, setFlowDuration, setFlowContext } from './ui/flow.js';
@@ -25,6 +25,8 @@ let sim, real = null;
 let mainSim = null, mainReal = null;   // TOWN-LESSONS hook: the US sim/data stay here while a lesson swaps the town sim in (ctx.setSim)
 let snap = null, prevSnap = null;
 let playing = false, speed = 1, timer = 0, tickMs = 1000;
+let view = params.get('view') === 'waves' ? 'waves' : 'flow';   // left panel: 'flow' = water diagram, 'waves' = curves view (mw:view event, body.dataset.view)
+let following = params.get('follow') === '1';                    // mirror another window's quarter (BroadcastChannel); a follower never plays its own timer
 let activeTab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'ledger';
 const tabMods = {}; // id -> module | null (failed)
 
@@ -34,24 +36,26 @@ async function boot() {
   // DIAGRAM v2 screenshot helper: ?scenario=town boots the 万元 town economy (lessons switch scenarios themselves)
   sim = params.get('scenario') === 'town' ? createSim({ mode: MODE, scenario: 'town' }) : createSim({ data: real, mode: MODE });
   mainSim = sim; mainReal = real;                    // TOWN-LESSONS hook (see ctx.setSim in loadLessons)
+  document.body.dataset.view = view; document.body.dataset.follow = following ? '1' : '';
   setFlowContext({ sim: () => sim, setTab, openTerm: id => openTerm(id) });   // DIAGRAM v2 hook: valve popover reads sim.valves, 去接管 button switches tab
   const skip = parseInt(params.get('t') || '0', 10);
   for (let i = 0; i < skip && !sim.done; i++) sim.step();
   snap = sim.snapshot();
-  sim.on('reset', () => { snap = sim.snapshot(); prevSnap = null; renderAll(); });
+  sim.on('reset', () => { snap = sim.snapshot(); prevSnap = null; if (!syncing) renderAll(); });
 
   buildTabbar();
   wireControls();
+  initSync();
   await installConcepts();
   renderAll();
   if (MODE === 'free') {                            // free-run subpage: full interface, no lessons
-    if (params.get('pause') !== '1') setTimeout(() => setPlaying(true), 600);
+    if (params.get('pause') !== '1' && !following) setTimeout(() => setPlaying(true), 600);
     return;
   }
   if (params.has('lesson')) await loadLessons();   // LESSONS: ?lesson=0&step=N jumps straight into a lesson (screenshots)
   else {
     loadLessons().catch(() => {});                 // preload: role-lesson availability feeds the 接管 tab links
-    if (params.get('pause') !== '1') setTimeout(() => setPlaying(true), 600);
+    if (params.get('pause') !== '1' && !following) setTimeout(() => setPlaying(true), 600);
   }
 }
 
@@ -73,7 +77,7 @@ function openTerm(id) {
 
 /* ---------- play loop ---------- */
 function setPlaying(on) {
-  playing = on && !sim.done;
+  playing = on && !sim.done && !following;
   $('btn-play').textContent = playing ? '⏸' : '▶';
   clearTimeout(timer);
   if (playing) timer = setTimeout(tick, tickMs / speed);
@@ -183,6 +187,93 @@ function renderTabbar() {
   for (const b of $('tabbar').children) b.setAttribute('aria-selected', String(b.dataset.tab === activeTab));
 }
 
+/* ---------- left panel: water diagram or curves view ----------
+   body.dataset.view = 'waves' | 'flow'. Anyone (the buttons, a lesson step with view:, the URL &view=waves) sets it through
+   document.dispatchEvent(new CustomEvent('mw:view', { detail: { view } })). The flow diagram's DOM stays alive underneath
+   (the curves view only covers it), so lesson highlights keep working. The view needs the US history run: not the town, not free mode. */
+let wvEl = null, vtBtn = null, wvMod = null;
+const wavesOk = () => !!(sim && real && sim.mode === 'history' && sim.scenario !== 'town');
+function buildViewDom() {
+  const host = $('diagram');
+  wvEl = document.createElement('div'); wvEl.id = 'wave-view'; wvEl.className = 'wvw wv pn-cycle'; wvEl.hidden = true;
+  wvEl.setAttribute('aria-label', '曲线对照'); host.appendChild(wvEl);
+  vtBtn = document.createElement('button'); vtBtn.type = 'button'; vtBtn.id = 'view-toggle'; vtBtn.className = 'view-toggle'; vtBtn.hidden = true;
+  vtBtn.onclick = () => document.dispatchEvent(new CustomEvent('mw:view', { detail: { view: view === 'waves' ? 'flow' : 'waves' } }));
+  host.appendChild(vtBtn);
+  let rz = 0;
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderView, 120); });
+}
+document.addEventListener('mw:view', e => {
+  view = e.detail && e.detail.view === 'waves' ? 'waves' : 'flow';
+  document.body.dataset.view = view;
+  try { const u = new URL(location.href); if (view === 'waves') u.searchParams.set('view', 'waves'); else u.searchParams.delete('view'); history.replaceState(null, '', u); } catch (err) { /* file:// etc. */ }
+  if (sim && snap) renderView();
+});
+async function renderView() {
+  if (!wvEl) return;
+  const eff = view === 'waves' && wavesOk();
+  wvEl.hidden = !eff;
+  $('diagram').classList.toggle('wv-on', eff);
+  vtBtn.hidden = !wavesOk();
+  vtBtn.textContent = eff ? '💧 水流' : '📈 曲线';
+  vtBtn.setAttribute('aria-label', eff ? '回到水流图' : '把左边换成曲线，和右边的环对照');
+  vtBtn.setAttribute('aria-pressed', String(eff));
+  if (!eff) return;
+  if (!wvMod) { try { wvMod = await import('./ui/wave-view.js'); } catch (err) { console.error(err); return; } }
+  if (view !== 'waves' || !wavesOk()) return;                   // changed while the module loaded
+  try { wvMod.renderWaveView(wvEl, { sim, snap, real }); } catch (err) { console.error(err); }
+}
+
+/* ---------- multi-window sync: only the quarter (BroadcastChannel 'macro-waterflow', same origin + same browser) ----------
+   Any window not following is a leader: after a render it posts { t, mode, scenario, date, from }. A follower (?follow=1, or the 跟随 toggle,
+   event mw:follow { on }) mirrors it: forward -> step; backwards -> reset + step to t (the engine is deterministic and fast). It ignores other
+   modes / scenarios and the town, and does not play. A follower asks for the current state when it starts ({ req: true }). Tabs / lessons are not synced. */
+const WID = Math.random().toString(36).slice(2, 8) + Date.now().toString(36);
+let chan = null, postTimer = 0, syncing = false;
+function noSync() { document.body.classList.add('no-sync'); following = false; document.body.dataset.follow = ''; }
+function initSync() {
+  if (typeof BroadcastChannel !== 'function') return noSync();
+  try { chan = new BroadcastChannel('macro-waterflow'); } catch (e) { chan = null; return noSync(); }
+  chan.onmessage = e => onSyncMsg(e.data);
+  if (following) { setPlaying(false); chan.postMessage({ req: true, from: WID }); }
+}
+function postNow() {
+  if (!chan || following || !sim || !snap || sim.scenario === 'town') return;
+  chan.postMessage({ t: sim.t, mode: sim.mode, scenario: sim.scenario, date: snap.date, from: WID });
+}
+function schedulePost() {                                   // debounced: a lesson's silent resets collapse into one message
+  if (!chan || following) return;
+  clearTimeout(postTimer); postTimer = setTimeout(postNow, 40);
+}
+function onSyncMsg(m) {
+  if (!m || m.from === WID) return;
+  if (m.req) { if (!following) postNow(); return; }
+  if (!following || !sim || sim.scenario === 'town' || m.scenario === 'town') return;
+  if (m.mode !== sim.mode || m.scenario !== sim.scenario || !Number.isFinite(m.t) || m.t === sim.t) return;
+  const t = Math.max(0, Math.floor(m.t));
+  hideToast(); setPlaying(false);
+  syncing = true;
+  try {
+    const before = snap;
+    if (t < sim.t) sim.reset();
+    const one = sim.t + 1 === t;
+    while (sim.t < t && !sim.done) sim.step();
+    prevSnap = one ? before : null;
+    snap = sim.snapshot();
+  } finally { syncing = false; }
+  setFlowDuration($('diagram'), 400);
+  renderAll();
+}
+document.addEventListener('mw:follow', e => {
+  if (!chan) return;
+  following = !!(e.detail && e.detail.on);
+  document.body.dataset.follow = following ? '1' : '';
+  document.querySelectorAll('[data-act="wv-follow"]').forEach(b => b.setAttribute('aria-pressed', String(following)));
+  if (following) { setPlaying(false); chan.postMessage({ req: true, from: WID }); }
+  else clearTimeout(postTimer);
+  renderAll();
+});
+
 /* ---------- rendering ---------- */
 function renderAll() {
   $('date').textContent = snap.date;
@@ -192,11 +283,16 @@ function renderAll() {
   badge.classList.toggle('user', !!sim.takenOver);
   const last = free ? 223 : real?.dates ? real.dates.length - 1 : 123;
   $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
-  $('btn-step').disabled = sim.done;
+  $('btn-step').disabled = sim.done || following;
+  $('btn-play').disabled = following;
+  if (following) badge.textContent += ' · 跟随';
   renderFlow($('diagram'), snap, prevSnap);
+  if (!wvEl) buildViewDom();                         // after the first renderFlow: it empties #diagram once when it builds the SVG
+  renderView();
   try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   renderTab();
   if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers
+  schedulePost();
 }
 
 async function renderTab() {

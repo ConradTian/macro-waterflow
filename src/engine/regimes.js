@@ -95,15 +95,23 @@ export function detectRing(v0, prevProbs) {
 //  - mixed evidence (target's streak > 0 but < N) is shown as `between`, the current stage does not change
 export const LONG_LABEL = { 1: '① 堆债', 2: '② 缓冲池满', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 金融压制·增长化债', 8: '⑧ 修复' };
 export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
-export const SHORT_LABEL = { expand: '扩张', B1: '过热 B1', B2: '缩水 B2', tight: '收紧·衰退', ease: '降息重启' };
+// Short cycle as the learner sees it (Dalio): 扩张 → 过热 → 收紧·衰退 → 降息（推得动吗？）. The top comes in two kinds:
+// 物价过热 (inflation + hikes) or 资产过热 (a credit-driven boom that breaks: credit shrinks first, house prices turn).
+// B1/B2 are NOT short-cycle phases: they are the long cycle's fork after ② (where the excess claims go) -> longOut.fork.
+// Internally the state machine keeps two top states, hotP / hotA, so the timing is unchanged; outside, phase = 'hot' + top.
+export const SHORT_LABEL = { expand: '扩张', hot: '过热', tight: '收紧·衰退', ease: '降息（推得动吗？）' };
+export const TOP_LABEL = { price: '物价过热', asset: '资产过热' };
+export const KEY_LABEL = { expand: '扩张', hotP: '过热·物价', hotA: '过热·资产', tight: '收紧·衰退', ease: '降息（推得动吗？）' };
+const KEY_PHASE = k => (k === 'hotP' || k === 'hotA' ? 'hot' : k);
+const KEY_TOP = { hotP: 'price', hotA: 'asset' };
 export const LONG_N = 6;                       // quarters of consecutive evidence to advance the long cycle
-// tight needs 3 quarters of confirmation (a recession call is made late); B2 needs 2 - so when a credit/asset contraction and the unemployment
-// rise arrive together, the fork is called B2 (the bust came from credit/assets) before the dial settles on plain 收紧·衰退.
-// B1 may be re-labelled B2 if the 'overheating' boom breaks through credit/asset contraction (SHORT_NEXT.B1 lists B2 first).
-export const SHORT_N = { B1: 2, B2: 2, tight: 3, ease: 2, expand: 3 };
+// tight needs 3 quarters of confirmation (a recession call is made late); hotA needs 2 - so when a credit/asset contraction and the unemployment
+// rise arrive together, the top is called 资产过热 (the bust came from credit/assets) before the dial settles on plain 收紧·衰退.
+// 物价过热 may be re-labelled 资产过热 if the boom breaks through credit/asset contraction (SHORT_NEXT.hotP lists hotA first).
+export const SHORT_N = { hotP: 2, hotA: 2, tight: 3, ease: 2, expand: 3 };
 export const WARMUP = 8;
 const SHORT_DWELL = 2;                         // min quarters in a short phase before it may move on
-const SHORT_NEXT = { expand: ['B2', 'B1', 'tight'], B1: ['B2', 'tight', 'ease', 'expand'], B2: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
+export const SHORT_NEXT = { expand: ['hotA', 'hotP', 'tight'], hotP: ['hotA', 'tight', 'ease', 'expand'], hotA: ['tight', 'ease', 'expand'], tight: ['ease', 'expand'], ease: ['expand'] };
 
 // thresholds (one place, quoted in the UI through the evidence items)
 const LT = {
@@ -113,10 +121,11 @@ const LT = {
   realP: -0.01, flat: 0.01, pvtFlat: 0.02,     // ⑦: real policy rate <= -1%; gov debt not rising (+1pp); private debt not re-levering (+2pp)
   dsrLow: -0.025, badLow: 0.025, i2t: 0.25,    // ⑧: DSR 2.5pp under start, bad loans <= 2.5%, interest/tax <= 25%
   reUp: 0.02, pcg: 0.03,                       // ①: private debt +2pp in 3y and credit growth >= 3%
+  hpFall: 0, dsrHi: 0.01, cut: 0.01, ciNeg: -0.005, // B2 fork: house prices falling; debt/DSR high; cut >= 1pp (or near zero) yet credit still shrinking
 };
 const ST = {
-  infl: 0.035, hike: 0.005,                    // B1
-  ci: -0.005, hp: 0.01, dsr: 0.01,             // B2
+  infl: 0.035, hike: 0.005,                    // 过热·物价
+  ci: -0.005, hp: 0.01, dsr: 0.01,             // 过热·资产 (the credit-driven top breaking)
   uRise: 0.01, ciTight: -0.015, // 收紧·衰退
   cut: 0.01, zb: 0.005,                        // 降息重启
   ciBack: 0, uFlat: 0.001,                     // 扩张
@@ -132,12 +141,13 @@ const LONG_NEXT = {
   8: `私人债务/GDP 三年升 ≥ ${pp1(LT.reUp)} 且信贷增速 ≥ ${pc1(LT.pcg)}（新一轮借钱）→ 回到 ①`,
 };
 const SHORT_NEXT_TXT = {
-  expand: `通胀 ≥ ${pc1(ST.infl)} 且加息 → B1；信贷脉冲 ≤ ${pp1(ST.ci)} → B2；失业率较低点升 ≥ ${pp1(ST.uRise)} → 收紧·衰退`,
-  B1: `若信贷脉冲 ≤ ${pp1(ST.ci)} 且房价比一年前转弱（或 DSR 升）→ 改判 B2（缩水）；失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
-  B2: `失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退`,
-  tight: `央行较高点降息 ≥ ${pp1(ST.cut)}（或已近零）→ 降息重启`,
-  ease: `信贷脉冲回正且失业率不再上升 → 扩张`,
+  expand: `通胀 ≥ ${pc1(ST.infl)} 且加息 → 过热·物价；信贷脉冲 ≤ ${pp1(ST.ci)} 且房价转弱（或 DSR 升）→ 过热·资产；失业率较低点升 ≥ ${pp1(ST.uRise)} → 收紧·衰退`,
+  hotP: `若信贷脉冲 ≤ ${pp1(ST.ci)} 且房价比一年前转弱（或 DSR 升）→ 改判 过热·资产；失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退；若通胀回落则回到扩张`,
+  hotA: `失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} → 收紧·衰退`,
+  tight: `央行较高点降息 ≥ ${pp1(ST.cut)}（或已近零）→ 降息`,
+  ease: `推得动：信贷脉冲回正且失业率不再上升 → 扩张；推不动：大周期走上 B2 → ⑤ 私人去杠杆`,
 };
+const B2_TXT = `B2 岔路（三条同时成立）：房价比一年前 ≤ ${pc1(LT.hpFall)}；DSR 比起点高 ≥ ${pp1(LT.dsrHi)} 或私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)}；央行已降息 ≥ ${pp1(LT.cut)}（或近零）但信贷脉冲仍 ≤ ${pp1(LT.ciNeg)}`;
 
 const back = (a, k) => a[Math.max(0, a.length - 1 - k)];
 const item = (name, value, threshold, dir, fmt, o = {}) =>
@@ -174,8 +184,8 @@ function shortEvidence(f) {
   const recess = [item('失业率较 4 季低点', f.uRise, ST.uRise, '>=', 'pp', { term: 'unemployment', grp: 'a' }),
     item('信贷脉冲', f.ci, ST.ciTight, '<=', 'pp', { term: 'creditImpulse', grp: 'a' })];
   return {
-    B1: [item('通胀', f.piY, ST.infl, '>=', 'pct', { term: 'cpi' }), item('政策利率 4 季变化', f.dPol4, ST.hike, '>=', 'pp', { term: 'policyRate' })],
-    B2: [item('信贷脉冲', f.ci, ST.ci, '<=', 'pp', { term: 'creditImpulse' }),
+    hotP: [item('通胀', f.piY, ST.infl, '>=', 'pct', { term: 'cpi' }), item('政策利率 4 季变化', f.dPol4, ST.hike, '>=', 'pp', { term: 'policyRate' })],
+    hotA: [item('信贷脉冲', f.ci, ST.ci, '<=', 'pp', { term: 'creditImpulse' }),
       item('房价比一年前', f.hpYoY, ST.hp, '<=', 'pct', { term: 'housePrice', grp: 'a' }),
       item('DSR 相对起点', f.dsrRel, ST.dsr, '>=', 'pp', { term: 'dsr', grp: 'a' })],
     tight: recess,
@@ -183,6 +193,16 @@ function shortEvidence(f) {
       item('政策利率（近零）', f.pol, ST.zb, '<=', 'pct', { term: 'policyRate', grp: 'a' })],
     expand: [item('信贷脉冲', f.ci, ST.ciBack, '>=', 'pp', { term: 'creditImpulse' }), item('失业率 4 季变化', f.uD4, ST.uFlat, '<=', 'pp', { term: 'unemployment' })],
   };
+}
+
+// the long cycle's B2 fork after ②: excess claims shrink instead of spilling into prices (balance-sheet recession ahead)
+function b2Evidence(f) {
+  return [item('房价比一年前', f.hpYoY, LT.hpFall, '<=', 'pct', { term: 'housePrice' }),
+    item('DSR 相对起点', f.dsrRel, LT.dsrHi, '>=', 'pp', { term: 'dsr', grp: 'a' }),
+    item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtUp, '>=', 'pp', { term: 'pvtDebtGdp', grp: 'a' }),
+    item('央行较 5 季高点降息', f.polDrop, LT.cut, '>=', 'pp', { term: 'policyRate', grp: 'b' }),
+    item('政策利率（近零）', f.pol, LT.zb, '<=', 'pct', { term: 'policyRate', grp: 'b' }),
+    item('降息后信贷脉冲', f.ci, LT.ciNeg, '<=', 'pp', { term: 'creditImpulse' })];
 }
 
 const HK = ['pvt', 'gov', 'pol', 'u'];
@@ -227,7 +247,7 @@ export function advanceCycles(prev, x0, t, date) {
   };
 
   // ---------------- short cycle
-  let S = prev ? prev.short : { phase: 'expand', via: null, since: now, dwell: 0, streak: {} };
+  let S = prev ? prev.short : { phase: 'expand', via: null, since: now, dwell: 0, streak: {} };   // S.phase is the internal key (hotP / hotA / ...)
   const sev = shortEvidence(f), sstreak = {};
   for (const p of Object.keys(sev)) sstreak[p] = holds(sev[p]) && !warm ? (S.streak[p] || 0) + 1 : 0;
   let phase = S.phase, via = S.via, ssince = S.since, dwell = S.dwell + 1, sst = sstreak;
@@ -235,10 +255,11 @@ export function advanceCycles(prev, x0, t, date) {
   let sbetween = null;
   if (dwell > SHORT_DWELL) {
     // soft landing out of a fork is only believed once the fork's own evidence is gone
-    const sh = scand.find(p => sstreak[p] >= SHORT_N[p] && !(p === 'expand' && (S.phase === 'B1' || S.phase === 'B2') && sstreak[S.phase] > 0));
+    const sh = scand.find(p => sstreak[p] >= SHORT_N[p] && !(p === 'expand' && KEY_TOP[S.phase] && sstreak[S.phase] > 0));
     if (sh != null) {
+      if (S.phase === 'ease' && sh === 'expand') events.push({ kind: 'restart' });   // 降息推得动
       phase = sh; ssince = now; dwell = 0; sst = {};
-      if (sh === 'B1' || sh === 'B2') { via = sh; events.push({ kind: 'fork', to: sh }); }
+      if (KEY_TOP[sh]) { via = sh; events.push({ kind: 'top', to: KEY_TOP[sh] }); }
       else if (sh === 'expand') via = null;
     }
   }
@@ -246,15 +267,29 @@ export function advanceCycles(prev, x0, t, date) {
     const m = scand.reduce((a, p) => (sstreak[p] > (sstreak[a] || 0) ? p : a), scand[0]);
     if (sstreak[m] >= 1 && sstreak[m] < SHORT_N[m]) sbetween = [S.phase, m];
   }
+  // ---------------- the long cycle's fork after ②, and the hand-off between the dials
+  const b2ev = b2Evidence(f), b2now = holds(b2ev) && !warm;
+  const early = lstage === 1 || lstage === 2;
+  const b2 = early && ((lstage === L.stage && !!L.b2) || b2now);            // once on the B2 path, it stays until the long stage moves
+  if (b2 && !(lstage === L.stage && L.b2)) events.push({ kind: 'longFork', to: 'B2' });
+  const priceTop = phase === 'hotP';
+  longOut.fork = b2 ? 'B2' : early && priceTop ? 'B1' : null;               // B1 = excess spills into prices, handed to the short cycle
+  longOut.b1Overlay = !early && priceTop;                                   // e.g. ⑦ with B1 on top (US 2023)
+  longOut.forkEvidence = early ? b2ev : null;
+  longOut.forkSignal = B2_TXT;
+  // 降息推得动吗？ 'no' when the long cycle took over (B2 path / ⑤ / ⑥); a 'restart' event when easing restarted credit (back to 扩张)
+  const sPhase = KEY_PHASE(phase), top = KEY_TOP[phase] || null;
+  const handoff = sPhase === 'ease' && (b2 || lstage === 5 || lstage === 6) ? 'no' : null;
   const cands = SHORT_NEXT[phase];
+  const viaTxt = via && !top && phase !== 'expand' ? `（接 ${TOP_LABEL[KEY_TOP[via]]}）` : '';
   const shortOut = {
-    phase, label: SHORT_LABEL[phase] + (via && phase !== 'B1' && phase !== 'B2' && phase !== 'expand' ? `（经 ${via}）` : ''),
-    fork: phase === 'B1' || phase === 'B2' ? phase : null, via, between: sbetween,
-    evidence: cands.flatMap(p => sev[p].map(i => ({ ...i, target: SHORT_LABEL[p], targetId: p }))),
-    progress: cands.map(p => ({ target: p, label: SHORT_LABEL[p], have: (phase === S.phase ? sstreak[p] : 0), need: SHORT_N[p], met: holds(sev[p]) })),
+    phase: sPhase, key: phase, top, label: KEY_LABEL[phase] + viaTxt, via: via ? KEY_TOP[via] : null, between: sbetween,
+    handoff, handoffText: handoff === 'no' ? '推不动 → 交给大周期（B2 → ⑤ 私人去杠杆）' : null,
+    evidence: cands.flatMap(p => sev[p].map(i => ({ ...i, target: KEY_LABEL[p], targetId: p }))),
+    progress: cands.map(p => ({ target: p, label: KEY_LABEL[p], have: (phase === S.phase ? sstreak[p] : 0), need: SHORT_N[p], met: holds(sev[p]) })),
     nextSignal: SHORT_NEXT_TXT[phase], since: ssince,
   };
-  const state = { h, long: { stage: lstage, since: lsince, streak: lstreak }, short: { phase, via, since: ssince, dwell, streak: sst } };
+  const state = { h, long: { stage: lstage, since: lsince, streak: lstreak, b2 }, short: { phase, via, since: ssince, dwell, streak: sst } };
   return { state, out: { long: longOut, short: shortOut }, events };
 }
 
@@ -287,10 +322,11 @@ export function detectPauses(v, mem, t, events = []) {
   const i2t = v.i2t > 0.25;
   if (i2t && !mem.i2t) fire('GOV_INTEREST', `政府利息/税收 ${pct(v.i2t)} 偏高`, 8);
   mem.i2t = i2t;
-  // cycle dials: pause only on a real long-stage change or on entering the B1/B2 fork of the short cycle
+  // cycle dials: pause on a real long-stage change, on the long cycle taking the B2 fork, and on the short cycle reaching its top
   for (const e of events) {
     if (e.kind === 'long') fire('LONG_STAGE', `大周期进入 ${LONG_LABEL[e.to]}（此前：${LONG_LABEL[e.from]}）`, 0);
-    else if (e.kind === 'fork') fire('SHORT_FORK', `小周期进入岔路 ${e.to === 'B1' ? 'B1 过热（通胀 + 加息）' : 'B2 缩水（信贷与资产收缩）'}`, 4);
+    else if (e.kind === 'longFork') fire('LONG_FORK', '大周期走上 B2 岔路：房价在跌、债务高、降了息信贷还在缩（降息推不动，资产负债表衰退的入口）', 0);
+    else if (e.kind === 'top') fire('SHORT_TOP', `小周期到顶：${e.to === 'price' ? '物价过热（通胀 + 加息）' : '资产过热见顶（信贷先缩、房价转弱）'}`, 4);
   }
   return out;
 }

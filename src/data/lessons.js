@@ -41,6 +41,9 @@
 //   experiment    metrics[].key -> {key.0} {key.1} .. (value under choice k), {key.1-0} (|difference|); compareAll:true shows every choice
 //   agg           end first start max min sum avg chg dpp dd argmax argmin when:path=value at:YYYYQn:path count:path ; path 'share.toCash' = share of new money
 // Extra step fields: glow:{parts,pipes} flashes on entry; freeLink:true shows the "open free run" button; tab opens a tab.
+//   view:'waves'|'flow'   (any step) switch the left panel on entry: 'waves' = the curves view over the water diagram (US long-cycle chart,
+//                         quarterly short-cycle chart + the game's own calls, long-cycle band; it moves with the cycle rings), 'flow' = the water diagram.
+//                         Steps without `view` leave it as it is. A lesson starts on 'flow' and leaving the lesson restores 'flow'. Town steps have no curves.
 // Never shown to the learner, only read by tools/check_lessons.mjs (so a retune cannot silently falsify a text):
 //   predict option.when [cond]   the claim an option makes; exactly the ok option must hold
 //   claims [cond]                every factual sentence of a step.  cond = { get, from?, until?, set?, vs?, mul?, gt|gte|lt|lte, dateBetween?, dateBefore? }
@@ -554,13 +557,14 @@ export const LESSONS = [
   {
     id: 3,
     title: '回路反转：B2',
-    oneLine: '房价转跌，圈就倒着转：房价↓ → LVR 变差 → 银行收紧 → 新贷款↓ → 房价↓。降息也救不了。',
+    oneLine: '房价转跌，圈就倒着转：房价↓ → LVR 变差 → 银行收紧 → 新贷款↓ → 房价↓。降息也救不了，大周期由此走上 B2，通向 ⑤。',
     rulesOn: 'all',
     startDate: '2006Q1', endDate: '2010Q4', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
           '**结论：同一个圈，方向反过来就是 B2。降息打开的是水龙头，可堵住的是银行的闸门。**',
+          'B2 不是小周期里的一格，而是大周期的岔路：缓冲池（②）满了之后，多出来的水要么溢出成物价（B1），要么缩水（B2）。走上 B2，下一站就是 ⑤ 私人去杠杆。小周期怎么把接力棒交到这里，下一课（第 3.5 课）专门讲。',
           '下面分 5 步：① 看房价转跌 ② 看银行收闸 ③ 猜一猜 ④ 动手改 ⑤ 因果链。',
           '时间：2006Q1 → 2010Q4。央行按真实路径降息。',
         ],
@@ -580,10 +584,13 @@ export const LESSONS = [
           `银行看到两件事：房价比一年前低于 ${p0(R('bank_tighten_collateral', 'hp'))}（或较高点回撤超过 ${p0(R('bank_tighten_collateral', 'dd'))}），房贷的 LVR 超过 ${p0(R('bank_tighten_collateral', 'lvr'))}。`,
           '触发规则：「收紧住房信贷」。审批倍数下降，蓝管变细。',
           '新贷款少于还本，信贷脉冲转负：池子里流出的水比流进的多。',
+          '这三样（房价在跌、债务高、降息后信贷还在缩）凑齐，大周期盘在 {fk} 走上 B2 这条岔路，下一站是 ⑤ 私人去杠杆。',
         ],
+        vals: [{ key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' }],
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }],
         claims: [{ get: 'dpp:bank.approval', lt: -0.1, note: '审批倍数下降' }, { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' }, { get: 'end:extra.creditImpulse', lt: 0, note: '信贷脉冲转负' },
-          { get: 'max:household.lvr', gt: R('bank_tighten_collateral', 'lvr'), note: 'LVR 超过收紧线' }],
+          { get: 'max:household.lvr', gt: R('bank_tighten_collateral', 'lvr'), note: 'LVR 超过收紧线' },
+          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' }],
         hl: ['bankApproval', 'newLoans', 'principalRepay'], concept: ['creditImpulse', 'bankApproval'] },
 
       { type: 'predict', until: '2010Q4', title: '第 3 步：猜一猜',
@@ -637,6 +644,230 @@ export const LESSONS = [
           { text: '银行收紧审批：闸门关小', part: 'bank', hl: ['bankApproval'], term: 'bankApproval' },
           { text: '新贷款少于还本，信贷脉冲转负：流出的水比流进的多', pipe: ['newLoans', 'principalRepay'], part: 'iou', term: 'creditImpulse' },
           { text: '购房资金减少，房价再跌（圈倒着转回起点）；降息只改价格，打不开银行的闸门', pipe: 'toHousing', part: 'centralBank', hl: ['policyRate'], term: 'housePrice' },
+          { text: '圈倒着转到头：小周期「降息推不动」，大周期走上 B2 岔路，下一站 ⑤ 私人去杠杆（下一课讲这条连线）', part: 'cycle', term: 'B2' },
+        ], next: '3b' },
+    ],
+  },
+
+  /* =====================================================================================================================
+   * 第 3.5 课「两个环怎么接上：降息推得动吗？」(id '3b', kind 'cycle'): the MAIN LINE of the course. Sits right after lesson 3.
+   * The short cycle ends with one question (降息推得动吗？). Yes -> back to 扩张 (2001-03). No -> the long cycle takes over:
+   * ② 缓冲池满 -> B2 缩水 -> ⑤ 私人去杠杆 (2008-12). Steps carry `view:'waves'|'flow'` (left panel: curves | flow diagram) next to `tab`.
+   * ===================================================================================================================== */
+  {
+    id: '3b', kind: 'cycle', label: '第 3.5 课',
+    title: '两个环怎么接上：降息推得动吗？',
+    oneLine: '小周期的最后一问：降息推得动吗？推得动，回到扩张；推不动，大周期接手（B2 → ⑤）。这是两个环之间唯一的连线。',
+    rulesOn: 'all',
+    startDate: '2000Q1', endDate: '2012Q4', mode: 'history', available: true,
+    steps: [
+      { type: 'intro', title: '先说结论', tab: 'cycle', view: 'flow',
+        text: [
+          '**结论：小周期走完一圈，最后是一个问题：降息推得动吗？推得动，回到扩张；推不动，大周期接手：② 缓冲池满 → B2 缩水 → ⑤ 私人去杠杆。这是两个环之间唯一的连线，也是整门课的主线。**',
+          '像一条河上的两道调度：小周期是每年的汛期调度（加息关水，降息放水），大周期是水库本身。汛期调度能处理溢出的水；可水库自己被抽干的时候，闸怎么开都没用，只能换水库的管理员来管。',
+          '下面分 10 步：① 最后一问 ② 缓冲池满 ③ 顶来了 ④ 猜一猜 ⑤ 又到顶 ⑥ B2 岔路 ⑦ 推不动 ⑧ 看曲线 ⑨ 为什么 ⑩ 串起来。',
+          '时间：2000Q1 → 2012Q4（真实季度）。每一步看两个地方：「周期」页的圆环，和左边切到「曲线」的走势图。',
+        ],
+        hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
+
+      { type: 'reveal', title: '第 1 步：小周期的最后一问', tab: 'cycle', view: 'flow',
+        text: [
+          '小周期是一个四步的环：**扩张 → 过热 → 收紧·衰退 → 降息**。',
+          '过热有两种：**物价过热**（通胀高、央行加息）和**资产过热**（借钱推起来的繁荣，先是信贷缩、再是房价转弱）。',
+          '第四步「降息」，不是终点，而是一个问题。',
+        ],
+        question: '央行降息之后，是什么决定这个环能不能再转一圈？',
+        answerHint: [
+          '看信贷回不回来：降息让借钱变便宜，**银行肯放、家庭肯借**，信贷重新启动，就是「推得动」，回到扩张，环再转一圈。',
+          '要是降了息，信贷还是起不来，就是「推不动」：这个环转不下去，交给大周期。',
+        ],
+        relation: '「推得动」留在小周期里；「推不动」才走到大周期。这一问，是两个环之间唯一的接口。',
+        hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'creditImpulse'] },
+
+      { type: 'reveal', until: '2000Q3', title: '第 2 步：缓冲池满，水有两条出路', view: 'flow', tab: 'cycle',
+        text: [
+          '**② 缓冲池满**的意思：资产池里装的，已经是借来的水。池子再往里灌，多出来的水只有两条出路。',
+          '**一条是溢出成物价（B1）**：水漫进商品河道，物价涨。这条路小周期自己能管：加息关水，再降息放水。',
+          '**另一条是缩水（B2）**：资产价格掉下来，水没了，可欠条还在。这条路小周期管不了，要交给大周期。',
+          '2000 年走的是第一条：{d1}，小周期亮「过热·物价」。',
+        ],
+        vals: [{ key: 'd1', get: 'when:cycles.short.top=price', fmt: 'str' }, { key: 'f1', get: 'when:cycles.long.fork=B1', fmt: 'str' }],
+        claims: [
+          { get: 'when:cycles.short.top=price', dateBetween: ['2000Q2', '2000Q3'], note: '2000 年小周期亮「过热·物价」' },
+          { get: 'when:cycles.long.fork=B1', dateBetween: ['2000Q2', '2000Q3'], note: '大周期岔路口是 B1（溢出）' },
+        ],
+        glow: { parts: ['pool', 'poolHousing', 'channel'] },
+        hl: ['assetReservoir', 'goodsChannel', 'cpi'], concept: ['B1', 'B2', 'assetReservoir'] },
+
+      { type: 'watch', until: '2001Q4', title: '第 3 步：2000–01，顶来了，央行降息', view: 'waves', tab: 'cycle',
+        text: [
+          '先是物价过热，央行加息；{d2}，大周期走到 ② 缓冲池满。{d3}，顶换了一种：**资产过热**，信贷先缩了，可房价还在涨。',
+          '央行从 {pm} 一路降息到 {pe}。看曲线：季度图上，真实 GDP 掉到了趋势线下面，这就是小周期的坑。',
+          '房价还在涨，大周期没有转到 B2：银行的抵押品好好的，闸门没关。',
+        ],
+        vals: [
+          { key: 'd2', get: 'when:cycles.long.stage=2', fmt: 'str' }, { key: 'd3', get: 'when:cycles.short.top=asset', fmt: 'str' },
+          { key: 'pm', get: 'max:rates.policy', fmt: 'pct' }, { key: 'pe', get: 'end:rates.policy', fmt: 'pct' },
+        ],
+        metrics: [{ label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '信贷脉冲', get: 'extra.creditImpulse', fmt: 'pct' }, { label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }],
+        claims: [
+          { get: 'when:cycles.long.stage=2', dateBetween: ['2001Q1', '2001Q3'], note: '大周期走到 ②' },
+          { get: 'when:cycles.short.top=asset', dateBetween: ['2001Q2', '2001Q4'], note: '小周期换成「过热·资产」' },
+          { get: 'dpp:rates.policy', lt: -0.03, note: '降息 3 个点以上' },
+          { get: 'min:extra.creditImpulse', lt: 0, note: '信贷先缩' },
+          { get: 'min:extra.houseYoY', gt: 0, note: '房价比一年前还在涨' },
+        ],
+        hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
+
+      { type: 'predict', until: '2003Q1', title: '第 4 步：猜一猜', view: 'waves', tab: 'cycle', hl: ['policyRate', 'newLoans'],
+        q: '2001Q4：政策利率已降到 {pol}，信贷脉冲还是负的（{ci0}）。再过一年多，到 2003Q1，降息推得动吗？降息后信贷回来了吗？',
+        options: [
+          { t: '回来了：新贷款重新比还本多，小周期回到扩张', ok: true, when: [{ get: 'end:extra.creditImpulse', gt: 0 }] },
+          { t: '没回来：信贷还在缩，大周期接手', ok: false, when: [{ get: 'end:extra.creditImpulse', lt: 0 }] },
+          { t: '回来一下，很快又掉头', ok: false, when: [{ get: 'end:extra.creditImpulse', vs: { get: 'max:extra.creditImpulse' }, lt: -0.005 }] },
+        ],
+        vals: [
+          { key: 'pol', get: 'start:rates.policy', fmt: 'pct' }, { key: 'ci0', get: 'start:extra.creditImpulse', fmt: 'pct' },
+          { key: 'ci1', get: 'end:extra.creditImpulse', fmt: 'pct' }, { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
+          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str' }, { key: 'x1', get: 'when:cycles.short.phase=expand', fmt: 'str' },
+        ],
+        explain: [
+          '回来了。{e1} 小周期进「降息」，{x1} 就回到「扩张」：新贷款 {nl}，还本 {rep}（十亿美元/季），信贷脉冲 {ci1}。降息推得动，环转了一圈。',
+          '看曲线：季度图上这一次的坑很浅，小周期条很快回到绿色。整个过程大周期一格没动。',
+          '原因下面几步再讲：这一次，银行的闸门一直开着。',
+        ],
+        claims: [
+          { get: 'when:cycles.short.phase=expand', dateBetween: ['2002Q4', '2003Q2'], note: '小周期回到扩张' },
+          { get: 'when:cycles.short.phase=ease', dateBetween: ['2002Q1', '2002Q3'], note: '先进入降息' },
+          { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, gt: 0, note: '新贷款多于还本' },
+          { get: 'count:cycles.long.stage', lt: 1, note: '大周期没动' },
+          { get: 'start:extra.creditImpulse', lt: 0, note: '降息时信贷脉冲还是负的' },
+        ] },
+
+      { type: 'watch', until: '2007Q3', title: '第 5 步：2005–07，同样的顶又来了', view: 'flow', tab: 'cycle',
+        text: [
+          '过了几年，同样的剧本又开始：{hp}，小周期亮「过热·物价」（加息）；{ha} 换成「过热·资产」；{ti} 进入「收紧·衰退」。',
+          '这一次的底色不一样。上一轮的泡沫在股票，这一轮在房子，而且是借钱买的房子：家庭偿债占收入的比例（DSR）到了 {dsr}，房价比一年前已经是 {hy}。',
+          '下一个问题又来了：降息之后，推得动吗？',
+        ],
+        vals: [
+          { key: 'hp', get: 'when:cycles.short.top=price', fmt: 'str' }, { key: 'ha', get: 'when:cycles.short.top=asset', fmt: 'str' }, { key: 'ti', get: 'when:cycles.short.phase=tight', fmt: 'str' },
+          { key: 'dsr', get: 'end:household.dsr', fmt: 'pct' }, { key: 'hy', get: 'end:extra.houseYoY', fmt: 'pct' },
+        ],
+        metrics: [{ label: '房价比一年前', get: 'extra.houseYoY', fmt: 'pct' }, { label: '家庭 DSR', get: 'household.dsr', fmt: 'pct' }, { label: '信贷脉冲', get: 'extra.creditImpulse', fmt: 'pct' }],
+        claims: [
+          { get: 'when:cycles.short.top=price', dateBetween: ['2004Q4', '2005Q2'], note: '又一次「过热·物价」' },
+          { get: 'when:cycles.short.top=asset', dateBetween: ['2006Q3', '2007Q1'], note: '「过热·资产」' },
+          { get: 'when:cycles.short.phase=tight', dateBetween: ['2007Q1', '2007Q4'], note: '「收紧·衰退」' },
+          { get: 'end:extra.houseYoY', lt: 0, note: '房价比一年前在跌' },
+          { get: 'end:household.dsr', gt: 0.12, note: 'DSR 高' },
+        ],
+        hl: ['interestPaid', 'assetReservoir'], concept: ['dsr', 'housePrice'] },
+
+      { type: 'watch', until: '2008Q1', title: '第 6 步：2008Q1，大周期走上 B2', view: 'flow', tab: 'cycle',
+        glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
+        text: [
+          '央行开始降息：政策利率从 {p0} 降到 {p1}。可信贷没有回来。',
+          '{fk}，大周期在 ② 之后的岔路口选了 **B2 缩水**。三件事同时成立：房价比一年前在跌（{hy}）；债务堆高了（DSR 比起点高 {ds}）；降了息，信贷脉冲还是负的（{ci}）。',
+          '这就是第 3 课的圈：房价↓ → 抵押品变差 → 银行把闸门关小（审批倍数 {ap}）→ 新贷款↓。降息只改价格，打不开银行的闸门。',
+        ],
+        vals: [
+          { key: 'p0', get: 'start:rates.policy', fmt: 'pct' }, { key: 'p1', get: 'end:rates.policy', fmt: 'pct' },
+          { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' },
+          { key: 'hy', get: 'end:extra.houseYoY', fmt: 'pct' }, { key: 'ds', get: 'end:cycles.long.forkEvidence.1.value', fmt: 'pp' },
+          { key: 'ci', get: 'end:extra.creditImpulse', fmt: 'pct' }, { key: 'ap', get: 'end:bank.approval', fmt: 'x2' },
+        ],
+        metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }],
+        claims: [
+          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' },
+          { get: 'when:cycles.long.fork=B2', from: '2000Q1', until: '2012Q4', dateBetween: ['2007Q3', '2008Q4'], note: '2000Q1 之后第一次 B2 就在这里：2000–03 年间没有 B2' },
+          { get: 'end:extra.houseYoY', lt: 0, note: '条件 1：房价比一年前在跌' },
+          { get: 'end:cycles.long.forkEvidence.1.value', gte: 0.01, note: '条件 2：DSR 比起点高（>= 1 个点）' },
+          { get: 'end:extra.creditImpulse', lte: -0.005, note: '条件 3：降息后信贷脉冲仍为负' },
+          { get: 'dpp:rates.policy', lt: -0.01, note: '已经降息' },
+          { get: 'end:bank.approval', lt: 1, note: '银行把闸门关小' },
+        ],
+        hl: ['policyRate', 'bankApproval', 'newLoans'], concept: ['B2', 'lvr', 'creditImpulse'] },
+
+      { type: 'watch', until: '2010Q3', title: '第 7 步：推不动，大周期接手', view: 'waves', tab: 'cycle',
+        text: [
+          '{ea}，小周期走到「降息」，标签写的是：**{ht}**。信贷一直起不来：到这一步结束，新贷款只有 {nl}，还本还有 {rep}（十亿美元/季）。',
+          '{s5}，大周期盘进 ⑤ 私人去杠杆；{s6} 进 ⑥ 政府接手（第 4 课）。',
+          '看曲线：季度图上这个坑又深又长，小周期条在「降息」那一格一停就是几年；最下面的大周期条上，B2 → ⑤ → ⑥ 一格接着一格。',
+        ],
+        vals: [
+          { key: 'ea', get: 'when:cycles.short.handoff=no', fmt: 'str' }, { key: 'ht', get: 'end:cycles.short.handoffText', fmt: 'str' },
+          { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
+          { key: 's5', get: 'when:cycles.long.stage=5', fmt: 'str' }, { key: 's6', get: 'when:cycles.long.stage=6', fmt: 'str' },
+        ],
+        metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }, { label: '小周期', get: 'cycles.short.label', fmt: 'str' }],
+        claims: [
+          { get: 'when:cycles.short.handoff=no', dateBetween: ['2008Q2', '2008Q2'], note: '2008Q2 起：降息，推不动' },
+          { get: 'count:cycles.short.handoff', from: '2008Q2', until: '2011Q4', lt: 1, note: '2008Q2 到 2011Q4 一直是「推不动」' },
+          { get: 'when:cycles.short.phase=ease', from: '2008Q1', until: '2011Q4', dateBetween: ['2008Q2', '2008Q2'], note: '2008Q2 起小周期在「降息」' },
+          { get: 'count:cycles.short.phase', from: '2008Q2', until: '2011Q4', lt: 1, note: '2008Q2 到 2011Q4 小周期一直停在「降息」' },
+          { get: 'when:cycles.long.stage=5', dateBetween: ['2008Q4', '2009Q4'], note: '大周期进 ⑤' },
+          { get: 'when:cycles.long.stage=6', dateBetween: ['2010Q1', '2010Q4'], note: '大周期进 ⑥' },
+          { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' },
+        ],
+        hl: ['newLoans', 'principalRepay', 'policyRate'], concept: ['longCycle', 'creditImpulse'] },
+
+      { type: 'reveal', until: '2012Q4', title: '第 8 步：两次降息，放在曲线上看', view: 'waves', tab: 'cycle',
+        text: [
+          '同样是「降息」，2001 年和 2008 年是两种结局。左边已经切到曲线，在三个地方对比：',
+          '**① 季度图上的坑**，**② 小周期条的颜色**，**③ 最下面的大周期条**。',
+        ],
+        question: '2001 年和 2008 年，三个地方各差在哪？',
+        answerHint: [
+          '**2001 年**：坑浅，信贷脉冲最低只到 {m1}；小周期条 {e1} 进「降息」，{x1} 就回到绿色（扩张）。大周期条上没有 B2。',
+          '**2008 年**：坑深，信贷脉冲最低到 {m2}；小周期条 {e2} 进「降息」，一直停到 {x2} 才回到扩张。大周期条上，B2 → ⑤ → ⑥ 一格接着一格。',
+        ],
+        relation: '曲线和圆环是同一件事的两张脸：小周期条在「降息」不动，就是圆环上的「推不动」；大周期条出现 B2，就是圆环上大周期开始转。',
+        vals: [
+          { key: 'm1', get: 'min:extra.creditImpulse', fmt: 'pct', from: '2000Q1', until: '2003Q1' },
+          { key: 'm2', get: 'min:extra.creditImpulse', fmt: 'pct', from: '2007Q3', until: '2012Q4' },
+          { key: 'e1', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2001Q4', until: '2003Q1' },
+          { key: 'x1', get: 'when:cycles.short.phase=expand', fmt: 'str', from: '2001Q4', until: '2003Q1' },
+          { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str', from: '2008Q1', until: '2012Q4' },
+          { key: 'x2', get: 'when:cycles.short.phase=expand', fmt: 'str', from: '2008Q1', until: '2012Q4' },
+        ],
+        claims: [
+          { get: 'min:extra.creditImpulse', from: '2000Q1', until: '2003Q1', vs: { get: 'min:extra.creditImpulse', from: '2007Q3', until: '2012Q4' }, gt: 0.005, note: '2001 年的坑比 2008 年浅' },
+          { get: 'when:cycles.short.phase=expand', from: '2001Q4', until: '2003Q1', dateBetween: ['2002Q4', '2003Q2'], note: '2001 年这圈 2003Q1 回到扩张' },
+          { get: 'when:cycles.short.phase=expand', from: '2008Q1', until: '2012Q4', dateBetween: ['2012Q1', '2012Q3'], note: '2008 年这圈 2012 年才回到扩张' },
+        ],
+        hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
+
+      { type: 'reveal', title: '第 9 步：为什么一个推得动，一个推不动', view: 'flow', tab: 'cycle',
+        glow: { parts: ['bank', 'poolHousing', 'household'], pipes: ['collateral'] },
+        text: [
+          '降息只改**价格**；银行放不放，看的是**抵押品**。两次降息，差别就在抵押品上。',
+        ],
+        question: '同样降息，为什么 2001 年信贷回来了，2008 年没回来？',
+        answerHint: [
+          '**2001 年**：泡沫在股票，买股票的多半是自己的钱，跌了亏的是投资人自己。银行手里的抵押品（房子）没动：房价比一年前还在涨（{h1}），审批倍数开在 {a1}。降息一来，水龙头和闸门都是开的，信贷就回来了。',
+          '**2007 年**：泡沫在房子，房子是借钱买的。房价掉了（{h2}），抵押品缩水，第 3 课那个圈倒着转：银行把审批倍数关到 {a2}。降息打开了水龙头，闸门还是关着，水进不来。',
+        ],
+        relation: '降息推不推得动，要看银行的闸门开不开；闸门开不开，要看抵押品。这就是 B2 的定义：房价在跌、债高、降了息信贷还在缩。',
+        vals: [
+          { key: 'h1', get: 'at:2001Q4:extra.houseYoY', fmt: 'pct', from: '2000Q1', until: '2012Q4' }, { key: 'a1', get: 'at:2001Q4:bank.approval', fmt: 'x2', from: '2000Q1', until: '2012Q4' },
+          { key: 'h2', get: 'at:2008Q4:extra.houseYoY', fmt: 'pct', from: '2000Q1', until: '2012Q4' }, { key: 'a2', get: 'at:2008Q4:bank.approval', fmt: 'x2', from: '2000Q1', until: '2012Q4' },
+        ],
+        claims: [
+          { get: 'at:2001Q4:extra.houseYoY', from: '2000Q1', until: '2012Q4', gt: 0, note: '2001 年房价还在涨' },
+          { get: 'at:2001Q4:bank.approval', from: '2000Q1', until: '2012Q4', gt: 1.2, note: '2001 年银行闸门开着' },
+          { get: 'at:2008Q4:extra.houseYoY', from: '2000Q1', until: '2012Q4', lt: 0, note: '2008 年房价在跌' },
+          { get: 'at:2008Q4:bank.approval', from: '2000Q1', until: '2012Q4', lt: 1, note: '2008 年银行闸门关小' },
+        ],
+        hl: ['bankApproval', 'newLoans', 'assetReservoir', 'policyRate'], concept: ['lvr', 'bankApproval', 'B2'] },
+
+      { type: 'chain', title: '第 10 步：把主线串起来',
+        text: ['这一课只有一条线：小周期 → 降息推不动 → B2 → 大周期 ⑤。点任何一环，图里对应的地方会亮。'],
+        links: [
+          { text: '小周期一圈：扩张 → 过热（物价或资产）→ 收紧·衰退 → 降息；最后一步是一个问题：降息推得动吗？', part: 'cycle', hl: ['policyRate'], term: 'shortCycle' },
+          { text: '② 缓冲池满：资产池里是借来的水，多出来的只有两条路：溢出成物价（B1，小周期自己处理），或缩水（B2，交给大周期）', part: ['pool', 'poolHousing'], hl: ['assetReservoir'], term: 'B2' },
+          { text: '推得动（2001–03）：银行的闸门开着，降息把信贷带回来，回到扩张，大周期一格没动', pipe: 'newLoans', part: 'bank', hl: ['policyRate'], term: 'creditImpulse' },
+          { text: '推不动（2008–12）：房价↓、债高、降了息信贷还在缩 → B2 → ⑤ 私人去杠杆 → ⑥ 政府接手（第 4 课）。曲线上就是又深又长的坑', pipe: 'collateral', part: 'cycle', hl: ['bankApproval'], term: 'longCycle' },
         ], next: 4 },
     ],
   },
@@ -668,7 +899,7 @@ export const LESSONS = [
           '闸门不在价格上，在两头的资产负债表上：银行要先修复资本，家庭和企业债还没还完，想借的借不到，能借的不想借。',
           '这叫资产负债表衰退。水不是不够便宜，而是私人这头的水龙头堵住了，排水口还在不停地抽水。',
         ],
-        relation: '第 3 课的 B2 圈走到了头。对应大周期的 ⑤：降息失灵，私人去杠杆。',
+        relation: '第 3 课的 B2 圈走到了头：小周期「降息推不动」，大周期走上 B2 岔路，进入 ⑤（降息失灵，私人去杠杆）。两个环怎么接上的，见第 3.5 课。',
         metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
         claims: [{ get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' }, { get: 'end:rates.policy', lt: 0.005, note: '利率接近 0' }, { get: 'max:macro.unemployment', gt: 0.08, note: '失业率高' }],
         hl: ['newLoans', 'principalRepay', 'policyRate'], concept: ['creditImpulse', 'policyRate'] },
@@ -800,6 +1031,7 @@ export const LESSONS = [
       { type: 'intro', title: '先说结论',
         text: [
           '**结论：需求冲过产能，溢出来的那部分水就变成物价（B1）。河道只有 Capex 能拓宽，而且要等好几个季度。**',
+          'B1 是大周期的岔路之一（缓冲池满之后水往物价溢出），交给小周期处理：加息，再降息。另一条岔路 B2 见第 3 课、第 3.5 课。',
           '像一条河：上游突然猛放水，河道却因为施工变窄了，水就漫出河堤。',
           '下面分 7 步：① 河道变窄 ② 政府发钱 ③ 水漫堤 ④ 猜一猜 ⑤ 河道何时变宽 ⑥ 动手改 ⑦ 因果链。',
           '时间：2019Q1 → 2023Q4。2022 年以后是保留样本（图上灰色区），只作示意。',
@@ -847,7 +1079,7 @@ export const LESSONS = [
         vals: [{ key: 'ip', get: 'max:macro.inflation', fmt: 'pct' }, { key: 'ipd', get: 'argmax:macro.inflation', fmt: 'str' }, { key: 'pk', get: 'max:macro.demandPressure', fmt: 'pct' }],
         answerHint: [
           '溢出成价格。河道装不下的水，只能抬高水位。需求压力最高 {pk}，通胀最高 {ip}（{ipd}）。',
-          '这就是 B1：过热，溢出到物价。',
+          '这就是 B1：缓冲池满之后，多出来的水溢出到物价。它是大周期的岔路之一，在小周期里表现为「过热·物价」。',
         ],
         relation: '第 0 课说过：买资产的水推资产水位，买东西的水推物价水位。这次是买东西的水太多、河道又太窄。',
         metrics: [{ label: '通胀', get: 'macro.inflation', fmt: 'pct' }, { label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '有效产能（十亿美元）', get: 'macro.capacity', fmt: 'num' }],
@@ -864,16 +1096,18 @@ export const LESSONS = [
         vals: [
           { key: 'ip', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'p0', get: 'start:rates.policy', fmt: 'pct' }, { key: 'p1', get: 'max:rates.policy', fmt: 'pct' },
           { key: 'i1', get: 'end:macro.inflation', fmt: 'pct' }, { key: 'u0', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'u1', get: 'end:macro.unemployment', fmt: 'pct' },
-          { key: 'b1', get: 'when:cycles.short.phase=B1', fmt: 'str', from: '2019Q1', until: '2023Q4' },
+          { key: 'b1', get: 'when:cycles.short.top=price', fmt: 'str', from: '2019Q1', until: '2023Q4' },
         ],
         explain: [
           '加息先改新贷款的价格，再慢慢传到房价、需求。需求压力被压下来，溢出的水少了，通胀回落到 {i1}。',
           '代价是失业：{u0} → {u1}。降温不是免费的。',
-          '看「周期」页：小周期盘要通胀 > 3.5% 且央行在加息，连续几个季度才亮 B1 过热，这次到 {b1} 才亮。它比通胀慢半拍。',
+          '看「周期」页：小周期盘要通胀 > 3.5% 且央行在加息，连续几个季度才亮「过热·物价」（溢出成物价，也就是 B1），这次到 {b1} 才亮。它比通胀慢半拍。',
+          'B1 是大周期的岔路之一：缓冲池满后多出来的水溢出成物价，交给小周期去加息、降息。再这样反复溢出，大周期后面的格子上就会多出一个「+ B1」（⑦ + B1，2023 年就是）。',
         ],
         metrics: [{ label: '通胀', get: 'macro.inflation', fmt: 'pct' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
         claims: [{ get: 'dpp:rates.policy', gt: 0.03, note: '利率升了 3 个点以上' }, { get: 'dpp:macro.demandPressure', lt: -0.05, note: '需求压力被压下来' }, { get: 'dpp:macro.unemployment', gt: 0, note: '失业上升' },
-          { get: 'when:cycles.short.phase=B1', from: '2019Q1', until: '2023Q4', dateBetween: ['2021Q4', '2023Q4'], note: '小周期盘亮 B1' }],
+          { get: 'when:cycles.short.top=price', from: '2019Q1', until: '2023Q4', dateBetween: ['2022Q4', '2023Q4'], note: '小周期盘亮「过热·物价」（B1）' },
+          { get: 'count:cycles.long.b1Overlay', from: '2019Q1', until: '2023Q4', gt: 0, note: '大周期盘上出现「⑦ + B1」' }],
         hl: ['policyRate', 'cpi'], concept: ['B1', 'policyRate', 'shortCycle'] },
 
       { type: 'reveal', title: '第 5 步：河道何时变宽',
@@ -1139,7 +1373,7 @@ export const LESSONS = [
 
       { type: 'watch', until: '2044Q4', title: '第 2 步：小周期一圈圈转', tab: 'cycle',
         text: [
-          '切到「周期」页。小周期盘按「扩张 → 过热（B1）或缩水（B2）→ 收紧、衰退 → 降息重启 → 扩张」转；有时一圈要很多年。',
+          '切到「周期」页。小周期盘按「扩张 → 过热（物价或资产）→ 收紧·衰退 → 降息（推得动吗？）」转：推得动，回到扩张；推不动，交给大周期（B2 → ⑤）。有时一圈要很多年。',
           '大周期盘更慢，要好几年才挪一格。整个 25 年里，小周期一共换了 {n} 次挡，大周期换了 {nl} 次挡。',
         ],
         vals: [{ key: 'n', get: 'count:cycles.short.phase', fmt: 'num', from: '2025Q4', until: '2050Q4' }, { key: 'nl', get: 'count:cycles.long.stage', fmt: 'num', from: '2025Q4', until: '2050Q4' }],
@@ -1192,11 +1426,12 @@ export const LESSONS = [
           { text: '银行放贷造水，同时记下欠条；还本排水，水和欠条一起消失（第 0 课）', pipe: ['newLoans', 'principalRepay'], part: 'iou', term: 'newLoans' },
           { text: '房价涨 → 抵押品变好 → 银行放宽 → 更多贷款买房 → 房价再涨：圈自己喂自己（第 1 课）', pipe: ['collateral', 'toHousing'], part: 'poolHousing', term: 'lvr' },
           { text: '央行加息的水管很长：存量房贷分批重定价，约两年后房价才转跌（第 2 课）', pipe: 'interestPaid', part: 'centralBank', hl: ['policyRate'], term: 'mortgageEff' },
-          { text: '圈倒着转（B2）：房价↓ → 银行收紧 → 新贷款↓；降息打不开银行的闸门（第 3 课）', part: 'bank', hl: ['bankApproval'], term: 'creditImpulse' },
+          { text: '圈倒着转（大周期的 B2 岔路）：房价↓ → 银行收紧 → 新贷款↓；降息打不开银行的闸门（第 3 课）', part: 'bank', hl: ['bankApproval'], term: 'creditImpulse' },
+          { text: '主线：小周期 → 降息推不动 → B2 → 大周期 ⑤。降息推得动，信贷回来，回到扩张；推不动，大周期接手。这是两个环之间唯一的连线（第 3.5 课）', part: 'cycle', hl: ['policyRate', 'newLoans'], term: 'B2' },
           { text: '私人去杠杆（⑤）：政府赤字和央行 QE 两个泵接手补水（⑥，第 4 课）', pipe: ['fiscalInjection', 'qe'], part: 'government', term: 'fiscalInjection' },
-          { text: '需求冲过产能，溢出成物价（B1）；产能只有 Capex 能拓宽，且有滞后；央行加息降温（第 5 课）', pipe: ['toConsumption', 'toCapex'], part: 'channel', hl: ['cpi', 'capacity'], term: 'B1' },
+          { text: '需求冲过产能，溢出成物价（大周期的 B1 岔路，小周期里是「过热·物价」）；产能只有 Capex 能拓宽，且有滞后；央行加息降温（第 5 课）', pipe: ['toConsumption', 'toCapex'], part: 'channel', hl: ['cpi', 'capacity'], term: 'B1' },
           { text: '新增的水在房、股、债、金之间分配：恐慌逃向国债，通胀时国债下跌，QE 时资产高、物价低（第 6 课）', pipe: ['toBond', 'toGold', 'toEquity'], part: 'pool', term: 'assetReservoir' },
-          { text: '小周期（扩张 → B1/B2 → 衰退 → 降息）在大周期（⑤ → ⑥ → ⑦ → ⑧ → ①）里一圈圈重复；每一圈债务更高、利率谷底是否更低，要看规则（第 7 课）', part: 'cycle', term: 'longCycle' },
+          { text: '小周期（扩张 → 过热 → 收紧·衰退 → 降息）在大周期（⑤ → ⑥ → ⑦ → ⑧ → ①）里一圈圈重复，每次降息都要答「推得动吗」，答不动才轮到大周期；每一圈债务更高、利率谷底是否更低，要看规则（第 7 课）', part: 'cycle', term: 'longCycle' },
         ], freeLink: true },
     ],
   },

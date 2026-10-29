@@ -4,11 +4,12 @@
 //   ruleKey / freshness helpers    shared with the ledger tab (新触发 vs 持续中)
 //   renderHeadline(el, ctx)        paints the strip; ctx = { sim, snap, openTerm, setTab }
 // Priority of the items (current snapshot vs the previous quarter):
+//   0 the hand-off between the dials (long cycle takes the B2 fork / 降息推不动 -> 交给大周期): the main line, never cut by the 3-item limit
 //   1 a lamp changed colour  2 a cycle dial moved stage / a cycle condition became true  3 a ledger rule newly triggered
 //   4 an asset pool is at a new high / a 12-quarter low  5 the policy rate moved >= 25bp
 // Detection/teaching layer only: it reads snapshots, never touches the economy.
 import { linksForEntry, LAMP_LINKS, flash, flashConcept } from './links.js';
-import { SHORT_LABEL } from '../engine/regimes.js';
+import { KEY_LABEL } from '../engine/regimes.js';
 import { nextText } from './tabs/_cycle-ev.js';
 
 /* ------------------------------------------------------------------ vocabulary */
@@ -94,13 +95,21 @@ export function headlineItems(snap, prev, sim) {
     out.push({ kind: 'cycle', text: `大周期 ${stageNo(pl.label)}→${stageNo(cl.label)}`, where: '「周期」页 · 大周期表盘', tab: 'cycle' });
   else if (cl && pl && cl.met && !pl.met && cl.progress)
     out.push({ kind: 'cycle', text: `大周期 → ${stageNo(cl.progress.label)} 的条件达标`, where: '「周期」页 · 大周期表盘', tab: 'cycle' });
-  if (cs && ps && cs.phase !== ps.phase)
-    out.push({ kind: 'cycle', text: `小周期 ${SHORT_LABEL[ps.phase] || ps.phase}→${SHORT_LABEL[cs.phase] || cs.phase}`, where: '「周期」页 · 小周期表盘', tab: 'cycle' });
+  if (cs && ps && cs.key !== ps.key)
+    out.push({ kind: 'cycle', text: `小周期 ${KEY_LABEL[ps.key] || ps.key}→${KEY_LABEL[cs.key] || cs.key}`, where: '「周期」页 · 小周期表盘', tab: 'cycle' });
   else if (cs && ps && Array.isArray(cs.progress)) {
     const was = new Map((ps.progress || []).map(p => [p.target, p.met]));
     const hit = cs.progress.find(p => p.met && was.get(p.target) === false);
     if (hit) out.push({ kind: 'cycle', text: `小周期「${hit.label}」的条件达标`, where: '「周期」页 · 小周期表盘', tab: 'cycle' });
   }
+
+  // the link between the two dials (shown first so the 3-item limit never drops it)
+  const hand = [];
+  if (cl && pl && cl.fork === 'B2' && pl.fork !== 'B2')
+    hand.push({ kind: 'cycle', text: '大周期走上 B2 岔路', where: '「周期」页 · 大周期表盘（②→⑤ 的 B2 岔路）', tab: 'cycle' });
+  if (cs && ps && cs.handoff === 'no' && ps.handoff !== 'no')
+    hand.push({ kind: 'cycle', text: '降息推不动 → 交给大周期', where: '「周期」页 · 小周期表盘（降息 → 大周期 ⑤）', tab: 'cycle' });
+  out.unshift(...hand);
 
   // 3. ledger rules newly triggered (same player + rule was not in last quarter's ledger)
   const fr = freshness(snap.ledger, prev.ledger).filter(x => x.fresh && x.e.ruleId !== 'cb_real_path');   // the Fed path is covered by item 5
@@ -153,7 +162,7 @@ const stageNo = label => String(label || '').split(' ')[0];
 export function nextStep(snap) {
   const sh = snap?.cycles?.short;
   if (!sh || !Array.isArray(sh.progress) || !sh.progress.length) return null;
-  const { text } = nextText('short', sh, k => SHORT_LABEL[k] || k);
+  const { text } = nextText('short', sh, k => KEY_LABEL[k] || k);
   return text ? { text, where: '「周期」页 · 小周期的「还差什么」', tab: 'cycle' } : null;
 }
 

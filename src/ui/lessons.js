@@ -64,6 +64,8 @@ const lab = d => (typeof d === 'number' ? `第${d}季` : d);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const usBase = L => L.startDate || (cur && cur.pos.find(p => p.world === 'us')?.from) || '1995Q1';
 const sim = () => ctx.sim();
+// left panel: 'flow' (water diagram) | 'waves' (curves view). app.js owns the state and listens for mw:view; a step's `view` field sets it.
+const setView = v => document.dispatchEvent(new CustomEvent('mw:view', { detail: { view: v } }));
 const freeUrl = () => new URL('free/', location.href).href;
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { done: {}, step: {} }; } catch (e) { return { done: {}, step: {} }; } }
@@ -201,8 +203,8 @@ function syncPad() {
 }
 
 /* ---------- course menu: 入门 / 角色课 / 周期课 ---------- */
-// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7
-const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7];
+// recommended path (not enforced): 第0课 → 银行 → 家庭 → 央行 → 周期 1–3 → 3.5 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 7
+const REC_ORDER = [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 1, 2, 3, '3b', 'role:government', 4, 'role:firm', 5, 'role:investor', 6, 7];
 const REC = Object.fromEntries(REC_ORDER.map((k, i) => [k, i + 1]));
 function menuItem(L, p, badge, key, fallbackTitle, fallbackOne) {
   const ok = isAvail(L);
@@ -228,10 +230,10 @@ export async function openMenu() {
     const L = ROLE_LESSONS.find(l => l.role === r);
     return menuItem(L, p, ROLE_NAME[r].slice(0, 1), 'role:' + r, `${ROLE_NAME[r]}课`, '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。');
   }).join('');
-  const cycles = LESSONS.filter(L => L.id >= 1).map(L => menuItem(L, p, String(L.id), L.id)).join('');
+  const cycles = LESSONS.filter(L => L.id >= 1 || L.kind === 'cycle').map(L => menuItem(L, p, String(L.id).replace(/^3b$/, '3½'), L.id)).join('');
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
+    `<p class="ls-lead">入门课和角色课先在一个只有 5 户人家的小镇里讲清楚，再放大到真实的美国季度数据。周期课全用真实美国数据。推荐顺序（不强制）：第 0 课 → 第 0.5 课（怎么看一个季度）→ 银行 → 家庭 → 央行 → 周期 1–3 → 第 3.5 课（两个环怎么接上）→ 政府 → 周期 4 → 企业 → 周期 5 → 投资者 → 周期 6 → 周期 7。每个条目右上角的「推荐 n」就是这个顺序。</p>` +
     `<h3 class="ls-sec">入门</h3><ol class="ls-list">${intro}</ol>` +
     `<h3 class="ls-sec">角色课 <small>一课一个角色；学完标记「已学」</small></h3><ol class="ls-list">${roles}</ol>` +
     `<h3 class="ls-sec">周期课 <small>把角色合起来，看一整个周期</small></h3><ol class="ls-list">${cycles}</ol>` +
@@ -253,6 +255,7 @@ export async function startLesson(id, step = 0) {
   if (!isAvail(L)) return;
   ensureDom(); closeMenu();
   const prev = cur;
+  if (!prev) setView('flow');                              // a fresh lesson starts on the water diagram (its highlights live there); a step may switch with `view`
   if (cur) leaveStep();
   ctx.setPlaying(false); ctx.setQuiet(true); ctx.setTickMs(L.pace || 1000);
   const s0 = sim();
@@ -269,6 +272,7 @@ export async function startLesson(id, step = 0) {
 export function exitLesson() {
   if (!cur) return;
   leaveStep();
+  setView('flow');                                         // leaving a lesson restores the water diagram
   const wasTown = cur.world === 'town';
   const tBack = wasTown ? cur.usT0 : dateT(ctx.getSnap().date);
   const L = cur.L;
@@ -329,6 +333,7 @@ function continueEnter(i) {
   const { L, pos } = cur;
   const st = L.steps[i];
   const town = pos[i].world === 'town';
+  if (st.view) setView(st.view);                            // step field view: 'waves' | 'flow' (curves view only exists on the US history run)
   ensureWorld(pos[i].world);
   if (town) {
     busy = true;

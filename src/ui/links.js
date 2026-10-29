@@ -139,10 +139,10 @@ export const CONCEPT_TARGETS = {
   lampValuation:   { self: ['n:poolEquity', 'n:poolHousing'], note: '股票池、房产池的水位' },
   // cycles: nothing in the diagram -> note only
   ringStage:       { self: [], note: '「周期」标签页里的债务环' },
-  longCycle:       { self: [], note: '「周期」标签页里的大周期表盘' },
-  shortCycle:      { self: [], note: '「周期」标签页里的小周期表盘' },
-  B1:              { self: ['p:spillToGoods', 'n:channel', 't:policyRate'], note: '商品河道溢出（「溢出」管道）和央行加息' },
-  B2:              { self: ['n:poolHousing', 'p:collateral'], note: '房产池水位下降和「抵押品」回路' },
+  longCycle:       { self: [], note: '「周期」标签页里的大周期表盘（② 之后分岔 B1 / B2）' },
+  shortCycle:      { self: [], note: '「周期」标签页里的小周期表盘（扩张→过热→收紧·衰退→降息）' },
+  B1:              { self: ['p:spillToGoods', 'n:channel', 't:policyRate'], note: '商品河道溢出（「溢出」管道）和央行加息（水漫出河道变成物价）' },
+  B2:              { self: ['n:poolHousing', 'p:collateral'], note: '房产池水位下降和「抵押品」回路（水位降了，欠条还在）' },
   // five assets
   cashAsset:       { self: ['n:cash'] },
   bondAsset:       { self: ['n:poolBond'] },

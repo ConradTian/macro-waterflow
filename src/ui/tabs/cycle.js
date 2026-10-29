@@ -5,8 +5,9 @@ import { term } from '../concepts.js';
 import { pctFmt } from '../chart.js';
 import { flash, LAMP_LINKS } from '../links.js';
 import { lampBarHtml } from '../gauge.js';
-import { fmtV, nextText, evidenceList, beginRows, initPins, applyUrlPin, wireEvidence } from './_cycle-ev.js';
+import { fmtV, nextText, evidenceList, reqMet, beginRows, initPins, applyUrlPin, wireEvidence } from './_cycle-ev.js';
 import { wavesHtml, wireWaves } from './_cycle-waves.js';
+import { KEY_LABEL, TOP_LABEL } from '../../engine/regimes.js';
 
 // own stylesheet (index.html links it too; this keeps free/ and any other host working)
 try {
@@ -27,22 +28,30 @@ const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 const LONG_MARK = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' };
 const LONG_NAME = { 1: '堆债', 2: '缓冲池满', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '金融压制·增长化债', 8: '修复' };
 const LONG_NODE = { 1: '堆债', 2: '缓冲池满', 5: '私人去杠杆', 6: '政府接手', 7: '压制化债', 8: '修复' };
-const SHORT_NAME = { expand: '扩张', B1: '过热 B1', B2: '缩水 B2', tight: '收紧·衰退', ease: '降息重启' };
-const SHORT_GLYPH = { expand: '扩', B1: 'B1', B2: 'B2', tight: '紧', ease: '降' };
+// short names for the dial (cards and texts use KEY_LABEL). B1/B2 are NOT short-cycle names any more: they are the long cycle's fork after ②.
+const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧·衰退', ease: '降息' };
+const SHORT_GLYPH = { expand: '扩', hot: '热', tight: '紧', ease: '降' };
+const KEY_SHORT = { expand: '扩张', hotP: '物价过热', hotA: '资产过热', tight: '收紧·衰退', ease: '降息' };
+const keyPhase = k => (k === 'hotP' || k === 'hotA' ? 'hot' : k);          // internal key -> dial node
+const RING_NEXT = { expand: 'hot', hot: 'tight', tight: 'ease', ease: 'expand' };
 
 /* ---------- small helpers ---------- */
 const yr = d => String(d || '').slice(0, 4);
 const polar = (cx, cy, R, deg) => [cx + R * Math.cos(deg * Math.PI / 180), cy + R * Math.sin(deg * Math.PI / 180)];
 const f1 = n => (+n).toFixed(1);
 
-function arrowAt(x1, y1, x2, y2, t = 0.55, cls = 'cy-arrow') {
-  const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t, deg = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI + 90;
+function arrowDir(x, y, dx, dy, cls = 'cy-arrow') {
+  const deg = Math.atan2(dy, dx) * 180 / Math.PI + 90;
   return `<path d="M-4.5 4 L0 -5 L4.5 4 Z" class="${cls}" transform="translate(${f1(x)} ${f1(y)}) rotate(${f1(deg)})"/>`;
+}
+function arrowAt(x1, y1, x2, y2, t = 0.55, cls = 'cy-arrow') {
+  return arrowDir(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, x2 - x1, y2 - y1, cls);
 }
 
 /* ---------- dials ---------- */
-function dialSvg({ id, nodes, edges, cur, between, progress, centre, aria }) {
+function dialSvg({ id, nodes, edges, cur, between, progress, centre, aria, under = '', over = '' }) {
   // nodes: { key: {x, y, glyph, name, anchor, dx, dy, kind} }; edges: [[from, to], ...]; progress: {from, to, frac}
+  // under = svg drawn after the ring edges, before the nodes (fork branches / exit arrow); over = drawn last
   let g = '';
   for (const [a, b] of edges) {
     const A = nodes[a], B = nodes[b];
@@ -50,6 +59,7 @@ function dialSvg({ id, nodes, edges, cur, between, progress, centre, aria }) {
     const x1 = A.x + ux * r, y1 = A.y + uy * r, x2 = B.x - ux * r, y2 = B.y - uy * r;
     g += `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" class="cy-edge"/>` + arrowAt(x1, y1, x2, y2);
   }
+  g += under;
   if (progress && nodes[progress.from] && nodes[progress.to]) {
     const A = nodes[progress.from], B = nodes[progress.to];
     const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, r = 19;
@@ -71,7 +81,7 @@ function dialSvg({ id, nodes, edges, cur, between, progress, centre, aria }) {
       `<text x="${f1(n.x)}" y="${f1(n.y + 5)}" text-anchor="middle" class="cy-glyph">${esc(n.glyph)}</text></g>` +
       `<text x="${f1(n.x + (n.dx || 0))}" y="${f1(n.y + (n.dy || 0))}" text-anchor="${n.anchor || 'middle'}" class="cy-nm${isCur ? ' cur' : ''}">${esc(n.name)}</text>`;
   }
-  g += centre;
+  g += centre + over;
   return `<svg viewBox="-40 0 380 270" class="cy-dial" role="img" aria-label="${esc(aria)}">${g}</svg>`;
 }
 
@@ -84,34 +94,65 @@ function longDial(L) {
   });
   const edges = LONG_ORDER.map((s, i) => [s, LONG_ORDER[(i + 1) % 6]]);
   const nxt = L.progress ? L.progress.target : LONG_ORDER[(LONG_ORDER.indexOf(L.stage) + 1) % 6];
+  const n1 = nodes[1], n2 = nodes[2], n5 = nodes[5];
+  // the fork after ②: B2 sits on the ② -> ⑤ edge (asset prices fall, debts stay -> 降息失灵); B1 spills into prices and goes back to the short cycle (-> ①)
+  const b1On = L.fork === 'B1', b2On = L.fork === 'B2';
+  const sx = n2.x + 10, sy = n2.y - 17, qx = n2.x + 34, qy = n1.y - 31, ex = n1.x + 17, ey = n1.y - 8;
+  const midY = (n2.y + n5.y) / 2, by1 = n2.y + 19, by2 = n5.y - 19;
+  const under =
+    `<g class="cy-fk cy-fk1${b1On ? ' on' : ''}"><path d="M${f1(sx)} ${f1(sy)} Q${f1(qx)} ${f1(qy)} ${f1(ex)} ${f1(ey)}" class="cy-fk-l"/>` +
+    arrowDir(ex, ey, ex - qx, ey - qy, 'cy-fk-a') +
+    `<text x="${f1(n2.x + 26)}" y="${f1(n1.y - 13)}" class="cy-fk-t">B1 溢出（通胀）</text><text x="${f1(n2.x + 26)}" y="${f1(n1.y)}" class="cy-fk-s">交给小周期，回 ①</text></g>` +
+    `<g class="cy-fk cy-fk2${b2On ? ' on' : ''}"><line x1="${f1(n2.x)}" y1="${f1(by1)}" x2="${f1(n5.x)}" y2="${f1(by2)}" class="cy-fk-l"/>` +
+    arrowDir(n5.x, by2 - 8, 0, 1, 'cy-fk-a') +
+    `<text x="${f1(n2.x + 9)}" y="${f1(midY - 3)}" class="cy-fk-t">B2 缩水（通缩）</text><text x="${f1(n2.x + 9)}" y="${f1(midY + 10)}" class="cy-fk-s">降息推不动 → ⑤</text></g>`;
+  const cur = nodes[L.stage];
+  const over = L.b1Overlay ? `<g class="cy-b1badge"><circle cx="${f1(cur.x + 15)}" cy="${f1(cur.y - 15)}" r="9"/><text x="${f1(cur.x + 15)}" y="${f1(cur.y - 12)}" text-anchor="middle">B1</text></g>` : '';
+  const c3 = L.b1Overlay ? '叠着 B1 溢出' : L.fork ? `岔路：${L.fork === 'B2' ? 'B2 缩水' : 'B1 溢出'}` : '';
   const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${LONG_MARK[L.stage]} ${esc(LONG_NAME[L.stage].split('·')[0])}</text>` +
-    `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">${L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : '慢变量·以年计'}</text>`;
-  return dialSvg({ id: 'L', nodes, edges, cur: L.stage, between: L.between, centre,
+    `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">${L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : '慢变量·以年计'}</text>` +
+    (c3 ? `<text x="${cx}" y="${cy + 28}" text-anchor="middle" class="cy-c3${L.b1Overlay ? ' b1' : ''}">${esc(c3)}</text>` : '');
+  return dialSvg({ id: 'L', nodes, edges, cur: L.stage, between: L.between, centre, under, over,
     progress: { from: L.stage, to: nxt, frac: L.progress ? L.progress.have / L.progress.need : 0 },
-    aria: `大周期，当前 ${L.label}${L.between ? `，在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : ''}` });
+    aria: `大周期，当前 ${L.label}${L.between ? `，在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : ''}${L.fork ? `，岔路 ${L.fork}` : ''}${L.b1Overlay ? '，叠着 B1 溢出' : ''}` });
 }
 
 function shortDial(S) {
-  const cx = 150, cy = 135, R = 80;
-  const P = (deg) => polar(cx, cy, R, deg);
-  const mk = (key, deg, o = {}) => { const [x, y] = P(deg); return { x, y, glyph: SHORT_GLYPH[key], name: SHORT_NAME[key], ...o }; };
+  // four steps on a ring: 扩张 -> 过热 -> 收紧·衰退 -> 降息（推得动吗？）; from 降息 two ways out: 推得动 -> 扩张 (ring edge) or 推不动 -> 大周期 B2 -> ⑤ (dashed exit)
+  const cx = 150, cy = 128;
   const nodes = {
-    expand: mk('expand', -90, { dy: -25 }),
-    B1: mk('B1', -32, { anchor: 'start', dx: 33, dy: 4, kind: 'fork' }),
-    B2: mk('B2', 32, { anchor: 'start', dx: 33, dy: 4, kind: 'fork' }),
-    tight: mk('tight', 90, { dy: 36 }),
-    ease: mk('ease', 180, { anchor: 'end', dx: -28, dy: 4 }),
+    expand: { x: cx, y: cy - 75, glyph: SHORT_GLYPH.expand, name: SHORT_NAME.expand, dy: -26 },
+    hot: { x: cx + 100, y: cy, glyph: SHORT_GLYPH.hot, name: SHORT_NAME.hot, anchor: 'start', dx: 26, dy: 0 },
+    tight: { x: cx, y: cy + 75, glyph: SHORT_GLYPH.tight, name: SHORT_NAME.tight, dy: 38 },
+    ease: { x: cx - 100, y: cy, glyph: SHORT_GLYPH.ease, name: SHORT_NAME.ease, anchor: 'end', dx: -26, dy: -2 },
   };
-  const edges = [['expand', 'B1'], ['expand', 'B2'], ['B1', 'tight'], ['B2', 'tight'], ['tight', 'ease'], ['ease', 'expand']];
-  const bx = nodes.B1.x + 24;
-  const bracket = `<path d="M${f1(bx)} ${f1(nodes.B1.y)} h7 V${f1(nodes.B2.y)} h-7" class="cy-bracket"/>` +
-    `<text x="${f1(bx + 11)}" y="${f1((nodes.B1.y + nodes.B2.y) / 2 + 4)}" class="cy-or">二选一</text>`;
-  const cand = (S.progress || []).slice().sort((a, b) => b.have - a.have)[0];
-  const centre = bracket + `<text x="${cx - 14}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${esc(SHORT_NAME[S.phase])}</text>` +
-    `<text x="${cx - 14}" y="${cy + 12}" text-anchor="middle" class="cy-c2">${S.between ? `在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间` : '随四盏灯·以季计'}</text>`;
-  return dialSvg({ id: 'S', nodes, edges, cur: S.phase, between: S.between, centre,
-    progress: cand && cand.have > 0 ? { from: S.phase, to: cand.target, frac: cand.have / cand.need } : null,
-    aria: `小周期，当前 ${S.label}${S.between ? `，在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间` : ''}` });
+  const edges = [['expand', 'hot'], ['hot', 'tight'], ['tight', 'ease'], ['ease', 'expand']];
+  const ph = S.phase, no = S.handoff === 'no';
+  const E = nodes.ease, H = nodes.hot;
+  // kind of top, small, under 过热 (top while hot; via = which kind this round came from, kept during tight / ease)
+  const topTxt = S.top ? TOP_LABEL[S.top] : S.via ? `接${TOP_LABEL[S.via]}` : '物价或资产';
+  const hotSub = `<text x="${f1(H.x + 26)}" y="${f1(H.y + 17)}" class="cy-sub${S.top ? ' top' : S.via ? '' : ' dim'}">${esc(topTxt)}</text>`;
+  const easeSub = `<text x="${f1(E.x - 26)}" y="${f1(E.y + 13)}" text-anchor="end" class="cy-sub${ph === 'ease' ? ' top' : ''}">推得动吗？</text>`;
+  // exit towards the long cycle (dashed, ⑤ colour; solid + filled when handoff === 'no') and the label of the normal edge back
+  const exit = `<g class="cy-exit${no ? ' on' : ''}"><line x1="${f1(E.x - 3)}" y1="${f1(E.y + 21)}" x2="${f1(E.x - 12)}" y2="${f1(E.y + 76)}" class="cy-exit-l"/>` +
+    arrowDir(E.x - 12.6, E.y + 80, -0.14, 1, 'cy-exit-a') +
+    `<text x="${f1(E.x + 2)}" y="${f1(E.y + 52)}" class="cy-exit-t">推不动</text>` +
+    `<rect x="-36" y="${f1(E.y + 88)}" width="148" height="44" rx="9" class="cy-exit-box"/>` +
+    `<text x="38" y="${f1(E.y + 107)}" text-anchor="middle" class="cy-exit-b">大周期 B2 → ⑤</text>` +
+    `<text x="38" y="${f1(E.y + 123)}" text-anchor="middle" class="cy-exit-s">私人去杠杆</text></g>`;
+  const back = `<text x="${f1((E.x + nodes.expand.x) / 2 - 8)}" y="${f1((E.y + nodes.expand.y) / 2 - 6)}" text-anchor="end" class="cy-back">推得动 → 扩张</text>`;
+  const bk = (S.between || []).map(keyPhase);
+  const between = bk.length === 2 && bk[0] !== bk[1] && RING_NEXT[bk[0]] === bk[1] ? bk : null;
+  const cand = (S.progress || []).filter(p => RING_NEXT[ph] === keyPhase(p.target) && p.have > 0).sort((a, b) => b.have / b.need - a.have / a.need)[0];
+  const c1 = ph === 'hot' && S.top ? TOP_LABEL[S.top] : SHORT_NAME[ph];
+  const nm = S.between ? S.between.map(k => KEY_SHORT[k] || k) : null;
+  const c2 = no ? '推不动 → 交给大周期' : nm ? null : '随四盏灯·以季计';
+  const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${esc(c1)}</text>` +
+    (c2 ? `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2${no ? ' no' : ''}">${esc(c2)}</text>`
+      : `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">介于 ${esc(nm[0])}</text><text x="${cx}" y="${cy + 27}" text-anchor="middle" class="cy-c2">与 ${esc(nm[1])} 之间</text>`);
+  return dialSvg({ id: 'S', nodes, edges, cur: ph, between, centre, under: exit + back, over: hotSub + easeSub,
+    progress: cand ? { from: ph, to: RING_NEXT[ph], frac: cand.have / cand.need } : null,
+    aria: `小周期，当前 ${S.label}${S.between ? `，在 ${nm[0]} 与 ${nm[1]} 之间` : ''}${no ? '，降息推不动，交给大周期 B2 到 ⑤' : ''}` });
 }
 
 /* ---------- evidence (rows live in ./_cycle-ev.js: ruler + where to look + 盯住) ---------- */
@@ -122,31 +163,49 @@ function pips(have, need) {
 }
 
 const headLong = k => `${LONG_MARK[k]} ${LONG_NODE[k]}`;
-const headShort = k => SHORT_NAME[k];
-function card(kind, snapSide, t, ctx) {
+const headShort = k => KEY_LABEL[k] || k;
+/** the long card's B2 fork: three conditions at once (房价在跌 / 债务重 / 降了息信贷还在缩), each with its rows */
+function forkBlock(L, ctx) {
+  const fe = L.forkEvidence;
+  if (!fe || !fe.length || (L.stage !== 1 && L.stage !== 2)) return '';
+  const c1 = fe.filter(e => !e.grp && e.term === 'housePrice'), c2 = fe.filter(e => e.grp === 'a');
+  const c3 = fe.filter(e => !c1.includes(e) && !c2.includes(e));
+  const parts = [['房价比一年前在跌', c1], ['债务够重（DSR 或 私人债务/GDP）', c2], ['降了息、信贷还在缩', c3]].filter(([, it]) => it.length);
+  const nOk = parts.filter(([, it]) => reqMet(it)).length;
+  const o = { kind: 'long', ctx, mark: 'B2 岔路', src: 'fork' };
+  return `<div class="cy-fkb"><div class="cy-evh cy-fkh">B2 岔路：${parts.length === 3 ? '三条' : '这几条'}同时成立才算<span class="cy-pt">现在成立 ${nOk}/${parts.length}</span></div>` +
+    `<p class="cy-fkn">成立 = 降息推不动：小周期降了息，信贷还是缩 → 大周期走 B2 → ⑤。（没成立时，超额的债多半溢出成通胀，走 B1，交给小周期。）</p>` +
+    parts.map(([nm, it], i) => `<div class="cy-fkc ${reqMet(it) ? 'ok' : 'no'}"><b>${i + 1}. ${nm}</b> ${reqMet(it) ? '✔' : '✖'}</div>${evidenceList(it, o)}`).join('') + `</div>`;
+}
+function card(kind, snapSide, t, ctx, other) {
   const isLong = kind === 'long';
   const C = snapSide;
   const since = C.since || { t: 0, date: '' };
   const len = t - since.t + 1;
   const betw = C.between
-    ? `<div class="cy-between-note">◆ 在 ${isLong ? LONG_MARK[C.between[0]] : SHORT_NAME[C.between[0]]} 与 ${isLong ? LONG_MARK[C.between[1]] : SHORT_NAME[C.between[1]]} 之间：证据混合，还没连续达标，先不前进</div>` : '';
+    ? `<div class="cy-between-note">◆ 在 ${isLong ? LONG_MARK[C.between[0]] : KEY_LABEL[C.between[0]]} 与 ${isLong ? LONG_MARK[C.between[1]] : KEY_LABEL[C.between[1]]} 之间：证据混合，还没连续达标，先不前进</div>` : '';
   let ev;
   if (isLong) {
-    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence, { kind, ctx, mark: LONG_MARK[C.progress.target] })}`;
+    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence, { kind, ctx, mark: LONG_MARK[C.progress.target] })}${forkBlock(C, ctx)}`;
   } else {
     const groups = C.progress.map(p => {
       const items = C.evidence.filter(e => e.targetId === p.target);
-      return `<div class="cy-evh">→ <b>${esc(p.label)}</b>${pips(p.have, p.need)}</div>${evidenceList(items, { kind, ctx, mark: SHORT_NAME[p.target] })}`;
+      return `<div class="cy-evh">→ <b>${esc(p.label)}</b>${pips(p.have, p.need)}</div>${evidenceList(items, { kind, ctx, mark: KEY_LABEL[p.target] })}`;
     }).join('');
     ev = groups;
   }
   const dial = isLong ? longDial(C) : shortDial(C);
+  // the link between the two dials: 降息推得动吗？ 推不动 -> 大周期 B2 -> ⑤ (told on both cards)
+  const link = !isLong
+    ? (C.handoff === 'no' ? `<div class="cy-handoff">${esc(C.handoffText || '推不动 → 交给大周期')}</div>`
+      : C.phase === 'ease' ? '<div class="cy-handoff q">降了息，信贷能重新动起来吗？能 → 回扩张；不能 → 交给大周期（B2 → ⑤）</div>' : '')
+    : (other && other.handoff === 'no' ? '<div class="cy-handoff in">小周期那边：降息推不动，已交给这里（B2 → ⑤ 私人去杠杆）</div>' : '');
   const tid = isLong ? 'longCycle' : 'shortCycle';
   return `<article class="cy-card cy-${kind}">
     <h3 class="cy-ct">${term(tid, isLong ? '大周期' : '小周期')} <small>${isLong ? '长期债务周期 · 以年计 · 只看慢变量' : '短期债务周期 · 以季计 · 看四盏灯'}</small></h3>
     ${dial}
     <p class="cy-now"><b>${esc(C.label)}</b><span class="cy-since">自 ${esc(since.date)} 起 · 已 ${len} 季</span></p>
-    ${betw}
+    ${betw}${link}
     <details class="cy-ev-wrap" data-k="ev-${kind}"><summary>证据：现值 · 离门槛多远 · 去图里哪里看</summary><p class="cy-evhint">点任意一行：图里亮出它的位置，并打开说明卡。「盯住」：它达标时暂停提醒你。</p>${ev}</details>
     <p class="cy-next">${esc(nextText(kind, C, isLong ? headLong : headShort).text || '—')}</p>
   </article>`;
@@ -162,6 +221,9 @@ function segments(hist, keyOf, upTo) {
   }
   return out;
 }
+// short segments by internal key (物价过热 / 资产过热 differ); ':no' = 降息推不动 stretch
+const shortKeyOf = h => h.cycles.short.key + (h.cycles.short.handoff === 'no' ? ':no' : '');
+const keyOfSeg = k => String(k).split(':')[0];
 const openMap = { 'ev-long': true, 'ev-short': true, list: false };   // remembered across the per-step re-render
 let selQ = null;            // selected quarter (kept across re-renders)
 let selFor = null;
@@ -172,10 +234,11 @@ function trailSvg(hist, t, total, dates, mode) {
   const qw = (X1 - X0) / (total - 1);
   const top = 20, bandB = 168, waveB = 160, waveH = 70;
   const lsegs = segments(hist, h => h.cycles.long.stage, t);
-  const ssegs = segments(hist, h => h.cycles.short.phase, t);
+  const ssegs = segments(hist, shortKeyOf, t);
   let g = `<defs>
     <pattern id="cy-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--cy-p-tight)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--cy-hatch)" stroke-width="2.2"/></pattern>
     <pattern id="cy-dots" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="var(--cy-p-ease)"/><circle cx="2.5" cy="2.5" r="1" fill="var(--cy-hatch)"/></pattern>
+    <pattern id="cy-no" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="5" height="5" fill="var(--cy-s5)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--cy-hatch)" stroke-width="1.8"/></pattern>
     <pattern id="cy-fut" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--pn-border, #ccc)" stroke-width="1"/></pattern>
   </defs>`;
   // long band (background, full height) -- colour changes slowly by stage
@@ -191,19 +254,35 @@ function trailSvg(hist, t, total, dates, mode) {
     g += `<rect x="${f1(x)}" y="${top}" width="${f1(X1 - x)}" height="${bandB - top}" fill="url(#cy-fut)" class="cy-future"/>` +
       `<text x="${f1((x + X1) / 2)}" y="${top + 40}" text-anchor="middle" class="cy-lbl2">尚未发生</text>`;
   }
-  // short cycle: waves riding inside the band. height = where in the short cycle we are (peak = fork B1/B2, trough = 收紧·衰退)
-  const LV = { expand: 0.5, B1: 0.95, B2: 0.95, tight: 0.06, ease: 0.28 };
-  const raw = hist.slice(0, t + 1).map(h => LV[h.cycles.short.phase]);
+  // short cycle: waves riding inside the band. height = where in the short cycle we are (peak = 过热 物价/资产, trough = 收紧·衰退)
+  const LV = { expand: 0.5, hotP: 0.95, hotA: 0.95, tight: 0.06, ease: 0.28 };
+  const raw = hist.slice(0, t + 1).map(h => LV[h.cycles.short.key]);
   const sm = raw.map((_, i) => { let a = 0, n = 0; for (let k = i - 1; k <= i + 1; k++) if (k >= 0 && k < raw.length) { a += raw[k]; n++; } return a / n; });
   const Y = v => waveB - v * waveH;
   const fillOf = p => (p === 'tight' ? 'url(#cy-hatch)' : p === 'ease' ? 'url(#cy-dots)' : `var(--cy-p-${p})`);
+  const noEase = [];
+  let prevSeg = null;
   for (const s of ssegs) {
     let d = `M${f1(X(s.from))} ${waveB}`;
     for (let i = s.from; i <= s.to; i++) d += ` L${f1(X(i))} ${f1(Y(sm[i]))}`;
     d += ` L${f1(X(s.to))} ${waveB} Z`;
-    g += `<path d="${d}" fill="${fillOf(s.key)}" class="cy-wv"/>`;
-    if ((s.key === 'B1' || s.key === 'B2')) g += `<text x="${f1((X(s.from) + X(s.to)) / 2)}" y="${f1(Y(0.95) - 4)}" text-anchor="middle" class="cy-fk">${s.key}</text>`;
+    const k = keyOfSeg(s.key);
+    g += `<path d="${d}" fill="${fillOf(k)}" class="cy-wv"/>`;
+    if (k === 'hotP' || k === 'hotA') g += `<text x="${f1((X(s.from) + X(s.to)) / 2)}" y="${f1(Y(0.95) - 4 - (prevSeg && prevSeg.to + 1 === s.from && (keyOfSeg(prevSeg.key) === 'hotP' || keyOfSeg(prevSeg.key) === 'hotA') ? 9 : 0))}" text-anchor="middle" class="cy-fk">${k === 'hotP' ? '物价' : '资产'}</text>`;
+    if (s.key.endsWith(':no')) noEase.push(s);
+    prevSeg = s;
   }
+  // 推不动 stretch: orange strip along the baseline + label (the hand-off to the long cycle's B2 -> ⑤)
+  for (const s of noEase) {
+    const x0 = X(s.from) - qw / 2, w = (s.to - s.from + 1) * qw;
+    g += `<rect x="${f1(x0)}" y="${waveB - 7}" width="${f1(w)}" height="7" fill="url(#cy-no)" class="cy-no"/>`;
+    if (w >= 30) g += `<text x="${f1(x0 + w / 2)}" y="${f1(Y(0.28) - 4)}" text-anchor="middle" class="cy-nolbl">推不动</text>`;
+  }
+  // the long cycle's fork turning B2 (first quarter of each B2 run): marker on top of the band
+  hist.slice(0, t + 1).forEach((h, i) => {
+    if (h.cycles.long.fork === 'B2' && (i === 0 || hist[i - 1].cycles.long.fork !== 'B2' || hist[i - 1].cycles.long.stage !== h.cycles.long.stage))
+      g += `<path d="M${f1(X(i) - 4)} ${top - 9} L${f1(X(i) + 4)} ${top - 9} L${f1(X(i))} ${top - 1} Z" class="cy-fkmark"/><text x="${f1(X(i))}" y="${top - 12}" text-anchor="middle" class="cy-fkmt">B2 岔路</text>`;
+  });
   let line = '';
   sm.forEach((v, i) => { line += `${i ? 'L' : 'M'}${f1(X(i))} ${f1(Y(v))}`; });
   g += `<path d="${line}" class="cy-wline"/><line x1="${X0}" x2="${X1}" y1="${waveB}" y2="${waveB}" class="cy-base"/>`;
@@ -223,7 +302,8 @@ function legend() {
   const sw = (cls, txt, pat) => `<span class="cy-lg"><i class="cy-sw ${cls}${pat ? ' ' + pat : ''}"></i>${txt}</span>`;
   return `<div class="cy-legend">
     <div class="cy-lgrow"><b>大周期</b>${LONG_ORDER.map(s => `<span class="cy-lg"><i class="cy-sw cy-s${s}"></i>${LONG_MARK[s]}${LONG_NODE[s]}</span>`).join('')}</div>
-    <div class="cy-lgrow"><b>小周期</b>${sw('p-expand', '扩张')}${sw('p-B1', 'B1 过热（波峰）')}${sw('p-B2', 'B2 缩水（波峰）')}${sw('p-tight', '收紧·衰退（斜纹·波谷）', 'hatch')}${sw('p-ease', '降息重启（点纹）', 'dots')}</div>
+    <div class="cy-lgrow"><b>小周期</b>${sw('p-expand', '扩张')}${sw('p-hotP', '物价过热（波峰）')}${sw('p-hotA', '资产过热（波峰）')}${sw('p-tight', '收紧·衰退（斜纹·波谷）', 'hatch')}${sw('p-ease', '降息（点纹）', 'dots')}${sw('p-no', '推不动 → 交给大周期（橙斜纹）')}</div>
+    <div class="cy-lgrow cy-lgfork"><span class="cy-lg"><i class="cy-fkmk"></i>大周期走上 B2 岔路（带上方的 ▼）：降了息信贷还在缩，之后接 ⑤ 私人去杠杆</span></div>
   </div>`;
 }
 
@@ -234,8 +314,11 @@ function rangeText(hist, seg) {
 function detailHtml(hist, q, t) {
   const h = hist[q];
   const ls = segments(hist, x => x.cycles.long.stage, t).find(s => q >= s.from && q <= s.to);
-  const ss = segments(hist, x => x.cycles.short.phase, t).find(s => q >= s.from && q <= s.to);
-  return `<b>${esc(h.date)}</b>　大周期 <b>${esc(h.cycles.long.label)}</b>（${esc(rangeText(hist, ls))}）；小周期 <b>${esc(h.cycles.short.label)}</b>（${esc(rangeText(hist, ss))}）`;
+  const ss = segments(hist, shortKeyOf, t).find(s => q >= s.from && q <= s.to);
+  const L = h.cycles.long, S = h.cycles.short;
+  const fk = L.fork ? `，岔路 <b>${L.fork === 'B2' ? 'B2 缩水' : 'B1 溢出'}</b>` : L.b1Overlay ? '，叠着 <b>B1 溢出</b>' : '';
+  const no = S.handoff === 'no' ? '，<b>降息推不动 → 交给大周期</b>' : '';
+  return `<b>${esc(h.date)}</b>　大周期 <b>${esc(L.label)}</b>${fk}（${esc(rangeText(hist, ls))}）；小周期 <b>${esc(S.label)}</b>${no}（${esc(rangeText(hist, ss))}）`;
 }
 
 function trailBlock(ctx) {
@@ -245,8 +328,8 @@ function trailBlock(ctx) {
   const dates = mode === 'free' ? Array.from({ length: 224 }, (_, i) => `${1995 + Math.floor(i / 4)}Q${(i % 4) + 1}`) : ctx.real.dates;
   if (selFor !== mode || (selQ != null && selQ > t)) { selQ = null; selFor = mode; }
   const tr = trailSvg(hist, t, total, dates, mode);
-  const lsegs = segments(hist, h => h.cycles.long.stage, t), ssegs = segments(hist, h => h.cycles.short.phase, t);
-  const listBtn = (kind, s) => `<button type="button" class="cy-seg" data-q="${s.from}">${kind === 'long' ? esc(LONG_MARK[s.key] + ' ' + LONG_NODE[s.key]) : esc(SHORT_NAME[s.key])}<small>${esc(hist[s.from].date)}${s.to > s.from ? '–' + esc(hist[s.to].date) : ''}</small></button>`;
+  const lsegs = segments(hist, h => h.cycles.long.stage, t), ssegs = segments(hist, shortKeyOf, t);
+  const listBtn = (kind, s) => `<button type="button" class="cy-seg" data-q="${s.from}">${kind === 'long' ? esc(LONG_MARK[s.key] + ' ' + LONG_NODE[s.key]) : esc((KEY_LABEL[keyOfSeg(s.key)] || s.key) + (s.key.endsWith(':no') ? ' · 推不动' : ''))}<small>${esc(hist[s.from].date)}${s.to > s.from ? '–' + esc(hist[s.to].date) : ''}</small></button>`;
   const html = `<div class="cy-trail" data-total="${total}">
     <div class="cy-trail-wrap">${tr.svg}</div>
     <p class="cy-detail" aria-live="polite">${selQ != null ? detailHtml(hist, selQ, t) : '点图上任意位置：看那一季属于大周期哪一段、小周期哪一段。'}</p>
@@ -286,8 +369,10 @@ function lead(s) {
   const L = c.long, S = c.short;
   const lt = L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : `${esc(L.label)}`;
   const ln = nextText('long', L, headLong).text, sn = nextText('short', S, headShort).text;
-  return `<div class="cy-lead1"><b>大周期</b> ${lt}（${esc(yr(L.since.date))} 起）<span class="cy-lnext">${esc(ln)}</span></div>` +
-    `<div class="cy-lead1"><b>小周期</b> ${esc(S.label)}${S.between ? `（在 ${SHORT_NAME[S.between[0]]} 与 ${SHORT_NAME[S.between[1]]} 之间）` : ''}<span class="cy-lnext">${esc(sn)}</span></div>`;
+  const fk = L.fork === 'B2' ? ' · 岔路 B2 缩水' : L.fork === 'B1' ? ' · 岔路 B1 溢出（交给小周期）' : L.b1Overlay ? ' · 叠着 B1 溢出' : '';
+  return `<div class="cy-lead1"><b>大周期</b> ${lt}${fk}（${esc(yr(L.since.date))} 起）<span class="cy-lnext">${esc(ln)}</span></div>` +
+    `<div class="cy-lead1"><b>小周期</b> ${esc(S.label)}${S.between ? `（在 ${KEY_LABEL[S.between[0]]} 与 ${KEY_LABEL[S.between[1]]} 之间）` : ''}` +
+    `${S.handoff === 'no' ? '<span class="cy-lnext cy-hand">降息推不动 → 交给大周期（B2 → ⑤）</span>' : ''}<span class="cy-lnext">${esc(sn)}</span></div>`;
 }
 
 export function render(container, ctx) {
@@ -301,7 +386,7 @@ export function render(container, ctx) {
   let dials = '', trail = null;
   if (s.cycles) {
     initPins(ctx); beginRows();
-    const mk = () => `<div class="cy-dials">${card('long', s.cycles.long, s.t, ctx)}${card('short', s.cycles.short, s.t, ctx)}</div>`;
+    const mk = () => `<div class="cy-dials">${card('long', s.cycles.long, s.t, ctx, s.cycles.short)}${card('short', s.cycles.short, s.t, ctx, s.cycles.long)}</div>`;
     dials = mk();
     if (applyUrlPin(ctx)) { beginRows(); dials = mk(); }      // ?pin=... pinned a row after the first pass: draw it as pinned
     trail = trailBlock(ctx);

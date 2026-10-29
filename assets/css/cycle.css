@@ -1,21 +1,21 @@
 /* 周期 tab: two dials + trail band. Uses app.css variables; dark mode through the same variables. */
 .pn-cycle {
   --cy-s1: #3b82c4; --cy-s2: #14a090; --cy-s5: #e0842a; --cy-s6: #9a55bf; --cy-s7: #55a35f; --cy-s8: #8895a7;
-  --cy-p-expand: #2a9547; --cy-p-B1: #d9a000; --cy-p-B2: #8a3fb0; --cy-p-tight: #d33f3f; --cy-p-ease: #1f6fc2;
+  --cy-p-expand: #2a9547; --cy-p-hotP: #d9a000; --cy-p-hotA: #8a3fb0; --cy-p-hot: var(--cy-p-hotP); --cy-p-B1: var(--cy-p-hotP); --cy-p-B2: var(--cy-p-hotA); --cy-p-tight: #d33f3f; --cy-p-ease: #1f6fc2;
   --cy-hatch: rgba(255, 255, 255, .85);
   --cy-band-a: .30;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .pn-cycle {
     --cy-s1: #5aa7ee; --cy-s2: #3cc7b4; --cy-s5: #f0a055; --cy-s6: #c08be0; --cy-s7: #6fcf7c; --cy-s8: #9aa8ba;
-    --cy-p-expand: #4cc977; --cy-p-B1: #ecbd2f; --cy-p-B2: #c08be0; --cy-p-tight: #ef6b6b; --cy-p-ease: #5aa7ee;
+    --cy-p-expand: #4cc977; --cy-p-hotP: #ecbd2f; --cy-p-hotA: #c08be0; --cy-p-hot: var(--cy-p-hotP); --cy-p-B1: var(--cy-p-hotP); --cy-p-B2: var(--cy-p-hotA); --cy-p-tight: #ef6b6b; --cy-p-ease: #5aa7ee;
     --cy-hatch: rgba(15, 20, 27, .8);
     --cy-band-a: .34;
   }
 }
 :root[data-theme="dark"] .pn-cycle {
   --cy-s1: #5aa7ee; --cy-s2: #3cc7b4; --cy-s5: #f0a055; --cy-s6: #c08be0; --cy-s7: #6fcf7c; --cy-s8: #9aa8ba;
-  --cy-p-expand: #4cc977; --cy-p-B1: #ecbd2f; --cy-p-B2: #c08be0; --cy-p-tight: #ef6b6b; --cy-p-ease: #5aa7ee;
+  --cy-p-expand: #4cc977; --cy-p-hotP: #ecbd2f; --cy-p-hotA: #c08be0; --cy-p-hot: var(--cy-p-hotP); --cy-p-B1: var(--cy-p-hotP); --cy-p-B2: var(--cy-p-hotA); --cy-p-tight: #ef6b6b; --cy-p-ease: #5aa7ee;
   --cy-hatch: rgba(15, 20, 27, .8);
   --cy-band-a: .34;
 }
@@ -31,7 +31,7 @@
 
 .cy-card { background: var(--pn-surface); border: 1px solid var(--pn-border); border-radius: 14px; padding: 10px 12px 12px; min-width: 0; }
 .cy-long { border-top: 4px solid var(--cy-s6); }
-.cy-short { border-top: 4px solid var(--cy-p-B1); }
+.cy-short { border-top: 4px solid var(--cy-p-hotP); }
 .cy-ct { margin: 0 0 2px; font-size: 15px; }
 .cy-ct small { display: block; color: var(--pn-muted); font-weight: 400; font-size: 12px; }
 .cy-now { margin: 4px 0 2px; font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
@@ -53,8 +53,41 @@
 .cy-node.cur .cy-glyph { fill: #fff; }
 .cy-nm { font-size: 13.5px; fill: var(--pn-text); } .cy-nm.cur { font-weight: 700; }
 .cy-c1 { font-size: 15px; font-weight: 700; fill: var(--pn-text); } .cy-c2 { font-size: 12.5px; fill: var(--pn-muted); }
-.cy-bracket { fill: none; stroke: var(--pn-muted); stroke-width: 1.4; stroke-dasharray: 3 2; }
-.cy-or { font-size: 12px; fill: var(--pn-muted); }
+.cy-c2.no { fill: var(--cy-s5); font-weight: 700; } .cy-c3 { font-size: 12px; fill: var(--cy-s5); font-weight: 700; } .cy-c3.b1 { fill: var(--pn-text); }
+.cy-sub { font-size: 11px; fill: var(--pn-muted); } .cy-sub.top { fill: var(--pn-text); font-weight: 700; } .cy-sub.dim { opacity: .75; }
+.cy-back { font-size: 11.5px; fill: var(--pn-muted); }
+
+/* long dial: the fork after (2). B1 = spills into prices, goes back to the short cycle; B2 = the (2) -> (5) edge (降息推不动) */
+.cy-fk-l { fill: none; stroke: var(--pn-muted); stroke-width: 1.6; stroke-dasharray: 4 3; opacity: .8; }
+.cy-fk-a { fill: var(--pn-muted); opacity: .8; }
+.cy-fk-t { font-size: 11.5px; font-weight: 700; fill: var(--pn-muted); } .cy-fk-s { font-size: 10.5px; fill: var(--pn-muted); }
+.cy-fk1 { --fk: var(--cy-p-hotP); } .cy-fk2 { --fk: var(--cy-s5); }
+.cy-fk.on .cy-fk-l { stroke: var(--fk); stroke-width: 3.4; stroke-dasharray: none; opacity: 1; }
+.cy-fk.on .cy-fk-a { fill: var(--fk); opacity: 1; }
+.cy-fk.on .cy-fk-t { fill: var(--pn-text); } .cy-fk.on .cy-fk-s { fill: var(--pn-text); font-weight: 600; }
+.cy-fk2 .cy-fk-l { stroke: var(--cy-s5); opacity: .7; } .cy-fk2 .cy-fk-a { fill: var(--cy-s5); opacity: .7; }
+.cy-b1badge circle { fill: var(--cy-p-hotP); stroke: var(--pn-surface); stroke-width: 1.5; } .cy-b1badge text { font-size: 9px; font-weight: 700; fill: #1a1a1a; }
+
+/* short dial: the exit to the long cycle (推不动), dashed in the (5) colour; filled when 降息 turned out 推不动 */
+.cy-exit { --ex: var(--cy-s5); }
+.cy-exit-l { stroke: var(--ex); stroke-width: 2; stroke-dasharray: 5 3.5; opacity: .75; }
+.cy-exit-a { fill: var(--ex); opacity: .85; }
+.cy-exit-t { font-size: 11.5px; font-weight: 700; fill: var(--ex); }
+.cy-exit-box { fill: var(--pn-surface); stroke: var(--ex); stroke-width: 1.6; stroke-dasharray: 5 3.5; }
+.cy-exit-b { font-size: 13px; font-weight: 700; fill: var(--pn-text); } .cy-exit-s { font-size: 11px; fill: var(--pn-muted); }
+.cy-exit.on .cy-exit-l { stroke-dasharray: none; stroke-width: 3.4; opacity: 1; }
+.cy-exit.on .cy-exit-a { opacity: 1; }
+.cy-exit.on .cy-exit-box { fill: color-mix(in srgb, var(--ex) 22%, var(--pn-surface)); stroke-dasharray: none; stroke-width: 2.4; }
+.cy-handoff { margin: 4px 0; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--cy-s5); background: color-mix(in srgb, var(--cy-s5) 14%, transparent); font-size: 12.5px; line-height: 1.45; font-weight: 600; }
+.cy-handoff.q { border-style: dashed; background: none; font-weight: 400; color: var(--pn-muted); }
+.cy-handoff.in { border-style: solid; }
+.cy-hand { color: var(--pn-text); font-weight: 700; }
+
+/* B2 fork evidence block (long card) */
+.cy-fkb { margin-top: 12px; padding-top: 6px; border-top: 2px solid var(--cy-s5); }
+.cy-fkh { margin-top: 4px; font-weight: 700; }
+.cy-fkn { margin: 2px 0 4px; font-size: 12px; color: var(--pn-muted); line-height: 1.45; }
+.cy-fkc { margin: 8px 0 0; font-size: 12.5px; } .cy-fkc.ok { color: var(--lamp-green, #2a9547); } .cy-fkc.no b { color: var(--pn-text); }
 
 /* evidence */
 .cy-ev-wrap { margin: 6px 0 0; }
@@ -107,6 +140,8 @@
 .cy-base { stroke: var(--pn-muted); stroke-width: .8; }
 .cy-fk { font-size: 8.5px; font-weight: 700; fill: var(--pn-text); }
 .cy-rowl { font-size: 8.5px; fill: var(--pn-muted); }
+.cy-no { stroke: var(--cy-s5); stroke-width: .8; } .cy-nolbl { font-size: 8.5px; font-weight: 700; fill: var(--pn-text); }
+.cy-fkmark { fill: var(--cy-s5); stroke: var(--pn-surface); stroke-width: .8; } .cy-fkmt { font-size: 8.5px; font-weight: 700; fill: var(--pn-text); }
 .cy-tick { stroke: var(--pn-muted); stroke-width: 1; } .cy-yr { font-size: 9px; fill: var(--pn-muted); }
 .cy-now-l { stroke: var(--pn-text); stroke-width: 1.6; } .cy-nowt { font-size: 9.5px; font-weight: 700; fill: var(--pn-text); }
 .cy-sel-l { stroke: var(--pn-accent); stroke-width: 1.6; stroke-dasharray: 3 2; }
@@ -118,7 +153,10 @@
 .cy-sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--pn-border); }
 .cy-sw.cy-s1 { background: var(--cy-s1); } .cy-sw.cy-s2 { background: var(--cy-s2); } .cy-sw.cy-s5 { background: var(--cy-s5); }
 .cy-sw.cy-s6 { background: var(--cy-s6); } .cy-sw.cy-s7 { background: var(--cy-s7); } .cy-sw.cy-s8 { background: var(--cy-s8); }
-.cy-sw.p-expand { background: var(--cy-p-expand); } .cy-sw.p-B1 { background: var(--cy-p-B1); } .cy-sw.p-B2 { background: var(--cy-p-B2); }
+.cy-sw.p-expand { background: var(--cy-p-expand); } .cy-sw.p-hotP { background: var(--cy-p-hotP); } .cy-sw.p-hotA { background: var(--cy-p-hotA); }
+.cy-sw.p-no { background: repeating-linear-gradient(-45deg, var(--cy-s5) 0 3px, var(--cy-hatch) 3px 5px); }
+.cy-lgfork .cy-lg { white-space: normal; align-items: flex-start; }
+.cy-fkmk { flex: none; margin-top: 3px; width: 0; height: 0; display: inline-block; border: 5px solid transparent; border-top: 8px solid var(--cy-s5); border-bottom: 0; }
 .cy-sw.p-tight { background: repeating-linear-gradient(135deg, var(--cy-p-tight) 0 3px, var(--cy-hatch) 3px 5px); }
 .cy-sw.p-ease { background: radial-gradient(var(--cy-hatch) 1px, var(--cy-p-ease) 1.4px); background-size: 5px 5px; }
 

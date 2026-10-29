@@ -165,7 +165,7 @@ export const CONCEPTS = {
     water: '河边的一个蓄洪湖：多出来的钱先涌进去抬高水位，满了才会溢出到商品和通胀（B1）。',
     formula: '资产价格 ↑ ⇐ (流入资产的购买力 − 供给增加) / 资产供给',
     from: ['M', 'newLoans', 'discountRate'], to: ['housePrice', 'equityAsset', 'goodsChannel', 'lampValuation'],
-    logic: '借款人、投资者：把新增的钱拿去买房、买股、买债、买黄金\n→ 资产供给弹性小（房子盖得慢），买的人多，价格先涨\n→ 这笔钱只是换了手，不会变成新的商品供给\n→ 缓冲池越满，越容易走到环 ② 的岔路口（溢出 B1 或缩水 B2）。',
+    logic: '借款人、投资者：把新增的钱拿去买房、买股、买债、买黄金\n→ 资产供给弹性小（房子盖得慢），买的人多，价格先涨\n→ 这笔钱只是换了手，不会变成新的商品供给\n→ 缓冲池越满（环 ②），越容易走到之后的岔路口（溢出 B1 或缩水 B2）。',
     live: null, fmt: 'bn',
     liveFn: s => (s.flows.toHousing || 0) + (s.flows.toFinancial || 0) },
   goodsChannel: {
@@ -430,7 +430,7 @@ export const CONCEPTS = {
     water: '下游农田的水位涨速：上游溢洪道（商品渠道）放得越多，涨得越快。',
     formula: '通胀 = 通胀预期 + k·产出缺口 + 冲击',
     from: ['outputGap', 'inflationExp', 'goodsChannel'], to: ['policyRate', 'realRate', 'inflationExp', 'lampPolicy'],
-    logic: '家庭、企业：预期涨价 → 企业提价、工人要求涨薪\n→ 需求超过产能时再往上推\n→ 央行看到通胀高就加息（B1）；通胀有惯性，缺口回落后也不会立刻消退。',
+    logic: '家庭、企业：预期涨价 → 企业提价、工人要求涨薪\n→ 需求超过产能时再往上推\n→ 央行看到通胀高就加息（物价过热，B1 由小周期来处理）；通胀有惯性，缺口回落后也不会立刻消退。',
     live: 'macro.inflation', fmt: 'pct' },
   inflationExp: {
     name: '通胀预期', short: '人们认为未来通胀会是多少，会自我实现。',
@@ -572,7 +572,7 @@ export const CONCEPTS = {
 
   // ---------- 周期环 ----------
   ringStage: {
-    name: '债务环 ①–⑧', short: '借钱扩张→缓冲池装满→岔路口(B1/B2)→还债→政府接手→化债→修复。',
+    name: '债务环 ①–⑧', short: '借钱扩张→缓冲池装满→岔路口（B1 溢出到物价 / B2 资产缩水）→还债→政府接手→化债→修复。',
     why: (s) => {
       const r = s.ring;
       if (!r) return '现在没有环的读数。';
@@ -582,59 +582,63 @@ export const CONCEPTS = {
     water: '一年四季的水循环：借钱=涨水，还债=退水，政府接手=人工调水，化债=洪水渐渐退去。',
     formula: '位置 = 由四盏灯 + 慢变量（利息/税收、g−r…）检测出的概率分布',
     from: ['lampCredit', 'lampDebtService', 'lampPolicy', 'lampValuation', 'gMinusR', 'interestToTax', 'fiscalInjection'], to: ['B1', 'B2', 'cashAsset', 'equityAsset'],
-    logic: '家庭、银行、央行、政府：各自按规则行动，四盏灯和慢变量记录结果\n→ 检测器据此给出每个阶段的概率\n→ 所以总是用概率表示，并给出「下一个确认信号」\n→ 阶段是「检测」出来的，不是预先设定。',
+    logic: '家庭、银行、央行、政府：各自按规则行动，四盏灯和慢变量记录结果\n→ 检测器据此给出每个阶段的概率\n→ 所以总是用概率表示，并给出「下一个确认信号」\n→ 阶段是「检测」出来的，不是预先设定\n→ 岔路口是大周期在 ② 之后的分岔：B1 溢出到物价，交给小周期处理；B2 资产缩水，通向 ⑤。',
     live: 'ring.stage', fmt: 'num' },
   B1: {
-    name: 'B1 溢出到通胀', short: '岔路口之一：需求超过 Capacity，通胀上来，央行被迫加息。',
+    name: 'B1 溢出到物价（通胀）', short: '大周期在 ② 缓冲池满后的岔路之一：多出来的钱漫出资产池，变成物价；通常交给小周期处理（加息，再降息）。',
     why: (s) => {
-      const on = s.ring?.fork === 'B1', i = s.macro?.inflation, r = s.rates?.realPolicy, g = s.macro?.outputGap;
-      return on ? `现在处在 B1：通胀 ${P(i)}、实际利率 ${P(r, 2)}、产出缺口 ${P(g)}，需求超过产能，央行被迫收紧。`
-        : `现在没有处在 B1：通胀 ${P(i)}、产出缺口 ${P(g)}、实际利率 ${P(r, 2)}。B1 需要「需求超过产能 + 实际利率偏低」。`;
+      const L = s.cycles?.long, fk = L ? L.fork : s.ring?.fork, ov = !!(L && L.b1Overlay);
+      const on = fk === 'B1' || ov, i = s.macro?.inflation, r = s.rates?.realPolicy, g = s.macro?.outputGap;
+      return on ? `现在处在 B1${ov ? '（大周期已在后面的阶段，是「⑦ + B1」）' : ''}：通胀 ${P(i)}、实际利率 ${P(r, 2)}、产出缺口 ${P(g)}，钱多东西少，水漫出河道变成物价，小周期在物价过热这一步，央行被迫收紧。`
+        : `现在没有处在 B1：通胀 ${P(i)}、产出缺口 ${P(g)}、实际利率 ${P(r, 2)}。B1 需要「需求超过产能 + 实际利率偏低」，表现为小周期的物价过热（通胀高 + 加息）。`;
     },
-    water: '湖满后水漫过堤，淹了农田（通胀）。',
-    formula: 'B1：通胀↑ + 实际利率偏低 → 加息 → DSR ↑',
-    from: ['goodsChannel', 'capacity', 'realRate', 'inflationExp'], to: ['policyRate', 'dsr', 'bondAsset', 'goldAsset', 'ringStage'],
-    logic: '家庭、企业：钱多、实际利率低，拼命买东西\n→ 商品渠道溢出，通胀上升\n→ 央行：被迫加息 → 家庭 DSR 上升\n→ 若「降息能重启信贷」就回到 ①（软着陆）；否则转入 ⑤。债券和房产在 B1 通常承压。',
-    live: null, fmt: 'txt', liveFn: s => (s.ring.fork === 'B1' ? '当前处于 B1' : '当前未处于 B1') },
+    water: '湖满后水漫出河道，淹了农田（物价上涨）。偶尔漫一次，小周期关闸（加息）再放水（降息）就行；年年漫，就要大改河道（⑦ 的化债）。',
+    formula: 'B1：缓冲池满 + 需求超过产能 + 实际利率偏低 → 通胀↑ → 加息（小周期：物价过热）。反复溢出 → ⑦ + B1（美国 1966–82、2023）',
+    from: ['goodsChannel', 'capacity', 'realRate', 'inflationExp'], to: ['policyRate', 'dsr', 'bondAsset', 'goldAsset', 'shortCycle', 'ringStage'],
+    logic: '家庭、企业：钱多、实际利率低，拼命买东西\n→ 缓冲池已满，商品河道水位超过产能，漫堤，物价上涨\n→ 央行：被迫加息 → 家庭 DSR 上升（小周期：物价过热 → 收紧）\n→ 再降息：推得动就回到扩张（这是 B1 的常态，如 2000–03）\n→ 若一次次溢出、物价压不住，就成了长期的通胀去杠杆：⑦ + B1（美国 1966–82、2023）\n→ 债券和房产在 B1 通常承压。',
+    live: null, fmt: 'txt', liveFn: s => { const L = s.cycles?.long; return (L ? (L.fork === 'B1' || L.b1Overlay) : s.ring?.fork === 'B1') ? '当前处于 B1' : '当前未处于 B1'; } },
   B2: {
-    name: 'B2 资产与信用缩水', short: '岔路口之二：资产价格下跌，信贷收缩，通胀低甚至通缩。',
+    name: 'B2 资产缩水（通缩）', short: '大周期在 ② 缓冲池满后的另一条岔路：资产价格下跌，欠条还在，信贷收缩，是资产负债表衰退，通向 ⑤。',
     why: (s) => {
-      const on = s.ring?.fork === 'B2', hy = s.extra?.houseYoY, ci = s.lights?.credit?.value;
-      return on ? `现在处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}，抵押品缩水、信贷在收缩。`
-        : `现在没有处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 需要「房价跌 + LVR 升 + 信贷脉冲为负」。`;
+      const L = s.cycles?.long, fk = L ? L.fork : s.ring?.fork;
+      const on = fk === 'B2', hy = s.extra?.houseYoY, ci = s.lights?.credit?.value, went = L && (L.stage === 5 || L.stage === 6);
+      return on ? `现在处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}，抵押品缩水、债还在、信贷在收缩，大周期正转向 ⑤。`
+        : went ? `大周期已经走到 ${L.label}，B2 是进入 ⑤ 的那条路，已经走过。现在房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。`
+        : `现在没有处在 B2：房价比一年前 ${P(hy)}、LVR ${P(s.household?.lvr, 0)}、信贷脉冲 ${P(ci, 2)}。B2 要三条同时成立：房价比一年前在跌；DSR 高或私人债务/GDP 已堆高；降息后（或已近零）信贷脉冲仍为负。`;
     },
-    water: '湖水被抽干：抵押品缩水，银行关泵，水回不来。',
-    formula: 'B2：房价↓ + LVR↑ + 信贷脉冲<0 + 低通胀',
-    from: ['lvr', 'badLoans', 'creditImpulse', 'bankApproval', 'housePrice'], to: ['bondAsset', 'equityAsset', 'fiscalInjection', 'ringStage'],
-    logic: '房价下跌 → 家庭：LVR 升高、还不起 → 银行：抵押品缩水，关泵\n→ 信贷收缩，通胀很低甚至通缩\n→ 降息不好使（问题是「还不起 + 抵押品缩水」，不是「利息太贵」）\n→ 常需要财政接手（环 ⑥）。',
-    live: null, fmt: 'txt', liveFn: s => (s.ring.fork === 'B2' ? '当前处于 B2' : '当前未处于 B2') },
+    water: '水位降了，但欠条（债务）一张没少：湖水被抽干，银行关泵，水回不来。',
+    formula: 'B2（三条同时成立）：① 房价比一年前下跌；② DSR 比起点高，或私人债务/GDP 已堆高；③ 央行已降息（或近零），信贷脉冲仍为负 → 通缩，转入 ⑤。美国 2008Q1 进入',
+    from: ['lvr', 'badLoans', 'creditImpulse', 'bankApproval', 'housePrice', 'shortCycle'], to: ['bondAsset', 'equityAsset', 'fiscalInjection', 'longCycle', 'ringStage'],
+    logic: '房价下跌 → 家庭：房子缩水，欠条不变，LVR 升高、还不起\n→ 银行：抵押品缩水、坏账吃资本，关泵 → 信贷收缩，通胀很低甚至通缩\n→ 降息不好使（问题是「还不起 + 抵押品缩水」，不是「利息太贵」）：小周期「降息推得动吗」的答案是推不动\n→ 大周期接手：⑤ 私人去杠杆，常需要财政接手（⑥）\n→ 美国 2008 年第一季进入 B2，2008–12 就是这条路。',
+    live: null, fmt: 'txt', liveFn: s => { const L = s.cycles?.long; return (L ? L.fork : s.ring?.fork) === 'B2' ? '当前处于 B2' : '当前未处于 B2'; } },
 
   // ---------- 两个周期表盘（大周期 / 小周期）----------
   longCycle: {
-    name: '大周期 · 长期债务周期', short: '几十年一轮：债务一路堆高，降息也救不动后，由政府和央行接手，慢慢化掉。',
+    name: '大周期 · 长期债务周期', short: '几十年一轮：债务一路堆高，② 缓冲池满后分岔（B1 溢出到物价 / B2 资产缩水）；降息救不动后，由政府和央行接手，慢慢化掉。',
     why: (s) => {
       const L = s.cycles?.long;
       if (!L) return '现在没有大周期的读数。';
       const pr = L.progress;
-      return `现在在 ${L.label}${L.since?.date ? `（自 ${L.since.date} 起）` : ''}。${pr ? `\n朝 ${pr.label} 已累计 ${pr.have}/${pr.need} 季证据（连续满足才前进）。` : ''}${L.nextSignal ? `\n下一个信号：${L.nextSignal}` : ''}`;
+      const fk = L.fork === 'B2' ? '\n在 ② 之后的岔路上：B2（资产缩水），正通向 ⑤。' : L.fork === 'B1' ? '\n在 ② 之后的岔路上：B1（溢出到物价），交给小周期处理。' : L.b1Overlay ? '\n这个阶段上同时压着 B1（物价过热），如 ⑦ + B1。' : '';
+      return `现在在 ${L.label}${L.since?.date ? `（自 ${L.since.date} 起）` : ''}。${fk}${pr ? `\n朝 ${pr.label} 已累计 ${pr.have}/${pr.need} 季证据（连续满足才前进）。` : ''}${L.nextSignal ? `\n下一个信号：${L.nextSignal}` : ''}`;
     },
-    water: '多年的水库淤积与清淤：每个小周期都带进一点泥沙（新债），没冲干净的越积越高；淤得太满，只能大清淤（去杠杆），再由政府和央行人工调水。',
-    formula: '只看慢变量，且同一阶段要连续 6 季达标才前进：私人债务/GDP 三年变化、房价/收入、坏账率、政策利率是否到底、政府债务/GDP 与赤字、QE、实际利率、DSR',
-    from: ['hhDebt', 'priceToIncome', 'badLoans', 'policyRate', 'fiscalInjection', 'qe', 'realRate', 'dsr'], to: ['shortCycle', 'ringStage'],
-    logic: '家庭、企业：一轮轮借钱，债务越堆越高（环 ① ②）\n→ 降息也撑不起信贷时：私人去杠杆（⑤）\n→ 政府和央行接手：赤字 + QE（⑥），再用低利率和增长化债（⑦ ⑧）\n→ 一次衰退不等于大周期换挡（2001 年降息就把信贷重新撑起来了）；大周期只顺时针走：① ② ⑤ ⑥ ⑦ ⑧ 再回到 ①，③ ④ 是小周期里的事。',
+    water: '多年的水库淤积与清淤：每个小周期都带进一点泥沙（新债），没冲干净的越积越高。淤得太满（②）后水有两条路：漫出河道变成物价（B1），或水位退了但欠条还在（B2）。B2 只能大清淤（去杠杆），再由政府和央行人工调水。',
+    formula: '只看慢变量，且同一阶段要连续 6 季达标才前进：私人债务/GDP 三年变化、房价/收入、坏账率、政策利率是否到底、政府债务/GDP 与赤字、QE、实际利率、DSR。② 之后看分岔：B2 三条同时成立 → ⑤；物价过热 → B1，交给小周期',
+    from: ['hhDebt', 'priceToIncome', 'badLoans', 'policyRate', 'fiscalInjection', 'qe', 'realRate', 'dsr', 'B1', 'B2'], to: ['shortCycle', 'ringStage'],
+    logic: '家庭、企业：一轮轮借钱，债务越堆越高（环 ① ②）\n→ ② 缓冲池满后分岔：B1 钱溢出到物价，交给小周期处理（加息，再降息）；反复溢出则成 ⑦ + B1（美国 1966–82、2023）\n→ B2 资产缩水，降息推不动：私人去杠杆（⑤，美国 2008–12）\n→ 政府和央行接手：赤字 + QE（⑥），再用低利率和增长化债（⑦ ⑧）\n→ 一次衰退不等于大周期换挡（2001 年降息就把信贷重新撑起来了）；大周期只顺时针走：① ② ⑤ ⑥ ⑦ ⑧ 再回到 ①\n→ 它和小周期之间只有一个接口：降息之后，推得动吗？',
     live: 'cycles.long.label', fmt: 'txt' },
   shortCycle: {
-    name: '小周期 · 短期债务周期', short: '几年一轮：扩张 → 过热(B1) 或 缩水(B2) → 收紧·衰退 → 降息重启 → 扩张。',
+    name: '小周期 · 短期债务周期', short: '几年一轮：扩张 → 过热 → 收紧·衰退 → 降息（推得动吗？），最后这一问是两个环之间唯一的接口。',
     why: (s) => {
       const S = s.cycles?.short;
       if (!S) return '现在没有小周期的读数。';
       const pr = (S.progress || [])[0];
-      return `现在在「${S.label}」${S.since?.date ? `（自 ${S.since.date} 起）` : ''}。${pr ? `\n朝「${pr.label}」已累计 ${pr.have}/${pr.need} 季证据。` : ''}${S.nextSignal ? `\n下一个信号：${S.nextSignal}` : ''}`;
+      return `现在在「${S.label}」${S.since?.date ? `（自 ${S.since.date} 起）` : ''}。${S.handoff === 'no' && S.handoffText ? `\n${S.handoffText}。` : ''}${pr ? `\n朝「${pr.label}」已累计 ${pr.have}/${pr.need} 季证据。` : ''}${S.nextSignal ? `\n下一个信号：${S.nextSignal}` : ''}`;
     },
-    water: '一年的季节性涨落：春耕涨水（扩张）、夏汛要么漫堤（过热 B1）要么河床抬高水却流不动（缩水 B2）、秋收关闸（收紧·衰退）、冬季放水再开泵（降息重启）。',
-    formula: '看四盏灯 + 失业率：通胀与加息 → B1；信贷脉冲转负且房价不涨/DSR 升 → B2；失业率较低点上升或信贷脉冲大幅为负 → 收紧·衰退；央行降息或已近零 → 降息重启；信贷脉冲回正且失业率不再升 → 扩张。证据连续 2–3 季才前进',
-    from: ['lampCredit', 'lampDebtService', 'lampPolicy', 'lampValuation', 'creditImpulse', 'unemployment', 'policyRate'], to: ['B1', 'B2', 'longCycle'],
-    logic: '银行、家庭、央行：借钱扩张 → 过热或缩水 → 央行加息/衰退 → 降息重启\n→ 每隔几年重复一次\n→ 每个顶点比上一个顶点背的债更多，所以大周期是被一轮轮小周期「棘轮式」推着往前走的\n→ 大周期的位置决定了每次「降息重启」还有多大力气。',
+    water: '一年的季节性涨落：春耕涨水（扩张）、夏汛涨到顶（过热：要么水漫出河道成物价，要么河床抬高、全靠借来的水撑着）、秋收关闸（收紧·衰退）、冬季放水再开泵（降息）。来年泵开得动吗？开得动是新一年；开不动，就轮到大周期。',
+    formula: '看四盏灯 + 失业率：扩张 → 过热（物价过热：通胀高 + 加息；资产过热：借钱推起的繁荣破了，信贷先缩、房价转头）→ 收紧·衰退（失业率较低点上升，或信贷脉冲大幅为负）→ 降息（央行降息或已近零）。降息后推得动（信贷脉冲回正、失业率不再升）→ 扩张；推不动 → 大周期 B2 → ⑤。证据连续 2–3 季才前进',
+    from: ['lampCredit', 'lampDebtService', 'lampPolicy', 'lampValuation', 'creditImpulse', 'unemployment', 'policyRate'], to: ['B2', 'longCycle'],
+    logic: '银行、家庭、央行：借钱扩张 → 过热，顶有两种：物价过热（通胀 + 加息，即 B1），资产过热（借钱推起的繁荣破了）\n→ 收紧·衰退 → 央行降息\n→ 降息后的一问：推得动吗？推得动（信贷重启）→ 回到扩张（2001–03）；推不动 → 大周期 B2 → ⑤（2008–12）\n→ 这一问是两个环之间唯一的接口，也是本课程的主线\n→ 每个顶点比上一个顶点背的债更多，所以大周期是被一轮轮小周期「棘轮式」推着往前走的。',
     live: 'cycles.short.label', fmt: 'txt' },
 
   // ---------- 五类资产 ----------
@@ -694,4 +698,5 @@ export const KEYWORDS = [
   ['财政注入', 'fiscalInjection'], ['QE', 'qe'], ['Capacity', 'capacity'], ['Capex', 'capex'], ['产出缺口', 'outputGap'],
   ['CPI', 'cpi'], ['通胀预期', 'inflationExp'], ['通胀', 'cpi'], ['失业率', 'unemployment'], ['折现率', 'discountRate'], ['风险溢价', 'riskPremium'],
   ['利息/税收', 'interestToTax'], ['租售比', 'rentYield'], ['房价/收入', 'priceToIncome'], ['房价', 'housePrice'], ['B1', 'B1'], ['B2', 'B2'], ['CF', 'cf'],
+  ['物价过热', 'B1'], ['资产过热', 'shortCycle'], ['推不动', 'B2'],
 ];
