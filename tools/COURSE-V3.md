@@ -105,3 +105,15 @@ Approved by the user via the Ray-Dalio-Framework session. It supersedes the "mai
    - (c) The AUS-2008 blind reveal gets one line on why it was not B2.
 3. **A B2 line under the dials** (part of the B2 pass). It goes under the long-cycle dial (the B2 fork) and the short-cycle dial's 「推不动 → 大周期 B2 → ⑤」 box. It is always visible, one line on phone, with the full text in the tap card:
    「B2 怎么来的：借钱买的资产跌了 → 家底变负、债还在 → 大家拼命还债、银行收紧 → 降息也推不动（负资产要多、并且伤到银行才算）。」
+
+## Parked: engine mechanism round (do NOT start without the user; 2026-10-30)
+- **Background.** The user chose to leave the US 2006–07 unemployment gap as is: the model shows about 7.9% in 2007Q1 against 4.5% real, and it stays labelled 模型偏差. Real mode shows the real value next to the model's in that window.
+- **Cause.** The model's boom–bust comes about 2 years early:
+  - the 2003–04 capex ratchet at a 1% policy rate is cut from 2006;
+  - model equity peaks in 2005Q4 and house prices in 2006Q1;
+  - u also sits about 1pp above real in normal years.
+  - Five parameters or fewer only reach about 7.0%, and robustness gets worse.
+- **Missing pieces, if the round happens:**
+  - (1) a bank-loss → credit-tightening channel. This gives 2008 its own trigger and matches B2 question 3 (银行伤没伤).
+  - (2) the 2001–02 equity and investment fall, which would remove the fake 2002–04 boom.
+- **The 2008 inflation gap is energy, not core** (core peaked at about 2.5%). Releasing the oil pass-through overshoots 2000 and 2021.
