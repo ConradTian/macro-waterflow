@@ -5,6 +5,7 @@
 //   Population = World Bank annual (src/data/world.js), put at mid-year, linear in between, last year held flat.
 // Lamps (green / yellow / red; the engine's own colours): 泛滥 |inflation - target|, 干涸 unemployment - u*, 溃坝 long cycle B2 or ⑤ / bad loans,
 //   透支 the worse of the DSR lamp and the 利息/税收 gauge. Reads snapshots only; it never touches the economy.
+// Progressive diagram: the strip is part of L-water, the 4 lamps carry data-layer="L-gov" (hidden by app.css until that layer is shown).
 // Tapping the text opens the 整个经济 role card in a drop-down under the strip (roleCardHtml('economy') of concepts.js, with the live lamp reasons below it;
 // the 4 lines of tools/AB-CONTRACT.md inline if that module is missing); tapping a lamp shows its reason.
 import { WORLD } from '../data/world.js';
@@ -159,7 +160,7 @@ export function renderObjective(el, ctx) {
   el.innerHTML = `<div class="ob-bar"><button type="button" class="ob-main" data-act="card" aria-label="总目标，点开整个经济卡片" title="${esc(tip)}">` +
     `<span class="ob-lab"><span class="ob-long">总目标：长期运出最多的真实东西给人用 — </span><span class="ob-short">总目标 · </span></span>` +
     `<b class="ob-sc">${pp1}真实消费 <span class="ob-n">${score}</span></b>${yoy}</button>` +
-    `<span class="ob-lamps" role="group" aria-label="四个扣分项">${lamps}</span></div>` + popHtml(st);
+    `<span class="ob-lamps" role="group" aria-label="四个扣分项" data-layer="L-gov">${lamps}</span></div>` + popHtml(st);
   if (wiredEl !== el) { wiredEl = el; el.addEventListener('click', onClick); document.addEventListener('click', onOutside); document.addEventListener('keydown', onKey); }
 }
 

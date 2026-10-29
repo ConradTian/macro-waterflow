@@ -2,9 +2,10 @@
 // CDP click-through of the 传导链 block: push buttons, folds, ▶ playback, 用模拟核对, chip navigation, redraw while the sim steps.
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const port = 9334, BASE = 'http://localhost:8174/index.html';
+const port = 9334, BASE = (process.env.BASE || 'http://localhost:8174/') + 'index.html';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 let ws, id = 0; const pending = new Map(); const errors = [];
 async function connect() {
   for (let i = 0; i < 40; i++) { try { const r = await fetch(`http://127.0.0.1:${port}/json`); const tabs = await r.json(); const t = tabs.find(x => x.type === 'page'); if (t) { ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }); break; } } catch (e) { await sleep(250); } }
@@ -21,7 +22,7 @@ try {
   await connect();
   await send('Runtime.enable'); await send('Page.enable');
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
-  await send('Page.navigate', { url: BASE + '?pause=1&t=56' });
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1&t=56') });
   await sleep(2200);
   await open('housePrice'); await sleep(700);
   ok((await text('.cc-title')) === '房价', 'card opens');
@@ -71,7 +72,7 @@ try {
   const nr = await count('.cv-bd');
   ok(nr >= 4, 'reduced motion: static badges, all at once (' + nr + ')');
   await click('[data-cc-close]');
-  await send('Page.navigate', { url: BASE + '?scenario=town&pause=1&t=6' });
+  await send('Page.navigate', { url: allLayers(BASE + '?scenario=town&pause=1&t=6') });
   await sleep(2200);
   await open('newLoans'); await sleep(500);
   await click('[data-cv-act="check"]'); await sleep(1200);

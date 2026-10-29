@@ -211,6 +211,10 @@ body.parts-on[data-vis~="takeover"] .tabbar [data-part="takeover"]::after
 /* course menu sections */
 .ls-sec { margin: 14px 0 6px; font-size: 14px; color: var(--accent); }
 .ls-sec small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+/* course v3: the 4 parts (一 … 四) */
+.ls-sec.ls-part { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.ls-sec.ls-part > i { flex: none; font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 0 6px; line-height: 20px; }
 .ls-rec { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600;
   color: var(--accent); border: 1px solid var(--accent); vertical-align: 1px; }
 .ls-free-link { display: block; margin: 16px 0 4px; padding: 12px; text-align: center; border: 1px dashed var(--border);
@@ -309,6 +313,39 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 .ls-pnl-dia[data-kind="fx"] { overflow: hidden; display: flex; flex-direction: column; }      /* .fxp scrolls inside itself (max-height: 100%) */
 .ls-pnl-dia[data-kind="fx"] > .fxp { flex: 1 1 auto; min-height: 0; }
 .ls-pnl-dia[data-kind="inv"] { padding: 10px 12px 18px; }
+.ls-pnl-dia[data-kind="shocks"] { overflow: hidden; display: flex; flex-direction: column; }  /* .skp scrolls inside itself (max-height: 100%) */
+.ls-pnl-dia[data-kind="shocks"] > .skp { flex: 1 1 auto; min-height: 0; }
+/* the FX reactor as a lesson panel (src/ui/lessons.js mountReactor): optional date chips over mountFxReactor (src/ui/fx-reactor.js) */
+.ls-pnl-dia[data-kind="fxr"] { padding: 10px 12px 18px; }
+.ls-fxr-dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.ls-fxr-d { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ls-fxr-d.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.ls-fxr-box { min-width: 0; }
+
+/* course v3: the fixed 三问 ending (last step of every lesson) */
+.ls-end { margin: 10px 0 4px; padding: 8px 10px 6px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.ls-end-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.ls-end-h b { font-size: 14px; color: var(--accent); letter-spacing: .1em; }
+.ls-end-h small { font-size: 12px; color: var(--muted); }
+.ls-end ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ls-end li { display: flex; gap: 8px; align-items: flex-start; }
+.ls-end li > i { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-style: normal;
+  font-size: 13px; font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+.ls-end li > div { min-width: 0; display: flex; flex-direction: column; }
+.ls-end li b { font-size: 13px; }
+.ls-end li span { font-size: 13.5px; line-height: 1.5; }
+
+/* course v3: drill-down buttons (step field drills) and an open drill's text */
+.ls-drills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; }
+.ls-drills > span { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.ls-drill { min-height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13px; cursor: pointer; text-align: left; }
+.ls-drill:hover { border-color: var(--accent); }
+.ls-drill-txt { margin: 4px 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 10px 10px 0; }
+.ls-drill-h b { color: var(--accent); font-size: 14px; }
+.ls-drill-back { min-height: 38px; margin: 6px 0 2px; }
 .ls-pnl-card { margin: 10px 0 4px; padding-top: 8px; border-top: 1px dashed var(--border); min-width: 0; }
 @media (min-width: 768px) {
   .ls-card.ls-pcard:not(.collapsed) { max-height: 72%; }

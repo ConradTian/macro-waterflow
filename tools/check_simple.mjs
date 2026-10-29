@@ -12,6 +12,7 @@ const port = 9395, BASE = process.env.BASE || 'http://localhost:8251/';
 const profile = mkdtempSync(join(tmpdir(), 'mw-simple-'));   // fresh profile: localStorage starts empty
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1180,820', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 const errors = [];
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL:', m); } else console.log('ok:', m); };
 
@@ -27,7 +28,7 @@ ws.onmessage = m => {
 };
 const send = (method, params = {}) => new Promise(res => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
 const ev = async expr => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval error'); return r.result.result.value; };
-const go = async (path, wait = 2600) => { await send('Page.navigate', { url: BASE + path }); await sleep(wait); };
+const go = async (path, wait = 2600) => { await send('Page.navigate', { url: allLayers(BASE + path) }); await sleep(wait); };
 const click = async (sel, wait = 600) => { const r = await ev(`(()=>{const b=document.querySelector(${JSON.stringify(sel)}); if(!b) return 'missing'; b.click(); return 'ok'})()`); await sleep(wait); return r; };
 const shown = sel => ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)}); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none'})()`);
 const stored = () => ev(`(()=>{try{return localStorage.getItem('mw.layout')}catch(e){return 'ERR'}})()`);

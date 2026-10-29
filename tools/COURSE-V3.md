@@ -54,6 +54,22 @@ Approved by the user via the Ray-Dalio-Framework session. It supersedes the "mai
    - Reuse the existing parts-visibility mechanism (`body.parts-on` + `data-vis`, `visSet`/`partShown` in `flow.js`, used by the town lessons). Map each `L-*` layer to a set of part ids in one table in `flow.js` or a new `src/data/layers.js`.
    - The objective strip, the dials and the border show and hide with their layers. A first-time viewer sees L1's layer only, plus the toggle.
 
+## Interface between the course agent and the layer agent
+- **`src/ui/progress.js` (layer agent):**
+  - `getProgress() -> { done: [lessonId…] }`, stored in localStorage key `mw.course` (try/catch);
+  - `markDone(id)`;
+  - `learnedLayers() -> Set of L-* ids`;
+  - fires `mw:progress` on change.
+- **`src/data/layers.js` (layer agent):**
+  - `LAYERS`: ordered `[{ id:'L-water', parts:[...], extras:['objective', ...] }, ...]`;
+  - `LESSON_LAYER`: lessonId → layer id. The course agent tells the layer agent the final ids: L1 m1, L2 shk, L3 m2, L4 m3, L5 m4, L6 fx, L7 m5, L8 inv.
+- **The course agent:**
+  - calls `markDone(id)` when a lesson reaches its last step;
+  - dispatches `document` event `mw:lesson-active` with `{ id }` on lesson start and step change, and `{ id: null }` on exit.
+
+  The layer agent shows the layers up to and including that lesson's layer while it is active.
+- **「显示全部」** is owned by the layer agent (`app.js` + `simple.js`), persisted in `mw.layers.all`.
+
 ## Sequencing (orchestrator)
 - **Already running:**
   - the engine recalibration (worktree; owns `lessons.js` until merged), plus the AUS dial fix;
@@ -62,3 +78,30 @@ Approved by the user via the Ray-Dalio-Framework session. It supersedes the "mai
 - **After those merge:** one course agent does the lessons, runner, ending block and course menu, and one layer agent does the progressive diagram. Their files are disjoint:
   - course agent: `lessons.js`, `src/ui/lessons.js`, `lessons.css`;
   - layer agent: `src/data/layers.js`, `flow.js` visibility, `simple.js`, `app.js` toggle.
+
+## Next: 真实 / 模型 mode (scope approved 2026-10-30; data in tools/REAL-DATA.md)
+- Toggle 「真实 / 模型」: lessons default to 模型; elsewhere the viewer's choice is remembered.
+- In 真实 mode:
+  - Play and takeover are disabled.
+  - The scrubber and BOTH step buttons (⏮ back one quarter / ⏭ forward one quarter) keep working.
+  - A badge 「真实数据 · 截至 2026Qx」 sits next to the date.
+- The four outlets are real in both countries (BEA / ABS 5206.0).
+- Fields that are not observable are greyed and tagged 「模型估算」, or shown as 「—」.
+- In 模型 mode, inside 保留样本, a small 「真实 x」 sits next to unemployment / CPI / house prices.
+- 2022+ is display only; never fit on it.
+
+## Queue (approved, not started; 2026-10-30)
+1. **Captions under every country's 「真实世界的三条线」 chart** (周期 tab and the curves view).
+   - One line per item:
+     - 数据：<国家> 真实 GDP（总量/人均，来源，起止年，取对数）
+     - 直线 = 对数 GDP 线性趋势 = 生产率 = 河道宽度长期走势
+     - 蓝色长波 = 偏离的慢变部分（HP λ=…）。Above the line = a leveraging era; below = a deleveraging era. It is drawn from GDP, not from debt.
+     - 短波 = 偏离 − 长波
+     - 读法
+   - Take the specifics from `tools/build_waves.py`. Details go in a tap card.
+2. **负资产 ≠ B2**, part of the B2 engine pass.
+   - (a) On the B2 evidence card, two display-only 加分项: 负资产范围 (LVR plus house-price drawdown) and 银行受伤程度 (bad loans / capital). They are not part of the threshold. AUS real data shows 没有数据.
+   - (b) L4 gets the step 「负资产不等于 B2」 with a four-case table: US 2008, Japan 1990, UK early 1990s, AUS 2008. It ends with four questions; the first three say whether B2 can happen, and the fourth (降息推不推得动) confirms it.
+   - (c) The AUS-2008 blind reveal gets one line on why it was not B2.
+3. **A B2 line under the dials** (part of the B2 pass). It goes under the long-cycle dial (the B2 fork) and the short-cycle dial's 「推不动 → 大周期 B2 → ⑤」 box. It is always visible, one line on phone, with the full text in the tap card:
+   「B2 怎么来的：借钱买的资产跌了 → 家底变负、债还在 → 大家拼命还债、银行收紧 → 降息也推不动（负资产要多、并且伤到银行才算）。」

@@ -744,16 +744,26 @@ export const CONCEPTS = {
         if (!B || !ok(B.fxPerUsd)) return '现在没有汇率读数：这个视图没有画国境线（国内水流图默认不画）。';
         return `现在 1 美元 = ${B.fxPerUsd >= 100 ? Math.round(B.fxPerUsd) : B.fxPerUsd.toFixed(2)} 本币。${R?.reason ? R.reason + '。' : ''}`;
       }
+      // reads the reactor's own state: AUS / JPN = the 1-year fit (信心 = VIX, 贸易条件 fitted, 生产率 不计入); others = the 5-year rule
+      // (信心 / 生产率 没有数据); CHN = a managed currency
       const pp = v => (v >= 0 ? '推强 ' : '推弱 ') + Math.abs(v).toFixed(1) + '%';
+      const F = R.forces, pt = f => (f.input >= 0 ? '+' : '−') + Math.abs(f.input).toFixed(1) + ' 个点';
+      const fit = R.fit, own = f => (fit && ok(f.c) ? `（${pp(f.c)}）` : '');
+      const conf = fit && ok(F.conf.c) ? `信心${pp(F.conf.c)}（VIX；${String(fit.risk || '').split('：')[0]}）` : '信心没有数据';
+      const prod = F.prod.skipped ? '生产率不计入（试过，保留样本猜得更差）' : '生产率没有数据';
+      const tot = fit && ok(F.tot.c) ? `贸易条件${pp(F.tot.c)}（${F.tot.src === 'oil' ? '油价' : 'ABS 指数'}）`
+        : `贸易条件${F.tot.dir ? (F.tot.dir > 0 ? '方向推强' : '方向推弱') + '（铁矿石），大小没有数据' : '没有数据'}`;
       return `${reactorLine(R)}\n` +
-        `资本管（利差 + 信心）${pp(R.pipes.cap.c)}：利差 ${R.forces.rate.have ? (R.forces.rate.input >= 0 ? '+' : '−') + Math.abs(R.forces.rate.input).toFixed(1) + ' 个点' : '没有数据'}，信心没有数据。\n` +
-        `商品价格管（通胀差 + 生产率 + 贸易条件）${pp(R.pipes.goods.c)}：通胀差 ${R.forces.infl.have ? (R.forces.infl.input >= 0 ? '+' : '−') + Math.abs(R.forces.infl.input).toFixed(1) + ' 个点' : '没有数据'}，生产率没有数据，贸易条件${R.forces.tot.dir ? (R.forces.tot.dir > 0 ? '方向推强' : '方向推弱') + '（铁矿石），大小没有数据' : '没有数据'}。\n` +
+        (fit ? `「${fit.label}」：只帮你读图；2022 年起的保留样本上，它猜得不如「汇率不变」。\n` : '') +
+        (R.managed ? '人民币是管理汇率：央行把它管在一个区间里，说不清的部分多半是央行的手。\n' : '') +
+        `资本管（利差 + 信心）${pp(R.pipes.cap.c)}：利差 ${F.rate.have ? pt(F.rate) + own(F.rate) : '没有数据'}，${conf}。\n` +
+        `商品价格管（通胀差 + 生产率 + 贸易条件）${pp(R.pipes.goods.c)}：通胀差 ${F.infl.have ? pt(F.infl) + own(F.infl) : '没有数据'}，${prod}，${tot}。\n` +
         `${anchorLine(R)}`;
     },
     water: '国境线上的一道闸，闸两边是两个国家的水库。推闸的有五股力：通胀差、利差、生产率、贸易条件、信心。资本管（利差 + 信心）来得快；商品价格管（通胀差 + 生产率 + 贸易条件）慢，但长期总会把闸拉回锚（PPP）。',
     formula: '汇率 = 每 1 美元换多少本币；本币比一年前 = 四个季度前的汇率 ÷ 今天的汇率 − 1（正 = 本币变强）\n五股力（「汇率」课）：Δs ≈ 1.0·通胀差 − 0.6·利差 − 0.8·生产率差 − k·贸易条件 + 信心（s 变大 = 本币变弱）\n贸易差额不在里面：数据里它几乎推不动汇率',
     from: ['policyRate'], to: ['cpi', 'exports', 'imports'],
-    logic: '央行：加息 → 本国资产的收益比外国高\n→ 钱流进来先要买本币：本币变强（资本管）\n→ 物价涨得比别国快的国家，本币长期变弱：PPP 锚只看通胀差（商品价格管）\n→ 本币强：进口货便宜，通胀下降；出口变贵，出口减少\n→ 一两年里大部分变化说不清：信心常常就是那一块（2008 年全球恐慌、2022 年英国）。',
+    logic: '央行：加息 → 本国资产的收益比外国高\n→ 钱流进来先要买本币：本币变强（资本管）\n→ 物价涨得比别国快的国家，本币长期变弱：PPP 锚只看通胀差（商品价格管）\n→ 本币强：进口货便宜，通胀下降；出口变贵，出口减少\n→ 一两年里很多变化说不清；澳元、日元的信心用 VIX 量了：2008 年恐慌，澳元（风险货币）跌、日元（避险货币）涨。',
     live: 'border.fxPerUsd', fmt: 'num' },
   foreignBonds: {
     name: '外国人买国债', short: '外国人拿钱买本国政府的债：水从国境线外流进长期国债池，把长期利率往下压。',

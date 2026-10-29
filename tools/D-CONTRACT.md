@@ -1,4 +1,34 @@
 
+## 课程 v3 (course agent: 8 lessons, 4 parts, the 三问 ending)
+
+Done 2026-10-29, spec `tools/COURSE-V3.md`. It supersedes the menu, chain and labels described in 「接线」 below (the panel mechanics there still hold).
+Files: `src/data/lessons.js`, `src/ui/lessons.js`, `assets/css/lessons.css`, `src/data/lesson-fx.js` (rebuilt), `src/data/lesson-investor.js`, `src/data/lesson-shocks.js`, `tools/check_lessons.mjs`, `tools/check_d_lessons.mjs`, `tools/check_lesson_fx.mjs`, `tools/check_lesson_investor.mjs`.
+
+**Course** (`COURSE` in `src/data/lessons.js`):
+- `COURSE.parts`: 一个国家怎么运转 (`m1`, `shk`) / 它怎么出毛病 (`m2`, `m3`, `m4`) / 国与国之间 (`fx`) / 你 (`m5`, `inv`). `COURSE.main` = the 8 ids flattened. Labels 第 1–8 课 in that order (m2 = 第 3 课 … m5 = 第 7 课, fx = 第 6 课, inv = 第 8 课); texts that cite a lesson number were renumbered.
+- Chain (last step `next`): m1 → shk → m2 → m3 → m4 → fx → m5 → inv; inv ends on the `blind` panel (3 practice cards → 历史盲测).
+- `COURSE.legacy` (旧版课程, collapsed): 0, 0b, the 7 role lessons, 1, 2, 3, 3b, 4, 5 (Capex → L2), 6, 7 (自由运行 → 沙盒), w1, w2 (→ L6). `COURSE.later` / `advanced` are gone.
+- Menu: the 4 part headings (一 … 四) with badges 1–8 → the 「沙盒」 link (free mode, new window; was 自由运行) → 旧版课程. The card header link and lesson 7's button also say 沙盒.
+- `LESSON_SHOCKS` is registered (after m5 in `LESSONS`; `LESSONS` still ends with `fx`, `inv`).
+
+**Runner** (`src/ui/lessons.js`):
+- **三问 ending**: the last step of each of the 8 lessons has `ending: { q1, q2, q3 }`, each string starting with its question (水的问题还是河道的问题？ / 环上哪一步？ / 谁赢谁输、钱放哪？). The runner prints the questions itself (`section.ls-end`, ① ② ③), fills `{placeholders}` from the step's live table, and shows the block once the step's question is answered, above 下一课.
+- **Panels**: the module is chosen by the panel id: `fx-reactor` → `mountFxReactor` (`src/ui/fx-reactor.js`), `shk-*` → `mountShockPanel` (`src/ui/shock-lab.js`, `PANEL_MODS.shocks`), `fx-*` → fx-lab, else investor-lab. All over the diagram except 投资者 `assetTable`. `#ls-panel[data-kind]` = `fxr` / `shocks` / `fx` / `inv`. `shock-lab.css` is loaded on demand with its module (index.html does not link it; `fx-reactor.css` is linked).
+- **Reactor panel** spec `{ id: 'fx-reactor', iso, date, dates?, forces?, hl? }`: `dates` adds date chips (`.ls-fxr-d`) over the reactor; a chip remounts it at that quarter (`.fxr-panel[data-date]`). `forces: true` opens the five-forces drill-down.
+- **Drill-downs** (step field `drills: [{ label, panel, text, back?, nums?, facts? }]`): buttons in the card (「看证据（可选）」); a drill's panel replaces the step's panel and its text replaces the step text until 「回到…」. `drillCta: true` makes the first drill the primary button (m5 外国人). Panel key = lesson#step#drill.
+- **Progress / layers**: `markDone(id)` from `src/ui/progress.js` when a lesson reaches its last step (also the local 已完成 for every lesson with an ending or kind fx / capstone / shocks); `document` event `mw:lesson-active` `{ id }` on start and every step change, `{ id: null }` on exit.
+
+**Lessons**:
+- L1 m1: ending (town → US 2015Q1); next `shk`.
+- L2 shk: as in 「冲击」; ending already there; Capex step 5 checked by check_lessons.
+- L3 m2, L4 m3: endings (with claims for each answer).
+- L5 m4: new step 4 「化债四个出口，谁被砍」 (增长 = 没人被砍; 通胀 = 拿现金、国债的人; 金融压制 = 存钱的人; 违约 = 债主), answered for 2013–2017 (⑦) with claims (real rate max < 0 and mean < −1%, nominal GDP grew > 3 points faster than the debt, debt/GDP −5.6 points, inflation mean < 3%, ⑦ entered 2015Q3–2016Q4); ⑧ is now step 5; next `fx`.
+- L6 fx (rebuilt; 7 steps): 先说结论 (diagram, border) → 1 汇率闸 (reactor AUS 2025Q4) → 2 五股力 (reactor, forces open; drill-downs fx-anchor / fx-pipe / fx-prod / fx-tot / fx-conf with the first version's texts) → 3 贸易水管 (map AUS 2011; 澳洲 2001–2011 every year in deficit while the AUD doubled; JST 5y current-account coefficient ≈ 0) → 4 储备货币 (map USA 2025) → 5 澳元三段 (reactor with chips 2003Q4 / 2008Q4 / 2011Q2 / 2025Q4; drills pipe + tot; absorbs 世界 2's 2008 story: no B2, China stimulus, RBA −4.2 points) → 6 计算器 (fx-calc); next `m5`. fx-frame is no longer used (its 「第 N 步」 column, from `FX_FORCES.step` in fx-data.js, names the first version's steps).
+- L7 m5: the 外国人 step has the sub-step 「小步：从澳洲看这一季」 = drill with the AUS reactor, chips 2008Q3 / 2009Q1, over the US diagram (no sim switch; 「回到美国」); ending; next `inv`.
+- L8 inv: label 第 8 课; ending on the blind step (claims: the 30% fall, and two engine claims on the AUS sim: 2009Q1 降息, no B2 2007Q4–2010Q4).
+
+**Checks**: `check_lessons` (12 course v3, 14 endings, 15 drill numbers via `D.q` / `D.fxr`; kind `shocks` in the per-step loop for its sim step), `check_lesson_fx` (new shape; nums/facts for steps, drills and the ending; getters `fxr`, `usd`, `ore`, `sim`), `check_lesson_investor` (claim src `sim`; the ending counts as step text), `check_d_lessons` (port 8343 / CDP 9443: menu, the whole chain m1 → … → inv walked step by step at iPad and phone, endings, drills, chips, exits, `mw:lesson-active`, progress).
+
 ## 接线 (D-integration: both lessons in the real app)
 
 Done 2026-10-29. Files: `src/data/lessons.js`, `src/ui/lessons.js`, `assets/css/lessons.css`, `index.html`, `tools/check_lessons.mjs`, `tools/check_d_lessons.mjs` (new). `fx-lab.js` / `investor-lab.js` and their CSS are unchanged.
@@ -148,6 +178,76 @@ Big lesson 「汇率」, approved by the user (2026-10-29). It sits after the ma
 - The spec's AUD/CNY values match the data: 2006 = 6.01 and 2011 = 6.68 (annual means). The data ends in 2025Q4 (2025 mean 4.63), so 4.65 for 2026-10 is labelled as the spec's value.
 - Iron-ore prices are not in the repo, so the terms-of-trade step gives only a direction for them, and `k` is a free slider.
 
+### FX 1 年拟合
+
+Done 2026-10-30. The 1-year FX reactor (`src/ui/fx-reactor.js`: the 国境线 band, the popovers, the map card and the lesson panel) now uses a quarterly fit for AUS and JPN. It is labelled on screen 「1 年尺度拟合，探索性」. The 5-year JST rule (`FX_SPEC.rule`) still sets the PPP anchor, the 汇率 lesson's formula and its calculator. GBR, EA and CHN keep the JST rule and their 「没有数据」 labels. CHN's card also says the CNY is managed.
+
+**Files:**
+- `tools/build_fx_fit.py` (run with `--explore` to print every variant) writes `src/data/fx-fit.js` (`FX_FIT`).
+- `tools/fetch_world_data.py fxfit` downloads the raw data into new folders, logged in `data_src/world/_download_log.json`:
+  - `fred_vix/VIXCLS.csv`: VIX, daily from 1990;
+  - `abs/ana_agg_ttr.csv`: the ABS Data API ANA_AGG terms of trade (cat. 5206.0), quarterly from 1959Q3;
+  - `rba_i2/i2-data.csv`: the RBA commodity price index, monthly from 1982;
+  - `worldbank_gdppc/NY.GDP.PCAP.KD.json`: real GDP per person, annual.
+- The JPN oil series is the existing `fred/MCOILWTICO.csv`.
+
+**Fit:** separate OLS for AUS and JPN on 1996Q1–2021Q4 (n = 104). 2022Q1–2025Q4 is the hold-out (保留样本): it is only scored, and the reactor tags those quarters (`R.fit.hold`, `data-hold="1"`).
+- The dependent variable is y = 100·ln(fx[t−4]/fx[t]), so + means the home currency got stronger.
+- Regressors:
+  - the CPI gap, pp;
+  - the policy-rate gap, averaged over 4 quarters, pp;
+  - the 4-quarter change of the terms of trade, 100·Δln (AUS: the ABS index; JPN: WTI oil as a reverse proxy);
+  - VIX in one of four forms: quarterly mean or quarterly max, each either as the 4-quarter change or as the level minus its 1996–2021 mean. The form with the lowest hold-out error is kept.
+- t-stats are Newey–West: Bartlett kernel, 4 lags, × n/(n−k).
+- Two things were tried and dropped because each raised the hold-out error: the RBA commodity index as the AUS terms of trade, and productivity (real GDP per person growth vs the US). 生产率 therefore reads 「不计入」.
+
+| | const | 通胀差 | 利差 | 贸易条件 | VIX | R² | hold-out rmse | 「不变」 rmse |
+|---|---|---|---|---|---|---|---|---|
+| AUS (VIX mean, 4q change) | −4.33 (t −2.4) | −2.78 (−2.7) | +2.25 (+3.4) | +0.365 ABS (+3.2) | −0.638 (−3.4) | 0.51 | 6.8 | 5.1 |
+| JPN (VIX max, level) | +1.06 (+0.3) | +0.11 (+0.1) | +0.95 (+1.2) | +0.110 oil (+2.0) | +0.304 (+3.2) | 0.21 | 12.3 | 11.2 |
+
+- The risk signs are as expected: 澳元是风险货币 (VIX up → AUD weaker), 日元是避险货币 (VIX up → JPY stronger).
+- JPY's oil sign is the opposite of the importer story (oil up tends to come with a weaker dollar). JPY's CPI and rate terms are not significant. The cards say so.
+- Both fits do worse in the hold-out than simply guessing 「不变」, and the footnote says so.
+
+**Reactor mapping:**
+- Each force = coef × (input − its 1996–2021 mean), in log points.
+- The sum m is turned into a % change (e^(m/100) − 1), and each force is scaled by the same factor, so the pipes add up to the 拟合 tick on the needle's % axis.
+- 资本管 = 利差 + 信心 (VIX). 商品价格管 = 通胀差 + 贸易条件; 生产率 shows 不计入.
+- The fit's constant (the mean change 1996–2021: AUS +0.05, JPN −0.6 %/year) stays in 说不清.
+- The tick label reads 拟合 instead of 公式, and `reactorLine` reads 「1 年拟合：两根管合计 …」.
+- The drill-down shows each force with its own push, input, 1996–2021 normal, coef and t, plus the risk sign under 信心.
+
+**`R` additions:**
+- `R.fit` = `{ label, r2, n, rmseHold, rmseHoldZero, hold, risk, vixForm, drift, scale, logModel, fitFrom, fitTo, holdFrom }`, or `null` under the JST rule.
+- `R.managed`: true for CHN.
+- On fitted countries:
+  - each force carries `x`, `mean`, `coef`, `t` and `cLog`;
+  - `forces.conf.input` is the VIX input; `forces.tot.input` is the terms-of-trade input (ABS % or oil %, no longer iron ore);
+  - AUS keeps iron ore as `forces.tot.ore` / `oreDir`;
+  - `forces.tot.dir` is the sign of the fitted push;
+  - `forces.prod.skipped` = true.
+- API unchanged: `mountFxReactor(host, { iso, t|year|date, forces, hl })`, `unmountFxReactor()`, `openFxForces(hl)`.
+
+**Key quarters** (本币比一年前, %; 拟合 = 资本管 + 商品价格管):
+
+| | needle | 利差 | 信心 | 资本管 | 通胀差 | 贸易条件 | 商品价格管 | 拟合 | 说不清 (JST rule before) |
+|---|---|---|---|---|---|---|---|---|---|
+| AUS 2008Q4 | −24.4 | +6.1 | −21.2 | −15.1 | −5.0 | +3.8 | −1.2 | −16.3 | −8.1 (−25.1) |
+| AUS 2011Q2 | +20.4 | +6.7 | +6.3 | +13.1 | −0.2 | +3.7 | +3.5 | +16.6 | +3.8 (+17.9) |
+| AUS 2015Q2 | −16.6 | +1.1 | −0.4 | +0.7 | −3.6 | −5.1 | −8.7 | −8.0 | −8.5 (−16.5) |
+| AUS 2025Q4 (hold-out) | +0.7 | −4.5 | −0.1 | −4.6 | −2.3 | −1.5 | −3.8 | −8.4 | +9.1 |
+| JPN 2008Q4 | +17.8 | +0.6 | +16.9 | +17.5 | +0.2 | −5.7 | −5.6 | +11.9 | +5.8 (+18.1) |
+| JPN 2013Q2 | −18.8 | +1.9 | −2.4 | −0.5 | +0.0 | −0.5 | −0.4 | −0.9 | −17.9 (the BoJ's QQE is not a force) |
+
+**Check:** `tools/check_fx_reactor.mjs` (block 1b) recomputes everything from the raw files:
+- the inputs, the VIX-form choice, the coefficients, Newey–West t, R², the in-sample and hold-out errors, and the 1996–2021 means;
+- the hold-out exclusion (the sample ends 2021Q4; refitting with 2022+ would change the coefficients);
+- every displayed force against `fx-fit.js`;
+- the risk signs, the on-screen labels, 保留样本 and CHN's managed note.
+
+Block 4 asserts that the fit shrinks 说不清 at the key quarters.
+
 ## 冲击
 
 Course v3 lesson **L2 「水的问题，还是河道的问题」** (`tools/COURSE-V3.md`), approved by the user (2026-10-29). It sits right after L1 水从哪来. It absorbs the old optional lesson 「Capex 与产能」 (lesson `5`), which became this lesson's step 5. House rules: `tools/B1B2-CONTRACT.md`.
@@ -172,7 +272,7 @@ Course v3 lesson **L2 「水的问题，还是河道的问题」** (`tools/COURS
   - `data_src/shocks/_download_log.json`.
   - Read only: `../dalio_432/data/jst_panel.csv`, and `data_src/world/imf/weo.csv` (for the AUS card).
 
-**Wiring (for the course agent that owns `lessons.js` / `src/ui/lessons.js` / the HTML):**
+**Wiring (for the course agent that owns `lessons.js` / `src/ui/lessons.js` / the HTML):** done 2026-10-29 (see 「课程 v3」); the CSS is loaded on demand by the runner instead of index.html.
 - **Register** `LESSON_SHOCKS` (id `'shk'`, `kind: 'shocks'`, label 第 2 课) as L2, between m1 and m2.
   - m1's last step `next` becomes `'shk'`.
   - This lesson's last step already has `next: 'm2'`.

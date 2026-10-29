@@ -32,11 +32,17 @@
 //   B5 pipe colours: pump = blue +, drain = red -, every other pipe grey (classes pc-pump / pc-drain / pc-pipe, tokens in app.css).
 //   B6 asset pools: 历史正常区间 band (middle half, p25-p75, of the history-mode run 1995-2021 of the same country); above = 贵, below = 便宜.
 //   A3 实际利率 (rates.realPolicy) next to 政策利率, tappable (realRate card).
+//
+// Progressive diagram (tools/COURSE-V3.md, table src/data/layers.js): build() ends with tagLayers(), which gives every part a data-layer;
+//   app.js writes body.layers-on + body[data-layers]; CSS (app.css) hides the layers not listed. The border band only switches on (svg.has-border,
+//   taller viewBox) while L-border is shown; syncDangling reads the layer set too. Visibility only: nothing here changes a drawing.
 
 import { CONCEPTS } from '../data/concepts.js';
 import { countryInfo, currentCountry, countryData, fmtBn } from './country-info.js';
 import { createSim } from '../engine/sim.js';
 import { US_Q } from '../data/us-quarterly.js';
+import { LAYERS, LAYER_IDS, LAYER_OF } from '../data/layers.js';
+import { layerShown } from './progress.js';
 import { computeFxReactor, reactorSvg, reactorHtml, usdIndexAt, usdHtml, reactorLine, wireFxReactor, ensureFxReactorCss, installFxCardHook, openForcesIn } from './fx-reactor.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -473,7 +479,7 @@ function build(host) {
     o.box = node(back, p.x, TANK_Y, TANK_W, TANK_H, 'tank', pp, p.part);
     o.water = part(el('rect', { class: 'water ' + p.cls, x: p.x, y: TANK_Y + TANK_H, width: TANK_W, height: 0 }, back), pp);
     // B6 历史正常区间 band (hidden until the history run is ready / when the country lacks the measure)
-    o.band = part(el('g', { class: 'vband', display: 'none' }, back), pp);
+    o.band = part(el('g', { class: 'vband', display: 'none', 'data-lk': 'band' }, back), pp);
     o.bandR = el('rect', { class: 'vb-fill', x: p.x, width: TANK_W, y: TANK_Y, height: 0 }, o.band);
     o.bandP = el('path', { class: 'vb-edge', d: '' }, o.band);
     o.bandB = el('rect', { class: 'vb-bar', x: p.x + 1.5, width: 3.5, y: TANK_Y, height: 0, rx: 1.5 }, o.band);     // staff-gauge style 'normal range' bar
@@ -493,10 +499,11 @@ function build(host) {
   R.cashWater = part(el('rect', { class: 'water cash', x: CASH_X, y: TANK_Y + TANK_H, width: PAIR_W, height: 0 }, back), 'cash');
   {   // shared scale ticks: 50% / 100% / 150% / 200% of GDP across both tanks
     const S = Math.max(curInfo().tank.iou, curInfo().tank.cash);
-    const tg = part(el('g', { class: 'ticks pair' }, back), 'iou cash');
+    const ti = part(el('g', { class: 'ticks pair' }, back), 'iou'), tc = part(el('g', { class: 'ticks pair' }, back), 'cash');   // one group per tank (layers)
     for (const k of [0.5, 1, 1.5, 2]) if (k < S) {
       const y = (TANK_Y + TANK_H - TANK_H * k / S).toFixed(1);
-      el('path', { class: k === 1 ? 'one' : '', d: `M${IOU_X + PAIR_W - 4} ${y} h4 M${CASH_X} ${y} h4` }, tg);
+      el('path', { class: k === 1 ? 'one' : '', d: `M${IOU_X + PAIR_W - 4} ${y} h4` }, ti);
+      el('path', { class: k === 1 ? 'one' : '', d: `M${CASH_X} ${y} h4` }, tc);
     }
   }
   // goods channel (max capacity frame + current river). B1: river width = capacity, water depth = demand / capacity against the bank line.
@@ -506,6 +513,7 @@ function build(host) {
   R.chWater = part(el('rect', { class: 'water goods', x: CH_X0 + 2, y: TANK_Y + 4, width: CH_W - 4, height: 0 }, back), 'channel');
   R.chOver = part(el('rect', { class: 'ch-over', x: CH_X0 + 2, y: BANK_Y, width: CH_W - 4, height: 0 }, back), 'channel');      // water above the bank = 溢出（通胀）
   R.bankLn = part(el('path', { class: 'ch-bank', d: '' }, back), 'channel');
+  R.chOver.setAttribute('data-lk', 'bankLine'); R.bankLn.setAttribute('data-lk', 'bankLine');      // layers: the bank line = depth (L-channel)
   // capacity brackets (Capex widens the channel)
   R.capL = part(el('path', { class: 'capmark', d: `M${CH_X0} 332 l-5 -4 v8 z` }, back), 'capex');
   R.capR = part(el('path', { class: 'capmark', d: `M${CH_X0 + CH_W} 332 l5 -4 v8 z` }, back), 'capex');
@@ -571,6 +579,7 @@ function build(host) {
   R.govGross = txt(g, 346, 24, '', 'cap', 'end', 'government');
   // bank
   R.bankTitle = txt(top, 120, 80, '银行', 'ttl', 'start', 'bank', 'bank');
+  R.bankTitle.setAttribute('data-lk', 'bankTitle');
   g = termGroup(top, 'bankApproval', [114, 84, 90, 24], 'bank', 'approval');
   R.bank = txt(g, 120, 102, '', 'sub');
   // 欠条 tank texts (B3). The two captions label the dashed link: a loan creates water AND an IOU.
@@ -602,6 +611,7 @@ function build(host) {
     o.cap = txt(top, cx, TANK_Y + 42, '', 'cap', 'middle', 'pool ' + p.part, 'housingCap');
     if (p.id !== 'housing') o.cap.removeAttribute('data-lbl');
     o.stat = txt(top, cx, TANK_Y + 42, '', 'cap vstat', 'middle', 'pool ' + p.part);     // B6: 贵 / 正常 / 便宜 against the band
+    o.stat.setAttribute('data-lk', 'poolStat');
   }
   // seesaw captions
   txt(top, poolCx(POOLS[0]), 372, '利率↑', 'cap', 'middle', 'pool poolBond');
@@ -660,6 +670,7 @@ function build(host) {
   bar.className = 'flow-budget'; bar.setAttribute('data-part', 'budget'); bar.setAttribute('data-node', 'budget');
   wrap.appendChild(bar);
   R.bar = bar;
+  tagLayers(wrap);
   // ripple strip + popover + zoom banner (HTML overlays)
   const strip = document.createElement('div'); strip.className = 'flow-ripple'; strip.hidden = true; host.appendChild(strip); R.strip = strip;
   const pop = document.createElement('div'); pop.className = 'flow-pop'; pop.hidden = true; host.appendChild(pop); R.pop = pop;
@@ -667,6 +678,20 @@ function build(host) {
   const lg = document.createElement('div'); lg.className = 'flow-legend'; lg.hidden = true; lg.innerHTML = legendHtml(); host.appendChild(lg); R.legend = lg;
   const zb = document.createElement('div'); zb.className = 'flow-zoomtag'; zb.hidden = true; host.appendChild(zb); R.zoomTag = zb;
   return R;
+}
+
+// Progressive diagram: data-layer on every element with an identity (src/data/layers.js: lk > valve > pipe > node > the earliest of its parts)
+function layerOf(n) {
+  const T = LAYER_OF, a = k => n.getAttribute(k);
+  for (const [attr, tab] of [['data-lk', T.keys], ['data-valve', T.valves], ['data-pipe', T.pipes], ['data-node', T.nodes]]) {
+    const v = a(attr); if (v && tab[v]) return tab[v];
+  }
+  let best = -1;
+  for (const p of (a('data-part') || '').split(/\s+/)) { const i = p && T.parts[p] ? LAYER_IDS.indexOf(T.parts[p]) : -1; if (i >= 0 && (best < 0 || i < best)) best = i; }
+  return best >= 0 ? LAYER_IDS[best] : null;
+}
+function tagLayers(root) {
+  root.querySelectorAll('[data-part], [data-valve], [data-lk]').forEach(n => { const L = layerOf(n); if (L) n.setAttribute('data-layer', L); });
 }
 
 // B1 断面 inset: a cross-section of the goods channel. Width = capacity (same factor as the river), depth = demand / capacity (x6 vertical
@@ -814,7 +839,7 @@ function syncNxGate(R) {
 const fmtFx = v => (v >= 100 ? String(Math.round(v)) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 function setBorder(R, snap, town) {
   const B = snap.border, D = R.bd;
-  const has = !town && !!B && typeof B === 'object';
+  const has = !town && !!B && typeof B === 'object' && layerShown('L-border');      // progressive diagram: the band waits for L-border
   R.svg.classList.toggle('has-border', has);
   if (!!R.hasBorder !== has) { R.hasBorder = has; R.syncVB(); }
   syncNxGate(R);
@@ -1060,7 +1085,11 @@ function setBudget(R, snap, town) {
   const num = v => `<b>${fmtMoney(v, town)}</b>`;
   const cls = b.net > 1e-9 ? 'up' : b.net < -1e-9 ? 'down' : 'flat';
   const arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '＝';
-  const drainTail = (dr.surplus > 0.0005 * ref(snap) ? ` + ${termBtn('', '盈余')} ${num(dr.surplus)}` : '') + (dr.qt > 0.0005 * ref(snap) ? ` + QT ${num(dr.qt)}` : '');
+  // the government / central-bank terms carry data-layer L-gov: hidden with that layer (progressive diagram), the totals stay complete
+  // while L-gov is hidden, one grey term per side carries the hidden remainder (data-rest: shown only then), so the shown terms sum to the total
+  const restP = pi.qe + pi.deficit, restD = dr.surplus + dr.qt, tiny = 0.0005 * ref(snap);
+  const rest = (v, sign, name) => (v > tiny ? `<span class="fb-rest" data-rest="L-gov"> ${sign} ${name} ${num(v)}</span>` : '');
+  const drainTail = rest(restD, '+', '其他排水') + `<span data-layer="L-gov">${(dr.surplus > 0.0005 * ref(snap) ? ` + ${termBtn('', '盈余')} ${num(dr.surplus)}` : '') + (dr.qt > 0.0005 * ref(snap) ? ` + QT ${num(dr.qt)}` : '')}</span>`;
   const open = R.bar.classList.contains('open');
   R.bar.className = 'flow-budget net-' + cls + (open ? ' open' : '');
   const pTot = pi.loans + pi.qe + pi.deficit, dTot = dr.repay + dr.surplus + dr.qt;
@@ -1069,7 +1098,7 @@ function setBudget(R, snap, town) {
     `<div class="fb-mini" role="button" tabindex="0" data-act="fb-toggle" aria-expanded="${open}"><span class="fb-mlab">本季水量</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span>` +
     `<span class="fb-meq">= 泵入 ${num(pTot)} − 排出 ${num(dTot)}</span><span class="fb-caret" aria-hidden="true">▴</span><button type="button" class="fb-legbtn" data-act="legend">图例</button></div>` +
     `<div class="fb-detail"><div class="fb-row"><span class="fb-lab">${termBtn('M', '本季总水量变化')}</span><span class="fb-net ${cls}">${arrow} ${fmtSigned(b.net, town)}</span><span class="fb-unit lbl">${town ? '单位：万元 · 管宽 = 本季流量' : `单位：${curInfo().unitBn} · 管上数字 = 占 GDP（按年算），点开看金额`}</span></div>` +
-    `<div class="fb-row fb-eq"><span class="fb-grp pump"><span class="fb-k">泵入</span> ${termBtn('newLoans', '放贷')} ${num(pi.loans)} + ${termBtn('qe', 'QE')} ${num(pi.qe)} + ${termBtn('fiscalInjection', '赤字')} ${num(pi.deficit)}</span>` +
+    `<div class="fb-row fb-eq"><span class="fb-grp pump"><span class="fb-k">泵入</span> ${termBtn('newLoans', '放贷')} ${num(pi.loans)}${rest(restP, '+', '其他泵')}<span data-layer="L-gov"> + ${termBtn('qe', 'QE')} ${num(pi.qe)} + ${termBtn('fiscalInjection', '赤字')} ${num(pi.deficit)}</span></span>` +
     `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '还本')} ${num(dr.repay)}${drainTail}</span></div></div>`;
 }
 
@@ -1156,8 +1185,12 @@ function setTexts(R, snap, prevSnap, st) {
 const GROUP_OF = { poolBond: ['pool'], poolEquity: ['pool'], poolHousing: ['pool'], poolGold: ['pool'] };
 function visSet() {
   const b = document.body;
-  if (!b.classList.contains('parts-on')) return null;
-  return new Set((b.dataset.vis || '').split(/\s+/).filter(Boolean));
+  if (b.classList.contains('parts-on')) return new Set((b.dataset.vis || '').split(/\s+/).filter(Boolean));     // a town lesson's own parts
+  if (!b.classList.contains('layers-on')) return null;
+  // progressive diagram: the parts (and owner boxes) of the layers on screen
+  const on = new Set((b.dataset.layers || '').split(/\s+/)), s = new Set();
+  for (const L of LAYERS) if (on.has(L.id)) [...(L.parts || []), ...(L.nodes || [])].forEach(p => s.add(p));
+  return s;
 }
 function partShown(vs, id) {
   if (!vs) return true;
@@ -1533,7 +1566,14 @@ export function renderFlow(host, snap, prevSnap) {
     } catch (e) { /* ignore */ }
     st.cur = targets(prevSnap || snap, prevSnap, st);
     // keep the dangling-pipe rule in sync with lesson reveals even when no render happens
-    try { new MutationObserver(() => syncDangling(host)).observe(document.body, { attributes: true, attributeFilter: ['data-vis', 'class'] }); } catch (e) { /* ignore */ }
+    // (and the border band with the progressive-diagram layers: body.layers-on / data-layers, written by app.js)
+    try {
+      new MutationObserver(() => {
+        syncDangling(host);
+        const s = host._flow;
+        if (s && s.snap && !!s.R.hasBorder !== (!s.town && !!s.snap.border && layerShown('L-border'))) setBorder(s.R, s.snap, s.town);
+      }).observe(document.body, { attributes: true, attributeFilter: ['data-vis', 'class', 'data-layers'] });
+    } catch (e) { /* ignore */ }
   }
   if (!isTownSnap(snap)) st.zoomed = false;
   st.snap = snap; st.prev = prevSnap || null;
@@ -1565,3 +1605,5 @@ export function renderFlow(host, snap, prevSnap) {
 // optional: caller can set tween length (ms) to match playback speed
 export function setFlowDuration(host, ms) { host._flowDur = ms; }
 export { VALVE_SLOTS };
+/** pipe ends (part ids), for tools/check_layers.mjs: no pipe on screen with a hidden end */
+export const PIPE_ENDS = PIPES.map(p => ({ k: p.k, from: p.from, to: p.to }));

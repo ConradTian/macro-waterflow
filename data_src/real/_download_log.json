@@ -1,0 +1,302 @@
+{
+ "fred/FEDFUNDS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS",
+  "date": "2026-10-30",
+  "note": "US effective federal funds rate, monthly %",
+  "bytes": 13959
+ },
+ "fred/MORTGAGE30US.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US",
+  "date": "2026-10-30",
+  "note": "Freddie Mac PMMS 30y fixed mortgage rate, weekly %",
+  "bytes": 46995
+ },
+ "fred/DGS10.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
+  "date": "2026-10-30",
+  "note": "US 10y Treasury constant maturity, daily %",
+  "bytes": 269203
+ },
+ "fred/CPIAUCSL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL",
+  "date": "2026-10-30",
+  "note": "US CPI all items, SA index, monthly",
+  "bytes": 17763
+ },
+ "fred/CPILFESL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPILFESL",
+  "date": "2026-10-30",
+  "note": "US CPI less food and energy, SA index, monthly",
+  "bytes": 15603
+ },
+ "fred/UNRATE.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=UNRATE",
+  "date": "2026-10-30",
+  "note": "US unemployment rate, SA, monthly %",
+  "bytes": 14211
+ },
+ "fred/GDP.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDP",
+  "date": "2026-10-30",
+  "note": "US nominal GDP, $bn SAAR, quarterly",
+  "bytes": 6419
+ },
+ "fred/GDPC1.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDPC1",
+  "date": "2026-10-30",
+  "note": "US real GDP, chained 2017 $bn SAAR, quarterly",
+  "bytes": 6548
+ },
+ "fred/CSUSHPINSA.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CSUSHPINSA",
+  "date": "2026-10-30",
+  "note": "S&P/Case-Shiller US national home price index, NSA, monthly",
+  "bytes": 8916
+ },
+ "fred/MCOILWTICO.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MCOILWTICO",
+  "date": "2026-10-30",
+  "note": "WTI crude oil $/bbl, monthly average",
+  "bytes": 8372
+ },
+ "fred/GFDEGDQ188S.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GFDEGDQ188S",
+  "date": "2026-10-30",
+  "note": "US federal debt % of GDP, quarterly",
+  "bytes": 4920
+ },
+ "fred/TOTBKCR.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TOTBKCR",
+  "date": "2026-10-30",
+  "note": "US bank credit, all commercial banks, $bn, weekly",
+  "bytes": 59315
+ },
+ "fred/EXPGS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXPGS",
+  "date": "2026-10-30",
+  "note": "US exports of goods and services, $bn SAAR",
+  "bytes": 6083
+ },
+ "fred/IMPGS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IMPGS",
+  "date": "2026-10-30",
+  "note": "US imports of goods and services, $bn SAAR",
+  "bytes": 6085
+ },
+ "fred/FDHBFIN.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FDHBFIN",
+  "date": "2026-10-30",
+  "note": "Federal debt held by foreign and international investors, $bn, quarterly",
+  "bytes": 3935
+ },
+ "fred/GFDEBTN.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GFDEBTN",
+  "date": "2026-10-30",
+  "note": "Federal debt: total public debt, $mn, quarterly",
+  "bytes": 7052
+ },
+ "fred/FGDEF.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FGDEF",
+  "date": "2026-10-30",
+  "note": "Federal government current receipts minus current expenditures (net federal saving), $bn SAAR",
+  "bytes": 6171
+ },
+ "fred/A091RC1Q027SBEA.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=A091RC1Q027SBEA",
+  "date": "2026-10-30",
+  "note": "Federal government current expenditures: interest payments, $bn SAAR",
+  "bytes": 5929
+ },
+ "fred/FGRECPT.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FGRECPT",
+  "date": "2026-10-30",
+  "note": "Federal government current receipts, $bn SAAR (denominator of interest / tax)",
+  "bytes": 6157
+ },
+ "fred/M2SL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=M2SL",
+  "date": "2026-10-30",
+  "note": "US M2 money stock, $bn SA, monthly",
+  "bytes": 14626
+ },
+ "fred/DRALACBS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DRALACBS",
+  "date": "2026-10-30",
+  "note": "Delinquency rate on all loans, all commercial banks, % SA, quarterly",
+  "bytes": 2682
+ },
+ "fred/CORALACBS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CORALACBS",
+  "date": "2026-10-30",
+  "note": "Charge-off rate on all loans, all commercial banks, % SA annualised, quarterly",
+  "bytes": 2683
+ },
+ "fred/DRSFRMACBS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DRSFRMACBS",
+  "date": "2026-10-30",
+  "note": "Delinquency rate on single-family residential mortgages, commercial banks, % SA, quarterly",
+  "bytes": 2313
+ },
+ "fred/GDPPOT.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDPPOT",
+  "date": "2026-10-30",
+  "note": "CBO real potential GDP, chained 2017 $bn, quarterly (projection past the data)",
+  "bytes": 10770
+ },
+ "fred/PCEC.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=PCEC",
+  "date": "2026-10-30",
+  "note": "Personal consumption expenditures, $bn SAAR (outlet C)",
+  "bytes": 6360
+ },
+ "fred/GPDI.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GPDI",
+  "date": "2026-10-30",
+  "note": "Gross private domestic investment incl. inventories, $bn SAAR (outlet I)",
+  "bytes": 6161
+ },
+ "fred/GCE.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GCE",
+  "date": "2026-10-30",
+  "note": "Government consumption expenditures and gross investment, $bn SAAR (outlet G)",
+  "bytes": 6202
+ },
+ "fred/NETEXP.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=NETEXP",
+  "date": "2026-10-30",
+  "note": "Net exports of goods and services, $bn SAAR (outlet NX)",
+  "bytes": 6013
+ },
+ "fred/TTLHH.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TTLHH",
+  "date": "2026-10-30",
+  "note": "US total households, thousands, annual (house price / income per household)",
+  "bytes": 1484
+ },
+ "fred/WALCL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=WALCL",
+  "date": "2026-10-30",
+  "note": "Fed total assets, $mn, weekly (QE stock proxy, 2002-12 on)",
+  "bytes": 23377
+ },
+ "fred/TDSP.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TDSP",
+  "date": "2026-10-30",
+  "note": "Household debt service payments % of disposable income (Fed), quarterly, 2005 on: extends the BIS DSR",
+  "bytes": 1825
+ },
+ "fred/CMDEBT.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CMDEBT",
+  "date": "2026-10-30",
+  "note": "Households and nonprofits; debt securities and loans; liability, $bn, quarterly (Z.1): extends BIS household credit",
+  "bytes": 6001
+ },
+ "fred/BCNSDODNS.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BCNSDODNS",
+  "date": "2026-10-30",
+  "note": "Nonfinancial corporate business; debt securities and loans; liability, $bn, quarterly (Z.1): extends BIS private credit",
+  "bytes": 5924
+ },
+ "fred/IRLTLT01AUM156N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRLTLT01AUM156N",
+  "date": "2026-10-30",
+  "note": "AUS 10y government bond yield, monthly (OECD MEI via FRED)",
+  "bytes": 19449
+ },
+ "fred/SPASTT01AUM661N.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01AUM661N",
+  "date": "2026-10-30",
+  "note": "AUS share price index, monthly (OECD MEI via FRED)",
+  "bytes": 17219
+ },
+ "fred/EXUSAL.csv": {
+  "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXUSAL",
+  "date": "2026-10-30",
+  "note": "USD per AUD, monthly average (Fed H.10)",
+  "bytes": 12066
+ },
+ "abs/ana_exp.csv": {
+  "url": "https://data.api.abs.gov.au/rest/data/ABS,ANA_EXP,1.0.0/C+VCH.GPM+FCE+GFC+IST+XGS+MGS+SDE+GNE.SSS+PHS+GGS+PSS+GSS.20.AUS.Q?startPeriod=1959-Q3&format=csvfilewithlabels",
+  "date": "2026-10-30",
+  "note": "ABS 5206.0 expenditure on GDP, current prices + chain volumes, SA, quarterly (from 1959Q3: burn-in for the one-sided HP trend)",
+  "bytes": 1974014
+ },
+ "abs/lf_unemp.csv": {
+  "url": "https://data.api.abs.gov.au/rest/data/ABS,LF,1.0.0/M13.3.1599.20.AUS.M?startPeriod=1990-01&format=csvfilewithlabels",
+  "date": "2026-10-30",
+  "note": "ABS 6202.0 Labour Force: unemployment rate, persons 15+, SA, monthly",
+  "bytes": 82326
+ },
+ "abs/cpi_q.csv": {
+  "url": "https://data.api.abs.gov.au/rest/data/ABS,CPI_Q,1.0.0/1+3.999901+999902.20.50.Q?startPeriod=1990-Q1&format=csvfilewithlabels",
+  "date": "2026-10-30",
+  "note": "ABS 6401.0 CPI: all groups SA + trimmed mean, index and yoy, weighted average of 8 capitals, quarterly",
+  "bytes": 150876
+ },
+ "abs/erp_q.csv": {
+  "url": "https://data.api.abs.gov.au/rest/data/ABS,ERP_Q,1.0.0/1.3.TOT.AUS.Q?startPeriod=1990-Q1&format=csvfilewithlabels",
+  "date": "2026-10-30",
+  "note": "ABS 3101.0 estimated resident population, Australia, persons, quarterly",
+  "bytes": 31860
+ },
+ "oecd/cpi_aus_yoy.csv": {
+  "url": "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0/AUS.M+Q.N.CPI.PA._T+_TXCP01_NRG.N.GY?startPeriod=1994-01",
+  "date": "2026-10-30",
+  "note": "OECD CPI yoy (GY), AUS, all items (_T) and excl. food & energy (_TXCP01_NRG), monthly + quarterly",
+  "bytes": 28613
+ },
+ "rba/f1.1-data.csv": {
+  "url": "https://www.rba.gov.au/statistics/tables/csv/f1.1-data.csv",
+  "date": "2026-10-30",
+  "note": "RBA F1.1 money market: cash rate target, monthly average",
+  "bytes": 43862
+ },
+ "rba/f5-data.csv": {
+  "url": "https://www.rba.gov.au/statistics/tables/csv/f5-data.csv",
+  "date": "2026-10-30",
+  "note": "RBA F5 indicator lending rates (FILRHLBVS = banks' standard variable owner-occupier housing rate), monthly",
+  "bytes": 73344
+ },
+ "rba/d3-data.csv": {
+  "url": "https://www.rba.gov.au/statistics/tables/csv/d3-data.csv",
+  "date": "2026-10-30",
+  "note": "RBA D3 monetary aggregates (M3 = DMAM3N original, DMAM3S seasonally adjusted, $bn), monthly",
+  "bytes": 60692
+ },
+ "rba/d2-data.csv": {
+  "url": "https://www.rba.gov.au/statistics/tables/csv/d2-data.csv",
+  "date": "2026-10-30",
+  "note": "RBA D2 lending and credit aggregates ($bn, monthly): extends the BIS credit levels past their last quarter",
+  "bytes": 90231
+ },
+ "rba/a1-data.csv": {
+  "url": "https://www.rba.gov.au/statistics/tables/csv/a1-data.csv",
+  "date": "2026-10-30",
+  "note": "RBA A1 balance sheet, weekly, 2013 on (Australian dollar securities: bond purchases 2020-22)",
+  "bytes": 64299
+ },
+ "bis/WS_TC_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_TC_csv_col.zip",
+  "date": "2026-10-30",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 680227
+ },
+ "bis/WS_DSR_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_DSR_csv_col.zip",
+  "date": "2026-10-30",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 10740
+ },
+ "bis/WS_SPP_csv_col.zip": {
+  "url": "https://data.bis.org/static/bulk/WS_SPP_csv_col.zip",
+  "date": "2026-10-30",
+  "note": "BIS bulk download, wide (col) CSV in zip, as published",
+  "bytes": 135510
+ },
+ "gold/gold_monthly.csv": {
+  "url": "https://raw.githubusercontent.com/datasets/gold-prices/main/data/monthly.csv",
+  "date": "2026-10-30",
+  "note": "datasets/gold-prices monthly USD gold price (same source as goldIndex in us-quarterly.js)",
+  "bytes": 35730
+ }
+}

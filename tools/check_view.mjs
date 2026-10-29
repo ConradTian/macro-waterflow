@@ -6,6 +6,7 @@ const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const port = 9355, BASE = process.env.BASE || 'http://localhost:8183/';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 const errors = [];
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL:', m); } else console.log('ok:', m); };
 
@@ -25,7 +26,7 @@ async function client(tab) {
   await send('Runtime.enable'); await send('Page.enable');
   return {
     send, ev, close: () => ws.close(),
-    go: async url => { await send('Page.navigate', { url }); await sleep(2200); },
+    go: async url => { await send('Page.navigate', { url: allLayers(url) }); await sleep(2200); },
     click: sel => ev(`(()=>{const b=document.querySelector(${JSON.stringify(sel)}); if(!b) return 'missing'; b.click(); return 'ok'})()`),
     count: sel => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`),
     text: sel => ev(`(document.querySelector(${JSON.stringify(sel)})||{}).textContent||''`),
@@ -42,7 +43,7 @@ try {
   let bid = 0;
   const newPage = async url => {
     const before = new Set((await tabs()).map(x => x.id));
-    bw.send(JSON.stringify({ id: ++bid, method: 'Target.createTarget', params: { url } }));
+    bw.send(JSON.stringify({ id: ++bid, method: 'Target.createTarget', params: { url: allLayers(url) } }));
     for (let i = 0; i < 40; i++) { await sleep(150); const t = (await tabs()).find(x => !before.has(x.id)); if (t) return client(t); }
     throw new Error('no new page');
   };

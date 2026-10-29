@@ -11,6 +11,7 @@
 /* ---------- the SVG parts (shared) ---------- */
 .fxr text { fill: var(--text); font-variant-numeric: tabular-nums; }
 .fxr-track { stroke: var(--muted); stroke-opacity: .55; stroke-width: 1; fill: none; }
+.fxr-zlab { fill: var(--muted); }
 .fxr-zero { stroke: var(--muted); stroke-opacity: .7; stroke-width: 1; stroke-dasharray: 1.5 1.5; fill: none; }
 .fxr-end { fill: var(--muted) !important; }
 .fxr-pipe { cursor: pointer; outline: none; }
@@ -18,7 +19,7 @@
 .fxr-pipe .fxr-bed { stroke: var(--pc); stroke-linecap: butt; fill: none; opacity: .85; }
 .fxr-pipe .fxr-arrow { fill: var(--pc); }
 .fxr-pipe .fxr-name { fill: var(--pc) !important; font-weight: 700; }
-.fxr-pipe .fxr-val { fill: var(--pc) !important; font-weight: 700; }
+.fxr-pipe .fxr-val { fill: var(--pc) !important; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .fxr-pipe .fxr-miss { fill: var(--muted); font-weight: 400; }
 .fxr-pipe .fxr-totl { fill: var(--fxr-tot); font-weight: 700; }
 .fxr-pipe .fxr-tot { fill: none; stroke: var(--fxr-tot); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -57,6 +58,13 @@
 .fxr-f b.up { color: var(--c-goods); } .fxr-f b.dn { color: var(--c-repay); } .fxr-f b.na { color: var(--muted); font-weight: 600; }
 .fxr-f small { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
 .fxr-na .fxr-con { color: var(--muted); font-weight: 400; }
+/* the 1-year fit (AUS, JPN): the 「1 年尺度拟合，探索性」 tag, 保留样本 (2022+), the risk sign under 信心; CHN: the managed-currency note */
+.fxr-box .fxr-tags { margin: 0 0 2px; display: flex; flex-wrap: wrap; gap: 4px; }
+.fxr-tag { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; color: var(--muted);
+  border: 1px solid var(--border); background: var(--surface-2); }
+.fxr-tag.hold { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.fxr-f em.fxr-risk { flex-basis: 100%; font-style: normal; font-weight: 700; font-size: 12px; color: var(--fxr-conf); }
+.fxr-box .fxr-managed { margin: 0 0 4px; }
 
 /* desktop: the popover over the diagram when a pipe in the border band is tapped */
 .fxr-pop { position: absolute; left: 8px; bottom: 44px; z-index: 20; width: min(470px, calc(100% - 16px)); max-height: min(70vh, 560px); overflow-y: auto;

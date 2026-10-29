@@ -11,6 +11,7 @@ const port = 9361, BASE = process.env.BASE || 'http://localhost:8189/';
 const profile = mkdtempSync(join(tmpdir(), 'mw-scrub-'));
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 const errors = [];
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL:', m); } else console.log('ok:', m); };
 
@@ -29,14 +30,14 @@ async function client(tab) {
   await send('Runtime.enable'); await send('Page.enable');
   const c = {
     send, ev, close: () => ws.close(),
-    go: async (url, wait = 2300) => { await send('Page.navigate', { url }); await sleep(wait); },
+    go: async (url, wait = 2300) => { await send('Page.navigate', { url: allLayers(url) }); await sleep(wait); },
     click: sel => ev(`(()=>{const b=document.querySelector(${JSON.stringify(sel)}); if(!b) return 'missing'; b.click(); return 'ok'})()`),
     count: sel => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`),
     text: sel => ev(`(document.querySelector(${JSON.stringify(sel)})||{}).textContent||''`),
     date: () => ev(`document.querySelector('#date').textContent`),
     hidden: sel => ev(`(()=>{const n=document.querySelector(${JSON.stringify(sel)}); return !n || n.hidden || n.offsetParent === null})()`),
     // the open/closed state lives in localStorage: set it, then reload
-    open: async (url, o = false, wait = 2300) => { await send('Page.navigate', { url }); await sleep(500); await ev(`localStorage.setItem('mw.scrubber.open', ${o ? "'1'" : "'0'"})`); await send('Page.navigate', { url }); await sleep(wait); },
+    open: async (url, o = false, wait = 2300) => { await send('Page.navigate', { url: allLayers(url) }); await sleep(500); await ev(`localStorage.setItem('mw.scrubber.open', ${o ? "'1'" : "'0'"})`); await send('Page.navigate', { url: allLayers(url) }); await sleep(wait); },
     // drag = input events while moving, change on release
     drag: async (t, release = true) => { await ev(`(()=>{const r=document.querySelector('#scrub-range'); r.value=${t}; r.dispatchEvent(new Event('input',{bubbles:true})); return 1})()`); if (release) { await ev(`document.querySelector('#scrub-range').dispatchEvent(new Event('change',{bubbles:true}))`); await sleep(500); } },
     key: async key => { const code = { ArrowRight: 39, ArrowLeft: 37 }[key]; for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }); await sleep(450); },
@@ -55,7 +56,7 @@ try {
   let bid = 0;
   const newPage = async url => {
     const before = new Set((await tabs()).map(x => x.id));
-    bw.send(JSON.stringify({ id: ++bid, method: 'Target.createTarget', params: { url } }));
+    bw.send(JSON.stringify({ id: ++bid, method: 'Target.createTarget', params: { url: allLayers(url) } }));
     for (let i = 0; i < 40; i++) { await sleep(150); const t = (await tabs()).find(x => !before.has(x.id)); if (t) return client(t); }
     throw new Error('no new page');
   };

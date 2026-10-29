@@ -222,8 +222,24 @@ def copy_gold():
         LOG.append((f"gold/{src.name}", "copied from ../dalio_432/cache (originally datasets/gold-prices monthly, GitHub)", "2026-10-26", "", src.stat().st_size))
 
 
+# ---------------------------------------------------------------- the FX 1-year fit (tools/build_fx_fit.py -> src/data/fx-fit.js)
+# Each source in its own folder (approved 2026-10-29): risk (VIX), Australia's terms of trade (ABS national accounts, RBA commodity
+# prices) and real GDP per person (productivity, optional). Saved as published; nothing is executed.
+def fetch_fxfit():
+    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS"
+    save("fred_vix", "VIXCLS.csv", get(url), url, "CBOE VIX close, daily, 1990+ (FRED VIXCLS): 信心/避险 for the FX 1-year fit")
+    url = "https://data.api.abs.gov.au/rest/data/ABS,ANA_AGG,1.0.0/.TTR...Q?startPeriod=1959-Q1"
+    save("abs", "ana_agg_ttr.csv", get(url, accept="application/vnd.sdmx.data+csv;version=1.0.0"), url,
+         "ABS Data API, ANA_AGG (cat. 5206.0 key aggregates) TTR = terms of trade; MEASURE M5 index / M6 % change; TSEST 10 original, 20 SA, 30 trend; quarterly 1959+")
+    url = "https://www.rba.gov.au/statistics/tables/csv/i2-data.csv"
+    save("rba_i2", "i2-data.csv", get(url), url, "RBA statistical table I2: Index of Commodity Prices (AUD, SDR, USD terms), monthly 1982+")
+    url = ("https://api.worldbank.org/v2/country/AUS;JPN;USA/indicator/NY.GDP.PCAP.KD"
+           "?format=json&per_page=20000&date=1990:2025")
+    save("worldbank_gdppc", "NY.GDP.PCAP.KD.json", get(url), url, "World Bank WDI GDP per capita, constant 2015 USD, annual (productivity proxy, optional)")
+
+
 SOURCES = {"gold": copy_gold, "bis": fetch_bis, "fred": fetch_fred, "imf": fetch_imf, "oecd": fetch_oecd, "misc": fetch_misc, "population": fetch_population,
-           "fxextra": lambda: fetch_fred(FRED_FX)}
+           "fxextra": lambda: fetch_fred(FRED_FX), "fxfit": fetch_fxfit}
 
 if __name__ == "__main__":
     which = sys.argv[1:] or list(SOURCES)

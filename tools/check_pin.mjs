@@ -5,6 +5,7 @@ const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const port = 9341, BASE = process.env.BASE || 'http://localhost:8176/';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 let ws, id = 0; const pending = new Map(); const errors = [];
 async function connect() {
   for (let i = 0; i < 40; i++) { try { const r = await fetch(`http://127.0.0.1:${port}/json`); const t = (await r.json()).find(x => x.type === 'page'); if (t) { ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }); break; } } catch (e) { await sleep(250); } }
@@ -16,7 +17,7 @@ let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL:', m)
 try {
   await connect();
   await send('Runtime.enable'); await send('Page.enable');
-  await send('Page.navigate', { url: BASE + '?pause=1&tab=cycle&t=52' });
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1&tab=cycle&t=52') });
   await sleep(2500);
   ok(await ev(`document.querySelectorAll('.cy-ev').length`) >= 5, 'evidence rows rendered');
   ok(await ev(`document.querySelectorAll('.cy-ev .tb').length`) === await ev(`document.querySelectorAll('.cy-ev').length`), 'every row has a ruler');
@@ -43,7 +44,7 @@ try {
   ok(/^\d{4}Q\d 暂停/.test(toast), 'toast carries the date of the quarter it fired in');
   ok(await ev(`document.querySelectorAll('#diagram .cy-pin').length`) === 0, 'pin cleared after firing');
   // reset clears pins
-  await send('Page.navigate', { url: BASE + '?pause=1&tab=cycle&t=52&pin=0' });
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1&tab=cycle&t=52&pin=0') });
   await sleep(2500);
   ok(await ev(`document.querySelectorAll('.cy-ev.pinned').length`) === 1 && await ev(`document.querySelectorAll('#diagram .cy-pin').length`) > 0, '?pin=0 pins the first unmet row');
   console.log(errors.length ? 'JS errors:\n' + errors.join('\n') : 'no JS errors');

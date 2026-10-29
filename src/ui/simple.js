@@ -3,11 +3,13 @@
 //   renderSimple(el, ctx)   ctx = { sim, snap, openTerm, openFull(tab?) }
 // The dial drawings are the 周期 tab's own (tabs/cycle.js longDial / shortDial), so the two never disagree.
 // Tapping a dial opens the full layout on 周期. app.js owns the layout state (body[data-layout], localStorage 'mw.layout').
-// Reads snapshots only; it never touches the economy.
+// Reads snapshots only; it never touches the economy. The dials follow the diagram layers (body.layers-on / data-layers, app.js):
+// a dial whose layer is not learned yet is left out; with neither, a short note says where they come from.
 import { longDial, shortDial } from './tabs/cycle.js';
 import { headlineItems, nextStep } from './headline.js';
 import { flash, flashConcept } from './links.js';
 import { currentCountry, localizeText } from './country-info.js';
+import { layerShown } from './progress.js';      // progressive diagram: the SHORT dial comes with L-short, the LONG dial with L-long
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const KIND_TAG = { lamp: '灯', cycle: '周期', rule: '规则', asset: '水位', rate: '利率' };
@@ -55,8 +57,11 @@ export function renderSimple(el, ctx) {
   const { sim, snap } = ctx;
   if (!sim || !snap) return;
   const town = sim.scenario === 'town', c = snap.cycles;
+  const showL = layerShown('L-long'), showS = layerShown('L-short');
   const dials = c && !town
-    ? `<div class="sp-dials">${dialCard('long', c.long, snap.t)}${dialCard('short', c.short, snap.t)}</div><p class="sp-hint">点表盘 → 「周期」页：证据、轨迹、四盏灯</p>`
+    ? (showL || showS
+      ? `<div class="sp-dials">${showL ? dialCard('long', c.long, snap.t) : ''}${showS ? dialCard('short', c.short, snap.t) : ''}</div><p class="sp-hint">点表盘 → 「周期」页：证据、轨迹、四盏灯</p>`
+      : '<p class="sp-empty sp-locked">周期表盘还没出场：学完「一个会自己转的圈」这一课，这里出现小周期表盘。想先看整张图：点水流图右上角「显示全部」。</p>')
     : `<p class="sp-empty">${town ? '小镇里还没有周期表盘：先看水怎么流。' : '（此版本引擎没有双周期检测）'}</p>`;
   const keep = el.querySelector('.sp-scroll')?.scrollTop || 0;
   el.innerHTML = `<div class="sp-scroll pn-cycle">${dials}${town ? '' : detailsHtml(sim, snap)}</div>` +

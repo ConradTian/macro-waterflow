@@ -89,6 +89,41 @@
 }
 @media (max-width: 420px) { .sp-more small { font-size: 12px; } }
 
+/* WIDE-SHORT desktops (21:9; same query as app.css, which also puts the 本季水量 card above this panel and sets --app-w / --dcol / --top-h /
+   --fb-h): the panel reads as a dashboard. The two dials grow with the space (they are SVG). --sp-w / --sp-h = this panel's size;
+   --dw = one dial's drawing width (viewBox 380×270 -> ×1.407): the height left after the card heads, the hint, 本季看点 (under the dials) and
+   the 更多 bar, or half the width. On a very short window (<= 860px tall) the panel is much wider than tall: 本季看点 moves beside the dials
+   so they can use the full height. */
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
+  .sp-scroll { --sp-w: calc(var(--app-w) - var(--dcol)); --sp-h: calc(100dvh - var(--top-h) - var(--fb-h) - var(--fb-gap));
+    --dw: min(600px, calc((var(--sp-h) - 470px) * 1.407), calc((var(--sp-w) - 64px) / 2 - 30px));   /* 470: room for 3 看点 + 下一步 */
+    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; padding: 12px 24px 16px; }
+  .sp-scroll > * { max-width: calc(2 * var(--dw) + 76px); }
+  .sp-dials { gap: 16px; }
+  .sp-dial { padding: 10px 14px 12px; }
+  .sp-dh b { font-size: 17px; }
+  .sp-dh small { font-size: 13px; }
+  .sp-svg { padding: 4px 0; }
+  .sp-svg .cy-dial { max-width: none; width: min(100%, var(--dw)); }
+  .sp-now { font-size: 16px; }
+  .sp-now small { font-size: 13px; }
+  .sp-hint { font-size: 13px; }
+  .sp-hl { margin-top: 14px; }
+  .sp-h { font-size: 16px; }
+  .sp-item, .sp-quiet { font-size: 15px; padding: 10px 14px; }
+  .sp-hl .hl-t { font-size: 15px; }
+  .sp-hl .hl-w { font-size: 13px; }
+}
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) and (max-height: 860px) {
+  .sp-scroll { --dw: min(600px, calc((var(--sp-h) - 190px) * 1.407), calc((var(--sp-w) - 48px - 360px - 24px - 16px) / 2 - 30px));
+    grid-template-columns: max-content minmax(300px, 520px); column-gap: 24px; }
+  .sp-scroll > * { max-width: none; }
+  .sp-dials { grid-template-columns: repeat(2, max-content); }
+  .sp-svg .cy-dial { width: var(--dw); }
+  .sp-dials, .sp-hint, .sp-empty { grid-column: 1; }
+  .sp-hl { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
+}
+
 /* phone: a long country badge (澳洲·历史) pushed 教学 off the right edge at 390px */
 @media (max-width: 420px) {
   .timebar .badge:has(.bd-c) .bd-m { display: none; }   /* 澳洲 · 历史 -> 澳洲 */

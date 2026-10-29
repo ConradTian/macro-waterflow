@@ -7,6 +7,8 @@ import { renderHeadline } from './ui/headline.js';   // 本季看点 strip under
 import { renderObjective } from './ui/objective.js';   // 总目标 strip (每人真实消费 + four penalty lamps) above the 本季看点 strip
 import { initScrubber } from './ui/scrubber.js';     // collapsible time scrubber under the progress line
 import { setActiveCountry, registerCountryData } from './ui/country-info.js';   // unit / name / data-source labels of the country view
+import { learnedLayers, lessonLayers, getShowAll, setShowAll } from './ui/progress.js';   // progressive diagram (see "layers" below)
+import { LAYER_IDS, layersUpTo } from './data/layers.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -243,6 +245,7 @@ function setLayout(l, o = {}) {
     try { const u = new URL(location.href); u.searchParams.delete('full'); u.searchParams.delete('tab'); history.replaceState(null, '', u); } catch (e) { /* file:// etc. */ }
   }
   if (o.tab && TABS.some(t => t.id === o.tab)) { activeTab = o.tab; $('tab-content').scrollTop = 0; renderTabbar(); }
+  syncLayers();
   renderPanel();
 }
 function renderPanel() {
@@ -256,13 +259,86 @@ async function renderSimple() {
   if (isFull()) return;                                 // changed while the module loaded
   try { simpleMod.renderSimple($('simple'), { sim, snap, openTerm, openFull: tab => (tab ? setTab(tab) : setLayout('full')) }); } catch (e) { console.error(e); }
 }
-// a lesson starting / ending flips what the panel shows: draw the side that just appeared
-new MutationObserver(() => { if (shownFull !== null && isFull() !== shownFull) renderPanel(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+// a lesson starting / ending flips what the panel shows: draw the side that just appeared (and the diagram layers follow)
+new MutationObserver(() => {
+  const b = document.body;
+  if (lessonActive != null && !b.classList.contains('lesson-on') && wasLessonOn) lessonActive = null;    // a lesson ended without saying so
+  wasLessonOn = b.classList.contains('lesson-on');
+  if (sim) syncLayers();
+  if (shownFull !== null && isFull() !== shownFull) renderPanel();
+}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 document.addEventListener('mw:layout', e => {
   const d = e.detail || {};
   if (d.tab && d.layout !== 'simple') return setTab(d.tab, { save: d.save });
   setLayout(d.layout, { save: d.save });
 });
+
+/* ---------- layers: the progressive diagram (tools/COURSE-V3.md; table src/data/layers.js, progress src/ui/progress.js) ----------
+   In simple mode and during a lesson the diagram shows only the layers learned so far: body.layers-on + body[data-layers="L-water ..."]
+   (CSS in app.css hides every [data-layer] not listed: diagram parts, the objective lamps, the dials; the 🌍 button is dimmed).
+     - simple layout, no lesson: learnedLayers() (L-water for a first-time viewer)
+     - a lesson running (document event mw:lesson-active { id }, sent by the course runner; { id: null } on exit; a ?lesson= URL seeds it):
+       that lesson's layer + the earlier ones whatever the progress; a lesson outside the main line shows everything
+     - full layout (「更多」) outside a lesson, a town lesson (body.parts-on: its own parts) and the town scenario: everything (layers off)
+     - 「显示全部」 (#layers-toggle, top right of the diagram, localStorage 'mw.layers.all') and ?layers=all (not stored): everything
+     - ?layers=L-gov (screenshots, not stored): the layers up to L-gov */
+let lessonActive = MODE !== 'free' && params.get('lesson') ? params.get('lesson') : null, wasLessonOn = false;
+let layersUrl = params.get('layers');                     // 'all' | a layer id | null
+let ltBtn = null, layersKey = null;
+const showAllOn = () => layersUrl === 'all' || getShowAll();
+function layersWanted() {
+  const b = document.body;
+  if (b.classList.contains('parts-on') || !sim || sim.scenario === 'town') return { applies: false, set: null };
+  const inLesson = lessonActive != null || b.classList.contains('lesson-on');
+  if (!inLesson && layout === 'full') return { applies: false, set: null };
+  if (showAllOn()) return { applies: true, set: null };
+  if (layersUrl && LAYER_IDS.includes(layersUrl)) return { applies: true, set: new Set(layersUpTo(LAYER_IDS.indexOf(layersUrl))) };
+  if (inLesson) return { applies: true, set: lessonActive != null ? lessonLayers(lessonActive) : null };
+  return { applies: true, set: learnedLayers() };
+}
+function syncLayers() {
+  const b = document.body, W = layersWanted();
+  const key = W.set ? LAYER_IDS.filter(l => W.set.has(l)).join(' ') : '';
+  if (key !== layersKey) {
+    const before = layersKey == null ? null : new Set((layersKey || LAYER_IDS.join(' ')).split(' '));
+    layersKey = key;
+    if (key) { b.dataset.layers = key; b.classList.add('layers-on'); } else { b.classList.remove('layers-on'); delete b.dataset.layers; }
+    // newly shown layers fade in once (lessons.css .part-new); the dials live in the simple panel
+    const added = before ? (key ? key.split(' ') : LAYER_IDS).filter(l => !before.has(l)) : [];
+    if (added.length) {
+      const ns = document.querySelectorAll(added.map(l => `.flow-svg [data-layer="${l}"]`).join(','));
+      ns.forEach(n => n.classList.add('part-new'));
+      setTimeout(() => ns.forEach(n => n.classList.remove('part-new')), 1800);
+    }
+    if (before && snap && !isFull()) renderSimple();
+  }
+  if (ltBtn) {
+    ltBtn.hidden = !W.applies;
+    const on = showAllOn();
+    ltBtn.setAttribute('aria-pressed', String(on));
+    ltBtn.title = on ? '现在显示整张图。再点一下：只看学过的部分' : '现在只显示学过的部分。点一下：显示整张图';
+  }
+}
+function buildLayersToggle() {
+  ltBtn = document.createElement('button'); ltBtn.type = 'button'; ltBtn.id = 'layers-toggle'; ltBtn.className = 'layers-toggle'; ltBtn.hidden = true;
+  ltBtn.innerHTML = '<i aria-hidden="true"></i>显示全部';
+  ltBtn.onclick = () => {
+    const on = !showAllOn();
+    setShowAll(on);
+    if (layersUrl === 'all' || (layersUrl && !on)) {        // the URL override ends with the first tap
+      layersUrl = null;
+      try { const u = new URL(location.href); u.searchParams.delete('layers'); history.replaceState(null, '', u); } catch (e) { /* file:// etc. */ }
+    }
+    syncLayers();
+  };
+  $('diagram').appendChild(ltBtn);
+}
+document.addEventListener('mw:lesson-active', e => {
+  const id = e.detail ? e.detail.id : null;
+  lessonActive = id == null ? null : String(id);
+  if (sim) syncLayers();
+});
+document.addEventListener('mw:progress', () => { if (sim) syncLayers(); });
 
 /* ---------- left panel: water diagram or curves view ----------
    body.dataset.view = 'waves' | 'flow'. Anyone (the buttons, a lesson step with view:, the URL &view=waves) sets it through
@@ -477,8 +553,10 @@ function renderAll() {
   $('btn-play').disabled = following;
   updateTimeControls();
   if (following) badge.textContent += ' · 跟随';
+  syncLayers();                                      // before the diagram draws: the border band follows L-border
   renderFlow($('diagram'), snap, prevSnap);
   if (!wvEl) buildViewDom();                         // after the first renderFlow: it empties #diagram once when it builds the SVG
+  if (!ltBtn) { buildLayersToggle(); syncLayers(); }
   renderView();
   try { renderObjective($('objective'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }

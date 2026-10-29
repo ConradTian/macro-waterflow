@@ -13,11 +13,19 @@
 //   try     { valve+slider | choices, quarters, metrics, insight }          sandbox (no state carried on)
 //   chain   { links:[{text, term?, pipe?, part?}], text, next? }            final causal chain, each link tappable -> pipe glows
 //   zoom    { date, until?, text, block?, next?, showAll? }                 zoomOut() animation, swap to the US sim at `date`
-// PANELS (the two big lessons 汇率 kind:'fx' and 投资者 kind:'capstone'): step field panel:{ id, ...options } mounts one interactive panel
-//   (mountFxPanel from src/ui/fx-lab.js / mountInvestorPanel from src/ui/investor-lab.js, chosen by the lesson's kind) on entering the step and
-//   unmounts it on leaving the step, on exit and before draw() rebuilds a host. Host per step (contract: tools/D-CONTRACT.md 「接线」):
-//   'diagram' = div#ls-panel over the water-diagram column (covers it like the curves view); 'card' = div.ls-pnl-card in the lesson card body
-//   (steps that need the diagram visible: 投资者 assetTable flashes the pools). Panel modules load lazily in startLesson.
+// PANELS (冲击 kind:'shocks', 汇率 kind:'fx', 投资者 kind:'capstone', and any step that names one): step field panel:{ id, ...options } mounts one
+//   interactive panel on entering the step and unmounts it on leaving the step, on exit and before draw() rebuilds a host. The module is chosen
+//   by the panel id (panelKind): 'fx-reactor' -> the FX reactor (mountFxReactor, src/ui/fx-reactor.js; spec { iso, date, dates?, forces?, hl? },
+//   `dates` = date chips over the reactor), 'shk-*' -> src/ui/shock-lab.js, 'fx-*' -> src/ui/fx-lab.js, else src/ui/investor-lab.js.
+//   Host per step (contract: tools/D-CONTRACT.md 「接线」): 'diagram' = div#ls-panel over the water-diagram column (covers it like the curves
+//   view); 'card' = div.ls-pnl-card in the lesson card body (投资者 assetTable flashes the pools). Panel modules load lazily in startLesson.
+// COURSE v3 (tools/COURSE-V3.md; contract tools/D-CONTRACT.md 「课程 v3」):
+//   menu      COURSE.parts (4 parts, 8 lessons, badges 1–8) -> 「沙盒」 link (free mode) -> 旧版课程 (collapsed)
+//   ending    the last step's ending:{q1,q2,q3} renders as the fixed 三问 block (.ls-end) once the step is answered; {placeholders} filled
+//   drills    step field drills:[{label, panel, text, back?}] = optional drill-down buttons: the drill's panel replaces the step's (over the
+//             diagram) and its text shows in the card until 「回到」; drillCta:true = the first drill is the primary button (m5 外国人 -> AUS reactor)
+//   progress  markDone(id) of src/ui/progress.js (layer agent) when a lesson reaches its last step;
+//             document event mw:lesson-active { id } on start and every step change, { id: null } on exit
 // Country lessons (lesson field country:'AUS': w2, 投资者): starting one goes to ?country=AUS&lesson=<id>; exiting it goes back to the US root page.
 import { createSim } from '../engine/sim.js';
 import * as RULES from '../engine/rules.js';
@@ -31,6 +39,7 @@ import { compareChart } from './tabs/_util.js';
 import { pctFmt } from './chart.js';
 import { pulseHeadline, closeHeadline } from './headline.js';   // lesson step field strip:true -> the 本季看点 strip pulses
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
+import { markDone } from './progress.js';      // course v3: the progressive diagram learns a lesson's layer when the lesson reaches its last step
 import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep, setWorldData } from './lessons-town.js';
 
 const P = new URLSearchParams(location.search);
@@ -99,6 +108,11 @@ function loadWorld() {
   worldTried ||= import('../data/world.js').then(m => setWorldData(m.WORLD)).catch(() => setWorldData(null));
   return worldTried;
 }
+
+// course progress shared with the progressive diagram (src/ui/progress.js, layer agent; localStorage 'mw.course', fires mw:progress)
+function markDoneShared(id) { try { markDone(id); } catch (e) { /* storage blocked: ignore */ } }
+// the layer agent shows the diagram layers up to the active lesson's layer
+const lessonActive = id => document.dispatchEvent(new CustomEvent('mw:lesson-active', { detail: { id: id == null ? null : String(id) } }));
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { done: {}, step: {} }; } catch (e) { return { done: {}, step: {} }; } }
 function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* ignore */ } }
@@ -249,15 +263,15 @@ function syncPad() {
   document.documentElement.style.setProperty('--ls-h', h + 'px');
 }
 
-/* ---------- course menu (COURSE in data/lessons.js): 主线 / 选学 / 接下来 / 旧版课程 (collapsed) ---------- */
-// recommended path = the main line m1..m5, then the two big lessons 汇率 / 投资者 (badge 「推荐 n」); everything else is optional
-const REC = Object.fromEntries([...(COURSE.main || []), ...(COURSE.later || [])].map((k, i) => [k, i + 1]));
+/* ---------- course menu (COURSE in data/lessons.js, course v3): 4 parts × 8 lessons / 沙盒 link / 旧版课程 (collapsed) ---------- */
+// the course number (1..8) of a lesson in COURSE.main (the 4 parts flattened)
+const COURSE_NO = Object.fromEntries((COURSE.main || []).map((k, i) => [String(k), i + 1]));
 // badge (the round number on the left) per menu key
 function badgeOf(key, L) {
   const s = String(key);
   if (s.startsWith('role:')) return (ROLE_NAME[s.slice(5)] || '?').slice(0, 1);
-  if (L && L.kind === 'main') return String(COURSE.main.indexOf(L.id) + 1);
-  if (L && (L.kind === 'fx' || L.kind === 'capstone')) return (L.title || '?').slice(0, 1);   // 汇 / 投
+  if (COURSE_NO[s]) return String(COURSE_NO[s]);
+  if (L && (L.kind === 'fx' || L.kind === 'capstone')) return (L.title || '?').slice(0, 1);
   if (s === '0b') return '½';
   if (s === '3b') return '3½';
   if (/^w\d+$/.test(s)) return s.replace(/^w(\d+)$/, '世$1');
@@ -272,9 +286,8 @@ function menuItem(L, p, badge, key, fallbackTitle, fallbackOne, soonText) {
   else if (p.done[id] || (L.role && isRoleLearned(L.role))) st = '<span class="ls-st done">已完成 ✓</span>';
   else if (p.step[id] > 0) st = `<span class="ls-st doing">进行中 · 第 ${p.step[id] + 1}/${L.steps.length} 步</span>`;
   else st = '<span class="ls-st">未开始</span>';
-  const rec = REC[key] ? `<span class="ls-rec">推荐 ${REC[key]}</span>` : '';
   return `<li><button type="button" class="ls-item" data-act="start" data-id="${esc(id)}" ${ok ? '' : 'disabled'}>` +
-    `<span class="ls-no">${esc(badge)}</span><span class="ls-it"><b>${esc(title)}${rec}</b><small>${esc(one)}</small>${st}</span></button></li>`;
+    `<span class="ls-no">${esc(badge)}</span><span class="ls-it"><b>${esc(title)}</b><small>${esc(one)}</small>${st}</span></button></li>`;
 }
 const ROLE_FALLBACK_ONE = '换成这个角色的视角：它看到什么、按什么规则做、你来接管会怎样。';
 function itemFor(key, p) {
@@ -288,14 +301,14 @@ export async function openMenu() {
   await rolesReady;
   const p = load();
   const list = keys => (keys || []).map(k => itemFor(k, p)).join('');
+  const parts = COURSE.parts || [];
+  const total = parts.reduce((a, pt) => a + pt.ids.length, 0);
   menu.querySelector('.ls-sheet-body').innerHTML =
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
-    `<p class="ls-lead"><b>先学主线：5 课，约 1 小时。</b>第 1 课从一个 5 户人家的小镇讲起，再放大到真实的美国季度数据。学完主线，接着上两节大课：汇率、投资者。选学按兴趣挑。</p>` +
-    `<h3 class="ls-sec">主线 <small>按顺序学，约 1 小时</small></h3><ol class="ls-list ls-main">${list(COURSE.main)}</ol>` +
-    `<h3 class="ls-sec">接下来 <small>两节大课：出了国境，再收成投资动作</small></h3><ol class="ls-list ls-later">${list(COURSE.later)}</ol>` +
-    `<h3 class="ls-sec">选学 <small>按兴趣挑</small></h3><ol class="ls-list">${list(COURSE.advanced)}</ol>` +
-    `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">自由运行（新窗口）↗</a>` +
-    `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、7 个角色课、旧的周期课、世界 1；内容已并进主线和汇率课</small></summary>` +
+    `<p class="ls-lead"><b>一条故事线，${parts.length} 部分，${total} 课。</b>每课给图加一层，学完就是历史盲测的整张图。每课最后都回答同样的三问：水的问题还是河道的问题？环上哪一步？谁赢谁输、钱放哪？</p>` +
+    parts.map((pt, k) => `<h3 class="ls-sec ls-part"><i>${'一二三四五六'[k] || k + 1}</i>${esc(pt.name)}</h3><ol class="ls-list ls-main" data-part="${k + 1}">${list(pt.ids)}</ol>`).join('') +
+    `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">沙盒（新窗口，自己拧阀门）↗</a>` +
+    `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、第 0.5 课、7 个角色课、旧的周期课、Capex 与产能、世界 1 和 2；内容已并进新课</small></summary>` +
     `<ol class="ls-list">${list(COURSE.legacy)}</ol></details>`;
   const det = menu.querySelector('.ls-old');
   if (det) det.addEventListener('toggle', () => { oldOpen = det.open; });
@@ -363,6 +376,7 @@ export function exitLesson() {
   ctx.setTickMs(1000);
   ctx.refresh(); ctx.setQuiet(false);
   card.hidden = true; document.body.classList.remove('lesson-on'); syncPad();
+  lessonActive(null);
   if (home) { goHome(); return; }
   ctx.setPlaying(true);
 }
@@ -393,36 +407,78 @@ function leaveStep() {
   dropPanel();
 }
 
-/* ---------- step field panel:{id,...}: one interactive panel (汇率: src/ui/fx-lab.js, 投资者: src/ui/investor-lab.js) ---------- */
-const PANEL_MODS = { fx: () => import('./fx-lab.js'), inv: () => import('./investor-lab.js') };
+/* ---------- step field panel:{id,...}: one interactive panel (冲击 shock-lab, 汇率 fx-lab + the FX reactor, 投资者 investor-lab) ---------- */
+// shock-lab.css is not linked by index.html: it is loaded on demand with its module (like concepts.js ensureCss)
+const ensureCss = f => {
+  if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) return;
+  const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL('../../assets/css/' + f, import.meta.url).href; l.dataset.css = f;
+  document.head.appendChild(l);
+};
+const PANEL_MODS = {
+  fx: () => import('./fx-lab.js'), inv: () => import('./investor-lab.js'),
+  shocks: () => import('./shock-lab.js').then(m => { ensureCss('shock-lab.css'); return m; }),
+  fxr: () => import('./fx-reactor.js').then(m => { if (typeof m.ensureFxReactorCss === 'function') m.ensureFxReactorCss(); return m; }),
+};
 const panelLib = {};                                        // kind -> loaded module
 const CARD_PANELS = { inv: ['assetTable'] };                // these panels go in the lesson card: their step needs the diagram (pool flashes)
-const panelKind = (L, spec) => (L.kind === 'fx' ? 'fx' : L.kind === 'capstone' ? 'inv' : /^fx-/.test(spec.id) ? 'fx' : 'inv');
+// the module of a panel: by its id first (a lesson may mix kinds: 汇率 = reactor + fx-lab, m5 = one reactor drill), then by the lesson's kind
+const panelKind = (L, spec) => (spec.id === 'fx-reactor' ? 'fxr' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
+  : L.kind === 'fx' ? 'fx' : L.kind === 'shocks' ? 'shocks' : 'inv');
 export const panelWhere = (L, spec) => ((CARD_PANELS[panelKind(L, spec)] || []).includes(spec.id) ? 'card' : 'diagram');
 let pnl = null;                                             // the mounted panel: { kind, where, key, host }
+// every panel spec of a lesson: step panels and the panels of its drill-downs
+const panelSpecs = L => L.steps.flatMap(s => [s.panel, ...arr(s.drills).map(d => d.panel)]).filter(Boolean);
 async function loadPanels(L) {
-  const kinds = new Set(L.steps.filter(s => s.panel).map(s => panelKind(L, s.panel)));
+  const kinds = new Set(panelSpecs(L).map(sp => panelKind(L, sp)));
   await Promise.all([...kinds].filter(k => !panelLib[k]).map(k => PANEL_MODS[k]().then(m => { panelLib[k] = m; }, e => console.error(e))));
+}
+// the FX reactor as a lesson panel: optional date chips (spec.dates) over mountFxReactor; a chip remounts the reactor at that quarter
+const qLabel = d => `${d.slice(0, 4)} 年第 ${'一二三四'[+d[5] - 1]} 季度`;
+function mountReactor(m, host, spec) {
+  const dates = arr(spec.dates);
+  host.innerHTML = (dates.length ? `<div class="ls-fxr-dates" role="group" aria-label="选一个季度">${dates.map(d => `<button type="button" class="ls-fxr-d" data-date="${esc(d)}" title="${esc(qLabel(d))}">${esc(d)}</button>`).join('')}</div>` : '') +
+    '<div class="ls-fxr-box"></div>';
+  const box = host.querySelector('.ls-fxr-box');
+  const go = d => {
+    host.querySelectorAll('.ls-fxr-d').forEach(b => b.classList.toggle('on', b.dataset.date === d));
+    host.dataset.date = d;
+    Promise.resolve(m.mountFxReactor(box, { iso: spec.iso || 'AUS', date: d, forces: !!spec.forces, hl: spec.hl })).catch(e => console.error(e));
+  };
+  host.addEventListener('click', e => { const b = e.target.closest('.ls-fxr-d'); if (b) go(b.dataset.date); });
+  go(spec.date || dates[0] || '2025Q4');
+  return host;
 }
 function mountPanel(kind, host, spec) {
   const m = panelLib[kind];
-  try { return kind === 'fx' ? m.mountFxPanel(host, spec) : m.mountInvestorPanel(host, spec); } catch (e) { console.error(e); return null; }
+  try {
+    if (kind === 'fx') return m.mountFxPanel(host, spec);
+    if (kind === 'shocks') return m.mountShockPanel(host, spec);
+    if (kind === 'fxr') return mountReactor(m, host, spec);
+    return m.mountInvestorPanel(host, spec);
+  } catch (e) { console.error(e); return null; }
 }
 function dropPanel() {
   if (!pnl) return;
   const m = panelLib[pnl.kind];
-  try { if (pnl.kind === 'fx') m.unmountFxPanel(); else m.unmountInvestorPanel(); } catch (e) { console.error(e); }
+  try {
+    if (pnl.kind === 'fx') m.unmountFxPanel();
+    else if (pnl.kind === 'shocks') m.unmountShockPanel();
+    else if (pnl.kind === 'fxr') m.unmountFxReactor();
+    else m.unmountInvestorPanel();
+  } catch (e) { console.error(e); }
   if (pnl.where === 'diagram') { pnl.host.remove(); document.getElementById('diagram')?.classList.remove('ls-pnl-on'); }
   document.body.classList.remove('ls-panel-on');
   if (card) card.classList.remove('ls-pcard');
   pnl = null;
 }
+// the panel the step shows now: an open drill-down's panel, else the step's own
+const curSpec = st => (st && ss.drill != null && st.drills && st.drills[ss.drill] ? st.drills[ss.drill].panel : st && st.panel);
 // after every draw() (and when a render lost the diagram host): mount the step's panel into its host, or drop the one that is up
 function syncPanel() {
   const st = cur && !ss.zooming ? cur.L.steps[cur.i] : null;
-  const spec = st && st.panel;
+  const spec = curSpec(st);
   if (!spec) { dropPanel(); return; }
-  const kind = panelKind(cur.L, spec), where = panelWhere(cur.L, spec), key = cur.L.id + '#' + cur.i;
+  const kind = panelKind(cur.L, spec), where = panelWhere(cur.L, spec), key = cur.L.id + '#' + cur.i + '#' + (ss.drill ?? '');
   if (!panelLib[kind]) return;                              // module failed to load: text only
   if (pnl && (pnl.key !== key || pnl.where !== where || !pnl.host.isConnected && where === 'diagram')) dropPanel();
   if (where === 'diagram') {
@@ -447,9 +503,12 @@ function enterStep(i) {
   const { L, pos } = cur;
   const st = L.steps[i];
   cur.i = i; ss = {}; target = null;
-  // the big lessons (汇率, 投资者) end on a reveal step: reaching it counts as done
-  const lastDone = (L.kind === 'fx' || L.kind === 'capstone') && i === L.steps.length - 1;
+  // the course-v3 lessons end on a step with the 三问 ending (the big lessons on a reveal step): reaching it counts as done
+  const last = i === L.steps.length - 1;
+  const lastDone = last && (L.kind === 'fx' || L.kind === 'capstone' || L.kind === 'shocks' || !!st.ending);
   mark(p => { p.step[L.id] = i; if (st.type === 'recap' || st.type === 'chain' || lastDone) p.done[L.id] = true; });
+  if (last) markDoneShared(L.id);                            // src/ui/progress.js: the progressive diagram learns this lesson's layer
+  lessonActive(L.id);
   if ((st.type === 'recap' || st.type === 'chain') && L.role) markRoleLearned(L.role);
   // the zoom from the town to the US: animate first (names fade, 万元 -> 十亿美元), then swap the sim
   if (st.type === 'zoom' && cur.world === 'town' && pos[i].world === 'us' && P.get('end') !== '1' && P.get('nozoom') !== '1') {
@@ -518,7 +577,7 @@ export function onRender() {
   if (!cur || busy) return;
   syncPad();
   applyHl();
-  if (cur.L.steps[cur.i].panel && (!pnl || !pnl.host.isConnected)) syncPanel();   // a render rebuilt the diagram column: put the panel back
+  if (curSpec(cur.L.steps[cur.i]) && (!pnl || !pnl.host.isConnected)) syncPanel();   // a render rebuilt the diagram column: put the panel back
   const snap = ctx.getSnap();
   const dEl = card.querySelector('.ls-date');
   if (dEl) dEl.textContent = snap.date;
@@ -814,6 +873,14 @@ function onCardClick(e) {
   else if (a === 'play') { if (ctx.isPlaying()) ctx.setPlaying(false); else { if (target == null) { target = dateT(cur.pos[cur.i].until); } ctx.setPlaying(true); } draw(); }
   else if (a === 'replay') { const i = cur.i, keep = ss.revealed; enterStep(i); if (keep && !ss.revealed) revealNow(); }
   else if (a === 'nextlesson') { const n = lookup(st.next); if (isAvail(n)) startLesson(n.id, 0); else { exitLesson(); openMenu(); } }
+  else if (a === 'drill') {                                  // open / close a drill-down (its panel replaces the step's panel over the diagram)
+    const k = +b.dataset.k;
+    ss.drill = k >= 0 && st.drills && st.drills[k] && ss.drill !== k ? k : null;
+    if (st.drills) dropPanel();
+    draw();
+    const nb = card.querySelector('.ls-body'), dt = nb && nb.querySelector(ss.drill != null ? '.ls-drill-txt' : '.ls-drills');
+    if (dt) dt.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 /* ---------- card rendering ---------- */
@@ -845,6 +912,34 @@ function nextLessonBtn(next) {
   return `<button type="button" class="btn primary ls-run" data-act="nextlesson">${adv ? '选学' : '下一课'}：${esc(nx.title)} →</button>`;
 }
 
+// course v3: the fixed 三问 ending of every lesson (last step field ending:{q1,q2,q3}; each string starts with its question, which the block
+// prints itself). {placeholders} are filled from the step's live table, like the step text.
+export const END_QUESTIONS = ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'];
+function endingHtml(e) {
+  const raw = [e.q1, e.q2, e.q3];
+  const filled = ss.tbl ? fillStep({ text: raw }, ss.tbl).text : raw;
+  return `<section class="ls-end" aria-label="三问"><div class="ls-end-h"><b>三问</b><small>每课都用这三问收尾；历史盲测的卡也问这三个</small></div><ol>` +
+    filled.map((s, k) => {
+      const q = END_QUESTIONS[k], a = String(s ?? '').startsWith(q) ? String(s).slice(q.length) : String(s ?? '');
+      return `<li><i>${'①②③'[k]}</i><div><b>${esc(q)}</b><span>${rich(a)}</span></div></li>`;
+    }).join('') + '</ol></section>';
+}
+// step field drills:[{ label, panel, text, back? }]: optional drill-down buttons; an open drill shows its text (and its panel over the diagram)
+function drillsHtml(st) {
+  const ds = arr(st.drills);
+  if (!ds.length) return '';
+  const d = ss.drill != null ? ds[ss.drill] : null;
+  if (d) {
+    const back = d.back || (st.panel && st.panel.id === 'fx-reactor' ? '回到汇率闸' : '回到上一张图');
+    const others = st.drillCta ? '' : ds.map((x, k) => (k === ss.drill ? '' : `<button type="button" class="ls-drill" data-act="drill" data-k="${k}">${esc(x.label)} ›</button>`)).join('');
+    return `<div class="ls-drill-txt"><div class="ls-drill-h"><b>${esc(d.label)}</b></div>${arr(d.text).map(t => `<p>${rich(t)}</p>`).join('')}</div>` +
+      `<button type="button" class="btn ${st.drillCta ? 'primary ls-run' : 'ls-drill-back'}" data-act="drill" data-k="-1">‹ ${esc(back)}</button>` +
+      (others ? `<div class="ls-drills"><span>再看一股</span>${others}</div>` : '');
+  }
+  if (st.drillCta) return `<button type="button" class="btn primary ls-run" data-act="drill" data-k="0">${esc(ds[0].label)} →</button>`;
+  return `<div class="ls-drills"><span>看证据（可选）</span>${ds.map((x, k) => `<button type="button" class="ls-drill" data-act="drill" data-k="${k}">${esc(x.label)} ›</button>`).join('')}</div>`;
+}
+
 function draw() {
   if (!cur) return;
   const { L, i, pos } = cur, n = L.steps.length;
@@ -859,8 +954,11 @@ function draw() {
       `<span class="ls-mini"><button type="button" class="btn" data-act="play">${playing ? '⏸ 暂停' : '▶ 播放'}</button><button type="button" class="btn" data-act="replay">↺ 重播</button></span></div>`;
   };
   let canNext = i < n - 1;
-  if (st.roleCard && !ss.zooming) { try { body += `<div class="ls-rc">${roleCardHtml(st.roleCard)}</div>`; } catch (e) { /* roles module missing: text only */ } }
-  if (st.type === 'zoom' && ss.zooming) {                    // the live numbers are not filled yet while the zoom animates
+  const drillOpen = ss.drill != null && !!(st.drills && st.drills[ss.drill]);
+  if (st.roleCard && !ss.zooming && !drillOpen) { try { body += `<div class="ls-rc">${roleCardHtml(st.roleCard)}</div>`; } catch (e) { /* roles module missing: text only */ } }
+  if (drillOpen) {                                           // a drill-down is open: its text replaces the step's text until 「回到」
+    body += drillsHtml(st);
+  } else if (st.type === 'zoom' && ss.zooming) {             // the live numbers are not filled yet while the zoom animates
     body += `<p class="ls-status">放大看……小镇的名字淡出，万元换成十亿美元。</p>`;
   } else if (st.type === 'intro') {
     body += paras + chips(st.concept);
@@ -967,12 +1065,16 @@ function draw() {
     const nx = lookup(st.next);
     body += `<button type="button" class="btn primary ls-run" data-act="nextlesson">${isAvail(nx) ? `下一课：${esc(nx.title)} →` : '回到课程菜单'}</button>`;
   }
+  // the step's question (if any) is answered: drill-downs, the 三问 ending and the 下一课 button may show
+  const answered = !ss.zooming && !(st.type === 'reveal' && st.question && !ss.revealed) && !(st.type === 'predict' && ss.picked == null)
+    && !((st.type === 'action' || st.type === 'valve') && !ss.done);
+  if (!drillOpen && answered && st.drills) body += drillsHtml(st);
+  if (!drillOpen && answered && i === n - 1 && st.ending) body += endingHtml(st.ending);   // course v3: the fixed 三问 block
   // handover: the LAST step of any other type with `next` gets the 下一课 button too (main line), once its question is answered
-  if (i === n - 1 && st.next != null && !['chain', 'zoom', 'recap'].includes(st.type) && !ss.zooming
-    && !(st.type === 'reveal' && st.question && !ss.revealed) && !(st.type === 'predict' && ss.picked == null)
-    && !((st.type === 'action' || st.type === 'valve') && !ss.done)) body += nextLessonBtn(st.next);
-  if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开自由运行 ↗（新窗口，自己玩）</a>`;
-  const pCard = st.panel && !ss.zooming && panelWhere(L, st.panel) === 'card';
+  if (i === n - 1 && st.next != null && !['chain', 'zoom', 'recap'].includes(st.type) && answered && !drillOpen) body += nextLessonBtn(st.next);
+  if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开沙盒 ↗（新窗口，自己拧阀门）</a>`;
+  const pSpec = curSpec(st);
+  const pCard = pSpec && !ss.zooming && panelWhere(L, pSpec) === 'card';
   if (pCard) body += '<div class="ls-pnl ls-pnl-card"></div>';        // host of a card panel (filled by syncPanel below)
   if (pnl && pnl.where === 'card' && pnl.kind === 'fx') dropPanel();   // an FX panel cannot be moved: unmount before the host is rebuilt
   // the primary button (揭晓 / 做做看 / 拧一拧 / 跑 N 季 / 下一课) is pulled out of the scrolling body so it is always visible
@@ -985,7 +1087,7 @@ function draw() {
     `<div class="ls-top"><button type="button" class="ls-col" data-act="collapse" aria-label="折叠/展开">${card.classList.contains('collapsed') ? '▴' : '▾'}</button>` +
     `<button type="button" class="ls-ttl" data-act="menu">${L.label && String(L.title).startsWith(L.label) ? esc(L.title) : `${esc(lessonLabel(L))} · ${esc(L.title)}`}</button><span class="ls-date">${snap.date}</span>` +
     `<button type="button" class="ls-exp" data-act="expand" aria-label="放大/缩小教学卡">${card.classList.contains('tall') ? '⤡' : '⤢'}</button>` +
-    `<a class="ls-free" href="${esc(freeUrl())}" target="_blank" rel="noopener">↗ 自由运行</a>` +
+    `<a class="ls-free" href="${esc(freeUrl())}" target="_blank" rel="noopener">↗ 沙盒</a>` +
     `<button type="button" class="ls-exit" data-act="exit">退出教学</button></div>` +
     `<div class="ls-body">${body}</div>` +
     `<div class="ls-nav"><button type="button" class="btn" data-act="prev" ${i === 0 ? 'disabled' : ''}>‹ 上一步</button>` +

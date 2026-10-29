@@ -9,7 +9,9 @@
 // Numbers: every number typed into a text comes from repo data or the approved spec. `claims` (never shown to the learner) say
 // where each one comes from; tools/check_lesson_investor.mjs recomputes them and checks that `shown` appears in the step text.
 //   claim = { shown, src, ... }   src: 'blind' (card, path, fmt) | 'fx' (pair, from, until, fmt) | 'jst' (what, year?) |
-//                                 'jpnq' (what) | 'spec' (no data in the repo: the handover / the user's spec says so)
+//                                 'jpnq' (what) | 'spec' (no data in the repo: the handover / the user's spec says so) |
+//                                 'sim' (get, from, until, eq|lt|gt: an engine getter on the AUS sim, history mode; src/ui/lessons-town.js evalGet)
+//   The last step's `ending` { q1, q2, q3 } (the fixed 三问 of course v3, rendered by the runner) counts as step text for `shown`.
 // The JST series below (JPN_JST) are recomputed from ../dalio_432/data/jst_panel.csv by the same checker when that file is there.
 
 // 资产反应表: handover_macro.md §4.3, copied cell by cell (the checker compares it with the markdown table).
@@ -53,7 +55,7 @@ export const JPN_SIGNALS = [
 export const TOY = { r0: 0.01, bondYears: 10, goldYears: 20, erp: 0.05, growth: 0.015, rMin: -0.02, rMax: 0.05 };
 
 export const LESSON_INVESTOR = {
-  id: 'inv', kind: 'capstone', label: '毕业课',
+  id: 'inv', kind: 'capstone', label: '第 8 课',
   title: '投资者',
   oneLine: '把整门课收成一套动作：五个表定位置 → 查资产反应表 → 看贵不贵 → 等三个信号 → 配好四种货币 → 去历史盲测里练。',
   country: 'AUS',              // the learner is in Australia: the gauges read the AUS sim (its 汇率 gauge moves; the US one is the ruler itself)
@@ -156,7 +158,18 @@ export const LESSON_INVESTOR = {
       text: [
         '**结论：先用三张练习卡把前六步走一遍，再进历史盲测玩整副牌。**',
         '每张卡只给你那一年年底能看到的数据。按顺序做：定位置 → 查表 → 看贵不贵 → 数信号 → 配货币。三张卡正好是三种：危机前夜、转折点、平常年份。',
-        '这三张没有在这一课里出现过，不会剧透。盲测页面目前没有专门的教学模式，三张就是普通卡，直接打开。',
+        '这三张没有在这一课里出现过，不会剧透。盲测页面目前没有专门的教学模式，三张就是普通卡，直接打开。盲测卡问的，正是下面这三问。',
+      ],
+      // the fixed 三问 ending (tools/COURSE-V3.md), answered for this lesson's example: Australia 2007Q4 → 2009Q1
+      ending: {
+        q1: '水的问题还是河道的问题？水的问题，而且是外面的水：全世界一慌，钱先逃回美元；澳洲自己的河道没坏。',
+        q2: '环上哪一步？澳洲小周期在「降息」，大周期没有走上 B2：中国的刺激加上澳联储很快降息，接住了。',
+        q3: '谁赢谁输、钱放哪？手里有美元、日元的澳洲人赢：澳元对美元跌了 30%；只有澳元资产的人输。钱放哪：平时就配一份外币当保险，火灾前买。',
+      },
+      claims: [
+        { shown: '30%', src: 'fx', what: 'fall', pair: 'USD', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
+        { shown: '「降息」', src: 'sim', get: 'start:cycles.short.phase', from: '2009Q1', until: '2009Q1', eq: 'ease', note: '2009Q1 澳洲小周期在降息' },
+        { shown: '没有走上 B2', src: 'sim', get: 'qcount:cycles.long.fork=B2', from: '2007Q4', until: '2010Q4', lt: 0.5, note: '2007Q4–2010Q4 澳洲模型没有 B2' },
       ] },
   ],
 };

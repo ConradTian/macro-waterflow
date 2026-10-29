@@ -21,6 +21,7 @@ import { CONCEPTS } from '../src/data/concepts.js';
 import { AUS_Q } from '../src/data/countries/aus-quarterly.js';
 import { JPN_Q } from '../src/data/countries/jpn-quarterly.js';
 import { CHN_Q } from '../src/data/countries/chn-quarterly.js';
+import { evalGet } from '../src/ui/lessons-town.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DALIO = resolve(ROOT, '../dalio_432');
@@ -41,7 +42,8 @@ const fmt = {
 };
 const get = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 const L = LESSON_INVESTOR, steps = L.steps;
-const textOf = st => [].concat(st.text || []).join('\n');
+// a step's text, plus the 三问 ending of the last step (course v3: rendered by the runner under the text)
+const textOf = st => [].concat(st.text || [], st.ending ? [st.ending.q1, st.ending.q2, st.ending.q3] : []).join('\n');
 const allText = steps.map(textOf).join('\n') + '\n' + L.oneLine + '\n' + L.title;
 
 /* ---------- 1. structure ---------- */
@@ -56,6 +58,13 @@ check(pSteps.length === 7 && PANEL_IDS.length === 7, '7 panel steps, 7 panel ids
 for (const s of pSteps) check(PANEL_IDS.includes(s.panel.id), `panel id '${s.panel.id}' exists`);
 check(new Set(pSteps.map(s => s.panel.id)).size === pSteps.length, 'each panel used once');
 steps.forEach((s, i) => { if (i > 0) check(s.title && s.title.startsWith(`第 ${i} 步`), `step ${i} title numbered`); });
+// course v3 (tools/COURSE-V3.md): 第 8 课, ends with the 3 practice cards -> 历史盲测 and the fixed 三问 ending
+{
+  const last = steps[steps.length - 1], e = last.ending, Qs = ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'];
+  check(L.label === '第 8 课' && last.panel?.id === 'blind' && last.next == null, 'course v3: 第 8 课, last step = the blind links, end of the line (no next)');
+  check(e && ['q1', 'q2', 'q3'].every((k, j) => typeof e[k] === 'string' && e[k].startsWith(Qs[j]) && e[k].length > Qs[j].length + 8), 'last step: the 三问 ending (q1 q2 q3, each starts with its question)');
+  check(steps.slice(0, -1).every(s => !s.ending), 'only the last step has the ending');
+}
 for (const s of steps) for (const c of [].concat(s.concept || [])) check(!!CONCEPTS[c], `concept '${c}' exists`);
 for (const d of [L.startDate, L.endDate, ...steps.map(s => s.until).filter(Boolean)]) check(AUS_Q.dates.includes(d), `date ${d} in ${L.country} data`);
 for (const [name, src] of [['lesson', allText], ['lab', labSrc], ['css', readFileSync(join(ROOT, 'assets/css/investor-lab.css'), 'utf8')]])
@@ -141,6 +150,12 @@ steps.forEach((st, i) => {
     check(txt.includes(c.shown), `${where} appears in the text`);
     let v = null, f = c.fmt;
     if (c.src === 'spec') { specs.push(`${where}: ${c.note}`); continue; }
+    if (c.src === 'sim') {      // an engine getter on the AUS sim (history mode, all rules on), as check_lessons.mjs evaluates claims
+      let r; try { r = evalGet(AUS_Q, { id: 'invchk', rulesOn: 'all', mode: 'history', country: 'AUS' }, { get: c.get }, { from: c.from, until: c.until }); } catch (e) { r = 'ERROR ' + e.message; }
+      const pass = c.eq !== undefined ? String(r) === String(c.eq) : typeof r === 'number' && (c.lt === undefined || r < c.lt) && (c.gt === undefined || r > c.gt);
+      check(pass, `${where} = sim ${c.get} ${c.from}–${c.until} → ${r} (${c.note})`);
+      continue;
+    }
     if (c.src === 'blind') { const card = BY[c.card]; if (!card) { FAIL(`${where}: card ${c.card} missing`); continue; } v = get(card, c.path); }
     else if (c.src === 'fx') v = c.what === 'audUsd' ? 1 / xAt(AUS_Q, c.at) : 1 - cross(c.pair, c.until) / cross(c.pair, c.from);
     else if (c.src === 'jst' || c.src === 'jpnq') {

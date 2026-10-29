@@ -63,28 +63,33 @@
 .wm-box .wm-g { fill: var(--muted); font-size: calc(var(--wm-fs) * .9); font-variant-numeric: tabular-nums; }
 .wm-box .wm-k { fill: var(--muted); }
 .wm-box .wm-v { font-weight: 700; font-variant-numeric: tabular-nums; }
-.has-sel .wm-box:not(.sel):not(.nb) { opacity: .5; }
+.has-sel .wm-box:not(.sel):not(.nb) { opacity: .4; }
 
 .wm-pipe { transition: opacity .2s; pointer-events: none; }
 .wm-bed, .wm-dash { fill: none; stroke-linecap: butt; stroke: var(--pc); }
 .wm-bed { opacity: .2; }
 .wm-dash { stroke-dasharray: 6 9; animation: flowdash linear infinite; }
-.wm-arrow { fill: var(--pc); }
+.wm-arrow { fill: var(--pc); stroke: var(--surface); stroke-width: 1.2; stroke-linejoin: round; paint-order: stroke; }
+/* chevrons along the pipe: the direction stays readable in a still picture (the dashes move the same way) */
+.wm-chev { fill: none; stroke: var(--pc); stroke-linecap: round; stroke-linejoin: round; }
+.wm-chev-h { fill: none; stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
 .wm-pipe.goods { --pc: var(--c-goods); } .wm-pipe.bond { --pc: var(--c-bond); }
 /* 其他国家 (ROW) trade: grey background pipes at their true width (never thinned); quieter dashes, no chips unless selected */
 .wm-pipe.row { --pc: var(--c-cash, var(--muted)); }
 .wm-pipe.row .wm-bed { opacity: .16; }
 .wm-pipe.row .wm-dash { opacity: .45; }
-.wm-pipe.row .wm-arrow { opacity: .55; }
-.has-sel .wm-pipe.row.hl .wm-bed { opacity: .26; }
-.has-sel .wm-pipe.row.hl .wm-dash { opacity: .7; }
+.wm-pipe.row .wm-arrow, .wm-pipe.row .wm-chevs { opacity: .6; }
+/* a selection: its pipes at full strength, everything else nearly gone */
+.has-sel .wm-pipe:not(.hl) { opacity: .06; }
+.has-sel .wm-pipe.hl .wm-bed { opacity: .4; }
+.has-sel .wm-pipe.row.hl .wm-bed { opacity: .3; }
+.has-sel .wm-pipe.row.hl .wm-dash, .has-sel .wm-pipe.row.hl .wm-arrow, .has-sel .wm-pipe.row.hl .wm-chevs { opacity: .85; }
+.wm-chips { pointer-events: none; }
+.wm-chip { --pc: var(--c-goods); }
 .wm-chip.row { --pc: var(--c-cash, var(--muted)); }
-.has-sel .wm-pipe:not(.hl) { opacity: .1; }
-.has-sel .wm-pipe.hl .wm-bed { opacity: .38; }
-.wm-chip rect { fill: var(--surface); fill-opacity: .95; stroke: var(--pc); stroke-width: 1.1; }
-.wm-chip.goods { --pc: var(--c-goods); } .wm-chip.bond { --pc: var(--c-bond); }
-.wm-chip text { font-size: calc(var(--wm-fs) * .9); font-weight: 600; font-variant-numeric: tabular-nums; }
-.has-sel .wm-pipe:not(.hl) .wm-chip { display: none; }
+.wm-chip rect { fill: var(--surface); fill-opacity: .96; stroke: var(--pc); stroke-width: 1.3; }
+.wm-chip.bond { --pc: var(--c-bond); }
+.wm-chip text { font-size: calc(var(--wm-fs) * .9); font-weight: 700; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .wm-dash { animation: none; } }
 
 /* FX sluice hanging under each country box (tap = the 汇率 card) */

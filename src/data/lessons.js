@@ -55,11 +55,20 @@
 //   predict option.when [cond]   the claim an option makes; exactly the ok option must hold
 //   claims [cond]                every factual sentence of a step.  cond = { get, from?, until?, set?, vs?, mul?, gt|gte|lt|lte, dateBetween?, dateBefore? }
 
+// COURSE v3 (tools/COURSE-V3.md, 2026-10-29): one storyline, 4 parts, 8 lessons; see COURSE at the bottom.
+//   L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv → 历史盲测
+// Course-v3 step fields (src/ui/lessons.js):
+//   ending:{ q1, q2, q3 }   on the LAST step of each of the 8 lessons: the fixed 三问 block (① 水的问题还是河道的问题？ ② 环上哪一步？
+//                           ③ 谁赢谁输、钱放哪？), each string starts with its question; {placeholders} are filled from the step's vals.
+//   drills:[{ label, panel, text, back?, nums?, facts? }]   optional drill-down buttons in the card; a drill mounts its panel over the diagram
+//                           (e.g. m5 外国人: the AUS FX reactor) until 「回到」; drillCta:true makes the first drill the primary button.
+//                           drill.nums [{ t, f(D), fmt }] are checked by tools/check_lessons.mjs (D.q / D.fxr), as in the FX lesson.
+// Three lessons live in their own files with their own checkers (step field panel:{id,...} mounts an interactive panel; contract
+// tools/D-CONTRACT.md 「接线」/「冲击」/「课程 v3」): 冲击 shk (kind 'shocks'), 汇率 fx (kind 'fx'), 投资者 inv (kind 'capstone').
 import { RULE_BY_ID } from '../engine/rules.js';
-// the two big lessons after the main line (own files, own checkers): 汇率 (kind 'fx') and 投资者 (kind 'capstone'). Step field panel:{id,...}
-// mounts an interactive panel (src/ui/lessons.js; contract tools/D-CONTRACT.md 「接线」).
 import { LESSON_FX } from './lesson-fx.js';
 import { LESSON_INVESTOR } from './lesson-investor.js';
+import { LESSON_SHOCKS } from './lesson-shocks.js';
 import { COUNTRY_PARAMS } from './country-params.js';
 // rule params quoted in the texts: the USA's live values (RULE_DEFS defaults + the USA overrides in country-params.js). The town lesson 0
 // quotes none of the overridden rules, so this is also right there.
@@ -374,7 +383,8 @@ export const LESSONS = [
   },
 
   /* =====================================================================================================================
-   * MAIN LINE (主线, ~1 hour, approved 2026-10-29): 5 lessons, kind 'main', ids m1..m5, menu group 「主线」 (see COURSE at the bottom).
+   * MAIN LINE (approved 2026-10-29): 5 lessons, kind 'main', ids m1..m5. Course v3 places them as 第 1 / 3 / 4 / 5 / 7 课, between the
+   * lessons shk (2), fx (6), inv (8) (see COURSE at the bottom).
    * Built mostly from the steps of lessons 0-4 + 3b; the old lessons stay in the code (menu group 「旧版课程」, ?lesson=ID still works).
    * Extra step fields used here (src/ui/lessons.js):
    *   mark:['loop'|'outlets'|'objective']   persistent glow while the step is on: the 收入循环 ring, the four outlets under the channel,
@@ -476,26 +486,33 @@ export const LESSONS = [
       { type: 'reveal', title: '第 5 步：总目标', mark: ['objective'],
         text: [
           '**总目标：长期运出最多的真实东西给人用。** 看屏幕顶上亮起来的「总目标」条：那个数是每人真实消费（1995 年第一季度 = 100），一季一季累计得越多越好。',
-          '条右边四盏灯是扣分项。这一课先看前两盏，正好是一条河的两种坏天气：',
-          '**泛滥**：水太多，漫出河岸，物价涨得太快。现在通胀 {pi}，央行的目标是 2%：{lf}。',
-          '**干涸**：水太少，河道闲着，人和工厂没活干。现在失业率 {u}：{ld}。',
-          '另外两盏，**溃坝**（借来的水冲垮堤坝：金融危机）和**透支**（借得太多，利息吃掉收入），第 3、4 课再讲。',
+          '总目标有四个扣分项：**泛滥、干涸、溃坝、透支**。第 5 课会把这四盏灯点出来；这一课先讲前两个，正好是一条河的两种坏天气：',
+          '**泛滥**：水太多，漫出河岸，物价涨得太快。现在通胀 {pi}，央行的目标是 2%：不扣分。',
+          '**干涸**：水太少，河道闲着，人和工厂没活干。现在失业率 {u}：也不扣分。',
+          '另外两个，**溃坝**（借来的水冲垮堤坝：金融危机）和**透支**（借得太多，利息吃掉收入），第 4、5 课再讲。',
         ],
-        relation: '下面四课都在问同一个问题：什么力量让河道泛滥或干涸？谁能把它拉回来？',
+        relation: '后面几课都在问同一个问题：什么力量让河道泛滥或干涸？谁能把它拉回来？下一课先分清：出事的时候，是水变了，还是河道变了。',
         vals: [
           { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' },
-          { key: 'lf', get: 'start:lamp.flood', fmt: 'lamp' }, { key: 'ld', get: 'start:lamp.drought', fmt: 'lamp' },
+          { key: 'sp', get: 'start:cycles.short.label', fmt: 'str' }, { key: 'lp', get: 'start:cycles.long.label', fmt: 'str' },
         ],
         claims: [
-          { get: 'start:lamp.flood', eq: 'green', note: '泛滥灯绿' },
-          { get: 'start:lamp.drought', eq: 'green', note: '干涸灯绿' },
+          { get: 'start:lamp.flood', eq: 'green', note: '泛滥不扣分（灯绿）' },
+          { get: 'start:lamp.drought', eq: 'green', note: '干涸不扣分（灯绿）' },
+          { get: 'start:cycles.short.phase', eq: 'expand', note: '三问②：2015Q1 小周期在扩张' },
         ],
-        concept: ['cpi', 'unemployment'], next: 'm2' },
+        // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the town, then the US in 2015Q1
+        ending: {
+          q1: '水的问题还是河道的问题？这一课只有水：放贷造水、还本毁水，水转圈，从四个出口运出货。2015Q1 水和河道正好配得上：泛滥、干涸都不扣分。',
+          q2: '环上哪一步？还没讲环（第 3 课起）。先记一个位置：2015Q1 小周期在「{sp}」，大周期在「{lp}」。',
+          q3: '谁赢谁输、钱放哪？这一季还不分输赢：水够、河道也够，大家都有活干。只记一条：新水先流到借钱的人手里（小王的 50 万先去买房）。钱放哪，第 8 课讲。',
+        },
+        concept: ['cpi', 'unemployment'], next: 'shk' },
     ],
   },
 
   {
-    id: 'm2', kind: 'main', label: '第 2 课',
+    id: 'm2', kind: 'main', label: '第 3 课',
     title: '一个会自己转的圈',
     oneLine: '房价涨 → 抵押品值钱 → 银行放水 → 更多人借钱买房 → 房价再涨。央行加息能刹住它，可要等大约两年。',
     rulesOn: 'all',
@@ -558,19 +575,34 @@ export const LESSONS = [
           { key: 'pk', get: 'argmax:assets.housing.price', fmt: 'str', from: '2003Q1', until: '2008Q1' },
           { key: 'dd', get: 'dd:assets.housing.price', fmt: 'chg1', from: '2003Q1', until: '2008Q1' },
           { key: 'fall', get: 'chg:assets.housing.price', fmt: 'chg1' }, { key: 'h6', get: 'chg:assets.housing.price', fmt: 'chg1', from: '2006Q2', until: '2006Q4' },
+          { key: 'tt', get: 'when:cycles.short.phase=tight', fmt: 'str', from: '2004Q2', until: '2008Q1' },
+          { key: 'va', get: 'when:cycles.short.via=asset', fmt: 'str', from: '2004Q2', until: '2008Q1' },
+          { key: 'sl', get: 'end:cycles.short.label', fmt: 'str' },
         ],
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢攒起来的。等 DSR 升到够高、房价比一年前转弱，银行才收闸。',
           '从 2004 年年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价 {fall}（从高点算最大回撤 {dd}）。头半年只跌了 {h6}，之后一季比一季跌得多：是慢慢滑下去，不是一夜暴跌。',
           '加息像在长长的水管里加了一道阻力，水要过一阵才到下游。下一课：圈倒着转的时候，降息还推得动吗？',
         ],
-        claims: [{ get: 'argmax:assets.housing.price', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' }],
+        claims: [
+          { get: 'argmax:assets.housing.price', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' },
+          { get: 'when:cycles.short.phase=tight', from: '2004Q2', until: '2008Q1', dateBetween: ['2004Q3', '2005Q1'], note: '三问②：小周期 2004 年底进「收紧」' },
+          { get: 'when:cycles.short.via=asset', from: '2004Q2', until: '2008Q1', dateBetween: ['2006Q3', '2007Q2'], note: '三问②：2006–07 年认出「资产过热」的顶' },
+          { get: 'end:cycles.short.phase', eq: 'ease', note: '三问②：2008Q1 小周期在「降息」' },
+          { get: 'chg:assets.housing.price', from: '2001Q1', until: '2006Q1', gt: 0.2, note: '三问③：早买房的人赚了（2001–2006 年房价涨两成以上）' },
+        ],
+        // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US housing loop 1997–2008
+        ending: {
+          q1: '水的问题还是河道的问题？水的问题：借来的水灌进房产水库（房价涨 → 抵押品值钱 → 银行放水 → 房价再涨），河道没变。',
+          q2: '环上哪一步？小周期：{tt} 进「收紧（加息）」，{va} 认出这是「资产过热」的顶，到 2008Q1 已经是「{sl}」。',
+          q3: '谁赢谁输、钱放哪？早买房、早借钱的人赢；在顶部（{pk} 前后）借钱接盘的人输。加息一年多、房价还在涨的时候，别再加码房子（判断）。',
+        },
         hl: ['interestPaid', 'assetReservoir'], concept: ['mortgageEff', 'dsr'], next: 'm3' },
     ],
   },
 
   {
-    id: 'm3', kind: 'main', label: '第 3 课',
+    id: 'm3', kind: 'main', label: '第 4 课',
     title: '两个环怎么接上',
     oneLine: '降息之后，信贷回不回来？2001 年回来了（推得动），2008 年没回来（推不动）。差别在于泡沫里的资产是不是借钱买的。推不动，就交给大周期：B2 → ⑤。',
     rulesOn: 'all',
@@ -619,12 +651,12 @@ export const LESSONS = [
       { type: 'reveal', title: '第 2 步：差别在哪：是不是借钱买的', view: 'flow', tab: 'cycle',
         glow: { parts: ['bank', 'poolHousing', 'household'], pipes: ['collateral'] },
         text: [
-          '降息只改**价格**；银行放不放贷，看的是**抵押品**（第 2 课那根虚线）。两次降息，差别就在抵押品上。',
+          '降息只改**价格**；银行放不放贷，看的是**抵押品**（第 3 课那根虚线）。两次降息，差别就在抵押品上。',
         ],
         question: '同样降息，为什么 2001 年信贷回来了，2008 年没回来？',
         answerHint: [
           '**2001 年**：泡沫在股票，买股票的多半是自己的钱，跌了亏的是投资人自己。银行手里的抵押品（房子）没动：房价比一年前还在涨（{h1}），审批倍数开在 {a1}。降息一来，水龙头和闸门都开着，信贷就回来了。',
-          '**2008 年**：泡沫在房子，房子是借钱买的。房价掉了（{h2}），抵押品缩水，第 2 课那个圈倒着转：银行把审批倍数关到 {a2}。降息打开了水龙头，闸门却关着，水进不来。',
+          '**2008 年**：泡沫在房子，房子是借钱买的。房价掉了（{h2}），抵押品缩水，第 3 课那个圈倒着转：银行把审批倍数关到 {a2}。降息打开了水龙头，闸门却关着，水进不来。',
         ],
         relation: '降息推不推得动，看银行的闸门开不开；闸门开不开，看抵押品。这就是 B2：房价在跌、债高、降了息信贷还在缩。',
         vals: [
@@ -651,7 +683,14 @@ export const LESSONS = [
           { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str' }, { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' },
           { key: 'ap', get: 'end:bank.approval', fmt: 'x2' }, { key: 'nl', get: 'end:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'end:flows.principalRepay', fmt: 'num' },
           { key: 's5', get: 'when:cycles.long.stage=5', fmt: 'str' },
+          { key: 'bc', get: 'chg:assets.bond.price', fmt: 'chg' }, { key: 'hc', get: 'chg:assets.housing.price', fmt: 'chg' },
         ],
+        // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: 2007Q3 → 2009Q2, the round that could not be pushed
+        ending: {
+          q1: '水的问题还是河道的问题？水的问题：抵押品缩水，银行关闸，还本多过放贷，水被毁掉；河道（工厂、人）还在。',
+          q2: '环上哪一步？小周期走到「降息（推得动吗？）」，推不动；大周期走上 B2，{s5} 进 ⑤ 私人去杠杆。',
+          q3: '谁赢谁输、钱放哪？拿长期国债和现金的人赢：这两年国债价格 {bc}；借钱买房的家庭和放贷的银行输：房价 {hc}。B2 里钱放国债和现金，不放房子。',
+        },
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }],
         claims: [
           { get: 'when:cycles.short.phase=ease', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 小周期进「降息」' },
@@ -663,13 +702,15 @@ export const LESSONS = [
           { get: 'end:bank.approval', lt: 1, note: '银行把闸门关小' },
           { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' },
           { get: 'when:cycles.long.stage=5', dateBetween: ['2008Q4', '2009Q2'], note: '大周期进 ⑤' },
+          { get: 'chg:assets.bond.price', gt: 0.03, note: '三问③：国债价格涨（拿国债的人赢）' },
+          { get: 'chg:assets.housing.price', lt: -0.05, note: '三问③：房价跌（借钱买房的人输）' },
         ],
         hl: ['policyRate', 'bankApproval', 'newLoans'], concept: ['B2', 'creditImpulse', 'longCycle'], next: 'm4' },
     ],
   },
 
   {
-    id: 'm4', kind: 'main', label: '第 4 课',
+    id: 'm4', kind: 'main', label: '第 5 课',
     title: '政府接手和实际利率',
     oneLine: '私人不借了，政府和央行接手补水（⑥）；再把利率压在通胀下面，债务不用还也会一年年变轻（⑦）；私人和政府的账都修好，才走出这一圈（⑧）。',
     rulesOn: 'all', pace: 800,
@@ -679,7 +720,7 @@ export const LESSONS = [
         text: [
           '**结论：私人不借了，只有政府和央行能补水（⑥）。补完水，央行把利率压在通胀下面：实际利率为负，债务不用还，也会一年年变轻（⑦）。私人和政府的账都修好了，才算走出这一圈（⑧）。**',
           '**实际利率 = 政策利率 − 通胀。** 图上央行框里「政策利率」旁边的「实际」就是它：扣掉涨价以后，借钱真正的价格。它才是真正的总闸。',
-          '下面分 4 步：⑥ 政府补水 → QE 把水引到资产池 → 实际利率为负，债务变轻（⑦）→ ⑧ 出圈。',
+          '下面分 5 步：⑥ 政府补水 → QE 把水引到资产池 → 实际利率为负，债务变轻（⑦）→ 化债四个出口，谁被砍 → ⑧ 出圈。',
           '时间：2008Q3 → 2025Q4（真实季度）。',
         ],
         hl: ['fiscalInjection', 'qe', 'realRate'], concept: ['fiscalInjection', 'qe', 'realRate'] },
@@ -758,7 +799,39 @@ export const LESSONS = [
         ],
         hl: ['policyRate', 'realRate'], concept: ['realRate', 'govDebtGdp'] },
 
-      { type: 'reveal', from: '2025Q4', title: '第 4 步：⑧ 出圈', tab: 'cycle',
+      // course v3 (tools/COURSE-V3.md): the four ways out of a debt and who pays for each; tied to ⑦ with the 2013–2017 numbers of step 3
+      { type: 'reveal', title: '第 4 步：化债四个出口，谁被砍', tab: 'cycle',
+        glow: { parts: ['centralBank', 'government', 'household'] },
+        text: [
+          '**结论：债太重，只有四个出口，每个出口都有人买单。**',
+          '① **增长**：GDP 长得比债快 → 没人被砍（最好，也最难）。',
+          '② **通胀**：物价涨，同样的债变轻 → 被砍的是拿现金、国债的人。',
+          '③ **金融压制**：把利率压在通胀下面（实际利率 < 0）→ 被砍的是存钱的人。',
+          '④ **违约**：不还了 → 被砍的是债主。',
+        ],
+        question: '上一步的 2013–2017 年（⑦），美国走的是哪几个出口？谁被砍了？',
+        answerHint: [
+          '主要是**金融压制 + 增长**。实际利率四年一直为负（最高也只有 {rmax}，平均 {ravg}）；名义 GDP 涨了 {gg}，债只涨了 {bg}，政府债务/GDP 从 {r0} 降到 {r1}。',
+          '通胀温和（平均 {pia}），通胀这个出口用得不多；也没有违约。**被砍的是存钱的人**：实际利率平均 {ravg}，存在银行的钱每年实际亏掉这么多。',
+        ],
+        relation: '⑦ 就是出口 ① + ③：让时间替欠债的人还钱。看到实际利率长期为负，就要问：谁在买单？',
+        vals: [
+          { key: 'rmax', get: 'max:rates.realPolicy', fmt: 'pct', from: '2013Q1', until: '2017Q1' }, { key: 'ravg', get: 'avg:rates.realPolicy', fmt: 'pct', from: '2013Q1', until: '2017Q1' },
+          { key: 'gg', get: 'chg:macro.gdpNominal', fmt: 'chg', from: '2013Q1', until: '2017Q1' }, { key: 'bg', get: 'chg:debt.government', fmt: 'chg', from: '2013Q1', until: '2017Q1' },
+          { key: 'r0', get: 'start:gov.debtGdp', fmt: 'pct0', from: '2013Q1', until: '2017Q1' }, { key: 'r1', get: 'end:gov.debtGdp', fmt: 'pct0', from: '2013Q1', until: '2017Q1' },
+          { key: 'pia', get: 'avg:macro.inflation', fmt: 'pct', from: '2013Q1', until: '2017Q1' },
+        ],
+        claims: [
+          { get: 'max:rates.realPolicy', from: '2013Q1', until: '2017Q1', lt: 0, note: '③ 金融压制：四年实际利率一直 < 0' },
+          { get: 'avg:rates.realPolicy', from: '2013Q1', until: '2017Q1', lt: -0.01, note: '存钱的人每年实际亏 1% 以上' },
+          { get: 'chg:macro.gdpNominal', from: '2013Q1', until: '2017Q1', vs: { get: 'chg:debt.government' }, gt: 0.03, note: '① 增长：名义 GDP 比债涨得快' },
+          { get: 'dpp:gov.debtGdp', from: '2013Q1', until: '2017Q1', lt: -0.03, note: '债务/GDP 降了' },
+          { get: 'avg:macro.inflation', from: '2013Q1', until: '2017Q1', lt: 0.03, note: '② 通胀不高（平均 < 3%）' },
+          { get: 'when:cycles.long.stage=7', from: '2013Q1', until: '2017Q1', dateBetween: ['2015Q3', '2016Q4'], note: '这正是大周期 ⑦' },
+        ],
+        hl: ['realRate'], concept: ['realRate', 'govDebtGdp'] },
+
+      { type: 'reveal', from: '2025Q4', title: '第 5 步：⑧ 出圈', tab: 'cycle',
         text: [
           '⑧ 是这一圈的出口：私人的账修好了，政府的债也稳住了，下一轮借钱才是健康的新开始（回到 ①）。',
           '五个条件要同时成立：家庭偿债（DSR）比起点低、坏账少、实际利率回到 −1% 以上（压制结束）、政府债务/GDP 不再升、政府利息/税收不太高。',
@@ -768,7 +841,7 @@ export const LESSONS = [
           '**还没有，大周期还停在 {l}。** 四个条件已经满足：DSR 比起点低 {e0}，坏账率 {e1}，实际利率 {e2}，政府利息/税收 {e4}。',
           '只差一条：政府债务/GDP 三年里又升了 {e3}（要求不超过 1 个点）。2020 年疫情和 2023–25 年的赤字，又灌了一轮水：2019 年底到 2021 年底，政府债务/GDP 升了 {c20}。',
         ],
-        relation: '⑥ 补的水要靠 ⑦ 慢慢化掉；一边化一边又灌，就出不了圈。下一课：停在一个季度，看每个角色各看到什么。',
+        relation: '⑥ 补的水要靠 ⑦ 慢慢化掉；一边化一边又灌，就出不了圈。下一课出国境：汇率这道闸，被什么推着走。',
         vals: [
           { key: 'l', get: 'start:cycles.long.label', fmt: 'str' },
           { key: 'e0', get: 'start:cycles.long.evidence.0.value', fmt: 'ppa' }, { key: 'e1', get: 'start:cycles.long.evidence.1.value', fmt: 'pct' },
@@ -786,13 +859,22 @@ export const LESSONS = [
           { get: 'start:cycles.long.evidence.4.name', eq: '政府利息/税收' }, { get: 'start:cycles.long.evidence.4.value', lte: 0.25, note: '利息/税收不太高（满足）' },
           { get: 'dpp:gov.debtGdp', from: '2019Q4', until: '2021Q4', gt: 0.05, note: '2020 年疫情：政府债务/GDP 明显上升' },
           { get: 'dpp:gov.debtGdp', from: '2022Q4', until: '2025Q4', gt: 0.01, note: '2023–25 年：政府债务/GDP 又在升' },
+          { get: 'avg:rates.realPolicy', from: '2013Q1', until: '2017Q1', lt: 0, note: '三问③：⑦ 里存钱的人输（实际利率为负）' },
+          { get: 'chg:assets.equity.price', from: '2013Q1', until: '2017Q1', gt: 0.1, note: '三问③：⑦ 里股票涨' },
+          { get: 'chg:assets.bond.price', from: '2013Q1', until: '2017Q1', vs: { get: 'chg:assets.equity.price' }, lt: -0.1, note: '三问③：长期国债远不如股票' },
         ],
-        hl: ['realRate'], concept: ['longCycle', 'govDebtGdp', 'interestToTax'], next: 'm5' },
+        // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US 2008–2025, ⑥ → ⑦, still in ⑦
+        ending: {
+          q1: '水的问题还是河道的问题？水的问题：私人停水，政府和央行补水（⑥），再用负的实际利率慢慢化债（⑦）；河道没坏。',
+          q2: '环上哪一步？⑥ → ⑦；2025 年底还停在 {l}：出圈只差「政府债务/GDP 不再升」这一条。',
+          q3: '谁赢谁输、钱放哪？欠债的人（政府）赢，存钱的人输：实际利率为负，存款每年实际亏一点。⑦ 里少放现金和长期国债，多放股票和实物（判断）。',
+        },
+        hl: ['realRate'], concept: ['longCycle', 'govDebtGdp', 'interestToTax'], next: 'fx' },
     ],
   },
 
   {
-    id: 'm5', kind: 'main', label: '第 5 课',
+    id: 'm5', kind: 'main', label: '第 7 课',
     title: '同一个季度，八个视角',
     oneLine: '停在 2008Q3（雷曼倒闭那一季），依次打开 8 张角色卡：每个角色看到什么、想要什么、做了什么。每个人都做了对自己合理的事，加起来，四盏扣分灯全亮。',
     rulesOn: 'all',
@@ -885,7 +967,7 @@ export const LESSONS = [
         text: [
           '**看到**：失业率 {u}，工作在丢；政府付的利息占税收的 {it}。',
           '**做了**：历史模式里，政府照**真实的美国赤字**走（外生数据，和央行照真实利率走一样）。这一季真实赤字是 GDP 的 {r1}，比上一季的 {r0} 小一点：2008 年春的退税支票发完了。模型里的赤字（再加上失业带来的自动加码）是 GDP 的 {def}。',
-          '**接下来**：美国随后大幅加码：10 月 TARP 救银行，2009 年 2 月 ARRA 刺激法案。到 2009Q2，真实赤字到了 GDP 的 {r9}，债务一路往上走（第 4 课的 ⑥ 补水）。',
+          '**接下来**：美国随后大幅加码：10 月 TARP 救银行，2009 年 2 月 ARRA 刺激法案。到 2009Q2，真实赤字到了 GDP 的 {r9}，债务一路往上走（第 5 课的 ⑥ 补水）。',
           '**冲突**：角色卡上的「刺激收太早」，真实例子是**日本 1997**：经济刚有起色，就把消费税从 3% 提到 5%，随后掉回衰退。美国这一季赤字小一点，只是退税发完了；下一季就反过来加码，没有犯这个错。',
         ],
         vals: [
@@ -939,6 +1021,45 @@ export const LESSONS = [
           { get: 'start:border.foreignBondBuy', gt: 0, note: '外国人照样在买美国国债' },
         ],
         ledgerAt: [{ player: 'foreign', ruleId: 'foreign_funding' }],
+        // course v3: a sub-step from the other side of the border (the AUS FX reactor of 第 6 课, 2008Q3 → 2009Q1). It is a panel over the
+        // diagram, not a sim switch: 「回到美国」, the next step or leaving the step brings the US diagram back.
+        drillCta: true,
+        drills: [{ label: '小步：从澳洲看这一季', back: '回到美国', panel: { id: 'fx-reactor', iso: 'AUS', date: '2008Q3', dates: ['2008Q3', '2009Q1'] },
+          text: [
+            '**同一季，从澳洲看：世界一慌，钱先逃回美元。1 澳元从 2008Q2 的 0.94 美元跌到 2009Q1 的 0.66 美元，跌了 30%（季度平均）。**',
+            '图上是澳洲的汇率闸（第 6 课）。先看 2008Q3：两根管都在推强，澳元比一年前还强 4%。',
+            '再点 2009Q1：澳元比一年前弱 27%。拟合推弱 10.4%：资本管推弱 5.1%，商品价格管推弱 5.3%；还有 16.3% 说不清。',
+            '**资本管反过来了**：利差从 5.2 个点砍到 3.4 个点（澳联储急着降息），还是正的、还在推强；可信心（VIX 恐慌指数）冲高，单这一股就推弱 11.2%，把整根资本管拧向弱。澳元是风险货币：避险的钱不看利差，先买美元。',
+            '**商品价格管**推弱，主要因为澳洲物价比美国涨得多。贸易条件还没反应过来：本项目的铁矿石是年度合同价，2009Q1 还比一年前高 16%；中国的订单 2008 年底急停（判断），多半藏在「说不清」里。',
+            '老实说：这是 1 年尺度的拟合，只帮你读图；2022 年以后它猜得还不如「汇率不变」。',
+            '回到美国：这就是上面那张卡说的「世界一慌，钱反而先往美元里逃」。',
+          ],
+          nums: [
+            { t: '1', f: () => 1, fmt: 'int' },
+            { t: '0.94', f: D => 1 / D.q('AUS', 'fxPerUsd', '2008Q2'), fmt: 'n2' }, { t: '0.66', f: D => 1 / D.q('AUS', 'fxPerUsd', '2009Q1'), fmt: 'n2' },
+            { t: '30', f: D => 1 - D.q('AUS', 'fxPerUsd', '2008Q2') / D.q('AUS', 'fxPerUsd', '2009Q1'), fmt: 'pct0' },
+            { t: '4', f: D => D.fxr('2008Q3').actual, fmt: 'n0' },
+            { t: '27', f: D => -D.fxr('2009Q1').actual, fmt: 'n0' },
+            { t: '10.4', f: D => -D.fxr('2009Q1').model, fmt: 'n1' },
+            { t: '5.1', f: D => -D.fxr('2009Q1').pipes.cap.c, fmt: 'n1' },
+            { t: '5.3', f: D => -D.fxr('2009Q1').pipes.goods.c, fmt: 'n1' },
+            { t: '16.3', f: D => -D.fxr('2009Q1').unexplained, fmt: 'n1' },
+            { t: '5.2', f: D => D.q('AUS', 'policyRate', '2008Q3') - D.q('USA', 'policyRate', '2008Q3'), fmt: 'pp1' },
+            { t: '3.4', f: D => D.q('AUS', 'policyRate', '2009Q1') - D.q('USA', 'policyRate', '2009Q1'), fmt: 'pp1' },
+            { t: '11.2', f: D => -D.fxr('2009Q1').forces.conf.c, fmt: 'n1' },
+            { t: '16', f: D => D.fxr('2009Q1').forces.tot.ore, fmt: 'n0' },
+            { t: '1', f: D => parseInt(D.fxr('2009Q1').fit.label, 10), fmt: 'int' },
+          ],
+          facts: [
+            { f: D => D.fxr('2008Q3').pipes.cap.c > 0 && D.fxr('2008Q3').pipes.goods.c > 0, note: '2008Q3 两根管都推强' },
+            { f: D => { const R = D.fxr('2009Q1'); return R.model < -5 && R.pipes.cap.c < 0 && R.pipes.goods.c < 0 && R.unexplained < -10; }, note: '2009Q1 两根管都推弱，还有一大块（> 10%）说不清' },
+            { f: D => D.q('AUS', 'policyRate', '2009Q1') < D.q('AUS', 'policyRate', '2008Q3') - 0.03, note: '澳联储 2008Q3 → 2009Q1 降息 > 3 个点' },
+            { f: D => { const F = D.fxr('2009Q1').forces; return F.rate.input > 0 && F.rate.c > 0 && F.conf.c < -F.rate.c && D.fxr('2009Q1').pipes.cap.c < 0; }, note: '2009Q1 利差还是正的、推强，信心推弱更多，资本管整根推弱' },
+            { f: D => { const F = D.fxr('2009Q1').forces; return F.infl.input > 0 && F.infl.c < 0 && Math.abs(F.infl.c) > Math.abs(F.tot.c); }, note: '商品价格管推弱主要来自通胀差（澳洲物价涨得多）' },
+            { f: D => D.fxr('2009Q1').forces.tot.oreDir > 0 && D.fxr('2009Q1').forces.tot.dir > 0, note: '年度合同价：铁矿石还比一年前高，贸易条件还在推强（没反应过来）' },
+            { f: D => D.fxr('2009Q1').fit.rmseHold > D.fxr('2009Q1').fit.rmseHoldZero && D.fxr('2009Q1').fit.holdFrom === '2022Q1', note: '2022 起的保留样本上，拟合不如「不变」' },
+            { f: D => /^澳元是风险货币/.test(D.fxr('2009Q1').fit.risk) && D.fxr('2009Q1').forces.conf.coef < 0, note: '澳元是风险货币（拟合的 VIX 符号）' },
+          ] }],
         hl: ['foreignBonds'], concept: ['foreignBonds', 'reserveCurrency'] },
 
       { type: 'reveal', title: '第 8 步：整个经济', roleCard: 'economy', mark: ['objective'],
@@ -952,6 +1073,8 @@ export const LESSONS = [
           { key: 'lf', get: 'start:lamp.flood', fmt: 'lamp' }, { key: 'ld', get: 'start:lamp.drought', fmt: 'lamp' },
           { key: 'lb', get: 'start:lamp.burst', fmt: 'lamp' }, { key: 'lo', get: 'start:lamp.overdraft', fmt: 'lamp' },
           { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' },
+          { key: 'sl', get: 'start:cycles.short.label', fmt: 'str' }, { key: 'll', get: 'start:cycles.long.label', fmt: 'str' },
+          { key: 'ey', get: 'chg:assets.equity.price', fmt: 'apct0', from: '2007Q3', until: '2008Q3' },
         ],
         claims: [
           { get: 'start:lamps.lit', gte: 4, note: '四盏灯全亮（没有一盏是绿的）' },
@@ -959,10 +1082,24 @@ export const LESSONS = [
           { get: 'start:lamp.drought', eq: 'red', note: '干涸红' },
           { get: 'start:lamp.burst', eq: 'red', note: '溃坝红' }, { get: 'start:cycles.long.fork', eq: 'B2', note: '大周期在 B2 岔路' },
           { get: 'start:lamp.overdraft', ne: 'green', note: '透支亮' },
+          { get: 'start:cycles.short.handoff', eq: 'no', note: '三问②：圆环判「推不动」' },
+          { get: 'start:flows.newLoans', vs: { get: 'start:flows.principalRepay' }, lt: 0, note: '三问①：水被抽走（新贷款少于还本）' },
+          { get: 'chg:assets.equity.price', from: '2007Q3', until: '2008Q3', lt: -0.2, note: '三问③：股东输（股价一年跌两成以上）' },
+          { get: 'start:extra.alloc.c', gt: 0.5, note: '三问③：新增的钱大半留在现金' },
         ],
-        concept: ['B2', 'dsr', 'interestToTax'], next: 'fx' },
+        // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US in 2008Q3 (雷曼那一季)
+        ending: {
+          q1: '水的问题还是河道的问题？水的问题：银行收闸、家庭省钱、投资者逃进现金，水被抽走；河道（工厂、人）都还在。',
+          q2: '环上哪一步？小周期在「{sl}」，圆环判「推不动」；大周期在 {ll}，已经走上 B2 岔路，下一站 ⑤。',
+          q3: '谁赢谁输、钱放哪？拿现金、国债和美元的人赢（外国人也逃进美元，澳元急跌）；背房贷的家庭、银行和股东输：股价一年跌了 {ey}。这一季，钱放现金、国债、美元。',
+        },
+        concept: ['B2', 'dsr', 'interestToTax'], next: 'inv' },
     ],
   },
+
+  /* course v3 L2 「水的问题，还是河道的问题」 (own file src/data/lesson-shocks.js, kind 'shocks', checked by tools/check_lesson_shocks.mjs; its
+   * sim step 5 (Capex) is also checked here by tools/check_lessons.mjs). m1 -> shk -> m2. */
+  LESSON_SHOCKS,
 
   /* =====================================================================================================================
    * Cycle lessons 1-7 (US data, scenario 'us'). LIVE NUMBERS: every model number quoted in a text is a {placeholder} filled at run
@@ -2335,9 +2472,10 @@ export const LESSONS = [
     ],
   },
 
-  /* ============================== 两节大课：汇率 → 投资者 (after the main line; m5 -> fx -> inv) ==============================
+  /* ============================== 第 6 课 汇率 (m4 -> fx -> m5) and 第 8 课 投资者 (m5 -> inv -> 历史盲测) ==============================
    * Data in their own files (src/data/lesson-fx.js, src/data/lesson-investor.js), checked by tools/check_lesson_fx.mjs and
-   * tools/check_lesson_investor.mjs (check_lessons.mjs only checks their place in the course). 汇率 absorbs 世界 1 (now 旧版).
+   * tools/check_lesson_investor.mjs (check_lessons.mjs checks their place in the course and m5's drill numbers). 汇率 absorbs 世界 1 and
+   * the FX part of 世界 2 (both now 旧版).
    */
   LESSON_FX,
   LESSON_INVESTOR,
@@ -2345,14 +2483,21 @@ export const LESSONS = [
 
 export const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]));
 
-// The course menu (src/ui/lessons.js), top to bottom. Keys are lesson ids, or 'role:<player>' for the town role lessons.
-//   main      主线 (~1 hour), in order; each hands over to the next (last step `next`); m5 -> the first `later` lesson
-//   later     the two big lessons right after the main line (汇率 -> 投资者), badges 「推荐 6 / 7」
-//   advanced  选学, after those
-//   legacy    旧版课程 (collapsed group at the bottom): still reachable by ?lesson=ID, nothing removed (世界 1: absorbed by 汇率)
+// The course menu (src/ui/lessons.js), top to bottom (course v3, tools/COURSE-V3.md). Keys are lesson ids, or 'role:<player>' for the town
+// role lessons.
+//   parts   the 4 parts of the one storyline, 8 lessons in order (第 1–8 课); each hands over to the next (last step `next`), the last
+//           (inv) ends on the 历史盲测 links. Then the 「沙盒」 link (free mode; it replaced lesson 7 自由运行).
+//   main    the same 8 ids, flattened (L1..L8)
+//   legacy  旧版课程 (collapsed group at the bottom): still reachable by ?lesson=ID, nothing removed (lesson 0.5 -> the fixed 三问 ending,
+//           Capex 与产能 (5) -> L2, 世界 1 / 世界 2 -> L6, 自由运行 (7) -> 沙盒)
+const PARTS = [
+  { name: '一个国家怎么运转', ids: ['m1', 'shk'] },
+  { name: '它怎么出毛病', ids: ['m2', 'm3', 'm4'] },
+  { name: '国与国之间', ids: ['fx'] },
+  { name: '你', ids: ['m5', 'inv'] },
+];
 export const COURSE = {
-  main: ['m1', 'm2', 'm3', 'm4', 'm5'],
-  later: ['fx', 'inv'],
-  advanced: [5, 7, 'w2'],
-  legacy: [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 'role:government', 'role:firm', 'role:investor', 'role:foreign', 1, 2, 3, '3b', 4, 6, 'w1'],
+  parts: PARTS,
+  main: PARTS.flatMap(p => p.ids),
+  legacy: [0, '0b', 'role:bank', 'role:household', 'role:centralBank', 'role:government', 'role:firm', 'role:investor', 'role:foreign', 1, 2, 3, '3b', 4, 5, 6, 7, 'w1', 'w2'],
 };

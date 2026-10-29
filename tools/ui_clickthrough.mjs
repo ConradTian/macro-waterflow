@@ -1,9 +1,10 @@
 // tiny CDP driver: node tools/_cdp.mjs  (runs a click-through of lesson 0 + a role lesson and prints assertions)
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const port = 9333;
+const port = 9333, BASE = process.env.BASE || 'http://localhost:8160/';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 let ws, id = 0; const pending = new Map(); const errors = [];
 async function connect() {
   for (let i = 0; i < 40; i++) { try { const r = await fetch(`http://127.0.0.1:${port}/json`); const tabs = await r.json(); const t = tabs.find(x => x.type === 'page'); if (t) { ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }); break; } } catch (e) { await sleep(250); } }
@@ -17,10 +18,10 @@ const text = sel => ev(`(document.querySelector(${JSON.stringify(sel)})||{}).tex
 try {
   await connect();
   await send('Runtime.enable'); await send('Page.enable');
-  await send('Page.navigate', { url: 'http://localhost:8160/?pause=1' });
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1') });
   await sleep(2500);
   ok(await ev(`document.querySelector('#date').textContent`) === '1995Q1', 'US sim at 1995Q1 before the lesson');
-  await send('Page.navigate', { url: 'http://localhost:8160/?pause=1&lesson=0' });
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1&lesson=0') });
   await sleep(2500);
   ok((await text('#ls-card .ls-stitle')).includes('先说结论'), 'lesson 0 intro shown');
   ok(await ev(`document.querySelector('#date').textContent`) === '第0季', 'diagram shows the town (第0季)');
@@ -63,12 +64,12 @@ try {
   await click('#ls-card [data-act=exit]'); await sleep(600);
   ok(await ev(`document.querySelector('#date').textContent`) === '1995Q1', 'exit restores the US sim at its old position (1995Q1)');
   // next lesson button leads into the bank lesson
-  await send('Page.navigate', { url: 'http://localhost:8160/?pause=1&lesson=0&step=13&nozoom=1' }); await sleep(2500);
+  await send('Page.navigate', { url: allLayers(BASE + '?pause=1&lesson=0&step=13&nozoom=1') }); await sleep(2500);
   await click('#ls-card [data-act=nextlesson]'); await sleep(1200);
   ok((await text('#ls-card .ls-ttl')).includes('银行'), 'next lesson = bank role lesson: ' + await text('#ls-card .ls-ttl'));
   ok(await ev(`document.querySelector('#date').textContent`) === '第0季', 'bank lesson runs in the town');
   // try-step click-through in the bank lesson
-  await send('Page.navigate', { url: 'http://localhost:8160/?lesson=role-bank&step=7' }); await sleep(2500);
+  await send('Page.navigate', { url: allLayers(BASE + '?lesson=role-bank&step=7') }); await sleep(2500);
   await click('#ls-card .ls-nav [data-act=trun]'); await sleep(500);
   await sleep(14000);
   ok(await ev(`document.querySelectorAll('#ls-card table.ls-res tr').length >= 4`), 'try step shows a comparison table');

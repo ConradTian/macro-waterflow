@@ -715,3 +715,92 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
   .flow-svg.has-border .chip[data-bd="pill"] rect.bg { stroke: var(--c-border); stroke-dasharray: 4 2.5; stroke-width: 1.6; }
   .flow-svg .sec-dim { stroke-width: 1.1; }
 }
+
+/* =====================================================================================================================
+   PROGRESSIVE DIAGRAM (tools/COURSE-V3.md; table src/data/layers.js, state app.js syncLayers): body.layers-on + body[data-layers="L-water ..."]
+   lists the layers on screen; every element tagged data-layer (diagram parts: flow.js tagLayers; the objective lamps; nothing else) whose
+   layer is not listed is hidden. Off (no class) = everything: full layout, 「显示全部」, town lessons (their own body.parts-on).
+   ===================================================================================================================== */
+body.layers-on:not([data-layers~="L-water"]) [data-layer="L-water"],
+body.layers-on:not([data-layers~="L-channel"]) [data-layer="L-channel"],
+body.layers-on:not([data-layers~="L-short"]) [data-layer="L-short"],
+body.layers-on:not([data-layers~="L-long"]) [data-layer="L-long"],
+body.layers-on:not([data-layers~="L-gov"]) [data-layer="L-gov"],
+body.layers-on:not([data-layers~="L-border"]) [data-layer="L-border"],
+body.layers-on:not([data-layers~="L-assets"]) [data-layer="L-assets"] { display: none !important; }
+body.layers-on .flow-svg .dangling { display: none; }
+/* 本季水量 bar: the grey 「其他泵 / 其他排水」 remainder terms show only while the layer they stand in for is hidden */
+[data-rest] { display: none; }
+body.layers-on:not([data-layers~="L-gov"]) [data-rest="L-gov"] { display: inline; }
+.flow-budget .fb-rest, .flow-budget .fb-rest b { color: var(--muted); }
+/* the 🌍 地图 button stays usable, dimmed until the border lesson */
+body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
+/* 「显示全部」: small switch at the top right of the diagram (left of the 📈 曲线 button when that one shows) */
+.layers-toggle { position: absolute; top: 8px; right: 8px; z-index: 30; display: inline-flex; align-items: center; gap: 5px; min-height: 28px;
+  padding: 0 9px 0 7px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow); white-space: nowrap; }
+.layers-toggle i { position: relative; width: 24px; height: 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); flex: none; }
+.layers-toggle i::after { content: ""; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: transform .2s ease; }
+.layers-toggle[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.layers-toggle[aria-pressed="true"] i { background: var(--accent); border-color: var(--accent); }
+.layers-toggle[aria-pressed="true"] i::after { transform: translateX(10px); background: #fff; }
+.layers-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layers-toggle[hidden], #diagram.wv-on > .layers-toggle, #diagram.ls-pnl-on > .layers-toggle { display: none; }
+#diagram > .view-toggle:not([hidden]) ~ .layers-toggle { top: 50px; }
+.layers-toggle[aria-pressed="true"] { opacity: .92; }
+
+/* =====================================================================================================================
+   WIDE DESKTOPS. (1) Above 2000px the whole app is capped and centred, so an ultrawide does not scatter it.
+   (2) WIDE-SHORT (21:9 monitors: >= 1600px wide and wider than 2.1:1). The diagram is sized by height there, so:
+       the top bar is a little tighter (总目标 and 本季看点 share one row), the diagram column is exactly as wide as the height
+       allows (up to 900px), and the 本季水量 bar leaves the diagram column for the top of the right column. The bar stays inside
+       #diagram in the DOM (flow.js / lessons / highlights find it there); it is only positioned over the right column, which
+       reserves its height. 1920×1000, iPad and phone are below these thresholds and keep the layout above.
+   ===================================================================================================================== */
+@media (min-width: 2001px) {
+  #app { max-width: 2000px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+  .toast { right: calc((100vw - 2000px) / 2 + 24px); }
+  .sheet { right: calc((100vw - 2000px) / 2); }
+}
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
+  :root {
+    --app-w: min(100vw, 2000px);
+    --top-h: 104px;                       /* time bar 46 + progress row 24 + the shared 总目标 / 本季看点 row 32 + border */
+    /* diagram column: the drawing's width at full height (viewBox 390×512, + 8px padding each side + border) */
+    --dcol: clamp(480px, calc((100dvh - var(--top-h) - 20px) * 0.762 + 17px), 900px);
+    --fb-h: 64px;                         /* the 本季水量 card in the right column */
+    --fb-gap: 12px;
+  }
+  /* top bar: one row less */
+  .timebar { min-height: 46px; padding-top: 1px; padding-bottom: 1px; }
+  .timebar .icon-btn, .timebar .teach-btn, .timebar .map-btn { height: 40px; }
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .topbar > * { grid-column: 1 / -1; }
+  .topbar > .objective { grid-column: 1; }
+  .topbar > .headline { grid-column: 2; border-left: 1px solid var(--border); }
+  .topbar > .objective[hidden] + .headline { grid-column: 1 / -1; border-left: 0; }
+  .topbar > .objective:has(+ .headline[hidden]) { grid-column: 1 / -1; }
+  body.parts-on .topbar > .objective { grid-column: 1 / -1; }          /* headline.css hides the strip in the first town lessons */
+  .ob-bar { min-height: 32px; padding-left: 24px; padding-right: 16px; }
+  .ob-main { font-size: 14px; }
+  .ob-yoy, .ob-lamp { font-size: 13px; }
+  .headline { border-top: 1px solid var(--border); border-bottom: 0; }
+  .hl-bar { min-height: 32px; font-size: 14px; }
+
+  /* the two columns */
+  .main { grid-template-columns: var(--dcol) minmax(0, 1fr); }
+  /* at the 900px cap (very tall ultrawides) the box would be taller than the drawing: size it to the drawing so it is not centred in white */
+  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - var(--top-h) - 20px); height: min(calc(100dvh - var(--top-h) - 20px), calc((var(--dcol) - 17px) * 1.313)); }
+
+  /* 本季水量: a card at the top of the right column (positioned from #diagram, which is position: relative) */
+  .flow-budget { position: absolute; z-index: 5; top: var(--fb-gap); left: calc(100% + 24px); width: calc(var(--app-w) - var(--dcol) - 48px);
+    height: var(--fb-h); overflow: hidden; display: flex; flex-direction: column; justify-content: center;
+    padding: 6px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); font-size: 14px; }
+  .flow-budget .fb-net { font-size: 18px; }
+  .flow-budget .fb-unit { font-size: 12px; }
+  .flow-budget .fb-eq { font-size: 13.5px; margin-top: 3px; }
+  #diagram.wv-on .flow-budget { visibility: visible; }          /* the 曲线 view hides the drawing, not the bar beside it */
+  .flow-ripple { bottom: 8px; }
+  .panel { padding-top: calc(var(--fb-h) + var(--fb-gap)); }
+  body.parts-on:not([data-vis~="budget"]) .panel { padding-top: 0; }
+}

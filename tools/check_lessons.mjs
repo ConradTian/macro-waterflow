@@ -19,10 +19,17 @@
 // 10. town steps  (m1 starts in the 万元 town, then zooms to the US): townClaims [{ at:'before'|'after', get, minus?:'before', gt|gte|lt|lte }] are
 //                 checked on a town replay with the SAME code as the UI (replayTown + the tap); the US steps after the zoom run the usual checks
 // 11. mark / roleCard ids exist; ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
-// 12. handover   m1 -> m2 -> ... -> m5 -> fx (汇率) -> inv (投资者) (last step `next`); COURSE lists every lesson / role lesson exactly once
+// 12. course v3 (tools/COURSE-V3.md): COURSE.parts = 4 parts, COURSE.main = m1 shk m2 m3 m4 fx m5 inv; each hands over to the next (last step
+//                `next`), inv ends on the 盲测 links; labels 第 1–8 课; COURSE lists every lesson / role lesson exactly once (the rest under 旧版)
 // BIG LESSONS (kind:'fx' 汇率, kind:'capstone' 投资者; src/data/lesson-fx.js, lesson-investor.js): their numbers, facts and claims are verified by
 //  tools/check_lesson_fx.mjs / check_lesson_investor.mjs, so the per-step checks above (incl. the world rule 7 "no typed numbers") skip them.
-//  Checked here: 13. place in the course  COURSE.later = fx, inv right after the main line; handovers; country / panel ids / panel hosts
+//  Checked here: 13. place in the course  handovers; country / panel ids (incl. drill-down panels) / panel hosts
+// SHOCKS (kind:'shocks' 冲击 shk, src/data/lesson-shocks.js; numbers checked by tools/check_lesson_shocks.mjs): its sim step (Capex, the only
+//  step with vals / claims) gets the full per-step checks here (templates, claims); the panel steps only the structural ones.
+// 14. 三问 ending  the last step of each of the 8 lessons has ending { q1, q2, q3 }, each starting with its fixed question; the {placeholders}
+//                of the main lessons are declared vals and fill without gaps
+// 15. drills     step.drills [{ label, panel, text, nums, facts }] of the main lessons (m5 外国人 -> the AUS FX reactor): panel ids exist, every
+//                number typed in a drill text is listed in nums and recomputes from the repo's quarterly data / the FX reactor (D.q, D.fxr)
 // Claims may test strings: eq:'red' / ne:'green' (getters 'lamp.<id>', 'lamps.lit', 'out.C', 'gdp.<flow>', '<a>/<b>': see src/ui/lessons-town.js).
 // Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
@@ -38,6 +45,8 @@ import { RULE_BY_ID } from '../src/engine/rules.js';
 import { createSim } from '../src/engine/sim.js';
 import { headlineItems } from '../src/ui/headline.js';
 import { lessonPositions, buildTable, fillStep, evalGet, scratchRun, dateT, fmtV, aggregate, arr, setWorldData, evalWorld, replayTown, applyAll, tapEffects, getPath } from '../src/ui/lessons-town.js';
+import { computeFxReactor } from '../src/ui/fx-reactor.js';
+const END_Q = ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'];   // the fixed 三问 (src/ui/lessons.js END_QUESTIONS)
 
 const worldArg = (process.argv.find(a => a.startsWith('--world=')) || '').slice(8);
 let WORLD = null, COUNTRY_READY = {}, COUNTRY_DATA = {};
@@ -71,6 +80,7 @@ const MAIN = LESSONS.filter(l => l.kind === 'main');                     // 主�
 const ROUTINE = LESSONS.filter(l => l.kind === 'routine');   // 第 0.5 课 怎么看一个季度: same checks as the cycle lessons, plus the 本季看点 strip texts
 const WORLDL = LESSONS.filter(l => l.kind === 'world');                  // 世界 1, 世界 2 ...
 const BIG = LESSONS.filter(l => l.kind === 'fx' || l.kind === 'capstone');   // 汇率, 投资者: own checkers (not in the loop below)
+const SHK = LESSONS.filter(l => l.kind === 'shocks');                         // 冲击: in the loop, only its sim step gets the full checks
 const specWorldOk = g => typeof g === 'string' && /^world:[\w.]+@(\d{4}|last)(>\d{4})?$/.test(g);
 const specRealOk = (g, D) => typeof g === 'string' && g.startsWith('real:') && AGGS.includes(g.split(':')[1]) && !!(D && D.series && Array.isArray(D.series[g.split(':').pop()]));
 const isoOk = c => !!(WORLD && WORLD.countries && WORLD.countries[c]);
@@ -114,8 +124,8 @@ function evalCond(L, c, win) {
 const condName = c => c.note || c.get;
 
 const mkTown = L => createSim({ scenario: 'town', delays: !!L.delays });
-for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
-  const isW = L.kind === 'world', draft = !!L.draft, isM = L.kind === 'main';
+for (const L of [...ROUTINE, ...MAIN, ...SHK, ...CYC, ...WORLDL]) {
+  const isW = L.kind === 'world', draft = !!L.draft, isM = L.kind === 'main', isS = L.kind === 'shocks';
   const D = DATA[L.country || 'USA'];
   console.log(`\n=== lesson ${L.id} (${L.title})${draft ? ' [draft: structure only]' : ''} ===`);
   const pos = lessonPositions(L);
@@ -138,6 +148,10 @@ for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
     ok(last.next != null, w0 + 'last step hands over (next)');
     ok(L.steps.length >= 4 && L.steps.length <= 10, w0 + `4-10 steps (${L.steps.length})`);
     ok(L.label && /^第 \d 课$/.test(L.label), w0 + 'label 第 N 课');
+  } else if (isS) {
+    const last = L.steps[L.steps.length - 1];
+    ok(String(last.next) === 'm2', w0 + 'last step hands over to m2');
+    ok(L.steps.filter(s => s.vals || s.claims).length === 1, w0 + 'exactly one sim step (vals / claims): the Capex step');
   } else {
     ok(L.steps[L.steps.length - 1].type === 'chain', w0 + 'ends with a chain step');
     ok(L.steps.filter(s => s.type === 'chain').length === 1, w0 + 'exactly one chain');
@@ -171,6 +185,7 @@ for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
     (st.metrics || []).forEach(m => { ok(specOk(m.get, D) || m.get.indexOf(':') < 0, w + 'metric spec ' + m.get); ok(!m.fmt || FMTS.includes(m.fmt), w + 'metric fmt ' + m.fmt); });
     (st.vals || []).forEach(v => { ok(v.key && specOk(v.get, D) && FMTS.includes(v.fmt), w + 'val ' + v.key); checkSet(v.set, w + 'val ' + v.key + ' '); for (const d of [v.from, v.until]) if (d && L.mode !== 'free') ok(D.dates.includes(d), w + 'val ' + v.key + ' date ' + d); });
     if (st.wavesNow) { const wc = WAVES.countries.find(c => c.iso === st.wavesNow.iso); ok(wc && wc.now && wc.now.text.includes(st.wavesNow.has), w + `waves.js NOW of ${st.wavesNow.iso} mentions "${st.wavesNow.has}" (got: ${wc && wc.now && wc.now.text})`); }
+    if (isS && !st.vals && !st.claims) return;          // 冲击: a panel step (its numbers: check_lesson_shocks.mjs)
     // intro
     if (st.type === 'intro') {
       ok(st.text[0].startsWith('**'), w + 'one-line conclusion first');
@@ -251,7 +266,13 @@ for (const L of [...ROUTINE, ...MAIN, ...CYC, ...WORLDL]) {
     ok(!/[{}]/.test(flat), w + 'no leftover braces');
     // placeholders must point at a declared key
     const keys = new Set([...(st.vals || []).map(v => v.key), ...(st.metrics || []).filter(m => m.key).map(m => m.key)]);
-    for (const m of JSON.stringify([st.text, st.q, st.explain, st.answerHint, st.relation, st.insight, st.question, st.options, st.links]).matchAll(/\{(\w+)(?:\.\w+(?:-\w+)?)?\}/g)) ok(keys.has(m[1]), w + 'placeholder {' + m[1] + '} has a declared key');
+    for (const m of JSON.stringify([st.text, st.q, st.explain, st.answerHint, st.relation, st.insight, st.question, st.options, st.links, st.ending]).matchAll(/\{(\w+)(?:\.\w+(?:-\w+)?)?\}/g)) ok(keys.has(m[1]), w + 'placeholder {' + m[1] + '} has a declared key');
+    // ---- 14. the 三问 ending: filled like the text (src/ui/lessons.js endingHtml)
+    if (st.ending) {
+      const em = [], ef = fillStep({ text: [st.ending.q1, st.ending.q2, st.ending.q3] }, tbl, em).text.join(' | ');
+      ok(em.length === 0 && !/NaN|undefined|null|Infinity|[{}]/.test(ef), w + 'ending placeholders filled' + (em.length ? ' (missing ' + em.join(' ') + ')' : ''));
+      if (showText) console.log('   ending: ' + ef);
+    }
     // experiment: every choice's tokens exist and are numeric
     if (st.type === 'experiment') {
       for (const m of st.metrics) st.choices.forEach((c, k) => ok(typeof tbl.raw[`${m.key}.${k}`] === 'number' || typeof tbl.raw[`${m.key}.${k}`] === 'string', w + `metric ${m.key} under choice ${k} = ${tbl.raw[`${m.key}.${k}`]}`));
@@ -303,29 +324,85 @@ ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available w
 // old chain 1 -> 2 -> 3 -> 3b -> 4 -> 5; lesson 5 (选学) now hands over to 7 (选学), 6 (旧版) to 7, 7 to w2 (选学)
 const NEXT_OF = { 5: 7, 6: 7, 7: 'w2' };
 ok(CYC.every((l, k) => String(l.steps[l.steps.length - 1].next) === String(NEXT_OF[l.id] ?? CYC[k + 1].id)), 'each cycle lesson hands over to the next (5 -> 7 -> w2 in the 选学 group)');
-/* ---------- main line + menu (COURSE) ---------- */
-ok(MAIN.map(l => l.id).join() === COURSE.main.join() && COURSE.main.join() === 'm1,m2,m3,m4,m5', 'main line m1..m5, in LESSONS in menu order');
-ok(MAIN.every(l => l.available === true), 'main lessons available');
-MAIN.forEach((l, k) => { const nx = l.steps[l.steps.length - 1].next, want = k < MAIN.length - 1 ? MAIN[k + 1].id : COURSE.later[0]; ok(String(nx) === String(want), `${l.id} hands over to ${want} (got ${nx})`); });
-/* ---------- 13. the two big lessons (汇率 -> 投资者) ---------- */
+/* ---------- 12. course v3: 4 parts, 8 lessons, one chain (COURSE) ---------- */
+console.log('\n--- course v3: parts, order, handovers, labels, 三问 ending ---');
+const COURSE_IDS = 'm1,shk,m2,m3,m4,fx,m5,inv';
+ok(MAIN.map(l => l.id).join() === 'm1,m2,m3,m4,m5', 'the five main lessons m1..m5 (kind main) are in LESSONS in order');
+ok(COURSE.main.map(String).join() === COURSE_IDS, 'COURSE.main = L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv: ' + COURSE.main.join());
+ok(JSON.stringify(COURSE.parts.map(p => [p.name, p.ids])) === JSON.stringify([['一个国家怎么运转', ['m1', 'shk']], ['它怎么出毛病', ['m2', 'm3', 'm4']], ['国与国之间', ['fx']], ['你', ['m5', 'inv']]]),
+  'COURSE.parts = 一个国家怎么运转 (m1 shk) / 它怎么出毛病 (m2 m3 m4) / 国与国之间 (fx) / 你 (m5 inv)');
+ok(COURSE.parts.flatMap(p => p.ids).join() === COURSE.main.join(), 'COURSE.main = the parts flattened');
+const CL = COURSE.main.map(id => LESSONS.find(l => String(l.id) === String(id)));
+ok(CL.every(Boolean), 'every course lesson is registered');
+CL.forEach((l, k) => {
+  if (!l) return;
+  const last = l.steps[l.steps.length - 1], want = k < CL.length - 1 ? CL[k + 1].id : null;
+  ok(l.available === true, `${l.id} available`);
+  ok(want == null ? last.next == null : String(last.next) === String(want), `L${k + 1} ${l.id} hands over to ${want ?? '(end: 历史盲测)'} (got ${last.next})`);
+  ok(l.label === `第 ${k + 1} 课`, `L${k + 1} ${l.id} label 第 ${k + 1} 课 (got ${l.label})`);
+  // ---- 14. the fixed 三问 ending on the last step
+  const e = last.ending;
+  ok(e && ['q1', 'q2', 'q3'].every((q, j) => typeof e[q] === 'string' && e[q].startsWith(END_Q[j]) && e[q].length > END_Q[j].length + 8), `L${k + 1} ${l.id}: last step has the 三问 ending (q1 q2 q3, each starts with its question)`);
+  ok(l.steps.slice(0, -1).every(s => !s.ending), `L${k + 1} ${l.id}: only the last step has an ending`);
+  if (e && (l.kind === 'fx' || l.kind === 'capstone')) ok(!/[{}]/.test(Object.values(e).join('')), `L${k + 1} ${l.id}: ending has no placeholders (its numbers: its own checker)`);
+});
+ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 8 course lessons');
+{ // L5 (m4): the step 化债四个出口和谁被砍, tied to ⑦
+  const m4 = MAIN[3], k = m4.steps.findIndex(s => /化债四个出口/.test(s.title || ''));
+  const t = k >= 0 ? m4.steps[k].text.join('') : '';
+  ok(k >= 0 && m4.steps[k - 1] && /⑦/.test(m4.steps[k - 1].title) && /⑧/.test(m4.steps[k + 1]?.title || ''), 'm4: 化债四个出口 sits between ⑦ and ⑧');
+  ok(['增长', '没人被砍', '通胀', '拿现金、国债的人', '金融压制', '存钱的人', '违约', '债主'].every(x => t.includes(x)), 'm4: the four exits and who pays (增长 = 没人, 通胀 = 现金/国债, 金融压制 = 存钱的人, 违约 = 债主)');
+  ok(k >= 0 && (m4.steps[k].claims || []).some(c => c.get === 'max:rates.realPolicy' && c.lt === 0) && (m4.steps[k].claims || []).some(c => c.get === 'dpp:gov.debtGdp' && c.lt < 0), 'm4: tied to ⑦ with claims (real rate < 0, debt/GDP falling)');
+}
+{ // L7 (m5): the 外国人 step has the AUS reactor sub-step (a panel, not a sim switch)
+  const st = MAIN[4].steps.find(s => s.roleCard === 'foreign'), d = st && arr(st.drills)[0];
+  ok(d && d.panel && d.panel.id === 'fx-reactor' && d.panel.iso === 'AUS' && arr(d.panel.dates).join() === '2008Q3,2009Q1' && st.drillCta, 'm5 外国人: sub-step = the AUS FX reactor 2008Q3 → 2009Q1 (drill, primary button)');
+  ok(MAIN[4].steps.every(s => !s.country && !s.panel), 'm5: no sim switch and no step panel (the US view stays)');
+}
+/* ---------- 15. drill-down numbers (main lessons) ---------- */
 {
-  console.log('\n--- big lessons (fx, inv): place in the course; numbers are checked by check_lesson_fx.mjs / check_lesson_investor.mjs ---');
+  const CDATA = { AUS: await COUNTRY_DATA.AUS(), USA: COUNTRY_DATA.USA ? await COUNTRY_DATA.USA() : US_Q };
+  const fxrCache = {};
+  const DD = {
+    q(iso, s, d) { const X = CDATA[iso], i = X.dates.indexOf(d); if (i < 0 || X.series[s][i] == null) throw new Error(`no ${iso}.${s}@${d}`); return X.series[s][i]; },
+    fxr(d) { return (fxrCache[d] ||= computeFxReactor(CDATA.AUS, CDATA.USA, d, 'AUS')); },
+  };
+  const DFMT = { int: v => (Number.isInteger(v) ? String(v) : 'non-int ' + v), n0: v => String(Math.round(v)), n1: v => v.toFixed(1), n2: v => v.toFixed(2), pct0: v => (v * 100).toFixed(0), pp1: v => (v * 100).toFixed(1) };
+  const DALLOW = [/\*\*/g, /(?<![\d.])(19|20)\d{2}Q[1-4]/g, /(?<![\d.])(19|20)\d{2}(?![\d.])/g, /\d{1,2}\s*月/g, /第\s*\d+\s*[步课]/g, /\bB[12]\b/g];
+  const toks = t => { let s = t; for (const r of DALLOW) s = s.replace(r, ' '); return s.match(/\d+(?:\.\d+)?/g) || []; };
+  const src = f => readFileSync(new URL('../src/ui/' + f, import.meta.url), 'utf8');
+  for (const L of MAIN) L.steps.forEach((st, i) => arr(st.drills).forEach((d, j) => {
+    const w = `L${L.id} step ${i + 1} drill ${j + 1} `;
+    ok(d.label && d.panel && d.panel.id === 'fx-reactor' && Array.isArray(d.text) && d.text.length >= 2, w + 'shape (label, reactor panel, text)');
+    ok(/export async function mountFxReactor/.test(src('fx-reactor.js')), w + 'mountFxReactor exists');
+    for (const dt of arr(d.panel.dates).concat(d.panel.date || [])) ok(CDATA.AUS.dates.includes(dt) && DD.fxr(dt).ok, w + 'reactor date ' + dt);
+    const all = arr(d.text).join('\n'), listed = new Set((d.nums || []).map(n => n.t));
+    for (const tk of toks(all)) ok(listed.has(tk), w + `typed number ${tk} is listed in nums`);
+    for (const n of d.nums || []) {
+      let got; try { got = DFMT[n.fmt](n.f(DD)); } catch (e) { got = 'ERROR ' + e.message; }
+      ok(got === n.t, w + `${n.t} = ${got}`);
+      ok(toks(all).includes(n.t), w + `nums ${n.t} appears in the text`);
+    }
+    for (const c of d.facts || []) { let r = false; try { r = !!c.f(DD); } catch (e) { r = false; } ok(r, w + 'fact: ' + c.note); }
+  }));
+}
+/* ---------- 13. the big lessons (汇率, 投资者) and 冲击 ---------- */
+{
+  console.log('\n--- big lessons (fx, inv) and shk: place in the course; numbers are checked by check_lesson_fx / check_lesson_investor / check_lesson_shocks ---');
   const src = f => readFileSync(new URL('../src/ui/' + f, import.meta.url), 'utf8');
   const ids = (f, name) => { const m = src(f).match(new RegExp(name + ' = \\[([^\\]]*)\\]')); return m ? [...m[1].matchAll(/'([\w-]+)'/g)].map(x => x[1]) : []; };
-  const PANEL_IDS = { fx: ids('fx-lab.js', 'FX_PANELS'), capstone: ids('investor-lab.js', 'INVESTOR_PANEL_IDS') };
+  const PANEL_IDS = { fx: [...ids('fx-lab.js', 'FX_PANELS'), 'fx-reactor'], capstone: ids('investor-lab.js', 'INVESTOR_PANEL_IDS'), shocks: ids('shock-lab.js', 'SHOCK_PANELS') };
   ok(BIG.map(l => l.id).join() === 'fx,inv' && LESSONS.slice(-2).map(l => l.id).join() === 'fx,inv', 'fx (汇率) and inv (投资者) are registered, last in LESSONS');
-  ok(COURSE.later.join() === 'fx,inv', 'menu: 接下来 = fx, inv (right after the main line)');
-  ok(!('soon' in COURSE), 'no 制作中 placeholders left (COURSE.soon removed)');
+  ok(SHK.map(l => l.id).join() === 'shk', 'shk (冲击) is registered');
   const [FX, INV] = BIG;
-  ok(FX && FX.kind === 'fx' && FX.label === '汇率' && INV && INV.kind === 'capstone', 'kinds: fx = 汇率, inv = capstone');
-  ok(FX && String(FX.steps[FX.steps.length - 1].next) === 'inv', 'fx hands over to inv (last step next)');
-  ok(INV && INV.steps[INV.steps.length - 1].next == null && (INV.steps[INV.steps.length - 1].panel || {}).id === 'blind', 'inv is the end of the line: its last step shows the 盲测 links (panel blind), no next');
+  ok(FX && FX.kind === 'fx' && FX.label === '第 6 课' && INV && INV.kind === 'capstone' && INV.label === '第 8 课', 'kinds: fx = 第 6 课, inv = capstone 第 8 课');
+  ok(INV && (INV.steps[INV.steps.length - 1].panel || {}).id === 'blind', 'inv is the end of the line: its last step shows the 盲测 links (panel blind)');
   ok(INV && INV.country === 'AUS' && COUNTRY_READY.AUS === true && !!DATA.AUS, 'inv lives in the AUS view (country:AUS, COUNTRY_READY.AUS)');
-  for (const L of BIG) {
+  for (const L of [...BIG, ...SHK]) {
     ok(L.available === true && L.rulesOn === 'all' && D_OK(L), `${L.id} available, rulesOn all, startDate in its data`);
-    ok(L.steps.filter(s => s.panel).length >= 5, `${L.id} has panel steps`);
+    ok(L.steps.filter(s => s.panel).length >= 4, `${L.id} has panel steps`);
     L.steps.forEach((st, i) => {
-      if (st.panel) ok(PANEL_IDS[L.kind].includes(st.panel.id), `${L.id} step ${i + 1} panel id ${st.panel.id} exists in ${L.kind === 'fx' ? 'fx-lab.js FX_PANELS' : 'investor-lab.js INVESTOR_PANEL_IDS'}`);
+      for (const sp of [st.panel, ...arr(st.drills).map(d => d.panel)].filter(Boolean)) ok(PANEL_IDS[L.kind].includes(sp.id), `${L.id} step ${i + 1} panel id ${sp.id} exists (${L.kind})`);
       if (st.next != null) ok(i === L.steps.length - 1 && lessonIds.has(String(st.next)), `${L.id} step ${i + 1} next ${st.next} (last step, exists)`);
       if (st.tab) ok(TABS.includes(st.tab), `${L.id} step ${i + 1} tab ${st.tab}`);
       // hl on a step whose panel covers the diagram is invisible anyway: an id the diagram does not have is only a warning
@@ -343,14 +420,13 @@ ok(mainSteps <= 32, `main line is about an hour: ${mainSteps} steps (<= 32, ~2 m
   ok(m5.slice(1).map(s => s.roleCard).join() === ROLE_CARD_ORDER.join(), 'm5 opens the 8 role cards in ROLE_CARD_ORDER');
   ok(MAIN[4].startDate === '2008Q3' && dateT('2008Q3') === 54 && m5.every(s => !s.from && !s.until), 'm5 stays at 2008Q3 (t=54)');
   ok(arr(m5[m5.length - 1].mark).includes('objective') && (m5[m5.length - 1].claims || []).some(c => c.get === 'start:lamps.lit' && c.gte === 4), 'm5 ends on the 总目标 strip with all 4 lamps lit (claimed)'); }
-const menuKeys = [...COURSE.main, ...COURSE.advanced, ...COURSE.later, ...COURSE.legacy].map(String);
+const menuKeys = [...COURSE.main, ...COURSE.legacy].map(String);
 ok(new Set(menuKeys).size === menuKeys.length, 'COURSE lists no lesson twice');
 for (const l of LESSONS) ok(menuKeys.includes(String(l.id)), `lesson ${l.id} is in the menu (COURSE)`);
 for (const l of ROLE_LESSONS) ok(menuKeys.includes('role:' + l.role), `role lesson ${l.id} is in the menu (旧版)`);
 for (const k of menuKeys) ok(k.startsWith('role:') ? ROLE_LESSONS.some(l => l.role === k.slice(5)) : LESSONS.some(l => String(l.id) === k), 'menu key exists: ' + k);
-ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,6,w1', '旧版课程 = lesson 0, 0.5, the 7 role lessons, cycle lessons 1-4 (+3b), 6 and 世界 1 (absorbed by 汇率)');
-ok(COURSE.advanced.join() === '5,7,w2', '选学 = 5 (Capex 与产能), 7 (自由运行), w2 (澳洲)');
-ok(Object.keys(COURSE).join() === 'main,later,advanced,legacy', 'menu groups in order: 主线, 接下来 (fx, inv), 选学, 旧版');
+ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,5,6,7,w1,w2', '旧版课程 = lesson 0, 0.5, the 7 role lessons, cycle lessons 1-7 (+3b; 5 Capex -> L2, 7 自由运行 -> 沙盒), 世界 1 and 2 (-> L6)');
+ok(Object.keys(COURSE).join() === 'parts,main,legacy', 'menu groups in order: the 4 parts (8 lessons), then 旧版 (the 沙盒 link sits between them in the menu)');
 ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
 ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
 const L7 = CYC[CYC.length - 1];

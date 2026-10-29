@@ -1,11 +1,14 @@
 // node tools/check_map.mjs   (serve the repo root first: python -m http.server 8185; BASE=http://localhost:PORT/ overrides)
 // CDP check of the 🌍 地图 page: opens, seven boxes, select = card and NO navigation, not-ready enter is disabled, USA enter returns to the
 // main screen (US sim keeps its state), year slider, pipe toggles, mw:map event, ?map=1&select=, ?country= boot hook, phone layout, no JS errors.
+// Geometry (iPad 1180×820, phone 390, desktop 1920×1000): boxes do not overlap, every pipe has an arrowhead ≥ ARROW_MIN px, no pipe passes
+// through a box interior, the two lanes of a two-way pair do not overlap; selection fades all other pipes and labels only its own.
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const port = 9361, BASE = process.env.BASE || 'http://localhost:8185/';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1180,820', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
 const errors = [], navs = [];
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL:', m); } else console.log('ok:', m); };
 
@@ -25,7 +28,7 @@ async function client(tab) {
   await send('Runtime.enable'); await send('Page.enable');
   return {
     send, ev, close: () => ws.close(),
-    go: async url => { await send('Page.navigate', { url }); await sleep(2300); },
+    go: async url => { await send('Page.navigate', { url: allLayers(url) }); await sleep(2300); },
     click: sel => ev(`(()=>{const b=document.querySelector(${JSON.stringify(sel)}); if(!b) return 'missing'; b.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})); return 'ok'})()`),
     count: sel => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`),
     text: sel => ev(`(document.querySelector(${JSON.stringify(sel)})||{}).textContent||''`),
@@ -36,6 +39,67 @@ const tabs = async () => (await (await fetch(`http://127.0.0.1:${port}/json`)).j
 const mapOpen = c => c.ev(`!document.getElementById('world-map').hidden && document.body.dataset.map === '1'`);
 const setYear = (c, y) => c.ev(`(()=>{const s=document.querySelector('.wm-slider'); s.value=${y}; s.dispatchEvent(new Event('input',{bubbles:true})); return 1})()`);
 const pipes = (c, k) => c.count(`.wm-pipe[data-k="${k}"]`);
+// geometry of what is drawn: box overlaps, arrowhead size, pipes through a box interior, the two lanes of a two-way pair overlapping.
+const ARROW_MIN = 12;
+const GEOM = `(() => {
+  const svg = document.querySelector('.wm-svg'), W = +svg.getAttribute('width');
+  const bb = el => { const b = el.getBBox(); return { x: b.x, y: b.y, w: b.width, h: b.height }; };
+  const boxes = [...svg.querySelectorAll('.wm-box')].map(g => ({ id: g.dataset.iso, r: bb(g.querySelector('.wm-rect')) }));
+  const pr = svg.querySelector('.wm-prect'); if (pr) boxes.push({ id: 'POOL', r: bb(pr) });
+  const ov = [];
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const a = boxes[i].r, b = boxes[j].r;
+    if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) ov.push(boxes[i].id + '/' + boxes[j].id);
+  }
+  const outside = boxes.filter(b => b.r.x < -1 || b.r.x + b.r.w > W + 1).map(b => b.id);
+  const ps = [...svg.querySelectorAll('.wm-pipe')].filter(g => getComputedStyle(g).display !== 'none');
+  const D = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const small = [], intr = [], lanes = {}, samp = {};
+  let minAh = 1e9;
+  for (const g of ps) {
+    const id = g.dataset.from + '>' + g.dataset.to, poly = g.querySelector('.wm-arrow');
+    const pt = poly ? poly.getAttribute('points').trim().split(/\\s+/).map(s => s.split(',').map(Number)) : [];
+    if (pt.length < 3) { small.push(id + ':none'); continue; }
+    const l = pt[1], r = pt[pt.length - 1], wd = D(l, r), ln = D(pt[0], [(l[0] + r[0]) / 2, (l[1] + r[1]) / 2]), sz = Math.min(wd, ln);
+    minAh = Math.min(minAh, sz);
+    if (sz < ${ARROW_MIN}) small.push(id + ':' + sz.toFixed(1));
+    const path = g.querySelector('.wm-bed'), L = path.getTotalLength(), S = [];
+    for (let i = 0; i <= 40; i++) { const q = path.getPointAtLength(L * i / 40); S.push([q.x, q.y]); }
+    samp[id] = { S, w: +g.dataset.w, k: g.dataset.k };
+    for (const b of boxes) {
+      if (b.id === g.dataset.from || b.id === g.dataset.to) continue;
+      const r = b.r, n = S.filter(([x, y]) => x > r.x + 1 && x < r.x + r.w - 1 && y > r.y + 1 && y < r.y + r.h - 1).length;
+      if (n) intr.push(id + ' through ' + b.id + ' (' + n + '/41)');
+    }
+  }
+  const segD = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+  const pairOv = []; let nPairs = 0;
+  for (const id in samp) {
+    const [f, t] = id.split('>'), back = samp[t + '>' + f];
+    if (!back || f > t || samp[id].k !== 'trade') continue;
+    nPairs++;
+    const A = samp[id], need = (A.w + back.w) / 2 - 0.75;
+    let mn = 1e9;
+    for (const p of A.S.slice(3, -3)) for (let i = 1; i < back.S.length; i++) mn = Math.min(mn, segD(p, back.S[i - 1], back.S[i]));
+    if (mn < need) pairOv.push(id + ' gap ' + mn.toFixed(1) + ' < ' + need.toFixed(1));
+  }
+  return { n: ps.length, ov, outside, small, minAh: +minAh.toFixed(1), intr, nPairs, pairOv };
+})()`;
+async function geom(c, label, pairs = true) {
+  const g = await c.ev(GEOM);
+  ok(g.n > 0 && !g.ov.length && !g.outside.length, `[${label}] boxes + reservoir do not overlap and sit inside the stage (${g.ov.join(', ') || 'no overlap'}${g.outside.length ? '; outside: ' + g.outside : ''})`);
+  ok(!g.small.length, `[${label}] every visible pipe (${g.n}) has an arrowhead ≥ ${ARROW_MIN}px (smallest ${g.minAh}px)${g.small.length ? ': ' + g.small.join(', ') : ''}`);
+  ok(!g.intr.length, `[${label}] no pipe passes through a box interior${g.intr.length ? ': ' + g.intr.join('; ') : ''}`);
+  if (pairs) ok(g.nPairs > 0 && !g.pairOv.length, `[${label}] two-way pairs drawn as separate lanes that do not overlap (${g.nPairs} pairs)${g.pairOv.length ? ': ' + g.pairOv.join('; ') : ''}`);
+}
+const FOCUS = `(() => {
+  const svg = document.querySelector('.wm-svg'), sel = document.querySelector('.wm-box.sel')?.dataset.iso || null;
+  const op = g => +getComputedStyle(g).opacity;
+  const ps = [...svg.querySelectorAll('.wm-pipe')], hl = ps.filter(g => g.classList.contains('hl')), other = ps.filter(g => !g.classList.contains('hl'));
+  const chips = [...svg.querySelectorAll('.wm-chip')].map(c => c.dataset.from + '>' + c.dataset.to);
+  return { sel, nHl: hl.length, hlOp: Math.min(...hl.map(op)), otherOp: other.length ? Math.max(...other.map(op)) : 0, chips,
+    chipsOk: !sel || chips.every(k => k.split('>').includes(sel) || (sel === 'USA' && k.endsWith('>POOL'))), hlLab: hl.length };
+})()`;
 
 try {
   let ver = null;
@@ -89,6 +153,10 @@ try {
   // box readings present
   const txt = await A.text('.wm-box[data-iso="USA"]');
   ok(txt.includes('资产') && txt.includes('债务') && txt.includes('利率') && txt.includes('大环'), 'USA box shows 资产 债务 利率 大环: ' + txt);
+  await geom(A, 'iPad 2008');
+  const lab0 = await A.count('.wm-chip');
+  ok(lab0 >= 3 && lab0 <= 8, `no selection: only the biggest flows carry a number (${lab0} labels, 3..8)`);
+  ok(await A.count('.wm-pipe .wm-chevs path.wm-chev') >= await A.count('.wm-pipe'), 'every pipe carries ≥ 1 chevron along the way (direction readable in a still picture)');
 
   // ---- 2. select does not navigate ----
   const nav0 = navs.length;
@@ -104,6 +172,11 @@ try {
   ok(await A.ev(`!!document.querySelector('.wm-card .fxr-forces[open]') && document.querySelector('.wm-card .fxr-grp.hl')?.dataset.grp === 'cap' && document.querySelector('.wm-box.sel')?.dataset.iso === 'AUS'`), 'tapping a reactor pipe in the card opens its five forces (selection kept)');
   ok((await A.text('.wm-card')).includes('汇率') && (await A.text('.wm-card')).includes('AUD'), 'card shows FX per USD: ' + (await A.text('.wm-line')));
   ok(await A.ev(`document.querySelector('.wm-svg').classList.contains('has-sel') && document.querySelectorAll('.wm-pipe.hl').length > 0`), 'selected box lights its pipes, others fade');
+  await sleep(300);                                          // let the opacity transition finish
+  const fo = await A.ev(FOCUS);
+  ok(fo.sel === 'AUS' && fo.nHl > 0 && fo.hlOp >= 0.99 && fo.otherOp <= 0.1, `selection focus: AUS pipes at full strength (${fo.nHl}, opacity ${fo.hlOp}), all others faded to ≤ 0.1 (${fo.otherOp})`);
+  ok(fo.chipsOk && fo.chips.length >= Math.min(fo.nHl, 4), `selection labels: only AUS pipes carry numbers (${fo.chips.length} labels: ${fo.chips.slice(0, 6).join(' ')}…)`);
+  await geom(A, 'iPad 2008 AUS selected');
   const enter = await A.ev(`(()=>{const b=document.querySelector('.wm-enter'); return b ? { dis: b.disabled, t: b.textContent.trim() } : null})()`);
   const ready = await A.ev(`import('/src/data/countries/index.js').then(m => ({ ...m.COUNTRY_READY }))`);
   if (!ready.AUS) ok(enter && enter.dis && enter.t === '细图制作中', 'not-ready AUS: enter button disabled, says 细图制作中: ' + JSON.stringify(enter));
@@ -134,6 +207,18 @@ try {
   const d25 = await A.ev(`[...document.querySelectorAll('.wm-pipe[data-k="trade"]:not([data-row])')].map(g => g.dataset.from + '>' + g.dataset.to)`);
   const need = ['AUS>CHN', 'CHN>AUS', 'JPN>CHN', 'CHN>JPN', 'JPN>USA', 'USA>JPN'];
   ok(need.every(k => d25.includes(k)), `2025, nothing selected: both directions of AUS↔CHN, JPN↔CHN, JPN↔USA drawn (${need.filter(k => !d25.includes(k)).join(',') || 'all'})`);
+  await geom(A, 'iPad 2025');
+  for (const [k, nm] of [['capital', '资本'], ['reserve', '储备'], ['trade', '贸易']]) {
+    await A.click(`.wm-seg [data-kind="${k}"]`); await sleep(200);
+    if (k !== 'reserve') await geom(A, `iPad 2025 ${nm}`, k === 'trade');   // 资本: one-way pipes into the reservoir, no pairs
+    else ok(await A.count('.wm-pipe') === 0 && await A.count('.wm-pool') === 1, 'iPad 2025 储备: no pipes, the reservoir');
+  }
+  await A.click('.wm-seg [data-kind="all"]'); await sleep(200);
+  await A.click('.wm-box[data-iso="AUS"]'); await sleep(400);
+  await geom(A, 'iPad 2025 AUS selected');
+  const fo25 = await A.ev(FOCUS);
+  ok(fo25.otherOp <= 0.1 && fo25.chipsOk, `2025 AUS: others faded (${fo25.otherOp}), labels only on AUS pipes (${fo25.chips.length})`);
+  await A.click('.wm-bg'); await sleep(200);
   await A.click('.wm-box[data-iso="USA"]'); await sleep(200);
   await setYear(A, 1995); await sleep(300);
   ok((await A.text('.wm-yv')) === '1995' && await A.count('.wm-box') === 7, '1995 (null-heavy year) renders: ' + await A.text('.wm-box[data-iso="EA"]'));
@@ -200,12 +285,23 @@ try {
   ok(await mapOpen(A) && await A.count('.wm-box') === 7, 'phone 390: map opens with seven boxes');
   ok(await A.ev(`(()=>{const r=document.querySelector('.wm-stage').getBoundingClientRect(); return [...document.querySelectorAll('.wm-box')].every(b=>{const q=b.getBoundingClientRect(); return q.left>=r.left-1&&q.right<=r.right+1})})()`), 'phone: no box sticks out sideways');
   ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1`), 'phone: no horizontal page scroll');
+  await geom(A, 'phone 2008');
+  await setYear(A, 2025); await sleep(300);
+  await geom(A, 'phone 2025');
+  await setYear(A, 2008); await sleep(300);
   for (const iso of ['AUS', 'ROW', 'USA']) {
     await A.click(`.wm-box[data-iso="${iso}"]`); await sleep(400);
     const vis = await A.ev(`(()=>{const b=document.querySelector('.wm-box.sel .wm-rect').getBoundingClientRect(), c=document.querySelector('.wm-card').getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(); return { top: b.top, bottom: b.bottom, cardTop: c.top, stageTop: s.top }})()`);
     ok(vis.bottom <= vis.cardTop + 1 && vis.top >= vis.stageTop - 1, `phone: selected ${iso} is fully above the card (${Math.round(vis.bottom)} <= ${Math.round(vis.cardTop)})`);
   }
   ok(await A.ev(`(()=>{const c=document.querySelector('.wm-card'); return c.scrollHeight <= c.clientHeight + 1 || getComputedStyle(c).overflowY === 'auto'})()`), 'phone: card scrolls if tall');
+
+  // ---- 10. desktop 1920×1000: the same geometry rules ----
+  await A.viewport(1920, 1000);
+  await A.go(BASE + '?pause=1&t=53&map=1&year=2025');
+  await geom(A, 'desktop 2025');
+  await A.go(BASE + '?pause=1&t=53&map=1&year=2008&select=CHN');
+  await geom(A, 'desktop 2008 CHN selected');
   await A.viewport(1180, 820);
 
   console.log('errors:', errors.length ? errors : 'none');
