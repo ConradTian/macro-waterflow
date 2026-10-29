@@ -84,10 +84,11 @@ export function lampsAt(snap, iso) {
   if (num(m.unemployment)) {
     const us = uStarFor(cp, snap.t), d = m.unemployment - us;
     const level = d < 0.01 ? 'green' : d <= 0.03 ? 'yellow' : 'red';
-    // the US 2023–25 recession is a known model gap (MODEL_GAPS in tabs/_util.js): say so on the lamp itself
-    const gap = iso === 'USA' && snap.t >= 112 && snap.t <= 123;
+    // known US unemployment gaps (MODEL_GAPS in tabs/_util.js): say so on the lamp itself. 2006Q1–2008Q2 = t 44–53, 2023–25 = t 112–123
+    const GAP_NOTE = [[44, 53, '2006–08 模型失业率偏高（6–10%），真实约 4.5–5%'], [112, 123, '2023–25 模型里出现了一次衰退，真实没有，真实失业率约 4%']];
+    const gn = iso === 'USA' ? GAP_NOTE.find(([a, b]) => snap.t >= a && snap.t <= b) : null, gap = !!gn;
     out.push({ id: 'drought', name: '干涸', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河道闲着：人和工厂没活干。` +
-      (gap ? '【模型偏差：2023–25 模型里出现了一次衰退，真实没有，真实失业率约 4%】' : '') });
+      (gap ? `【模型偏差：${gn[2]}】` : '') });
   }
   // 溃坝: long cycle on the B2 fork or in ⑤; amber when bad loans are above their band
   {

@@ -9,6 +9,8 @@ import { countryParams } from '../data/country-params.js';
 export const DT = 0.25;
 const TRANSFER_SHARE = 0.35;       // share of baseline government outlays that are transfers to households
 const STIM_TRANSFER_SHARE = 0.95;  // share of a discretionary stimulus (adj>0) delivered as transfers/tax cuts/relief
+// automatic fiscal stabilisers per 1pp of unemployment above u*: outlays +0.4pp of GDP (benefits), tax ratio -0.8pp x tau0
+const STAB_SPEND = 0.4, STAB_TAX = 0.8;
 // ---- tuned constants (see tools/engine_check.mjs scorecard). Country-tuned ones (repricing speed, rate sensitivity,
 // wealth MPC, Phillips slope, mortgage share) moved to country-params.js.
 const EARN_EMA = 0.102;         // equity earnings index: EMA weight on current profit (investors price smoothed earnings)
@@ -73,6 +75,9 @@ export function exogenous(data, t, cp = countryParams()) {
     // border (国境线): trade shares of GDP, local currency per USD now and 4 quarters ago, share of government debt held abroad
     exportsGdp: trail('exportsGdp', t, cp.tradeTrail), importsGdp: trail('importsGdp', t, cp.tradeTrail), fx: last('fxPerUsd', t), fx4: last('fxPerUsd', t - 4),
     fShare: last('foreignGovHoldShare', t), fSharePrev: last('foreignGovHoldShare', t - 1), reserveShareUsd: last('reserveShareUsd', t),
+    // fiscal path (history mode, cp.fiscalRealPath): government deficit and interest payments / GDP (positive = deficit); null without data
+    govDeficitGdp: get('govDeficitGdp', t), govDeficitPrev: get('govDeficitGdp', t - 1), govInterestGdp: get('govInterestGdp', t),
+    uReal: get('unemployment', t),   // real unemployment: ONLY to strip the real automatic stabilisers out of the real deficit
   };
 }
 
@@ -275,9 +280,23 @@ export function decideAll(S, K, ex, env) {
   {
     let adj = S.adj;
     const usr = ud('government');
+    // history mode (like cb_real_path): the stance adj is the REAL cyclically adjusted primary deficit - real deficit minus real
+    // interest minus what the model's own automatic stabilisers would add at the real unemployment gap. The model then adds its own
+    // stabilisers at the model's unemployment (settle §4), so the real recession's revenue loss is not counted twice on a different
+    // model cycle; when model u = real u, the model deficit = real primary deficit + model interest. Rules only in free mode, without
+    // the data, or when the government is taken over / its valve turned (they continue from this adj).
+    const realFiscal = !usr && env.mode === 'history' && K.cp.fiscalRealPath && ex.govDeficitGdp != null && ex.govInterestGdp != null && ex.uReal != null;
     if (usr && usr.fiscalInjection != null) {
       adj = clamp(usr.fiscalInjection, -0.05, 0.15);
       entries.push(mkEntry(S, 'government', 'gov_stimulus', `失业率 ${pct(S.u)}，利息/税收 ${pct(S.i2t)}`, '用户接管政府：手动设定财政注入（占 GDP）', `财政注入 ${pct(adj)} GDP/年`));
+    } else if (realFiscal) {
+      const gapR = ex.uReal - uStarAt(K, S.t + 1);
+      adj = ex.govDeficitGdp - ex.govInterestGdp - (K.gr0 - K.tau0) - (STAB_SPEND + STAB_TAX * K.tau0) * gapR;
+      const d0 = ex.govDeficitPrev;
+      if (d0 != null && Math.abs(ex.govDeficitGdp - d0) >= 0.01)
+        entries.push(mkEntry(S, 'government', 'gov_real_path', `真实财政赤字（外生数据）：上季 ${pct(d0)} GDP，真实失业率 ${pct(ex.uReal)}`, '历史模式：财政赤字沿用真实数据（外生输入）',
+          `真实赤字 ${pct(d0)} → ${pct(ex.govDeficitGdp)} GDP（${ex.govDeficitGdp > d0 ? '扩张' : '收缩'}）；扣除自动稳定器后的主动财政 ${pct(S.adj)} → ${pct(adj)} GDP`,
+          { immediate: '财政净注入随真实赤字变化，M 随之变化', delayed: '政府债务/GDP 与利息负担跟着真实赤字走' }));
     } else {
       const uMin = Math.min(...S.uHist);
       let fired = false;
@@ -535,14 +554,14 @@ export function settle(S0, K, ex, dec, env) {
     S.fcShare = c; S.fcRate = r;
     S.mortEff = (1 - c) * S.mortVar + c * r;
   }
-  const firmNew = 0.5 * S.gov10y + 0.5 * S.policy + 0.02 + 0.1 * Math.max(0, S0.bad - 0.02);
+  const firmNew = 0.5 * S.gov10y + 0.5 * S.policy + 0.02 + 0.1 * Math.max(0, S0.bad - 0.02) + (K.cp.firmSpread ?? 0) * (S.rp - 0.045);
   S.firmEff = S0.firmEff + (dl ? 0.15 : 1) * (firmNew - S0.firmEff);
   S.govEff = S0.govEff + (dl ? 0.06 : 1) * (S.gov10y - S0.govEff);
   const rFirmReal = S.firmEff - S0.piE;
 
   // 2. saving, income
   const inc = K.ws * S0.gdp;
-  const sT = clamp(K.s0 + 1.0 * (S0.u - uStar) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj, 0.01, 0.2);
+  const sT = clamp(K.s0 + (K.cp.savU ?? 1.0) * (S0.u - uStar) + 0.2 * (S.policy - S0.piY - 0.01) + dec.saveAdj + (K.cp.savRp ?? 0) * Math.max(0, S.rp - 0.045), 0.01, 0.2);
   S.sav = S0.sav + (dl ? 0.5 : 1) * (sT - S0.sav);
 
   // 3. credit: min(demand, LVR cap, DSR cap, capital cap) x approval
@@ -583,10 +602,10 @@ export function settle(S0, K, ex, dec, env) {
   const payout = capR0 >= 0.095 ? 0.6 : capR0 >= 0.085 ? 0.3 : 0;
   S.E = Math.max(0.01 * B1, S0.E + net - payout * Math.max(0, net)) + dec.recap;
 
-  // 4. fiscal
-  const tauR = K.tau0 - 0.8 * (S0.u - uStar) * K.tau0 * 1.0;
+  // 4. fiscal (stance adj: rules, a takeover, or - history mode - the real cyclically adjusted primary deficit, see decideAll)
+  const tauR = K.tau0 - STAB_TAX * (S0.u - uStar) * K.tau0;
   const taxes_a = tauR * S0.gdp;
-  const primaryRatio = K.gr0 + S.adj + 0.4 * (S0.u - uStar);
+  const primaryRatio = K.gr0 + S.adj + STAB_SPEND * (S0.u - uStar);
   const primary_a = primaryRatio * S0.gdp;
   const interest_a = S0.Dg * S.govEff;
   const deficit_a = interest_a + primary_a - taxes_a;
@@ -606,14 +625,14 @@ export function settle(S0, K, ex, dec, env) {
   // firms compare their real funding cost with a neutral rate: fixed at the start (USA), or (cp.firmNeutralQ > 0) moving with the
   // trailing mean of the real policy rate, so a secular fall in rates does not keep Capex (and capacity) booming for ever
   const rfrN = S0.rpH ? K.rfr0 + S0.rpH.reduce((a, b) => a + b, 0) / S0.rpH.length - K.rpReal0 : K.rfr0;
-  const capexShare = clamp((K.c0 + 0.4 * clamp(v0.pressure, -0.1, 0.1) - 0.6 * (rFirmReal - rfrN)) * S.capexMult, 0.08, 0.20);
+  const capexShare = clamp((K.c0 + (K.cp.capexPress ?? 0.4) * clamp(v0.pressure, -0.1, 0.1) - (K.cp.capexRate ?? 0.6) * (rFirmReal - rfrN)) * S.capexMult, 0.08, 0.20);
   const capex_q = capexShare * S0.gdp * dt;
   S.pipeline.push(capex_q / S0.P);
   const lag = dl ? 6 : 2;   // quarters between Capex spending and new capacity (town demo: short but visible)
   const completed = S.pipeline[S.pipeline.length - 1 - lag];
   S.pipeline.shift();
   const completedRatio = completed * 4 / S0.Ystar;
-  const gCap = K.gT + 0.6 * (completedRatio - K.c0);
+  const gCap = K.gT + (K.cp.capGain ?? 0.6) * (completedRatio - K.c0);
   S.Ystar = S0.Ystar * (1 + gCap * dt);
   S.capex = capex_q * 4;
 
@@ -643,11 +662,21 @@ export function settle(S0, K, ex, dec, env) {
   const intDebtQ = (S.mortEff + K.alphaH) * S0.Dh * dt + (S.firmEff + K.alphaF) * S0.Df * dt;
   const dsRatio = 4 * intDebtQ / S0.AD;
   const HVnew = null; // placeholder (computed after housing); wealth effect uses last quarter change to avoid simultaneity
-  const wealthSpend = K.wealthMpc * (S0.HV + S0.eqCap - S0.wealthPrev);
-  const spendRatio = 4 * (0.35 * consCredit + capex_q + primary_a * dt + wealthSpend) / S0.AD;
+  const wealthSpend = K.cp.wealthLevel != null ? K.cp.wealthLevel * (S0.HV + S0.eqCap) * dt : K.wealthMpc * (S0.HV + S0.eqCap - S0.wealthPrev);
+  const tMpc = K.cp.transferMpc ?? 1;
+  let fiscalSpend_a = primary_a;
+  if (tMpc !== 1) {
+    // households spend tMpc of transfers at once; the rest becomes excess saving (stock xs) spent later at xsDrain per year
+    const dr = K.cp.xsDrain ?? 0.5;
+    const xs0 = S0.xs ?? (1 - tMpc) * transfers_a / dr;   // first quarter: the stock is in balance with the transfers
+    const xsSpend_a = dr * xs0;
+    S.xs = xs0 + ((1 - tMpc) * transfers_a - xsSpend_a) * dt;
+    fiscalSpend_a = govPurchases_a + tMpc * transfers_a + xsSpend_a;
+  }
+  const spendRatio = 4 * (0.35 * consCredit + capex_q + fiscalSpend_a * dt + wealthSpend) / S0.AD;
   const nxRatio = dec.nx;
   const d = (a, b) => (b == null ? 0 : a - b);
-  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - K.ws * (S.sav - S0.sav) - 0.4 * v0.pressure * dt;
+  const gNom = K.gBase * dt + d(spendRatio, S0.spendRatio) - 0.5 * d(dsRatio, S0.dsRatio) + d(nxRatio, S0.nxRatio) - K.ws * (S.sav - S0.sav) - (K.cp.adPull ?? 0.4) * v0.pressure * dt;
   S.spendRatio = spendRatio; S.dsRatio = dsRatio; S.nxRatio = nxRatio;
   S.AD = S0.AD * (1 + gNom) * demandShockF;
 
@@ -681,7 +710,7 @@ export function settle(S0, K, ex, dec, env) {
   // labour slack: output below capacity. cp.slackVsCapEff: measured against the shock-reduced capacity (a lockdown's lost capacity
   // is not job loss: JobKeeper-type schemes keep workers attached); otherwise against full capacity Ystar (USA)
   const slack = 1 - S.Y / (K.cp.slackVsCapEff ? capEff : S.Ystar);
-  const uT = uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack);
+  const uT = uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack) + (K.cp.shockLayoff ?? 0) * S.shock;
   S.u = S0.u + 0.5 * (uT - S0.u);
   S.uHist.push(S.u); S.uHist.shift();
   if (S.rpH) { S.rpH.push(S.policy - S.piY); S.rpH.shift(); }
