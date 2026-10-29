@@ -127,10 +127,12 @@ function trailOf(ctx, kind, e, src) {
   const out = [], sim = ctx.sim, snap = ctx.snap;
   if (!sim || !snap) return out;
   const br = snap.branch || 'model';
+  // 真实 mode: snap is the REAL snapshot; its earlier quarters come from the real dial run (ctx.realHist = realTimeline)
+  const at = br === 'real' && Array.isArray(ctx.realHist) ? t => ctx.realHist[t] : t => sim.snapshot(br, t);
   for (let k = 8; k >= 1; k--) {
     if (snap.t - k < 0) continue;
     let it = null;
-    try { const s = sim.snapshot(br, snap.t - k); it = (src === 'fork' ? s?.cycles?.[kind]?.forkEvidence : s?.cycles?.[kind]?.evidence)?.find(x => x.name === e.name && x.target === e.target); } catch (err) { it = null; }
+    try { const s = at(snap.t - k); it = (src === 'fork' ? s?.cycles?.[kind]?.forkEvidence : s?.cycles?.[kind]?.evidence)?.find(x => x.name === e.name && x.target === e.target); } catch (err) { it = null; }
     if (it && ok(it.value)) out.push(it.value);
   }
   return out;
@@ -143,9 +145,10 @@ function rowHtml(e, o) {
   const bits = [e.ok ? '' : `<span class="cy-gap">还差 ${fmtGap(e)}</span>`, place ? `<span class="cy-where">看：${esc(place)}</span>` : ''].filter(Boolean).join('');
   // a 加分项 (e.support) is never pinned and never "needed": it reads 有 / 没有 instead of ✔ / ✖
   const sup = !!e.support;
-  const pin = e.ok || sup ? '' : `<button type="button" class="cy-pin-btn" data-pk="${esc(key)}" aria-pressed="${pinned}" title="盯住这一项：它达标时暂停并提醒你">${pinned ? '★ 盯住中' : '☆ 盯住'}</button>`;
+  // 盯住 pauses a playing sim: 真实 mode has no play, so no pins there
+  const pin = e.ok || sup || (o.ctx && o.ctx.realMode) ? '' : `<button type="button" class="cy-pin-btn" data-pk="${esc(key)}" aria-pressed="${pinned}" title="盯住这一项：它达标时暂停并提醒你">${pinned ? '★ 盯住中' : '☆ 盯住'}</button>`;
   const state = sup ? (e.ok ? '加分项：有' : '加分项：没有') : e.ok ? '已达标' : '未达标';
-  return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}${sup ? ' sup' : ''}${pinned ? ' pinned' : ''}${e.ok || sup ? '' : ' has-pin'}">` +
+  return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}${sup ? ' sup' : ''}${pinned ? ' pinned' : ''}${pin ? ' has-pin' : ''}">` +
     `<button type="button" class="cy-rowbtn" data-evterm="${esc(e.term || '')}" aria-label="${esc(e.name + '：' + state + (place ? '，在图里看' + place : ''))}">` +
     `<span class="cy-mk" aria-hidden="true">${sup ? (e.ok ? '+' : '·') : e.ok ? '✔' : '✖'}</span><span class="cy-en">${esc(e.name)}</span>` +
     `<span class="cy-vals"><b>${fmtV(e.value, e.fmt)}</b> <i>${sup ? '参考' : '需'} ${e.dir === '>=' ? '≥' : '≤'} ${fmtV(e.threshold, e.fmt)}</i></span>` +

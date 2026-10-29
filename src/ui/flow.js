@@ -246,6 +246,9 @@ function flowsOf(snap, prevSnap) {
 // The engine builds GDP from total demand, not as C+I+G+NX, and its household.consumption leaves out credit- and wealth-funded spending
 // (the four came to ~84% of GDP). So C is the residual GDP − I − G − NX: the four outlets add up to GDP by construction (US C ≈ 71–79%, real ≈ 68%).
 function outletsOf(snap) {
+  // 真实 mode (src/ui/real-mode.js): snap.outlets = the real shares of GDP (BEA / ABS 5206.0)
+  const o = snap.outlets, q = gdpOf(snap) / 4;
+  if (o && [o.C, o.I, o.G, o.NX].every(v => typeof v === 'number' && isFinite(v))) return { outC: o.C * q, outI: o.I * q, outG: o.G * q, outNX: o.NX * q };
   const outI = (snap.firm?.capex ?? 0) / 4, outG = snap.flows?.govPurchases ?? 0, outNX = snap.border?.netExports ?? 0;
   return { outC: Math.max(0, gdpOf(snap) / 4 - outI - outG - outNX), outI, outG, outNX };
 }
@@ -612,6 +615,7 @@ function build(host) {
     if (p.id !== 'housing') o.cap.removeAttribute('data-lbl');
     o.stat = txt(top, cx, TANK_Y + 42, '', 'cap vstat', 'middle', 'pool ' + p.part);     // B6: 贵 / 正常 / 便宜 against the band
     o.stat.setAttribute('data-lk', 'poolStat');
+    if (p.id === 'housing') o.real = txt(gg, cx, TANK_Y + 51.5, '', 'cap rhint', 'middle');   // 模型 mode, 保留样本: 「真实 x」 (applyRealHint)
   }
   // seesaw captions
   txt(top, poolCx(POOLS[0]), 372, '利率↑', 'cap', 'middle', 'pool poolBond');
@@ -633,6 +637,9 @@ function build(host) {
   R.cpi = txt(g, cx0, TANK_Y + 36, '', 'sub');
   g = termGroup(top, 'unemployment', [CH_X0 + 2, TANK_Y + 42, 54, 16], 'channel', 'unemp');
   R.unemp = txt(g, cx0, TANK_Y + 54, '', 'sub');
+  // 模型 mode, 保留样本 (2022+): 「真实CPI x」 / 「真实失业 x」 in the free space under the two (applyRealHint)
+  R.cpiReal = txt(top, cx0, TANK_Y + 67, '', 'cap rhint', 'start', 'channel');
+  R.unempReal = txt(top, cx0, TANK_Y + 76.5, '', 'cap rhint', 'start', 'channel');
   R.px = txt(top, cx0, 363, '', 'sub', 'start', 'channel');
   g = termGroup(top, 'capacity', [CH_X0 + 2, 368, 54, 18], 'capex');
   R.cap = txt(g, cx0, 381, '', 'sub');
@@ -938,6 +945,7 @@ function updateMarks(st, snap) {
   st.marks = null;
   try {
     const sim = currentSim(), t = snap.t;
+    if (snap.branch === 'real') return;          // 真实 mode: the marks would mix the model's history with today's real level: none
     if (!sim || typeof sim.history !== 'function' || !(t >= HWM_MIN_T)) return;
     const br = snap.branch === 'user' ? 'user' : 'model';
     const hist = sim.history(br);
@@ -1177,6 +1185,58 @@ function setTexts(R, snap, prevSnap, st) {
   setBorder(R, snap, town);
   R.bar.dataset.unit = LB.unit;
   setBudget(R, snap, town);
+  applyValueState(R, snap);
+  applyRealHint(R, snap);
+}
+
+/* ---------- 真实 mode (src/ui/real-mode.js viewSnapshot): which numbers are model estimates (.v-est, grey, 「模型估算」) and which have
+   no value (.v-none, the number becomes 「—」). snap.valueState = { est: Set<path>, none: Set<path> }; no valueState = all plain. ---------- */
+const VALUE_SRC = [['rate', 'rates.policy'], ['realRate', 'rates.realPolicy'], ['gov', 'gov.debtGdp'], ['govGross', 'gov.spendingGross'],
+  ['bank', 'bank.approval'], ['hh', 'household.dsr'], ['firm', 'firm.profit'], ['iouGdp', 'iou.bankTotal'], ['cashGdp', 'money.M'],
+  ['cpi', 'macro.inflation'], ['unemp', 'macro.unemployment'], ['px', 'macro.priceLevel'], ['cap', 'macro.capacity']];
+const PIPE_SRC = { govPurchases: 'flows.fiscalInjection', transfers: 'flows.fiscalInjection', outC: 'outlets.C', outI: 'outlets.I', outG: 'outlets.G', outNX: 'outlets.NX',
+  exports: 'border.exports', imports: 'border.imports', foreignBonds: 'border.foreignBondBuy' };
+const pipeSrc = k => PIPE_SRC[k] || 'flows.' + k;
+const EST_TIP = '模型估算：真实统计里没有这一项';
+function valueStateOf(snap, path) {
+  const vs = snap && snap.valueState;
+  return !vs ? '' : vs.none.has(path) ? 'none' : vs.est.has(path) ? 'est' : '';
+}
+function markText(n, s) {
+  if (!n) return;
+  n.classList.toggle('v-est', s === 'est'); n.classList.toggle('v-none', s === 'none');
+  if (s === 'none') { const t = n.textContent; n.textContent = /\d/.test(t) ? (/\s/.test(t.trim()) ? t.trim().replace(/\s+\S*$/, '') + ' —' : '—') : t; }
+  if (s === 'est') n.setAttribute('data-est', EST_TIP); else n.removeAttribute('data-est');
+}
+function applyValueState(R, snap) {
+  for (const [k, p] of VALUE_SRC) markText(R[k], valueStateOf(snap, p));
+  for (const p of POOLS) { const s = valueStateOf(snap, `assets.${p.id}.price`); markText(R.pools[p.id].val, s); if (s) R.pools[p.id].stat.textContent = s === 'none' ? '' : R.pools[p.id].stat.textContent; R.pools[p.id].stat.classList.toggle('v-est', s === 'est'); }
+  { const s = valueStateOf(snap, 'macro.demandPressure'), S = R.sec;
+    for (const n of [S.t2, S.t3, S.t4]) markText(n, s);
+    if (s === 'none') { S.t2.textContent = '深 —'; S.t3.textContent = ''; S.t4.textContent = ''; } }
+  for (const p of PIPES) {
+    const pr = R.pipes[p.k], s = valueStateOf(snap, pipeSrc(p.k));
+    pr.chip.classList.toggle('v-est', s === 'est'); pr.chip.classList.toggle('v-none', s === 'none');
+    pr.g.classList.toggle('v-est', s === 'est'); pr.g.classList.toggle('v-none', s === 'none');
+    if (s === 'none' && p.kind !== 'fb') placeChip(pr, p.kind === 'out' ? '—' : `${p.label} —`);
+  }
+  const bs = valueStateOf(snap, 'budget.net');
+  R.bar.classList.toggle('v-est', bs === 'est'); R.bar.classList.toggle('v-none', bs === 'none');
+  if (bs === 'none') R.bar.innerHTML = '<div class="fb-none"><b>本季水量 —</b><small>模型只算到最后一季历史数据；真实统计里没有这一项</small></div>';
+  else if (bs === 'est') {
+    const m = R.bar.querySelector('.fb-mlab'), d = R.bar.querySelector('.fb-detail .fb-row');
+    const tag = '<span class="fb-est" title="' + EST_TIP + '">模型估算</span>';
+    if (m) m.insertAdjacentHTML('afterend', tag);
+    if (d) d.insertAdjacentHTML('beforeend', tag);
+  }
+}
+// 模型 mode inside 保留样本 (2022+): small muted 「真实 x」 next to CPI, unemployment and the house price (snap.realHint, set by app.js)
+function applyRealHint(R, snap) {
+  const h = snap && snap.realHint, ok = v => typeof v === 'number' && isFinite(v);
+  const put = (n, v, f, lab = '真实 ') => { if (!n) return; const on = !!(h && ok(v)); n.textContent = on ? lab + f(v) : ''; if (on) n.removeAttribute('display'); else n.setAttribute('display', 'none'); };
+  put(R.cpiReal, h && h.cpi, v => pct(v), '真实CPI ');
+  put(R.unempReal, h && h.unemp, v => pct(v), '真实失业 ');
+  put(R.pools.housing.real, h && h.house, v => String(Math.round(v)));
 }
 
 /* =====================================================================================================================
@@ -1266,7 +1326,11 @@ function chipPopHtml(st, p) {
   let h = `<button type="button" class="fp-x" data-act="cp-close" aria-label="关闭">✕</button><div class="fp-kind">${esc(kind)}</div><h4>${esc(name)}</h4>`;
   h += row('占 GDP（按年算）', pctTxt(shareOf(v, snap), p.kind === 'out'));
   h += row('本季流量', signed(v)) + row('一年大约', signed(v * 4));
-  if (p.kind === 'out') {
+  const vs = valueStateOf(snap, pipeSrc(p.k));
+  if (vs) h += `<div class="cp-note v-tag">${vs === 'none' ? '—：这一季没有数据（真实统计还没发布，或模型只算到 2025Q4）' : EST_TIP + '，这里显示的是模型的数'}</div>`;
+  if (p.kind === 'out' && snap.outlets && !vs) {
+    h += `<div class="cp-note">真实数据（${iso === 'AUS' ? 'ABS 5206.0' : 'BEA'}）：消费 + 投资 + 政府购买 + 净出口 = GDP${iso === 'AUS' ? '（另有不到 1% 的统计误差）' : ''}。</div>`;
+  } else if (p.kind === 'out') {
     h += `<div class="cp-note">GDP = 四个出口拿走的货：消费 + 投资 + 政府购买 + 净出口。模型直接算总需求，所以这里的家庭消费 = GDP 减去另外三项` +
       `（包括借钱、房价上涨多花的部分）。比真实略高：美国真实约 68%。</div>`;
     if (p.k === 'outI') h += `<div class="cp-note">企业投资（Capex）过一两年变成更宽的河道（产能）。</div>`;

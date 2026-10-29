@@ -9,6 +9,7 @@ import { initScrubber } from './ui/scrubber.js';     // collapsible time scrubbe
 import { setActiveCountry, registerCountryData } from './ui/country-info.js';   // unit / name / data-source labels of the country view
 import { learnedLayers, lessonLayers, getShowAll, setShowAll } from './ui/progress.js';   // progressive diagram (see "layers" below)
 import { LAYER_IDS, layersUpTo } from './data/layers.js';
+import { REAL_MODE_ISOS, loadRealMod, viewSnapshot, realHint, badgeHtml } from './ui/real-mode.js';   // 「真实 / 模型」 mode (see "real mode" below)
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -72,6 +73,7 @@ async function boot() {
 
   buildTabbar();
   wireControls();
+  await initRealMode();                              // before the scrubber: its range ends at lastRealDate in 真实 mode
   buildScrubber();
   initSync();
   await installConcepts();
@@ -107,7 +109,7 @@ function openTerm(id) {
 
 /* ---------- play loop ---------- */
 function setPlaying(on) {
-  playing = on && !sim.done && !following;
+  playing = on && !sim.done && !following && !isReal();     // 真实 mode: real data is read one quarter at a time
   $('btn-play').textContent = playing ? '⏸' : '▶';
   clearTimeout(timer);
   if (playing) timer = setTimeout(tick, tickMs / speed);
@@ -140,7 +142,7 @@ async function loadLessons() {
   lessonsMod.initLessons({
     sim: () => sim, real: () => real, getSnap: () => snap,
     setPlaying, isPlaying: () => playing, openTerm,
-    setQuiet: q => { lessonQuiet = q; if (q) hideToast(); updateTimeControls(); },   // suppress key-node pause toasts during a lesson (and lock the scrubber)
+    setQuiet: q => { lessonQuiet = q; if (q) hideToast(); updateTimeControls(); syncRealMode(); },   // suppress key-node pause toasts during a lesson (and lock the scrubber)
     refresh: () => { snap = sim.snapshot(); prevSnap = null; renderAll(); },
     setTickMs: ms => { tickMs = ms || 1000; if (playing) setPlaying(true); },   // ms per quarter at 1x (lessons play slowly)
     setTab: id => setTab(id, { save: false }),       // a lesson runs in the full layout anyway (body.lesson-on); it never changes the viewer's stored choice
@@ -193,10 +195,13 @@ function showNote(msg) { resumeOnOk = false; $('toast-msg').textContent = msg; $
 
 /* ---------- controls ---------- */
 function wireControls() {
-  $('btn-play').onclick = () => { hideToast(); setPlaying(!playing); };
-  $('btn-step').onclick = () => { hideToast(); setPlaying(false); advance(); };
+  $('btn-play').onclick = () => { if (isReal()) return; hideToast(); setPlaying(!playing); };
+  $('btn-step').onclick = () => { hideToast(); setPlaying(false); if (isReal()) realSeek(rt + 1); else advance(); };
   const back = $('btn-back');                         // ⏮ 退一季 = a seek to t-1
-  if (back) back.onclick = () => { if (timeLock() || sim.t <= 0) return; hideToast(); setPlaying(false); seekTo(sim.t - 1); };
+  if (back) back.onclick = () => {
+    if (isReal()) { if (rt > 0) { hideToast(); realSeek(rt - 1); } return; }
+    if (timeLock() || sim.t <= 0) return; hideToast(); setPlaying(false); seekTo(sim.t - 1);
+  };
   $('btn-speed').onclick = () => {
     speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     $('btn-speed').textContent = speed + '×';
@@ -257,7 +262,16 @@ let simpleMod = null;
 async function renderSimple() {
   if (!simpleMod) { try { simpleMod = await import('./ui/simple.js'); } catch (e) { console.error(e); return; } }
   if (isFull()) return;                                 // changed while the module loaded
-  try { simpleMod.renderSimple($('simple'), { sim, snap, openTerm, openFull: tab => (tab ? setTab(tab) : setLayout('full')) }); } catch (e) { console.error(e); }
+  try { simpleMod.renderSimple($('simple'), { sim, snap, openTerm, openFull: tab => (tab ? setTab(tab) : setLayout('full')), ...realCtx() }); } catch (e) { console.error(e); }
+}
+// 真实 mode extras for the panels (周期 tab, simple dials): realSnap = the real snapshot on screen, modelSnap = the model's same quarter
+// (null after the model's last quarter), realHist = the real dials quarter by quarter (realTimeline), realT / realLast = the real time range
+function realCtx() {
+  if (!isReal() || !rsnap) return {};
+  const mLast = modelLastT();
+  return { realMode: true, realSnap: rsnap, realT: rt, realLast: realLastT(), realDates: rmMod.realDates(COUNTRY),
+    modelSnap: rt <= mLast ? (sim.t === rt ? snap : sim.snapshot('model', rt)) : null, modelLastDate: real?.dates?.[mLast] || '',
+    realHist: rmMod.realTimeline(COUNTRY) };
 }
 // a lesson starting / ending flips what the panel shows: draw the side that just appeared (and the diagram layers follow)
 new MutationObserver(() => {
@@ -266,6 +280,7 @@ new MutationObserver(() => {
   wasLessonOn = b.classList.contains('lesson-on');
   if (sim) syncLayers();
   if (shownFull !== null && isFull() !== shownFull) renderPanel();
+  syncRealMode();                                       // a lesson starting / ending forces / restores 模型
 }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 document.addEventListener('mw:layout', e => {
   const d = e.detail || {};
@@ -337,6 +352,7 @@ document.addEventListener('mw:lesson-active', e => {
   const id = e.detail ? e.detail.id : null;
   lessonActive = id == null ? null : String(id);
   if (sim) syncLayers();
+  syncRealMode();
 });
 document.addEventListener('mw:progress', () => { if (sim) syncLayers(); });
 
@@ -431,7 +447,8 @@ document.addEventListener('mw:map', e => {
    seekTo(t): forward = keep stepping; backward = sim.reset() and step to t (the engine is deterministic and fast). One render at the end.
    Locked while a lesson runs (lessons drive time), in the town and for a follower. A backward jump clears the takeover (and any rule edits):
    asks first, with the scrubber's own small confirm bar. */
-const lastT = () => (MODE === 'free' ? 223 : real?.dates ? real.dates.length - 1 : 123);
+const modelLastT = () => (MODE === 'free' ? 223 : real?.dates ? real.dates.length - 1 : 123);
+const lastT = () => (isReal() ? realLastT() : modelLastT());      // 真实 mode: the range ends at lastRealDate
 function timeLock() {
   if (!sim) return '';
   if (sim.scenario === 'town') return '小镇里不能拖动时间';
@@ -445,18 +462,40 @@ function buildScrubber() {
       progress: document.querySelector('.topbar .progress'), sim: () => sim, real: () => real, mode: MODE, country: () => COUNTRY,
       last: lastT, lock: timeLock, createSim,
       onDragStart: () => { hideToast(); setPlaying(false); },
-      onSeek: t => seekTo(t),
+      onSeek: t => (isReal() ? realSeek(t) : seekTo(t)),
+      // 真实 mode: the slider reads the real quarter, its triangles are the long-cycle changes on REAL data (realTimeline)
+      now: () => (isReal() ? rt : sim.t), realMarks: () => (isReal() ? realStageMarks() : null),
     });
   } catch (e) { console.error(e); scrub = null; }
 }
 function updateTimeControls() {
   const back = $('btn-back');
   if (back && sim) {
-    const lock = timeLock();
-    back.disabled = !!lock || sim.t <= 0;
-    back.title = lock || (sim.t <= 0 ? '已经在第一季' : '退一季');
+    const lock = isReal() ? '' : timeLock(), now = isReal() ? rt : sim.t;
+    back.disabled = !!lock || now <= 0;
+    back.title = lock || (now <= 0 ? '已经在第一季' : '退一季');
   }
   if (scrub) scrub.update();
+}
+// 真实 mode: a small tag over the diagram says what grey and 「—」 mean
+let rtagEl = null;
+function renderRealTag(on) {
+  const host = $('diagram');
+  if (!host) return;
+  if (!rtagEl) {
+    rtagEl = document.createElement('div'); rtagEl.className = 'rm-tag'; rtagEl.id = 'rm-tag'; rtagEl.setAttribute('role', 'note');
+    rtagEl.innerHTML = '<b>真实数据</b><span class="rm-est">灰字 = 模型估算</span><span class="rm-none">— = 没有数据</span>';
+    rtagEl.title = '灰字：真实统计里没有这一项，显示的是模型的估算。—：这一季还没发布，或模型只算到 2025Q4。';
+    host.appendChild(rtagEl);
+  }
+  rtagEl.hidden = !on;
+}
+// 真实 mode: 接管 is off (the tab stays visible, disabled, with the reason as its tooltip)
+function syncTakeoverTab(on) {
+  const b = document.querySelector('#tabbar [data-tab="takeover"]');
+  if (!b) return;
+  b.disabled = on; b.classList.toggle('rm-off', on);
+  if (on) b.title = REAL_TIP + '：接管请切回「模型」'; else b.removeAttribute('title');
 }
 let seekBusy = false;
 async function seekTo(t) {
@@ -485,6 +524,131 @@ async function seekTo(t) {
   setFlowDuration($('diagram'), 400);
   renderAll();
   return true;
+}
+
+/* ---------- real mode: the 「真实 / 模型」 toggle (tools/COURSE-V3.md, data tools/REAL-DATA.md, helpers src/ui/real-mode.js) ----------
+   Wanted mode: ?mode=real / ?mode=model (not stored), else localStorage 'mw.mode', else 模型. The toggle stores the choice.
+   Effective 真实 needs: the history run of the USA or AUS (the main sim, not the town, not a follower) and NO lesson
+   (lessons always run in 模型; the wanted mode comes back when the lesson ends).
+   In 真实 mode the quarter on screen is `rt` (0 = 1995Q1 .. lastRealDate, which can be after the model's last quarter); the model sim
+   follows to min(rt, its last quarter). The diagram draws viewSnapshot(model, real); 无 play, 无 接管 (真实数据只能逐季看). */
+const MODE_KEY = 'mw.mode';
+const REAL_TIP = '真实数据只能逐季看';
+let rmMod = null, rmWant = 'model', rt = 0, rsnap = null, vsnap = null, prevV = null, wasReal = false, rmTog = null;
+const storedMode = () => { try { return localStorage.getItem(MODE_KEY); } catch (e) { return null; } };
+{ const u = params.get('mode'); rmWant = u === 'real' || u === 'model' ? u : storedMode() === 'real' ? 'real' : 'model'; }
+const rmAvail = () => !!(rmMod && sim && MODE === 'history' && REAL_MODE_ISOS.includes(COUNTRY) && sim === mainSim && sim.scenario !== 'town');
+const rmLesson = () => lessonActive != null || lessonQuiet || document.body.classList.contains('lesson-on') || document.body.classList.contains('parts-on');
+function isReal() { return rmWant === 'real' && rmAvail() && !rmLesson() && !following; }
+function realLastT() { if (!rmMod) return modelLastT(); const d = rmMod.realDates(COUNTRY); return Math.max(0, d.indexOf(rmMod.realLastDate(COUNTRY))); }
+async function initRealMode() {
+  if (MODE !== 'history' || !REAL_MODE_ISOS.includes(COUNTRY)) return;
+  try { rmMod = await loadRealMod(); } catch (e) { console.error(e); rmMod = null; return; }
+  try {
+    if (!document.querySelector('link[href$="real-mode.css"]')) {
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL('../assets/css/real-mode.css', import.meta.url).href; document.head.appendChild(l);
+    }
+  } catch (e) { /* ignore */ }
+  // date + badge share one box (a 390px phone stacks them, see real-mode.css), then the toggle
+  const date = $('date'), badge = $('mode-badge');
+  if (date && badge && !date.parentNode.classList.contains('tb-dt')) {
+    const box = document.createElement('div'); box.className = 'tb-dt';
+    date.parentNode.insertBefore(box, date); box.appendChild(date); box.appendChild(badge);
+  }
+  rmTog = document.createElement('div'); rmTog.className = 'rm-tog'; rmTog.id = 'rm-toggle'; rmTog.setAttribute('role', 'group'); rmTog.setAttribute('aria-label', '看模型还是真实数据');
+  rmTog.innerHTML = '<button type="button" data-m="model" aria-pressed="true">模型</button><button type="button" data-m="real" aria-pressed="false">真实</button>';
+  rmTog.addEventListener('click', e => {
+    const b = e.target.closest('button[data-m]');
+    if (!b || b.disabled) return;
+    setRealMode(b.dataset.m);
+  });
+  const anchor = document.querySelector('.timebar .tb-dt') || badge;
+  anchor.after(rmTog);
+  rt = sim.t;
+}
+function setRealMode(m) {
+  rmWant = m === 'real' ? 'real' : 'model';
+  try { localStorage.setItem(MODE_KEY, rmWant); } catch (e) { /* private window etc. */ }
+  try { const u = new URL(location.href); if (u.searchParams.get('mode') === 'real' || u.searchParams.get('mode') === 'model') { u.searchParams.delete('mode'); history.replaceState(null, '', u); } } catch (e) { /* file:// etc. */ }
+  if (isReal()) setPlaying(false);
+  prevSnap = null; prevV = null;
+  renderAll();
+}
+// the effective mode changed under us (a lesson started / ended): redraw once
+function syncRealMode() { if (sim && snap && rmMod && isReal() !== wasReal) { prevSnap = null; prevV = null; renderAll(); } }
+// enter 真实: start from the model's quarter (or stay after the model's range if the model has not moved since)
+function enterReal() {
+  const mLast = modelLastT();
+  if (!(rt > mLast && sim.t === mLast)) rt = sim.t;
+  rt = Math.max(0, Math.min(realLastT(), rt));
+  setPlaying(false);
+}
+let realSeekBusy = false;
+async function realSeek(t) {
+  if (!isReal() || realSeekBusy) return false;
+  t = Math.max(0, Math.min(realLastT(), Math.round(t)));
+  if (!Number.isFinite(t)) return false;
+  if (t === rt) { updateTimeControls(); return true; }
+  const from = rt, mt = Math.min(t, modelLastT());
+  prevV = Math.abs(t - rt) === 1 ? vsnap : null;
+  rt = t;
+  if (mt !== sim.t) {
+    if (mt === sim.t + 1) {
+      prevSnap = snap;
+      seeking = true;                                         // no pause toasts / pinned-row toasts for a real-data step
+      try { sim.step(); } finally { seeking = false; }
+      snap = sim.snapshot();
+    } else {
+      realSeekBusy = true;
+      let done = false;
+      try { done = await seekTo(mt); } finally { realSeekBusy = false; }   // seekTo renders (and asks first if a takeover would be lost)
+      if (!done) { rt = from; prevV = null; renderAll(); }
+      return done;
+    }
+  }
+  setFlowDuration($('diagram'), 400);
+  renderAll();
+  return true;
+}
+let marksCache = null;
+function realStageMarks() {
+  if (!rmMod) return [];
+  if (marksCache && marksCache.iso === COUNTRY) return marksCache.list;
+  const GL = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' }, out = [];
+  let prev = null, fork = false;
+  (rmMod.realTimeline(COUNTRY) || []).forEach((h, t) => {
+    const L = h.cycles && h.cycles.long;
+    if (!L || t > realLastT()) return;
+    if (prev != null && L.stage !== prev) out.push({ t, mark: GL[L.stage] || String(L.stage), text: `真实数据：大周期进入 ${L.label || L.stage}`, kind: 'stage' });
+    prev = L.stage;
+    if (!fork && L.fork === 'B2') { fork = true; out.push({ t, mark: 'B2', text: '真实数据：大周期走上 B2 岔路', kind: 'b2' }); }
+  });
+  marksCache = { iso: COUNTRY, list: out };
+  return out;
+}
+// per render: the real snapshot, the view snapshot and the time-bar controls
+function prepareReal() {
+  const on = isReal();
+  if (on && !wasReal) enterReal();
+  if (!on && wasReal) prevV = null;
+  wasReal = on;
+  document.body.classList.toggle('rm-avail', rmAvail() && !following);
+  document.body.classList.toggle('rm-real', on);
+  if (rmTog) {
+    const avail = rmAvail() && !following, lesson = rmLesson();
+    rmTog.hidden = !avail;
+    rmTog.classList.toggle('forced', avail && lesson);
+    rmTog.title = lesson ? '上课时用模型（下课后回到你的选择）' : '模型 = 模拟器自己算的；真实 = 官方统计（只能逐季看）';
+    for (const b of rmTog.children) {
+      b.disabled = lesson;
+      b.setAttribute('aria-pressed', String((b.dataset.m === 'real') === on));
+    }
+  }
+  if (!on) { rsnap = null; vsnap = null; return; }
+  rsnap = rmMod.realSnapshot(COUNTRY, rt);
+  const mLast = modelLastT();
+  const model = rt <= mLast ? (sim.t === rt ? snap : sim.snapshot('model', rt)) : null;
+  vsnap = viewSnapshot(model, rsnap, sim.snapshot('model', 0), rmMod.realSnapshot(COUNTRY, 0));
 }
 
 /* ---------- multi-window sync: only the quarter (BroadcastChannel 'macro-waterflow', same origin + same browser) ----------
@@ -539,27 +703,42 @@ document.addEventListener('mw:follow', e => {
 
 /* ---------- rendering ---------- */
 function renderAll() {
-  $('date').textContent = snap.date;
+  prepareReal();
+  const RM = isReal();
+  $('date').textContent = RM ? vsnap.date : snap.date;
   const free = MODE === 'free';
   const badge = $('mode-badge');
   // the country part is its own span so a 390px phone can drop the mode part (simple.css) instead of pushing 教学 off screen
   const cn = COUNTRY !== 'USA' && sim.scenario !== 'town' ? CNAME[COUNTRY] || COUNTRY : '';
-  badge.innerHTML = (cn ? `<span class="bd-c">${cn}</span><span class="bd-m"> · ` : '<span class="bd-m">') + (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '') + '</span>';
-  badge.title = badge.textContent;
-  badge.classList.toggle('user', !!sim.takenOver);
+  if (RM) badge.innerHTML = badgeHtml(cn, rsnap.real.lastRealDate);    // 「真实数据 · 截至 2026Q3」 (390px: 「真实 · 至 26Q3」)
+  else badge.innerHTML = (cn ? `<span class="bd-c">${cn}</span><span class="bd-m"> · ` : '<span class="bd-m">') + (sim.scenario === 'town' ? '小镇' : free ? '自由' : '历史') + (sim.takenOver ? ' · 接管' : '') + '</span>';
+  badge.title = RM ? `${cn ? cn + ' · ' : ''}真实数据 · 截至 ${rsnap.real.lastRealDate}` : badge.textContent;
+  badge.classList.toggle('user', !!sim.takenOver && !RM);
+  badge.classList.toggle('real', RM);
   const last = lastT();
-  $('progress-bar').style.width = Math.min(100, (100 * sim.t) / last) + '%';
-  $('btn-step').disabled = sim.done || following;
-  $('btn-play').disabled = following;
+  $('progress-bar').style.width = Math.min(100, (100 * (RM ? rt : sim.t)) / last) + '%';
+  $('btn-step').disabled = RM ? rt >= last : sim.done || following;
+  $('btn-play').disabled = following || RM;
+  $('btn-play').title = RM ? REAL_TIP : '';
+  if (RM) $('btn-step').title = rt >= last ? `真实数据到 ${rsnap.real.lastRealDate} 为止` : '前进一季';
+  else $('btn-step').removeAttribute('title');
   updateTimeControls();
   if (following) badge.textContent += ' · 跟随';
   syncLayers();                                      // before the diagram draws: the border band follows L-border
-  renderFlow($('diagram'), snap, prevSnap);
+  if (RM) renderFlow($('diagram'), vsnap, prevV);
+  else {
+    // 模型 mode inside 保留样本 (2022+): small 「真实 x」 next to unemployment / CPI / house prices (the model–real gap)
+    const h = rmMod && rmAvail() ? realHint(rmMod, COUNTRY, sim.t) : null;
+    renderFlow($('diagram'), h ? { ...snap, realHint: h } : snap, prevSnap);
+  }
   if (!wvEl) buildViewDom();                         // after the first renderFlow: it empties #diagram once when it builds the SVG
   if (!ltBtn) { buildLayersToggle(); syncLayers(); }
   renderView();
-  try { renderObjective($('objective'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
-  try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
+  renderRealTag(RM);
+  syncTakeoverTab(RM);
+  try { renderObjective($('objective'), { sim, snap, openTerm, setTab, realSnap: RM ? rsnap : null }); } catch (e) { console.error(e); }
+  if (RM) $('headline').hidden = true;               // 本季看点 talks about the model's quarter: not in 真实 mode
+  else try { renderHeadline($('headline'), { sim, snap, openTerm, setTab }); } catch (e) { console.error(e); }
   renderPanel();                                     // the 4 tabs (full layout) or the simple panel
   if (lessonsMod && lessonsMod.onRender) lessonsMod.onRender();   // LESSONS: re-apply highlights / step triggers
   schedulePost();
@@ -578,11 +757,17 @@ async function renderTab() {
     box.innerHTML = '<div class="card muted ls-locked"><b>这一块还没出场</b><p>教学会一块一块地解锁。跟着下面的教学卡往下走。</p></div>';
     return;
   }
+  if (id === 'takeover' && isReal()) {
+    box.innerHTML = `<div class="card muted ls-locked rm-locked"><b>${REAL_TIP}</b><p>真实数据已经发生，不能改。想自己拧阀门试试：切回「模型」再接管。</p>` +
+      '<button type="button" class="btn primary" data-act="rm-model">切回模型</button></div>';
+    box.querySelector('[data-act="rm-model"]').onclick = () => setRealMode('model');
+    return;
+  }
   if (!mod || typeof mod.render !== 'function') {
     box.innerHTML = '<div class="card muted">（面板开发中）</div>';
     return;
   }
-  const ctx = { sim, snap, userSnap: sim.takenOver ? sim.snapshot('user') : null, real, openTerm };
+  const ctx = { sim, snap, userSnap: sim.takenOver ? sim.snapshot('user') : null, real, openTerm, ...realCtx() };
   try {
     mod.render(box, ctx);
   } catch (e) {

@@ -222,7 +222,8 @@ function card(kind, snapSide, t, ctx, other) {
     }).join('');
     ev = groups;
   }
-  const dial = isLong ? longDial(C) : shortDial(C);
+  // 真实 mode (ctx.realMode): C is the REAL dial; the model's dial of the same quarter sits beside it (模型 | 真实)
+  const dial = ctx.realMode ? twinHtml(kind, C, ctx) : isLong ? longDial(C) : shortDial(C);
   // the link between the two dials: 降息推得动吗？ 推不动 -> 大周期 B2 -> ⑤ (told on both cards)
   const link = !isLong
     ? (C.handoff === 'no' ? `<div class="cy-handoff">${esc(C.handoffText || '推不动 → 交给大周期')}</div>`
@@ -232,11 +233,21 @@ function card(kind, snapSide, t, ctx, other) {
   return `<article class="cy-card cy-${kind}">
     <h3 class="cy-ct">${term(tid, isLong ? '大周期' : '小周期')} <small>${isLong ? '长期债务周期 · 以年计 · 只看慢变量' : '短期债务周期 · 以季计 · 看四盏灯'}</small></h3>
     ${dial}${b2Line()}
-    <p class="cy-now"><b>${esc(C.label)}</b><span class="cy-since">自 ${esc(since.date)} 起 · 已 ${len} 季</span></p>
+    <p class="cy-now">${ctx.realMode ? '<span class="cy-src cy-src-real">真实</span>' : ''}<b>${esc(C.label)}</b><span class="cy-since">自 ${esc(since.date)} 起 · 已 ${len} 季</span></p>
     ${betw}${pendB2}${link}
     <details class="cy-ev-wrap" data-k="ev-${kind}"><summary>证据：现值 · 离门槛多远 · 去图里哪里看</summary><p class="cy-evhint">点任意一行：图里亮出它的位置，并打开说明卡。「盯住」：它达标时暂停提醒你。</p>${ev}</details>
     <p class="cy-next">${esc(nextText(kind, C, isLong ? headLong : headShort).text || '—')}</p>
   </article>`;
+}
+
+/** 真实 mode: the model dial and the real dial of one cycle side by side (phone: still two columns, each ~170px) */
+function twinHtml(kind, C, ctx) {
+  const isLong = kind === 'long', M = ctx.modelSnap && ctx.modelSnap.cycles ? ctx.modelSnap.cycles[kind] : null;
+  const draw = X => (isLong ? longDial(X) : shortDial(X));
+  const fig = (src, X, body) => `<figure class="cy-tw cy-tw-${src}"><figcaption><span class="cy-src cy-src-${src}">${src === 'real' ? '真实' : '模型'}</span>` +
+    `<b>${esc(X ? X.label : '—')}</b></figcaption>${body}</figure>`;
+  const model = M ? draw(M) : `<div class="cy-tw-none">模型只算到 ${esc(ctx.modelLastDate || '')}</div>`;
+  return `<div class="cy-twin">${fig('model', M, model)}${fig('real', C, draw(C))}</div>`;
 }
 
 /* ---------- trail band ---------- */
@@ -350,10 +361,12 @@ function detailHtml(hist, q, t) {
 }
 
 function trailBlock(ctx) {
-  const t = ctx.sim.t, hist = ctx.sim.history('model');
-  const mode = ctx.sim.mode;
-  const total = mode === 'free' ? 224 : (ctx.real?.dates?.length || 124);
-  const dates = mode === 'free' ? Array.from({ length: 224 }, (_, i) => `${1995 + Math.floor(i / 4)}Q${(i % 4) + 1}`) : ctx.real.dates;
+  // 真实 mode: the band is the dial run on REAL data (ctx.realHist = realTimeline: { date, cycles } per quarter), up to lastRealDate
+  const RM = !!(ctx.realMode && Array.isArray(ctx.realHist));
+  const t = RM ? ctx.realT : ctx.sim.t, hist = RM ? ctx.realHist.slice(0, ctx.realLast + 1) : ctx.sim.history('model');
+  const mode = RM ? 'real' : ctx.sim.mode;
+  const total = RM ? ctx.realLast + 1 : mode === 'free' ? 224 : (ctx.real?.dates?.length || 124);
+  const dates = RM ? ctx.realDates : mode === 'free' ? Array.from({ length: 224 }, (_, i) => `${1995 + Math.floor(i / 4)}Q${(i % 4) + 1}`) : ctx.real.dates;
   if (selFor !== mode || (selQ != null && selQ > t)) { selQ = null; selFor = mode; }
   const tr = trailSvg(hist, t, total, dates, mode);
   const lsegs = segments(hist, h => h.cycles.long.stage, t), ssegs = segments(hist, shortKeyOf, t);
@@ -405,6 +418,9 @@ function lead(s) {
 }
 
 export function render(container, ctx) {
+  // 真实 mode (app.js realCtx): lead, dials, B2 card, trail and lamps read the REAL snapshot; the model's dial sits beside the real one
+  const RM = !!(ctx.realMode && ctx.realSnap && ctx.realSnap.cycles), ctx0 = ctx;   // ctx0: the model's (三条线, 真实 vs 模型 charts)
+  if (RM) ctx = { ...ctx, snap: ctx.realSnap };
   const s = ctx.snap, L = s.lights || {};
   const lamps = LAMPS.map(([k, name, tid, f]) => {
     const l = L[k] || {};
@@ -415,7 +431,7 @@ export function render(container, ctx) {
   let dials = '', trail = null;
   if (s.cycles) {
     initPins(ctx); beginRows();
-    const mk = () => `<div class="cy-dials">${card('long', s.cycles.long, s.t, ctx, s.cycles.short)}${card('short', s.cycles.short, s.t, ctx, s.cycles.long)}</div>`;
+    const mk = () => `<div class="cy-dials${RM ? ' cy-dials-twin' : ''}">${card('long', s.cycles.long, s.t, ctx, s.cycles.short)}${card('short', s.cycles.short, s.t, ctx, s.cycles.long)}</div>`;
     dials = mk();
     if (applyUrlPin(ctx)) { beginRows(); dials = mk(); }      // ?pin=... pinned a row after the first pass: draw it as pinned
     trail = trailBlock(ctx);
@@ -423,21 +439,21 @@ export function render(container, ctx) {
   container.innerHTML = `<section class="pn-tab pn-cycle">
     <div class="pn-lead cy-lead">${lead(s)}</div>
     ${dials}
-    ${trail ? `<h3 class="pn-h">轨迹带 <small>宽带 = 大周期（慢慢换色）；带里的波 = 一轮轮小周期；黑线 = 现在</small></h3>${trail.html}` : ''}
+    ${trail ? `<h3 class="pn-h">轨迹带${RM ? '（真实数据）' : ''} <small>宽带 = 大周期（慢慢换色）；带里的波 = 一轮轮小周期；黑线 = 现在</small></h3>${trail.html}` : ''}
     <h3 class="pn-h">真实世界的三条线 <small>五国真实 GDP 拆成达利欧的三条线；直线 = GDP 长期趋势（由生产率决定）</small></h3>
-    ${wavesHtml(ctx)}
-    <h3 class="pn-h">四盏灯 <small>形状 + 文字 + 颜色同时表示；点灯，看图里哪些水管在喂它</small></h3>
+    ${wavesHtml(ctx0)}
+    <h3 class="pn-h">四盏灯${RM ? '（真实数据）' : ''} <small>形状 + 文字 + 颜色同时表示；点灯，看图里哪些水管在喂它</small></h3>
     <div class="lp-grid">${lamps}</div>
     <h3 class="pn-h">真实 vs 模型 <small>模型偏离真实本来就正常：它是玩具</small></h3>
     <div class="pn-charts"><div id="cy-c1"></div><div id="cy-c2"></div><div id="cy-c3"></div></div>
-    ${dataNoteHtml(ctx)}
+    ${dataNoteHtml(ctx0)}
   </section>`;
   container.querySelectorAll('details[data-k]').forEach(d => {
     d.open = openMap[d.dataset.k] !== false && (openMap[d.dataset.k] || false);
     d.addEventListener('toggle', () => { openMap[d.dataset.k] = d.open; });
   });
   if (trail) wireTrail(container, ctx, trail);
-  wireWaves(container, ctx);
+  wireWaves(container, ctx0);
   if (s.cycles) wireEvidence(container, ctx);
   container.querySelectorAll('.lp[data-lamp]').forEach(lp => {
     const go = ev => {
@@ -449,7 +465,7 @@ export function render(container, ctx) {
     lp.addEventListener('click', go);
     lp.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(ev); } });
   });
-  compareChart(container.querySelector('#cy-c1'), ctx, { title: '政策利率', realKey: 'policyRate', modelFn: x => x.rates.policy, fmt: pctFmt });
-  compareChart(container.querySelector('#cy-c2'), ctx, { title: '房价指数 (1995Q1=100)', realKey: 'houseIndex', modelFn: x => x.assets.housing.price });
-  compareChart(container.querySelector('#cy-c3'), ctx, { title: '家庭 DSR', realKey: 'hhDsr', modelFn: x => x.household.dsr, fmt: pctFmt });
+  compareChart(container.querySelector('#cy-c1'), ctx0, { title: '政策利率', realKey: 'policyRate', modelFn: x => x.rates.policy, fmt: pctFmt });
+  compareChart(container.querySelector('#cy-c2'), ctx0, { title: '房价指数 (1995Q1=100)', realKey: 'houseIndex', modelFn: x => x.assets.housing.price });
+  compareChart(container.querySelector('#cy-c3'), ctx0, { title: '家庭 DSR', realKey: 'hhDsr', modelFn: x => x.household.dsr, fmt: pctFmt });
 }
