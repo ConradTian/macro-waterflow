@@ -99,7 +99,7 @@ Approved by the user via the Ray-Dalio-Framework session. It supersedes the "mai
      - 短波 = 偏离 − 长波
      - 读法
    - Take the specifics from `tools/build_waves.py`. Details go in a tap card.
-2. **负资产 ≠ B2**, part of the B2 engine pass.
+2. **负资产 ≠ B2**, part of the B2 engine pass. (Done 2026-10-30, with item 3: `forkExtra` + `bonusBlock` in `tabs/cycle.js`, m3 step 3 + block `b2cases`, blind `reveal.why`.)
    - (a) On the B2 evidence card, two display-only 加分项: 负资产范围 (LVR plus house-price drawdown) and 银行受伤程度 (bad loans / capital). They are not part of the threshold. AUS real data shows 没有数据.
    - (b) L4 gets the step 「负资产不等于 B2」 with a four-case table: US 2008, Japan 1990, UK early 1990s, AUS 2008. It ends with four questions; the first three say whether B2 can happen, and the fourth (降息推不推得动) confirms it.
    - (c) The AUS-2008 blind reveal gets one line on why it was not B2.

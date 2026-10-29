@@ -111,9 +111,13 @@ function timeline(iso) {
       filled.push(`${k}:${how[k]}`);
     }
     const dsr4 = t >= 4 ? out[t - 4].inputs.dsr : dsr0, pol4 = t >= 4 ? out[t - 4].inputs.policy : x.policy;
+    // B2 card 加分项 (display only, never a dial input): house price vs its 5-year high; US bank stress series (no AUS series, no capital)
+    const hs = D.series.houseIndex.slice(Math.max(0, t - 19), t + 1).filter(num), H = R('houseIndex', t);
     const v = {
       ...x, dsr0, dDsr4: x.dsr - dsr4, realP: x.policy - x.piY, dPol4: x.policy - pol4, PI: cp.pi0 * x.PIrel,
       adj: null, qeOn: x.qeGdp > 0.005, capR: null, pressure: null,
+      dd: num(H) && hs.length ? 1 - H / Math.max(...hs) : null, lvr: null, badKnown: iso === 'USA',
+      badRes: iso === 'USA' ? R('badLoansResidential', t) : null, chargeOff: iso === 'USA' ? R('chargeOffs', t) : null,
     };
     const lights = computeLamps(v, cp);
     if (iso !== 'USA') lights.debtService.driver = lights.debtService.driver.replace(/，坏账率.*$/, '，坏账率 无数据');
@@ -227,11 +231,11 @@ function build(iso, t) {
   };
   if (num(snap.border.exports) && num(snap.border.imports)) snap.border.netExports = snap.border.exports - snap.border.imports;
   const partial = Object.entries(D.meta.partial || {}).filter(([, ds]) => ds.includes(D.dates[t])).map(([k]) => k);
-  // b2Now: the B2 evidence holds THIS quarter (advanceCycles latches fork 'B2' until the long stage moves; on real AUS data that
-  // keeps B2 on from 2008Q4 to 2021Q2). Same AND / OR-group rule as regimes.js `holds`.
+  // b2Now: the B2 evidence holds THIS quarter (fork 'B2' itself needs LT.b2N quarters in a row and is cleared by the stage move or by
+  // 推得动; see advanceCycles). Same AND / OR-group rule as regimes.js `holds` (加分项 rows flagged `support` never count).
   const fe = T.cycles.long.forkEvidence;
   let b2Now = null;
-  if (fe) { const g = {}; for (const i of fe) { const k = i.grp || '#' + i.name; g[k] = g[k] || i.ok; } b2Now = t >= 8 && Object.values(g).every(Boolean); }
+  if (fe) { const g = {}; for (const i of fe) { if (i.support) continue; const k = i.grp || '#' + i.name; g[k] = g[k] || i.ok; } b2Now = t >= 8 && Object.values(g).every(Boolean); }
   snap.real = { iso, lastRealDate: D.lastRealDate, afterLastReal: t > D.dates.indexOf(D.lastRealDate), partial, filled: T.filled, b2Now,
     reservedFrom: D.reservedFrom, inReserved: t >= D.dates.indexOf(D.reservedFrom), proxy: PROXY };
   return snap;

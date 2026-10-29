@@ -137,6 +137,14 @@ const POLICY = { tight: 1, ease: 1 };
 export const SHORT_NEXT = { expand: ['tight', 'ease', 'hotA', 'hotP'], hotP: ['ease', 'tight', 'hotA', 'expand'], hotA: ['ease', 'tight', 'expand'], tight: ['ease', 'expand'], ease: ['expand', 'hotP'] };
 // thresholds added with the redesign (fallbacks so an older country-params file still works)
 const stx = ST => ({ turn: 0.002, polFlat: 0.001, inflUp: 0.005, holdMax: 8, ...ST });
+// long-cycle keys added 2026-10-30 (same fallback idea; country-params.js carries them per country):
+//   gr / gov4 / realP7  ⑦ = g − r ≥ gr (nominal GDP growth over 4 quarters minus the 10y yield) AND gov debt/GDP 4-quarter change ≤ gov4;
+//                        real policy rate ≤ realP7 is a supporting item only (shown, not in the gate)
+//   b2N                 the B2 fork is confirmed after its three conditions hold b2N quarters in a row (shown as pending before)
+const ltx = LT => ({ gr: 0, gov4: 0, realP7: 0, b2N: 3, ...LT });
+const b2N = LT => ltx(LT).b2N;
+const TXT_LT = new WeakMap();
+const ltOf = LT => { if (!TXT_LT.has(LT)) TXT_LT.set(LT, ltx(LT)); return TXT_LT.get(LT); };
 
 // thresholds: country params (cycle.LT long cycle, cycle.ST short cycle; meanings in src/data/country-params.js), quoted in the UI
 // through the evidence items. The texts below are generated from them once per thresholds object.
@@ -145,24 +153,24 @@ const pc1 = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
 const TXT = new WeakMap();
 function cycleTexts(cyc) {
   if (TXT.has(cyc)) return TXT.get(cyc);
-  const { LT } = cyc, ST = stx(cyc.ST);
+  const LT = ltOf(cyc.LT), ST = stx(cyc.ST);
   const LONG_NEXT = {
     1: `私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)} 且房价/收入 ≥ 起点 ${LT.pi}x（连续 ${longN(2)} 季）→ ② 缓冲池满`,
     2: `私人债务/GDP 较三年高点回落 ≥ ${pp1(-LT.pvtDown)}，且坏账率 ≥ ${pc1(LT.bad)} 或政策利率 ≤ ${pc1(LT.zb)}（降息用尽）→ ⑤`,
     5: `政府债务/GDP 三年升 ≥ ${pp1(LT.govUp)} 或赤字 ≥ ${pc1(LT.deficit)} GDP，同时 QE ≥ ${pc1(LT.qe)} GDP 或政策利率 ≤ ${pc1(LT.zb2)} → ⑥`,
-    6: `实际政策利率 ≤ ${pc1(LT.realP)}，政府与私人债务/GDP 都不再上升 → ⑦`,
+    6: `名义增长（近 4 季）高于 10 年国债利率（g−r ≥ ${pp1(LT.gr)}），且政府债务/GDP 比一年前不升（≤ ${pp1(LT.gov4)}），连续 ${longN(7)} 季 → ⑦；加分项：实际政策利率 ≤ ${pc1(LT.realP7)}`,
     7: `DSR 比起点低 ≥ ${pp1(-LT.dsrLow)}、坏账率 ≤ ${pc1(LT.badLow)}、实际利率回到 ${pc1(LT.realP)} 以上、政府债务稳住 → ⑧`,
     8: `私人债务/GDP 三年升 ≥ ${pp1(LT.reUp)} 且信贷增速 ≥ ${pc1(LT.pcg)}（新一轮借钱）→ 回到 ①`,
   };
   const hikeT = `央行本轮加息 ≥ ${pp1(ST.hike)} → 收紧（加息）`, cutT = `央行比 6 季高点降 ≥ ${pp1(ST.turn)} 且本季不再加 → 降息`;
   const SHORT_NEXT_TXT = {
-    expand: `${hikeT}；${cutT}；还没加息时：通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价，信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 过热·资产`,
+    expand: `${hikeT}；${cutT}；还没加息时：通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)}（央行在降息时不算）→ 过热·物价，信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 过热·资产`,
     hotP: `${hikeT}；${cutT}；信贷脉冲 ≤ ${pp1(ST.ci)}、房价比一年前 ≤ ${pc1(ST.hp)} 且 DSR 比起点高 ≥ ${pp1(ST.dsr)} → 改判 过热·资产；通胀回落 → 扩张`,
     hotA: `${hikeT}；${cutT}；信贷回正且失业率不升 → 扩张`,
     tight: `${cutT}（推得动吗？）。失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} 时标「收紧·衰退」`,
-    ease: `推得动：信贷脉冲回正且失业率不再上升（连续 ${SHORT_N.expand} 季），或央行重新加息 → 扩张；通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价；推不动：大周期走上 B2 → ⑤ 私人去杠杆`,
+    ease: `推得动：信贷脉冲回正且失业率不再上升（连续 ${SHORT_N.expand} 季），或央行重新加息 → 扩张；央行停止降息后，通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价；推不动：大周期走上 B2 → ⑤ 私人去杠杆`,
   };
-  const B2_TXT = `B2 岔路（三条同时成立）：房价比一年前 ≤ ${pc1(LT.hpFall)}；DSR 比起点高 ≥ ${pp1(LT.dsrHi)} 或私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)}；央行已降息 ≥ ${pp1(LT.cut)}（或近零）但信贷脉冲仍 ≤ ${pp1(LT.ciNeg)}`;
+  const B2_TXT = `B2 岔路（三条同时成立，连续 ${b2N(LT)} 季才确认）：房价比一年前 ≤ ${pc1(LT.hpFall)}；DSR 比起点高 ≥ ${pp1(LT.dsrHi)} 或私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)}；央行已降息 ≥ ${pp1(LT.cut)}（或近零）但信贷脉冲仍 ≤ ${pp1(LT.ciNeg)}。降息推得动（小周期回到扩张）时解除`;
   const o = { LONG_NEXT, SHORT_NEXT_TXT, B2_TXT };
   TXT.set(cyc, o);
   return o;
@@ -171,10 +179,11 @@ function cycleTexts(cyc) {
 const back = (a, k) => a[Math.max(0, a.length - 1 - k)];
 const item = (name, value, threshold, dir, fmt, o = {}) =>
   ({ name, value, threshold, dir, fmt, ok: dir === '>=' ? value >= threshold : value <= threshold, ...o });
-// groups: ungrouped items are AND-ed, items sharing `grp` are OR-ed (one of them is enough)
+// groups: ungrouped items are AND-ed, items sharing `grp` are OR-ed (one of them is enough).
+// Items flagged `support` (加分项) are shown with the evidence but never count toward the gate.
 const holds = items => {
   const g = {};
-  for (const i of items) { const k = i.grp || ('#' + i.name); g[k] = g[k] || i.ok; }
+  for (const i of items) { if (i.support) continue; const k = i.grp || ('#' + i.name); g[k] = g[k] || i.ok; }
   return Object.values(g).every(Boolean);
 };
 
@@ -189,9 +198,11 @@ function longEvidence(f, LT) {
       item('财政赤字/GDP', f.defGdp, LT.deficit, '>=', 'pct', { term: 'fiscalInjection', grp: 'a' }),
       item('QE 存量/GDP', f.qeGdp, LT.qe, '>=', 'pct', { term: 'qe', grp: 'b' }),
       item('政策利率（零利率）', f.pol, LT.zb2, '<=', 'pct', { term: 'policyRate', grp: 'b' })],
-    7: [item('实际政策利率', f.realP, LT.realP, '<=', 'pct', { term: 'realRate' }),
-      item('政府债务/GDP 三年变化', f.govD12, LT.flat, '<=', 'pp', { term: 'govDebtGdp' }),
-      item('私人债务/GDP 三年变化', f.pvtD12, LT.pvtFlat, '<=', 'pp', { term: 'pvtDebtGdp' })],
+    // ⑦ (2026-10-30): growth outruns the interest rate (g − r > 0) while the government stops piling up debt; a negative real
+    // policy rate (financial repression) often comes with it, but is a supporting item only (shown, not in the gate)
+    7: [item('名义增长 − 10 年国债利率（g−r）', f.gr, LT.gr, '>=', 'pp', { term: 'gMinusR' }),
+      item('政府债务/GDP 比一年前', f.govD4, LT.gov4, '<=', 'pp', { term: 'govDebtGdp' }),
+      item('实际政策利率', f.realP, LT.realP7, '<=', 'pct', { term: 'realRate', support: true })],
     8: [item('DSR 相对起点', f.dsrRel, LT.dsrLow, '<=', 'pp', { term: 'dsr' }),
       item('银行坏账率', f.bad, LT.badLow, '<=', 'pct', { term: 'badLoans' }),
       item('实际政策利率（压制结束）', f.realP, LT.realP, '>=', 'pct', { term: 'realRate' }),
@@ -201,7 +212,9 @@ function longEvidence(f, LT) {
 }
 function shortEvidence(f, ST) {
   return {
-    hotP: [item('通胀', f.piY, ST.infl, '>=', 'pct', { term: 'cpi' }), item('通胀比一年前', f.piUp, ST.inflUp, '>=', 'pp', { term: 'cpi' })],
+    // 2026-10-30: no 物价过热 while the bank is cutting (a cut this quarter, or >= polFlat over the last 2 quarters: US 2008Q3, oil-driven CPI)
+    hotP: [item('通胀', f.piY, ST.infl, '>=', 'pct', { term: 'cpi' }), item('通胀比一年前', f.piUp, ST.inflUp, '>=', 'pp', { term: 'cpi' }),
+      item('政策利率近 2 季变化（没在降息）', f.polCut2, -ST.polFlat + 1e-9, '>=', 'pp', { term: 'policyRate' })],
     // a borrowing-driven boom that breaks: credit shrinks first and house prices turn, while the debt burden (DSR) is stretched.
     // (all three: in 2023-24 credit and house prices dipped too, but with DSR far below its start that was the price top's tightening, not an asset bust)
     hotA: [item('信贷脉冲', f.ci, ST.ci, '<=', 'pp', { term: 'creditImpulse' }),
@@ -243,7 +256,7 @@ function b2Evidence(f, LT) {
 const HK = ['pvt', 'gov', 'pol', 'u', 'piY'];
 // prev: S.cyc (or null at t=0). x: inputs for this quarter. Returns { state, out:{long, short}, events }. Never mutates prev.
 export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
-  const { LT } = cyc, ST = stx(cyc.ST), { LONG_NEXT, SHORT_NEXT_TXT, B2_TXT } = cycleTexts(cyc);
+  const LT = ltOf(cyc.LT), ST = stx(cyc.ST), { LONG_NEXT, SHORT_NEXT_TXT, B2_TXT } = cycleTexts(cyc);
   const x = { ...x0, pol: x0.policy };
   const warm = t < WARMUP;                 // the toy model needs ~2 years to settle: windows are not full yet, so no evidence counts
   const h = {};
@@ -256,7 +269,10 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
     uRise: x.u - Math.min(...h.u.slice(-5)), uD4: x.u - back(h.u, 4),
     polDrop: Math.max(...h.pol.slice(-5)) - x.policy,
     polDrop6: Math.max(...h.pol.slice(-6)) - x.policy, dPol1: x.policy - back(h.pol, 1), piUp: x.piY - back(h.piY, 4),
+    govD4: x.gov - back(h.gov, 4), gr: x.gr,
   };
+  // the larger recent cut: this quarter's change or the change over 2 quarters (<= -polFlat = the bank is cutting)
+  f.polCut2 = Math.min(f.dPol1, x.policy - back(h.pol, 2));
   const events = [];
   const now = { t, date };
 
@@ -326,16 +342,33 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
     if (sstreak[m] >= 1 && sstreak[m] < SHORT_N[m]) sbetween = [S.phase, m];
   }
   // ---------------- the long cycle's fork after ②, and the hand-off between the dials
+  // B2 hysteresis (2026-10-30): the three conditions must hold b2N quarters in a row (pending before, like `between`); once confirmed,
+  // B2 stays until the long stage moves OR easing restarts credit (the short cycle's 'restart' = 推得动, back to 扩张). Before, B2 was
+  // confirmed in one quarter and only the stage move cleared it: real AUS read B2 from 2008Q4 to 2021Q2 on 3 quarters of evidence.
   const b2ev = b2Evidence(f, LT), b2now = holds(b2ev) && !warm;
   const early = lstage === 1 || lstage === 2;
-  const b2 = early && ((lstage === L.stage && !!L.b2) || b2now);            // once on the B2 path, it stays until the long stage moves
-  if (b2 && !(lstage === L.stage && L.b2)) events.push({ kind: 'longFork', to: 'B2' });
+  const restart = events.some(e => e.kind === 'restart');
+  const b2streak = b2now && !restart ? ((L.b2s || 0) + 1) : 0;
+  const b2was = lstage === L.stage && !!L.b2 && !restart;
+  const b2 = early && (b2was || b2streak >= LT.b2N);
+  if (b2 && !b2was) events.push({ kind: 'longFork', to: 'B2' });
   // 物价过热 is live: the price top itself, or 收紧 after a price top while inflation is still above the line
   const priceTop = phase === 'hotP' || (phase === 'tight' && via === 'hotP' && f.piY >= ST.infl);
   longOut.fork = b2 ? 'B2' : early && priceTop ? 'B1' : null;               // B1 = excess spills into prices, handed to the short cycle
   longOut.b1Overlay = !early && priceTop;                                   // e.g. ⑦ with B1 on top (US 2022-23)
   longOut.forkEvidence = early ? b2ev : null;
   longOut.forkSignal = B2_TXT;
+  // B2 being confirmed: { have, need } while the streak builds (shown like `between`), else null
+  longOut.forkPending = early && !b2 && b2streak > 0 ? { have: b2streak, need: LT.b2N } : null;
+  // display-only 加分项 on the B2 card (never in the gate): how much negative equity, how hurt the banks are. null = no data.
+  // Model: average LVR, house price vs its recent peak, bad loans / bank capital. Real data: what the series give (real-snapshot.js).
+  const nb = v => (typeof v === 'number' && isFinite(v) ? v : null);
+  const badOk = x.badKnown !== false;
+  longOut.forkExtra = early ? {
+    lvr: nb(x.lvr), hpDraw: nb(x.dd) != null ? -x.dd : null,
+    bad: badOk ? nb(x.bad) : null, badCap: badOk && nb(x.bad) != null && nb(x.capR) ? x.bad / x.capR : null,
+    badRes: nb(x.badRes), chargeOff: nb(x.chargeOff),
+  } : null;
   // 降息推得动吗？ 'no' when the long cycle took over (B2 path / ⑤ / ⑥); a 'restart' event when easing restarted credit (back to 扩张)
   const sPhase = KEY_PHASE(phase), top = KEY_TOP[phase] || null;
   const handoff = sPhase === 'ease' && (b2 || lstage === 5 || lstage === 6) ? 'no' : null;
@@ -349,7 +382,7 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
     progress: cands.map(p => ({ target: p, label: KEY_LABEL[p], have: (phase === S.phase ? sstreak[p] : 0), need: SHORT_N[p], met: smet[p] })),
     nextSignal: SHORT_NEXT_TXT[phase], since: ssince,
   };
-  const state = { h, cb, long: { stage: lstage, since: lsince, streak: lstreak, b2 }, short: { phase, via, since: ssince, dwell, streak: sst } };
+  const state = { h, cb, long: { stage: lstage, since: lsince, streak: lstreak, b2, b2s: b2streak }, short: { phase, via, since: ssince, dwell, streak: sst } };
   return { state, out: { long: longOut, short: shortOut }, events };
 }
 

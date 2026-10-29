@@ -38,6 +38,7 @@ export function placeOf(term) {
 function requirements(items) {
   const out = [], seen = new Set();
   for (const e of items) {
+    if (e.support) continue;                                   // 加分项: shown, never a requirement
     if (!e.grp) { out.push({ met: e.ok, items: [e] }); continue; }
     if (seen.has(e.grp)) continue;
     seen.add(e.grp);
@@ -140,18 +141,22 @@ function rowHtml(e, o) {
   ROWS.set(key, { kind: o.kind, src: o.src, target: e.target, name: e.name, term: e.term, label: reqLabel(e), mark: o.mark, ok: e.ok });
   const bar = thresholdBarHtml({ value: e.value, threshold: e.threshold, dir: e.dir, fmt: e.fmt, trail: trailOf(o.ctx, o.kind, e, o.src) });
   const bits = [e.ok ? '' : `<span class="cy-gap">还差 ${fmtGap(e)}</span>`, place ? `<span class="cy-where">看：${esc(place)}</span>` : ''].filter(Boolean).join('');
-  const pin = e.ok ? '' : `<button type="button" class="cy-pin-btn" data-pk="${esc(key)}" aria-pressed="${pinned}" title="盯住这一项：它达标时暂停并提醒你">${pinned ? '★ 盯住中' : '☆ 盯住'}</button>`;
-  return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}${pinned ? ' pinned' : ''}${e.ok ? '' : ' has-pin'}">` +
-    `<button type="button" class="cy-rowbtn" data-evterm="${esc(e.term || '')}" aria-label="${esc(e.name + '：' + (e.ok ? '已达标' : '未达标') + (place ? '，在图里看' + place : ''))}">` +
-    `<span class="cy-mk" aria-hidden="true">${e.ok ? '✔' : '✖'}</span><span class="cy-en">${esc(e.name)}</span>` +
-    `<span class="cy-vals"><b>${fmtV(e.value, e.fmt)}</b> <i>需 ${e.dir === '>=' ? '≥' : '≤'} ${fmtV(e.threshold, e.fmt)}</i></span>` +
-    `<span class="cy-l2">${bar}<span class="cy-l2t">${bits}</span></span><span class="cy-sr">${e.ok ? '已达标' : '未达标'}</span></button>${pin}</li>`;
+  // a 加分项 (e.support) is never pinned and never "needed": it reads 有 / 没有 instead of ✔ / ✖
+  const sup = !!e.support;
+  const pin = e.ok || sup ? '' : `<button type="button" class="cy-pin-btn" data-pk="${esc(key)}" aria-pressed="${pinned}" title="盯住这一项：它达标时暂停并提醒你">${pinned ? '★ 盯住中' : '☆ 盯住'}</button>`;
+  const state = sup ? (e.ok ? '加分项：有' : '加分项：没有') : e.ok ? '已达标' : '未达标';
+  return `<li class="cy-ev ${e.ok ? 'ok' : 'no'}${sup ? ' sup' : ''}${pinned ? ' pinned' : ''}${e.ok || sup ? '' : ' has-pin'}">` +
+    `<button type="button" class="cy-rowbtn" data-evterm="${esc(e.term || '')}" aria-label="${esc(e.name + '：' + state + (place ? '，在图里看' + place : ''))}">` +
+    `<span class="cy-mk" aria-hidden="true">${sup ? (e.ok ? '+' : '·') : e.ok ? '✔' : '✖'}</span><span class="cy-en">${esc(e.name)}</span>` +
+    `<span class="cy-vals"><b>${fmtV(e.value, e.fmt)}</b> <i>${sup ? '参考' : '需'} ${e.dir === '>=' ? '≥' : '≤'} ${fmtV(e.threshold, e.fmt)}</i></span>` +
+    `<span class="cy-l2">${bar}<span class="cy-l2t">${sup ? (place ? `<span class="cy-where">看：${esc(place)}</span>` : '') : bits}</span></span><span class="cy-sr">${state}</span></button>${pin}</li>`;
 }
 
 /** items: one target's evidence; o = { kind: 'long'|'short', ctx, mark, src? } (mark = how the target is called in the pause message; src 'fork' = B2-fork rows of the long card) */
 export function evidenceList(items, o) {
-  const out = [], seen = new Set();
+  const out = [], seen = new Set(), sup = items.filter(e => e.support);
   for (const e of items) {
+    if (e.support) continue;
     if (!e.grp) { out.push(rowHtml(e, o)); continue; }
     if (seen.has(e.grp)) continue;
     seen.add(e.grp);
@@ -160,6 +165,7 @@ export function evidenceList(items, o) {
       ? `<li class="cy-or-box"><span class="cy-orcap">下面任一项达标即可</span><ul>${grp.map(x => rowHtml(x, o)).join('')}</ul></li>`
       : rowHtml(e, o));
   }
+  if (sup.length) out.push(`<li class="cy-or-box cy-sup-box"><span class="cy-orcap">加分项（不计入门槛，只帮你判断）</span><ul>${sup.map(x => rowHtml(x, o)).join('')}</ul></li>`);
   return `<ul class="cy-evl">${out.join('')}</ul>`;
 }
 export function beginRows() { ROWS.clear(); }

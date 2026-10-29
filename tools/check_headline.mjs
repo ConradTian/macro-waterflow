@@ -47,12 +47,13 @@ const us = run('US history', createSim({ data: US_Q, mode: 'history' }), 123);
 ok(us.dist[0] > 0 && us.dist[0] < us.n, 'US: some quarters are 平稳, not all');
 ok(us.dist[3] > 0 && us.dist[3] < us.n, 'US: some quarters have 3 items, not all');
 ok(us.dist[1] + us.dist[2] > 0, 'US: some quarters have 1-2 items');
-// the link between the dials: B2 fork and 降息推不动 both in 2008Q1 (the dial is in 降息 from the first cut, 2007Q4, so 推不动 shows the
-// quarter the long cycle takes the B2 fork), first and second in the list; no B1/B2 as short-cycle names
+// the link between the dials: B2 fork and 降息推不动 both in 2008Q3 (the dial is in 降息 from the first cut, 2007Q4, so 推不动 shows the
+// quarter the long cycle takes the B2 fork; since 2026-10-30 B2 is confirmed after 3 quarters in a row: pending 2008Q1-Q2),
+// first and second in the list; no B1/B2 as short-cycle names
 {
   const at = d => us.examples.byDate[d] || [];
-  ok(at('2008Q1')[0]?.startsWith('大周期走上 B2 岔路'), `2008Q1: B2 fork headline first (${at('2008Q1')[0]})`);
-  ok(at('2008Q1')[1]?.startsWith('降息推不动 → 交给大周期'), `2008Q1: 推不动 headline second (${at('2008Q1')[1]})`);
+  ok(at('2008Q3')[0]?.startsWith('大周期走上 B2 岔路'), `2008Q3: B2 fork headline first (${at('2008Q3')[0]})`);
+  ok(at('2008Q3')[1]?.startsWith('降息推不动 → 交给大周期'), `2008Q3: 推不动 headline second (${at('2008Q3')[1]})`);
   ok(at('2007Q4').some(x => x.startsWith('小周期 收紧→降息')), `2007Q4: the first Fed cut moves the short dial to 降息 (${at('2007Q4').join(' | ')})`);
   ok(at('2022Q2').some(x => x.startsWith('小周期 过热·物价→收紧')), `2022Q2: the first hike moves the short dial to 收紧 (${at('2022Q2').join(' | ')})`);
   const all = Object.values(us.examples.byDate).flat();
