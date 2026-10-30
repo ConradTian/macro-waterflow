@@ -139,6 +139,9 @@ const PIPES = [
   { k: 'govSurplusDrain', part: 'government',  cls: 'repay', kind: 'drain', label: '盈余', pts: [[284, 52], [284, 68]], chip: [284, 60, 'middle'], from: 'government', to: 'government', minor: true },
   // collateral feedback: housing level -> bank approval (dashed loop, not a money flow)
   { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[122, 274], [122, 112]], chip: [130, 134, 'end'], from: 'poolHousing', to: 'bank' },
+  // valuation feedback: share prices -> Capex (Tobin's q, engine cp.capexValFree; dashed, not a money flow). Live only where the engine runs
+  // it (the sandbox / free mode); grey in history, 真实 mode and the town (setValCapex)
+  { k: 'valCapex', part: 'poolEquity', cls: 'fb', kind: 'fb', label: '股价', term: 'capex', pts: [[84, 274], [84, 262], [300, 262]], chip: [86, 262, 'middle'], from: 'poolEquity', to: 'capex' },
   // 国境线 (only drawn while snap.border exists; keep these LAST: lessons.js pairs pipes and chips by index)
   { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[381, BD_BOT], [381, 390]], chip: [376, 470, 'end'],   from: 'border', to: 'channel',  bd: true },
   { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[371, 390], [371, BD_BOT]], chip: [366, 488, 'end'],   from: 'channel', to: 'border',  bd: true },
@@ -228,7 +231,7 @@ function flowsOf(snap, prevSnap) {
   if (f.rent == null) f.rent = (a.housing?.level != null && a.housing?.rentYield != null) ? a.housing.level * a.housing.rentYield / 4 : 0;
   if (f.dividends == null) f.dividends = a.equity?.level != null ? a.equity.level * 0.02 / 4 : 0;
   if (f.coupons == null) f.coupons = (snap.gov?.interest ?? 0) / 4;
-  f.qt = f.qt || 0; f.govSurplusDrain = f.govSurplusDrain ?? f.fiscalDrain ?? 0; f.collateral = 0;
+  f.qt = f.qt || 0; f.govSurplusDrain = f.govSurplusDrain ?? f.fiscalDrain ?? 0; f.collateral = 0; f.valCapex = 0;
   // fiscal branches. The diagram draws the NEW water N (= fiscalInjection) and where it goes. The engine fields govPurchases / transfers are the GROSS
   // outlays (orders vs transfers to households): N is split in their proportion. Fallback (older snapshots): 50/50, 60/40 toward households when unemployment rises.
   const N = f.fiscalInjection || 0;
@@ -1269,6 +1272,28 @@ function setBudget(R, snap, town) {
     `<span class="fb-minus">−</span><span class="fb-grp drain"><span class="fb-k">排出</span> ${termBtn('principalRepay', '回灌')} ${num(dr.repay)}${drainTail}</span></div></div>`;
 }
 
+// share prices -> Capex pipe: open only where the engine runs it = free mode with cp.capexValFree (default capexVal) > 0. History mode,
+// 真实 mode (snap.valueState) and the town keep it shut: grey, no motion, and the title says why.
+const VALCAPEX_SHUT = '历史模式里关着：模型的股价比真实早两年见顶，接上会更不稳；沙盒里是开的';
+function valCapexState(snap) {
+  const sim = currentSim();
+  if (!sim || sim.mode !== 'free' || !snap || snap.valueState || isTownSnap(snap)) return 'shut';
+  const cp = sim.countryParams || {};
+  return (cp.capexValFree ?? cp.capexVal ?? 0) > 0 ? 'on' : 'off';
+}
+function setValCapex(pr, snap) {
+  const s = valCapexState(snap), on = s === 'on';
+  const tip = on ? '股价高 → 融资便宜 → 企业多投资（Capex），约 2–4 季。沙盒里是开的；历史模式里关着'
+    : s === 'off' ? '这个国家的模型里没接：试过，几乎不改变结果' : VALCAPEX_SHUT;
+  for (const n of [pr.g, pr.chip]) {
+    n.classList.toggle('shut', !on);
+    let t = n.querySelector(':scope > title');
+    if (!t) t = n.insertBefore(el('title', {}), n.firstChild);
+    t.textContent = tip;
+  }
+  placeChip(pr, on ? pr.def.label : pr.def.label + '·关');
+}
+
 function setTexts(R, snap, prevSnap, st) {
   const f = flowsOf(snap, prevSnap), a = snap.assets || {}, m = snap.macro || {};
   const town = isTownSnap(snap) && !st.zoomed;
@@ -1301,6 +1326,7 @@ function setTexts(R, snap, prevSnap, st) {
       if (pr.icon) pr.icon.style.setProperty('--spin', (2.4 - 1.9 * clamp(Math.sqrt(v / r), 0, 1)).toFixed(2) + 's');
     }
   }
+  setValCapex(R.pipes.valCapex, snap);
   // main drain icon follows principalRepay (icon registered above)
   R.rate.textContent = `政策利率 ${pct(snap.rates?.policy ?? 0, 2)}`;
   { const rr = snap.rates?.realPolicy ?? ((snap.rates?.policy ?? 0) - (m.inflation ?? 0));

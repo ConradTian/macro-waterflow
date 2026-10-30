@@ -39,9 +39,10 @@ export const LAYERS = [
     keys: ['gate'], parts: ['border'], pipes: ['exports', 'imports', 'foreignBonds'],   // the border band (line, FX gate / reactor, USD index), phone: the 净出口 gate
     extras: ['map'] },
   { id: 'L-assets', name: '投资者',
-    // the remaining pools, their 历史正常区间 bands + 贵 / 便宜 tags (all four pools), the springs, the 资产池 captions
+    // the remaining pools, their 历史正常区间 bands + 贵 / 便宜 tags (all four pools), the springs, the 资产池 captions,
+    // the 股价 → Capex feedback (valCapex: live in the sandbox only, grey elsewhere)
     parts: ['pool', 'poolEquity', 'poolGold', 'springs'],
-    pipes: ['toEquity', 'toGold', 'coupons', 'dividends', 'rent'], keys: ['band', 'poolStat', 'springWire'],
+    pipes: ['toEquity', 'toGold', 'coupons', 'dividends', 'rent', 'valCapex'], keys: ['band', 'poolStat', 'springWire'],
     extras: [] },
 ];
 export const LAYER_IDS = LAYERS.map(l => l.id);

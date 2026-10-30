@@ -131,6 +131,9 @@ export const EDGES = [
   ['capex', 'newLoans', +1, '立刻', { w: 0.6, why: '企业借钱扩产' }],
   ['capex', 'capacity', +1, '2–3 年', { why: '建成才是产能' }],
   ['cf', 'capex', +1, '1–2 季', { w: 0.6, why: '赚钱才扩产' }],
+  // Tobin's q pipe (cp.capexValFree, USA): on in free-run mode only. History mode keeps it shut (the model's own share price peaks
+  // ~2 years before the real one), so the model's share price feeds back into Capex only in free-run mode
+  ['equityAsset', 'capex', +1, '2–4 季', { only: 'free', w: 0.5, why: '股价高，融资便宜' }],
   ['cpi', 'realRate', -1, '立刻'],
   ['cpi', 'inflationExp', +1, '2–4 季', { why: '慢慢记住涨价' }],
   ['inflationExp', 'cpi', +1, '1–2 季', { why: '预期会自我实现' }],

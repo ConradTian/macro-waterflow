@@ -266,6 +266,9 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .arrow { fill: var(--pc); }
 .flow-svg .chip rect.bg { fill: var(--surface); fill-opacity: .94; stroke: var(--pc); stroke-width: 1.2; }
 .flow-svg .chip.fb rect.bg { stroke-dasharray: 3 2; }
+.flow-svg .fb.shut { --pc: var(--muted); }                                         /* 股价 → Capex outside the sandbox: shut, grey, still */
+.flow-svg .fb.shut .dash { animation: none; opacity: .5; }
+.flow-svg .chip.shut text { fill: var(--muted); }
 .flow-svg .chip text { font-size: 10px; font-weight: 600; }
 .flow-svg .chip.minor text { font-size: 9.5px; font-weight: 500; }
 .flow-svg .chip.off { display: none; }

@@ -56,6 +56,11 @@ const USA_BASE = {
   // optional demand/supply mechanisms (default = the calibrated engine, bit for bit). Value null/undefined = off.
   //   capGain (0.6)      capacity growth per 1pp of completed Capex/GDP above capexShare0 (economics suggests ~0.15-0.3)
   //   capexPress (0.4), capexRate (0.6)   Capex share response to demand pressure / to the real funding cost
+  //   capexVal (0)       Capex share per unit of equity valuation gap (Tobin's q pipe: asset pools -> main loop). History mode with
+  //                      the data's `cape`: real CAPE vs its pre-2022 mean (exogenous, like oil); free mode / no `cape` (AUS): the
+  //                      model's own P/E vs its slow average. AUS off: tried 0.01-0.03, no target moves and u RMSE 1.12 -> 1.13-1.16pp
+  //   capexValFree (= capexVal)  the same in FREE mode only (the sandbox): history mode keeps capexVal, so a country can open the pipe
+  //                      in the sandbox and leave the calibrated history bit for bit unchanged
   //   savU (1.0)         household saving response to unemployment above u*
   //   adPull (0.4)       speed at which nominal demand closes the output gap (per year)
   //   wealthLevel (off)  annual MPC out of housing + equity WEALTH (level form); off = the flow form K.wealthMpc x change in wealth
@@ -142,6 +147,12 @@ const USA = {
   slackVsCapEff: true, oilDirect: true, adPullFull: true, oilLookThrough: 1, capLossDecay: 0.98,
   capGain: 0.2035, capexRate: 0.1468, capexPress: 0.1068, savU: 0.5088, okun: 0.4208, gBase: 0.0348, gapSlope: 0.1903, adPull: 0.4756,
   transferMpc: 0.3939, xsDrain: 0.5, firmSpread: 0.3519, shockLayoff: 0.3694, rateSens: 0.4114, wealthLevel: 0.0498, mortReprice: 0.0834,
+  // valuation -> Capex pipe (2026-10-30): OFF in history mode (capexVal 0), ON in the sandbox / free mode (capexValFree 0.03). capexVal 0.03 keeps 17/17, u avg 2006-07 7.6% -> 7.1%, u RMSE 1995-2021
+  // 2.00 -> 1.86pp, Capex/GDP falls 2000Q1 -> 2001Q3 (15.4% -> 13.7%) and the 2003-04 boom shrinks; but 6 valve lag labels, the
+  // ⑤/⑥ dates (2009Q2/2010Q2 -> +1q) and 9 lesson claims move, and +-10% robustness gets worse (3/50 -> 7/50). Equity P/E anchored to
+  // real CAPE was also tried: it breaks 2a (u peak 2009-10 7.7%) and 5b. Turning it on in history = relabel those first. Free mode reads
+  // the model's own P/E vs its ~10y average (no CAPE), so the history scorecard, lessons and lag labels do not see it.
+  capexVal: 0, capexValFree: 0.03,
   rules: {
     firm_capex_up: { max: 1.1451 }, firm_capex_cut: { min: 0.93 }, firm_oil_passthrough: { k: 0.0299 },
     inv_momentum: { hpMom: 0.4672 }, inv_valuation: { revert: 0.0584 },
