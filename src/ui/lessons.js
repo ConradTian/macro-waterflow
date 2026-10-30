@@ -295,7 +295,9 @@ function itemFor(key, p) {
   if (s.startsWith('role:')) { const r = s.slice(5); return menuItem(L, p, badgeOf(key, L), key, `${ROLE_NAME[r] || r}课`, ROLE_FALLBACK_ONE); }
   return L ? menuItem(L, p, badgeOf(key, L), key) : '';
 }
-let oldOpen = false;                                       // the 旧版课程 group remembers whether it was opened (this page view only)
+// DESIGN v3: the old site is frozen at /v2/ (static copy of a3bd76d); same relative pattern as BLIND_URL in src/ui/simple.js
+const V2_URL = new URL('../../v2/', import.meta.url).href;
+let oldOpen = false;                                      // the 旧版课程 group remembers whether it was opened (this page view only)
 export async function openMenu() {
   ensureDom();
   await rolesReady;
@@ -309,6 +311,7 @@ export async function openMenu() {
     parts.map((pt, k) => `<h3 class="ls-sec ls-part"><i>${'一二三四五六'[k] || k + 1}</i>${esc(pt.name)}</h3><ol class="ls-list ls-main" data-part="${k + 1}">${list(pt.ids)}</ol>`).join('') +
     `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">沙盒（新窗口，自己拧阀门）↗</a>` +
     `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、第 0.5 课、7 个角色课、旧的周期课、Capex 与产能、世界 1 和 2；内容已并进新课</small></summary>` +
+    `<a class="ls-v2-link" href="${esc(V2_URL)}" target="_blank" rel="noopener">打开旧版网站 ↗（旧图、旧课，冻结不再改）</a>` +
     `<ol class="ls-list">${list(COURSE.legacy)}</ol></details>`;
   const det = menu.querySelector('.ls-old');
   if (det) det.addEventListener('toggle', () => { oldOpen = det.open; });
