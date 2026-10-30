@@ -450,10 +450,17 @@ const PANEL_MODS = {
   fxr: () => import('./fx-reactor.js').then(m => { if (typeof m.ensureFxReactorCss === 'function') m.ensureFxReactorCss(); return m; }),
   exp: () => import('./exp-gauge.js').then(m => { m.ensureExpCss(); return m; }),   // 专题：预期 (panel ids 'exp-*')
 };
+// --- lesson now (C3) --- 「第 9 课 · 现在在哪」 (src/data/lesson-now.js): today's REAL data on the five places; panels 'now-*' = src/ui/now-panel.js.
+// Listed under 专题 for now (the main-line menu is COURSE in src/data/lessons.js); the three lines tagged 「C3 now」 below dispatch its panels.
+import { LESSON_NOW } from '../data/lesson-now.js';
+TOPIC_LESSONS.push(LESSON_NOW);
+PANEL_MODS.now = () => import('./now-panel.js').then(m => { m.ensureNowCss(); return m; });
+const isNowPanel = spec => /^now-/.test(spec.id);
+// --- end lesson now (C3) ---
 const panelLib = {};                                        // kind -> loaded module
 const CARD_PANELS = { inv: ['assetTable'] };                // these panels go in the lesson card: their step needs the diagram (pool flashes)
 // the module of a panel: by its id first (a lesson may mix kinds: 汇率 = reactor + fx-lab, m5 = one reactor drill), then by the lesson's kind
-const panelKind = (L, spec) => (spec.id === 'fx-reactor' ? 'fxr' : /^exp-/.test(spec.id) ? 'exp' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
+const panelKind = (L, spec) => (isNowPanel(spec) ? 'now' /* C3 now */ : spec.id === 'fx-reactor' ? 'fxr' : /^exp-/.test(spec.id) ? 'exp' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
   : L.kind === 'fx' ? 'fx' : L.kind === 'shocks' ? 'shocks' : 'inv');
 export const panelWhere = (L, spec) => ((CARD_PANELS[panelKind(L, spec)] || []).includes(spec.id) ? 'card' : 'diagram');
 let pnl = null;                                             // the mounted panel: { kind, where, key, host }
@@ -486,6 +493,7 @@ function mountPanel(kind, host, spec) {
     if (kind === 'shocks') return m.mountShockPanel(host, spec);
     if (kind === 'fxr') return mountReactor(m, host, spec);
     if (kind === 'exp') return m.mountExpPanel(host, spec);
+    if (kind === 'now') return m.mountNowPanel(host, spec);   // C3 now
     return m.mountInvestorPanel(host, spec);
   } catch (e) { console.error(e); return null; }
 }
@@ -497,6 +505,7 @@ function dropPanel() {
     else if (pnl.kind === 'shocks') m.unmountShockPanel();
     else if (pnl.kind === 'fxr') m.unmountFxReactor();
     else if (pnl.kind === 'exp') m.unmountExpPanel();
+    else if (pnl.kind === 'now') m.unmountNowPanel();   // C3 now
     else m.unmountInvestorPanel();
   } catch (e) { console.error(e); }
   if (pnl.where === 'diagram') { pnl.host.remove(); document.getElementById('diagram')?.classList.remove('ls-pnl-on'); }
