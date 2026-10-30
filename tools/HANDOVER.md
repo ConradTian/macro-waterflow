@@ -52,6 +52,25 @@ Everything below is pushed; no work is pending in any worktree.
      - (3) every launch gets an explicit --user-data-dir plus --disk-cache-size=1 --no-first-run --no-default-browser-check;
      - (4) add a checker that counts %TEMP%\mw-* and HeadlessEdge* before and after a full check run, and fails if any are left.
    - Also remove the stale `.claude/worktrees/*` (about 40; everything is merged). Then reply to RESOURCER and to the Ray-Dalio-Framework peer.
+0b. **New 专题 「AI 抗冲击：一个澳洲家庭怎么配置」 (?lesson=ai-au, in the 专题 menu).** User request via the peer, 2026-10-30. Do it after item 0, before EA. ≤ 7 steps + ending; phone-first. The full spec is in the peer's message; summary:
+   1. Question + conclusion: the house, the job and the AUD sit on one river, so the liquid money first diversifies off it; AI tilts are small and follow the bottlenecks.
+   2. What AI changes on the picture: 分水堰 wage share ↓ with profits / rents flowing to the bottlenecks; 估值 already priced, narrow pools fall most; 吸力 two forces, currently up (real data 2026Q3: US 10y ~4.9%, AUS ~5.1%); 河道 inflation first, cheaper services later; 地下 / 闸 debt-financed capex, money flows to the USD lake.
+   3. Phases 投资期 → 扩散期 → 分配期; the main risk is the capex boom breaking first, or faster redistribution.
+   4. The Australian view: ASX has almost no compute exposure; AU banks = mortgage risk; iron ore is not a reliable tailwind; the AUD is a shock absorber (reuse the L6 numbers: AUD 2008 −24%, yen +18%).
+   5. Bottlenecks now: read-only from Evoquant\5_situ_aware\reports\NOW.md and MORNING.md, labelled 「2026 年 10 月读数，描述不是预测」. Priced: power equipment, copper, optical; tight but not run up: pipelines, DC REITs; unreadable: nuclear. The radar lights after prices.
+   6. Hypothetical worked example (NO real user data): house A$700k with no mortgage + A$300k liquid →
+      - 60% global equity ex-AU, unhedged;
+      - 10% bottleneck tilt;
+      - 10% cash / short duration incl. a 6-month emergency fund;
+      - 10% global bonds hedged to AUD;
+      - 10% physical gold;
+      - excluded: AU banks and AU REITs.
+      - Trigger buttons: 收紧 / AI 信用压力 / 降息且推得动 / 绳紧 / 卡点挪了, each showing the new table.
+      - Staged entry over 9 months; rebalance when a block drifts > 5pp; an offset-account note.
+      - If the blind-test data allows: a 「示意回放」 of 2008 and 2022 in AUD vs 60/40.
+   7. Who to ask: an ASIC-registered, fee-only adviser, for tax / super / structure (not for timing).
+   8. Ending: the 三问 + 「这是用框架演示的样板，不是个人建议」.
+   - Every number from data or engine, never typed. Push, then send the peer the link.
 1. **EA:**
    - fix the COVID shock the GBR way (shockMult 1, slackVsCapEff, furlough);
    - EA initial values (household 0.46 / private 1.12 / gov 0.70);
