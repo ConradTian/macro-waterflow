@@ -54,12 +54,16 @@ body.rm-real #diagram > .flow-wrap { padding-top: 22px; }
 }
 
 .flow-svg text.v-est { fill: var(--muted); opacity: .62; font-style: italic; }
-.flow-svg text.v-none { fill: var(--muted); }
+/* no value (.v-none, mostly after the model's last quarter): no 「—」, the name only, faded once (each chip / text / pipe is its own element,
+   never nested in another faded one, so a whole empty group — bank, firm, government flows — reads as one calm faded group) */
+.flow-svg text.v-none { fill: var(--muted); opacity: .35; }
 .flow-svg .chip.v-est rect.bg { stroke: var(--muted); stroke-dasharray: 2.5 2; fill: var(--surface-2); }
 .flow-svg .chip.v-est text { fill: var(--muted); font-style: italic; font-weight: 500; }
+.flow-svg .chip.v-none { opacity: .35; }
 .flow-svg .chip.v-none rect.bg { stroke: var(--border); }
 .flow-svg .chip.v-none text { fill: var(--muted); }
 .flow-svg g.v-est > .bed, .flow-svg g.v-est > .dash, .flow-svg g.v-est > .arrow { opacity: .4; }
+.flow-svg g.v-none:not(.chip) > .bed, .flow-svg g.v-none:not(.chip) > .dash, .flow-svg g.v-none:not(.chip) > .arrow { opacity: .15; }
 .flow-svg .vstat.v-est { opacity: .55; }
 .flow-svg .rhint { fill: var(--muted); font-size: 7.2px; font-style: italic; }
 @media (max-width: 767.98px) { .flow-svg .rhint { font-size: 8px; } }
@@ -68,6 +72,15 @@ body.rm-real #diagram > .flow-wrap { padding-top: 22px; }
 .flow-budget .fb-est { flex: none; margin-left: 6px; padding: 0 6px; border: 1px dashed var(--muted); border-radius: 999px; color: var(--muted); font-size: 11px; font-style: italic; line-height: 16px; white-space: nowrap; }
 .flow-budget .fb-none { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 2px 0; }
 .flow-budget .fb-none small { color: var(--muted); font-size: 12px; }
+/* phone: one line, ellipsis (a wrapped second line overlapped the panel under the diagram); tap = the whole sentence above the bar */
+@media (max-width: 767.98px) {
+  .flow-budget .fb-none { flex-wrap: nowrap; align-items: center; gap: 8px; min-height: 36px; padding: 3px 8px; white-space: nowrap; overflow: hidden; cursor: pointer; }
+  .flow-budget .fb-none b { flex: none; font-size: 12px; }
+  .flow-budget .fb-none small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .flow-budget.open .fb-none { overflow: visible; }
+  .flow-budget.open .fb-none small { position: absolute; left: 0; right: 0; bottom: 100%; z-index: 12; padding: 6px 10px 8px; white-space: normal;
+    background: var(--surface-2); border-top: 1px solid var(--border); box-shadow: 0 -6px 14px rgba(0, 0, 0, .16); }
+}
 .flow-cpop .cp-note.v-tag { color: var(--muted); font-style: italic; }
 
 /* ---------- 总目标 strip (objective.js): in 真实 mode the score and 泛滥 / 干涸 / 透支 are the model's (grey, 模型估算); 溃坝 is real ---------- */

@@ -2,7 +2,8 @@
 // CDP check of the 「真实 / 模型」 mode (src/app.js "real mode", src/ui/real-mode.js, tools/REAL-DATA.md):
 //   the toggle persists (localStorage 'mw.mode'; ?mode=real is not stored); lessons force 模型 and the choice comes back after;
 //   play + 接管 disabled in 真实; ⏮ / ⏭ / the scrubber step and stop at lastRealDate (USA 2026Q3, AUS 2026Q2); the badge text (long / 390px short);
-//   the four outlets = the real snapshot's; model-only fields greyed (.v-est), not-yet fields 「—」; twin dials (simple panel + 周期 tab);
+//   the four outlets = the real snapshot's; model-only fields greyed (.v-est), not-yet fields faded (.v-none, name only, no 「—」;
+//   at 2026Q1 at most 3 visible 「—」 in the diagram); twin dials (simple panel + 周期 tab);
 //   溃坝 lamp on real US: red 2008Q4, green 2015; 「真实 x」 hints only inside 保留样本 in 模型 mode; no JS errors; no horizontal scroll at 390px.
 //   --shots: also saves the screenshots to tools/shots/real-mode/ (USA 2008Q4 / AUS 2009Q1, 真实 + 模型, 390×844 / 1024×768 / 1920×1000).
 import { spawn } from 'node:child_process';
@@ -41,6 +42,8 @@ const date = () => text('#date');
 const stored = () => ev(`(()=>{try{return localStorage.getItem('mw.mode')}catch(e){return 'ERR'}})()`);
 const isRealOn = () => ev(`document.body.classList.contains('rm-real')`);
 const visText = sel => ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)}); if(!e) return null; const w=document.createTreeWalker(e, NodeFilter.SHOW_TEXT); let s=''; while(w.nextNode()){const p=w.currentNode.parentElement; if(p && getComputedStyle(p).display!=='none') s+=w.currentNode.textContent;} return s})()`);
+// visible 「—」 characters inside #diagram (the drawing + the 本季水量 bar; not the 真实数据 legend tag)
+const dashCount = () => ev(`(()=>{const e=document.querySelector('#diagram'); const w=document.createTreeWalker(e, NodeFilter.SHOW_TEXT); let n=0; while(w.nextNode()){const p=w.currentNode.parentElement; if(p.closest('.rm-tag')) continue; const cs=getComputedStyle(p); if(cs.display==='none'||cs.visibility==='hidden'||p.getClientRects().length===0) continue; n+=(w.currentNode.textContent.match(/—/g)||[]).length;} return n})()`);
 const noHScroll = () => ev(`document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth`);
 const shot = async name => {
   if (!SHOTS) return;
@@ -133,13 +136,17 @@ try {
   ok(await date() === '2008Q4', '⏮ one quarter back: ' + await date());
   await go('?pause=1&t=123&full=0&layers=all', 3200);
   ok(await date() === '2025Q4', 'start 2025Q4 (the model\'s last quarter)');
-  for (let i = 0; i < 4; i++) await click('#btn-step', 700);
+  await click('#btn-step', 900);
+  ok(await date() === '2026Q1' && await dashCount() <= 3, `USA 2026Q1 (after the model's range): at most 3 visible 「—」 in the diagram (${await dashCount()})`);
+  for (let i = 0; i < 3; i++) await click('#btn-step', 700);
   ok(await date() === lastUS, `⏭ goes past the model to the last real quarter and stops: ${await date()} (lastRealDate ${lastUS})`);
   ok(await ev(`document.querySelector('#btn-step').disabled`), '⏭ disabled at lastRealDate');
   ok(await ev(`[...document.querySelectorAll('#simple .sp-model')].length === 0 && document.querySelectorAll('#simple .sp-none').length === 2`), 'after the model\'s range: the model dials say so (模型只算到 …)');
   const R2 = realSnapshot('USA', lastUS);
-  ok(R2.notYet.includes('household.dsr') && await ev(`[...document.querySelectorAll('.flow-svg text')].some(t => t.textContent === 'DSR —' && t.classList.contains('v-none'))`), `${lastUS}: DSR not published yet → 「DSR —」`);
-  ok(await ev(`document.querySelector('.chip[data-pipe="newLoans"]').classList.contains('v-none') && document.querySelector('.chip[data-pipe="newLoans"] text').textContent === '放贷 —'`), `${lastUS}: model-only flows after the model's range → 「放贷 —」`);
+  ok(R2.notYet.includes('household.dsr') && await ev(`[...document.querySelectorAll('.flow-svg text')].some(t => t.textContent === 'DSR' && t.classList.contains('v-none') && +getComputedStyle(t).opacity < .5)`), `${lastUS}: DSR not published yet → the name only, faded (.v-none)`);
+  ok(await ev(`document.querySelector('.chip[data-pipe="newLoans"]').classList.contains('v-none') && document.querySelector('.chip[data-pipe="newLoans"] text').textContent === '放贷' && +getComputedStyle(document.querySelector('.chip[data-pipe="newLoans"]')).opacity < .5`), `${lastUS}: model-only flows after the model's range → 「放贷」 chip faded (.v-none), no 「—」`);
+  ok(await ev(`[...document.querySelectorAll('.flow-svg .chip.v-none text, .flow-svg text.v-none')].every(t => !t.textContent.includes('—'))`), `${lastUS}: no 「—」 in any faded chip / text`);
+  ok(await ev(`[...document.querySelectorAll('.chip.outc')].every(c => !c.classList.contains('v-none') && +getComputedStyle(c).opacity === 1)`), `${lastUS}: real values (outlets) stay crisp`);
   ok(await ev(`[...document.querySelectorAll('.chip.outc text')].every(t => /%$/.test(t.textContent))`), `${lastUS}: outlets still real`);
   ok(await text('#objective .ob-n') === '—' && await ev(`['flood','drought','overdraft'].every(k => document.querySelector('.ob-lamp[data-lamp="'+k+'"]').dataset.level === 'none')`)
     && await ev(`['red','yellow','green'].includes(document.querySelector('.ob-lamp[data-lamp="burst"]').dataset.level)`), `${lastUS}: 总目标 score 「—」, 泛滥 / 干涸 / 透支 grey 「—」, 溃坝 still real`);
@@ -205,6 +212,10 @@ try {
   await go(`?country=AUS&pause=1&t=${qIdx('AUS', lastAU) - 1}&layers=all`, 3200);
   for (let i = 0; i < 3; i++) await click('#btn-step', 700);
   ok(await date() === lastAU && await ev(`document.querySelector('#btn-step').disabled`), `AUS ⏭ stops at ${lastAU}: ${await date()}`);
+  await go(`?country=AUS&pause=1&t=123&layers=all`, 3200);
+  await click('#btn-step', 900);
+  ok(await date() === '2026Q1' && await dashCount() <= 3, `AUS 2026Q1: at most 3 visible 「—」 in the diagram (${await dashCount()})`);
+  ok(await ev(`document.querySelector('.chip[data-pipe="newLoans"]').classList.contains('v-none') && document.querySelector('.flow-budget .fb-none')?.title.includes('模型只算到')`), 'AUS 2026Q1: 放贷 faded, 本季水量 row has the full sentence as its tooltip');
   // other countries / the town: no toggle
   await go('?country=JPN&forceCountry=1&pause=1&t=20', 3000);
   ok((await text('#mode-badge')).includes('日本') && await ev(`!document.querySelector('#rm-toggle') || document.querySelector('#rm-toggle').hidden`) && !(await isRealOn()), 'another country (JPN): no toggle (' + await text('#mode-badge') + ')');
@@ -220,6 +231,17 @@ try {
   }
   ok(await visText('#mode-badge') === `真实 · 至 ${lastUS.slice(2)}`, '390px badge: ' + await visText('#mode-badge'));
   ok(await ev(`(()=>{const t=document.querySelector('#btn-teach').getBoundingClientRect(); return t.right <= innerWidth})()`), '390px: 教学 still on screen');
+  // 本季水量 after the model's range: one line with an ellipsis, inside the diagram box (it overlapped the panel on a phone); tap = the sentence
+  await size(390, 700);
+  await go('?country=AUS&pause=1&t=123&full=0&layers=all', 3000);
+  await click('#btn-step', 900);
+  ok(await date() === '2026Q1' && await ev(`(()=>{const f=document.querySelector('.flow-budget .fb-none'), s=f.querySelector('small'), d=document.querySelector('#diagram').getBoundingClientRect(), b=f.getBoundingClientRect();
+    return b.height <= 40 && getComputedStyle(s).whiteSpace === 'nowrap' && getComputedStyle(s).textOverflow === 'ellipsis' && b.bottom <= d.bottom + 1})()`), '390×700 AUS 2026Q1: 本季水量 row is one line (ellipsis), inside the diagram box');
+  await click('.flow-budget .fb-none', 400);
+  ok(await ev(`(()=>{const s=document.querySelector('.flow-budget .fb-none small'); return document.querySelector('.flow-budget').classList.contains('open') && getComputedStyle(s).whiteSpace === 'normal' && s.getBoundingClientRect().height > 0})()`), '… tap: the whole sentence opens above the bar');
+  await click('.flow-budget .fb-none', 400);
+  ok(await ev(`!document.querySelector('.flow-budget').classList.contains('open')`), '… tap again: closed');
+  await size(390, 844);
   await click('#rm-toggle [data-m="model"]', 1200);
   for (const [q, nm] of [['?pause=1&t=55&layers=all', 'usa-2008Q4-model-390'], ['?country=AUS&pause=1&t=56&layers=all', 'aus-2009Q1-model-390'], ['?pause=1&t=112&layers=all', null]]) {
     await go(q, 3000);

@@ -10,6 +10,7 @@ import { setActiveCountry, registerCountryData } from './ui/country-info.js';   
 import { learnedLayers, lessonLayers, getShowAll, setShowAll } from './ui/progress.js';   // progressive diagram (see "layers" below)
 import { LAYER_IDS, layersUpTo } from './data/layers.js';
 import { REAL_MODE_ISOS, loadRealMod, viewSnapshot, realHint, badgeHtml } from './ui/real-mode.js';   // 「真实 / 模型」 mode (see "real mode" below)
+import { initPanelGrip } from './ui/panel-grip.js';    // phones: drag handle on top of the bottom panel (body[data-panel], localStorage 'mw.panelH')
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -39,6 +40,7 @@ let view = params.get('view') === 'waves' ? 'waves' : 'flow';   // left panel: '
 let following = params.get('follow') === '1';                    // mirror another window's quarter (BroadcastChannel); a follower never plays its own timer
 let activeTab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'ledger';
 const tabMods = {}; // id -> module | null (failed)
+let grip = null;    // phone panel drag handle (src/ui/panel-grip.js)
 // SIMPLE MODE: 'simple' = diagram + the two cycle dials + 本季看点 + 「更多」; 'full' = the 4 tabs. See "layout" below.
 const LAYOUT_KEY = 'mw.layout';
 const storedLayout = () => { try { return localStorage.getItem(LAYOUT_KEY); } catch (e) { return null; } };
@@ -72,6 +74,7 @@ async function boot() {
   sim.on('reset', () => { snap = sim.snapshot(); prevSnap = null; if (!syncing) renderAll(); });
 
   buildTabbar();
+  try { grip = initPanelGrip({ panel: document.querySelector('.main > .panel'), main: document.querySelector('.main') }); } catch (e) { console.error(e); }
   wireControls();
   await initRealMode();                              // before the scrubber: its range ends at lastRealDate in 真实 mode
   buildScrubber();
@@ -220,7 +223,7 @@ function buildTabbar() {
   for (const t of TABS) {
     const b = document.createElement('button');
     b.textContent = t.label; b.dataset.tab = t.id; b.dataset.part = t.id; b.setAttribute('role', 'tab');
-    b.onclick = () => setTab(t.id);
+    b.onclick = () => { setTab(t.id); if (grip) grip.raiseForTab(); };   // phone: a tab tap at the default height raises the panel (panel-grip.js)
     bar.appendChild(b);
   }
   const back = document.createElement('button');      // SIMPLE MODE: way back from the full layout (hidden during a lesson)
@@ -484,7 +487,7 @@ function renderRealTag(on) {
   if (!host) return;
   if (!rtagEl) {
     rtagEl = document.createElement('div'); rtagEl.className = 'rm-tag'; rtagEl.id = 'rm-tag'; rtagEl.setAttribute('role', 'note');
-    rtagEl.innerHTML = '<b>真实数据</b><span class="rm-est">灰字 = 模型估算</span><span class="rm-none">— = 没有数据</span>';
+    rtagEl.innerHTML = '<b>真实数据</b><span class="rm-est">灰字 = 模型估算</span><span class="rm-none">淡色 = 没有数据</span>';
     rtagEl.title = '灰字：真实统计里没有这一项，显示的是模型的估算。—：这一季还没发布，或模型只算到 2025Q4。';
     host.appendChild(rtagEl);
   }

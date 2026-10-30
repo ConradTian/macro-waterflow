@@ -75,8 +75,9 @@
   .sp-dh b { font-size: 14px; }
   .sp-dh small { font-size: 11px; }
   .sp-hl, .sp-hint { display: none; }
-  /* the row must fit under the diagram (56dvh) and the top bar: ~130px of dial on a 844px phone, never under 90px */
-  .sp-svg .cy-dial { max-height: max(90px, min(130px, calc(44dvh - 240px))); }
+  /* the row must fit under the diagram (56dvh), the top bar and the 22px panel grip (app.css PANEL GRIP): ~110px of dial on a 844px phone,
+     never under 90px. Raised with the grip, the cap is lifted (app.css). */
+  .sp-svg .cy-dial { max-height: max(90px, min(130px, calc(44dvh - 262px))); }
   .sp-now { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .sp-now small { display: none; }
   .sp-now { font-size: 12.5px; }

@@ -1190,7 +1190,8 @@ function setTexts(R, snap, prevSnap, st) {
 }
 
 /* ---------- 真实 mode (src/ui/real-mode.js viewSnapshot): which numbers are model estimates (.v-est, grey, 「模型估算」) and which have
-   no value (.v-none, the number becomes 「—」). snap.valueState = { est: Set<path>, none: Set<path> }; no valueState = all plain. ---------- */
+   no value (.v-none: the number is dropped, only the name stays, and real-mode.css fades the text / chip / pipe — no 「—」 in every
+   empty chip after the model's last quarter). snap.valueState = { est: Set<path>, none: Set<path> }; no valueState = all plain. ---------- */
 const VALUE_SRC = [['rate', 'rates.policy'], ['realRate', 'rates.realPolicy'], ['gov', 'gov.debtGdp'], ['govGross', 'gov.spendingGross'],
   ['bank', 'bank.approval'], ['hh', 'household.dsr'], ['firm', 'firm.profit'], ['iouGdp', 'iou.bankTotal'], ['cashGdp', 'money.M'],
   ['cpi', 'macro.inflation'], ['unemp', 'macro.unemployment'], ['px', 'macro.priceLevel'], ['cap', 'macro.capacity']];
@@ -1205,7 +1206,7 @@ function valueStateOf(snap, path) {
 function markText(n, s) {
   if (!n) return;
   n.classList.toggle('v-est', s === 'est'); n.classList.toggle('v-none', s === 'none');
-  if (s === 'none') { const t = n.textContent; n.textContent = /\d/.test(t) ? (/\s/.test(t.trim()) ? t.trim().replace(/\s+\S*$/, '') + ' —' : '—') : t; }
+  if (s === 'none') { const t = n.textContent; n.textContent = /\d/.test(t) ? (/\s/.test(t.trim()) ? t.trim().replace(/\s+\S*$/, '') : '') : t; }
   if (s === 'est') n.setAttribute('data-est', EST_TIP); else n.removeAttribute('data-est');
 }
 function applyValueState(R, snap) {
@@ -1213,16 +1214,17 @@ function applyValueState(R, snap) {
   for (const p of POOLS) { const s = valueStateOf(snap, `assets.${p.id}.price`); markText(R.pools[p.id].val, s); if (s) R.pools[p.id].stat.textContent = s === 'none' ? '' : R.pools[p.id].stat.textContent; R.pools[p.id].stat.classList.toggle('v-est', s === 'est'); }
   { const s = valueStateOf(snap, 'macro.demandPressure'), S = R.sec;
     for (const n of [S.t2, S.t3, S.t4]) markText(n, s);
-    if (s === 'none') { S.t2.textContent = '深 —'; S.t3.textContent = ''; S.t4.textContent = ''; } }
+    if (s === 'none') { S.t2.textContent = '深'; S.t3.textContent = ''; S.t4.textContent = ''; } }
   for (const p of PIPES) {
     const pr = R.pipes[p.k], s = valueStateOf(snap, pipeSrc(p.k));
     pr.chip.classList.toggle('v-est', s === 'est'); pr.chip.classList.toggle('v-none', s === 'none');
     pr.g.classList.toggle('v-est', s === 'est'); pr.g.classList.toggle('v-none', s === 'none');
-    if (s === 'none' && p.kind !== 'fb') placeChip(pr, p.kind === 'out' ? '—' : `${p.label} —`);
+    if (s === 'none' && p.kind !== 'fb') placeChip(pr, p.kind === 'out' ? '' : p.label);
   }
   const bs = valueStateOf(snap, 'budget.net');
   R.bar.classList.toggle('v-est', bs === 'est'); R.bar.classList.toggle('v-none', bs === 'none');
-  if (bs === 'none') R.bar.innerHTML = '<div class="fb-none"><b>本季水量 —</b><small>模型只算到最后一季历史数据；真实统计里没有这一项</small></div>';
+  // phone: one line with an ellipsis (real-mode.css); a tap opens the whole sentence above the bar (.open, as the normal bar's breakdown)
+  if (bs === 'none') R.bar.innerHTML = '<div class="fb-none" role="button" tabindex="0" title="模型只算到最后一季历史数据；真实统计里没有这一项"><b>本季水量 —</b><small>模型只算到最后一季历史数据；真实统计里没有这一项</small></div>';
   else if (bs === 'est') {
     const m = R.bar.querySelector('.fb-mlab'), d = R.bar.querySelector('.fb-detail .fb-row');
     const tag = '<span class="fb-est" title="' + EST_TIP + '">模型估算</span>';
@@ -1327,7 +1329,7 @@ function chipPopHtml(st, p) {
   h += row('占 GDP（按年算）', pctTxt(shareOf(v, snap), p.kind === 'out'));
   h += row('本季流量', signed(v)) + row('一年大约', signed(v * 4));
   const vs = valueStateOf(snap, pipeSrc(p.k));
-  if (vs) h += `<div class="cp-note v-tag">${vs === 'none' ? '—：这一季没有数据（真实统计还没发布，或模型只算到 2025Q4）' : EST_TIP + '，这里显示的是模型的数'}</div>`;
+  if (vs) h += `<div class="cp-note v-tag">${vs === 'none' ? '淡色：这一季没有数据（真实统计还没发布，或模型只算到 2025Q4）' : EST_TIP + '，这里显示的是模型的数'}</div>`;
   if (p.kind === 'out' && snap.outlets && !vs) {
     h += `<div class="cp-note">真实数据（${iso === 'AUS' ? 'ABS 5206.0' : 'BEA'}）：消费 + 投资 + 政府购买 + 净出口 = GDP${iso === 'AUS' ? '（另有不到 1% 的统计误差）' : ''}。</div>`;
   } else if (p.kind === 'out') {
@@ -1520,7 +1522,7 @@ function wireEvents(host, R) {
     }
     const lgb = e.target.closest && e.target.closest('[data-act="legend"]');
     if (lgb) { e.preventDefault(); toggleLegend(); return; }
-    const fbm = e.target.closest && e.target.closest('.fb-mini');
+    const fbm = e.target.closest && e.target.closest('.fb-mini, .fb-none');
     if (fbm) {
       const on = !R.bar.classList.contains('open');
       R.legend.hidden = true; closeValvePopover();
@@ -1551,7 +1553,7 @@ function wireEvents(host, R) {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-bd="pill"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape' && R.bd) { R.bd.pop.hidden = true; R.bd.fxPop.hidden = true; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.flow-svg [data-fxr-pipe]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fb-mini, .fb-none')) { e.preventDefault(); e.target.click(); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-act="loop"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
 }

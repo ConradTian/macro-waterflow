@@ -441,6 +441,31 @@ button.term:hover { text-decoration-style: solid; }
 }
 
 /* =====================================================================================================================
+   PANEL GRIP (phones only; src/ui/panel-grip.js). A grabber bar on top of .panel. body[data-panel] = 'half' | 'max' | 'drag'
+   (no attribute = default: the diagram keeps its own phone height above). Raised: the diagram takes what is left and its SVG
+   scales down (flow-wrap is a column, the svg is flex 1 / min-height 0). 'drag' = an inline px height on .panel while a finger moves.
+   Off during a lesson (lessons.css sizes the diagram + docked card itself). >= 768px: nothing here applies.
+   ===================================================================================================================== */
+.panel-grip, .panel-grip-probe { display: none; }
+@media (max-width: 767.98px) {
+  .panel-grip { display: flex; flex: none; position: relative; z-index: 3; align-items: center; justify-content: center; height: 22px;
+    background: var(--surface); border-bottom: 1px solid var(--border); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .panel-grip::before { content: ""; position: absolute; left: 50%; width: 160px; margin-left: -80px; top: -10px; bottom: 0; }   /* hit area 32px tall */
+  .panel-grip i { width: 44px; height: 5px; border-radius: 3px; background: var(--muted); opacity: .6; }
+  .panel-grip.on i, .panel-grip:active i { background: var(--accent); opacity: 1; }
+  .panel-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  body.lesson-on .panel-grip { display: none; }
+  /* the diagram's default phone height (same expression as .diagram above): panel-grip.js reads the default snap point from it */
+  .panel-grip-probe { display: block; position: absolute; left: 0; top: 0; width: 0; visibility: hidden; pointer-events: none; height: min(calc(100vw * 1.38), 56dvh); }
+  body[data-panel]:not(.lesson-on) .diagram { flex: 1 1 0; height: auto; min-height: 0; }
+  body[data-panel]:not(.lesson-on) .panel { flex: none; }
+  body[data-panel="half"]:not(.lesson-on) .panel { height: max(50%, calc(100% - min(calc(100vw * 1.38), 56dvh))); }
+  body[data-panel="max"]:not(.lesson-on) .panel { height: max(75%, calc(100% - min(calc(100vw * 1.38), 56dvh))); }
+  /* simple mode: the dials were capped to fit the thin default strip; raised, they take the card width */
+  body[data-panel]:not(.lesson-on) .sp-svg .cy-dial { max-height: none; }
+}
+
+/* =====================================================================================================================
    CURVES VIEW over the water diagram (src/ui/wave-view.js, state in app.js: body[data-view="waves"|"flow"]) + view / sync buttons.
    The wave view root carries .wv and .pn-cycle, so it inherits --wv-* and the --cy-* colours (cycle.css) and their dark variants.
    The flow diagram stays in the DOM (only visibility:hidden) so lesson highlights and measuring keep working.

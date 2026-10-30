@@ -2,7 +2,7 @@
 //   REAL_MODE_ISOS                         countries with a real data layer (src/data/real/real-snapshot.js)
 //   loadRealMod()                          -> the real-snapshot module (dynamic import, cached)
 //   viewSnapshot(model, real, model0, real0) -> the snapshot the water diagram draws in 真实 mode: the REAL values on top of the model's,
-//                                             with snap.valueState = { est: Set<path>, none: Set<path> } (flow.js greys `est`, writes 「—」 for `none`).
+//                                             with snap.valueState = { est: Set<path>, none: Set<path> } (flow.js greys `est`, drops the value and fades `none`).
 //                                             model = the model snapshot of the same quarter, or null after the model's last quarter.
 //   realHint(rm, iso, t)                   -> { unemp, cpi, house } real values for the 「真实 x」 hints of 模型 mode, inside 保留样本 (2022+)
 //                                             and the known US model-gap windows (MODEL_GAPS unemployment rows in tabs/_util.js)
