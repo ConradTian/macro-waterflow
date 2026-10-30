@@ -197,7 +197,7 @@ function build(iso, t) {
   const snap = {
     t, date: D.dates[t], branch: 'real',
     macro: { gdpNominal: gdp, realOutput: r('gdpReal'), capacity: r('gdpPotential'), outputGap: r('outputGap'), priceLevel: r('cpiIndex'),
-      inflation: infl, inflationExp: null, unemployment: r('unemployment'), demandPressure: null, capacityPotential: r('gdpPotential') },
+      inflation: infl, inflationExp: null, deanchor: null, unemployment: r('unemployment'), demandPressure: null, capacityPotential: r('gdpPotential') },
     rates: { policy: pol, mortgageEff: iso === 'AUS' ? r('mortgageRate') : null, mortgageNew: r('mortgageRate'), gov10y: r('gov10y'), riskPremium: null,
       realPolicy: num(pol) && num(infl) ? pol - infl : null },
     money: { M },
