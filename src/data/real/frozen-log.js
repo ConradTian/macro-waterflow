@@ -9,6 +9,7 @@ export const FROZEN_LOG = {
   dataFile: {"USA":"src/data/real/usa-real.js","AUS":"src/data/real/aus-real.js"},
   rules: [
     {"id":1,"from":"2026-10-30","regimesSha256":"b462c0c118a20f909e9b915addb90b079f6d28d09f07df93a8d21e9e58aa5054","paramsSha256":"5cafe6cd6cf6cbf85e218198cc0abeb2f58635715bf3e90e05bee51eafaf7017","note":"首次冻结：2026-10-30 的规则"},
+    {"id":2,"from":"2026-10-30","regimesSha256":"3b16f910e9ff1b9d281c5d14dfd3400288b3600cdb3601fad81c0577e41e9e9e","paramsSha256":"5cafe6cd6cf6cbf85e218198cc0abeb2f58635715bf3e90e05bee51eafaf7017","note":"显示用：⑦ 的「金融压制」副标签改为到手 < −1%（与 ⑧ 的压制结束线一致），−1%–0 显示「到手约为零」；判定门槛不变"},
   ],
   countries: {
     USA: [

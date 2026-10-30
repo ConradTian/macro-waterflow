@@ -46,7 +46,11 @@ for (const iso of ['USA', 'AUS']) {
     if (r.rules === cur.id && r.data === dataPrint(iso)) { same++; ok(sameReading(r, readingNow(iso, r.q)), `${iso} ${r.q}: logged reading = what the current rules give (${r.long.label} | ${r.short.label})`); }
     else if (!sameReading(r, readingNow(iso, r.q))) console.log(`note: ${iso} ${r.q} reads differently now (data or rules changed since ${r.recordedOn}); kept as recorded`);
   }
-  ok(same > 0, `${iso}: at least one row recorded with today's rules and data (${same})`);
+  // a rules change (--new-rules) starts a new entry; rows logged before it keep the rules they were read with, so "same" may be 0
+  // until the next real quarter arrives. Then every row must be from an earlier rules entry than the current one.
+  const curIdx = FROZEN_LOG.rules.findIndex(x => x.id === cur.id);
+  ok(same > 0 || rows.every(r => FROZEN_LOG.rules.findIndex(x => x.id === r.rules) < curIdx),
+    `${iso}: rows recorded with today's rules (${same}), or all rows predate the current rules entry #${curIdx + 1}`);
 }
 for (const f of ['src/ui/backtest-view.js', 'assets/css/backtest.css', 'src/data/real/frozen-log.js', 'src/data/real/backtest-readout.js', 'tools/freeze_log.mjs'])
   ok(!BANNED.test(readFileSync(join(ROOT, f), 'utf8')), `${f}: no 同比 / 环比`);

@@ -98,8 +98,11 @@ export function detectRing(v0, prevProbs) {
 //  - on moving, all streaks restart (confirmation is measured AFTER arrival); no counter-clockwise moves
 //  - mixed evidence (target's streak > 0 but < N) is shown as `between`, the current stage does not change
 export const LONG_LABEL = { 1: '① 堆债', 2: '② 逼近吸程线（缓冲池满）', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 增长化债（g > r）', 8: '⑧ 修复' };
-// ⑦'s label when 到手实际利率 (▶ − ▼, realP) < 0 that quarter: the same stage, read as financial repression. Text only, never in the gate.
+// ⑦'s label by 到手实际利率 (▶ − ▼, realP) that quarter: below the ⑧ line LT.realP (−1%) it reads as financial repression;
+// between that line and 0 it is 「到手约为零」. Text only, never in the gate.
 export const LONG_LABEL_7_REPRESS = '⑦ 增长化债（到手为负 = 金融压制）';
+export const LONG_LABEL_7_NEAR0 = '⑦ 增长化债（到手约为零）';
+export const label7 = (realP, LT) => !(realP < 0) ? LONG_LABEL[7] : realP < (LT?.realP ?? -0.01) ? LONG_LABEL_7_REPRESS : LONG_LABEL_7_NEAR0;
 export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 // Short cycle as the learner sees it (Dalio): 扩张 → 过热 → 收紧 → 降息（推得动吗？）. The top comes in two kinds:
 // 物价过热 (inflation high and running up) or 资产过热 (a borrowing-driven boom that breaks: credit shrinks, house prices turn, DSR stretched).
@@ -295,7 +298,7 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
     if (streak[m] >= Math.ceil(longN(m, L.stage) / 2)) lbetween = [L.stage, m];
   }
   const longOut = {
-    stage: lstage, label: lstage === 7 && x.realP < 0 ? LONG_LABEL_7_REPRESS : LONG_LABEL[lstage], between: lbetween,
+    stage: lstage, label: lstage === 7 ? label7(x.realP, LT) : LONG_LABEL[lstage], between: lbetween,
     evidence: lev[lnext].map(i => ({ ...i, target: LONG_LABEL[lnext] })), met: holds(lev[lnext]),
     progress: { target: lnext, label: LONG_LABEL[lnext], have: lstreak[lnext] || 0, need: longN(lnext, lstage) },
     nextSignal: LONG_NEXT[lstage], since: lsince,

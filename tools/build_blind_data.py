@@ -524,8 +524,12 @@ LONG_TXT = {1: "① 堆债", 2: "② 逼近吸程线（缓冲池满）", 5: "⑤
 LONG_TXT_7_REPRESS = "⑦ 增长化债（到手为负 = 金融压制）"
 
 
+LONG_TXT_7_NEAR0 = "⑦ 增长化债（到手约为零）"
 def long_txt(stage, real):
-    return LONG_TXT_7_REPRESS if stage == 7 and nz(real) and real < 0 else LONG_TXT[stage]
+    # same as regimes.js label7: below the ⑧ line (-1%) = 金融压制; between -1% and 0 = 到手约为零
+    if stage != 7 or not nz(real) or real >= 0:
+        return LONG_TXT[stage]
+    return LONG_TXT_7_REPRESS if real < -0.01 else LONG_TXT_7_NEAR0
 LONG_N = {2: 2, 5: 2, 6: 1, 7: 2, 8: 2, 1: 2}       # years of evidence needed to enter the stage (no skipping)
 SHORT_TXT = {"expand": "扩张", "hotP": "过热·物价", "hotA": "过热·资产", "tight": "收紧", "ease": "降息（推得动吗？）"}
 

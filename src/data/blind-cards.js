@@ -4762,7 +4762,7 @@ export const BLIND = {
      "short": "expand",
      "shortKey": "expand",
      "labels": {
-      "long": "⑦ 增长化债（到手为负 = 金融压制）",
+      "long": "⑦ 增长化债（到手约为零）",
       "short": "扩张"
      },
      "signals": [
