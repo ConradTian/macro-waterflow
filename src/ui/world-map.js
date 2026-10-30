@@ -13,12 +13,17 @@
 // FX: a small sluice hangs under each country box: 1 美元 = x 本币 (annual mean) and the change 比一年前; the USA shows the broad dollar index.
 //   Tap = the 汇率 concept card (data-term="fx", opened by src/ui/concepts.js). The card of a selected country adds the FX reactor
 //   (src/ui/fx-reactor.js, last quarter of the year) or, for the USA, the dollar index.
-import { WORLD } from '../data/world.js';
+import { WORLD, WORLD_USD_DEBT } from '../data/world.js';
 import { COUNTRY_DATA, COUNTRY_READY } from '../data/countries/index.js';
 import { computeFxReactor, reactorHtml, usdHtml, usdIndexYear, loadCountry, wireFxReactor, ensureFxReactorCss, installFxCardHook } from './fx-reactor.js';
 
 const ISOS = ['USA', 'GBR', 'EA', 'CHN', 'JPN', 'AUS', 'ROW'];
-const KINDS = [['all', '全部', ''], ['trade', '贸易', 'goods'], ['capital', '资本', 'bond'], ['reserve', '储备', 'bond']];
+const KINDS = [['all', '全部', ''], ['trade', '河·贸易', 'goods'], ['capital', '湖·资本', 'bond'], ['reserve', '储备', 'bond'], ['debt', '地下·美元债', 'debt']];
+// v3: each currency = a colour of water (the box water and its layer icon use it); one-liners per country (tools/DESIGN-v3.md 「World + FX」)
+const CCY_COL = { USD: '#2f6fb5', EUR: '#7a5cc4', GBP: '#c0563f', JPY: '#d0477a', CNY: '#c9302c', AUD: '#d68a1c', mixed: '#8a96a3' };
+const ONE_LINER = { USA: '最大的湖。河往外漏（逆差），漏出去的水又流回它的湖。', JPN: '吸力最弱的湖；存在国外的水，一慌就回家。',
+  AUS: '吸力高 + 一条卖矿的河 = 风险货币。', CHN: '顺差存进美国的湖；闸是手动的。', GBR: '一个中等的湖，信心一松水会反着流（2022）。',
+  EA: '第二大的湖（欧元）。', ROW: '其他国家合并：借美元的地下水大多在这里。' };
 const RES = [['USD', '美元', '--c-bond'], ['EUR', '欧元', '--c-credit'], ['JPY', '日元', '--c-repay'], ['GBP', '英镑', '--c-fiscal'],
   ['CNY', '人民币', '--c-goods'], ['AUD', '澳元', '--c-housing'], ['other', '其他', '--c-cash']];
 const HOLDERS = ['JPN', 'CHN', 'GBR', 'EA', 'ROW'];
@@ -288,7 +293,10 @@ function collectPipes(L) {
     const v = at(WORLD.ustForeign?.[h]);
     if (v != null && v > 0) out.push({ k: 'cap', from: h, to: 'POOL', v, row: false });
   }
-  const mx = { trade: 1, cap: 1 };
+  const di = WORLD.years.indexOf(st.year), dOut = num(WORLD_USD_DEBT?.outsideUs?.[di]), dChn = num(WORLD_USD_DEBT?.CHN?.[di]);
+  if (dChn != null && dChn > 0) out.push({ k: 'debt', from: 'USA', to: 'CHN', v: dChn, row: false });
+  if (dOut != null && dOut > 0) out.push({ k: 'debt', from: 'USA', to: 'ROW', v: dOut - (dChn || 0), row: false });
+  const mx = { trade: 1, cap: 1, debt: 1 };
   for (const p of out) mx[p.k] = Math.max(mx[p.k], p.v);
   for (const p of out) {
     p.f = Math.sqrt(p.v / mx[p.k]);                           // 0..1; width and speed follow sqrt so a 100x range stays drawable
@@ -306,7 +314,7 @@ function collectPipes(L) {
   const cors = [...cm.values()].sort((x, y) => (x.row - y.row) || (y.v - x.v));   // named heavy first, the grey ROW background last
   routeAll(L, cors);
   for (const c of cors) { lanes(L, c); repair(L, c); }
-  const kind = st.kind, vis = p => kind === 'all' || (kind === 'trade' && p.k === 'trade') || (kind === 'capital' && p.k === 'cap');
+  const kind = st.kind, vis = p => (kind === 'all' && p.k !== 'debt') || (kind === 'trade' && p.k === 'trade') || (kind === 'capital' && p.k === 'cap') || (kind === 'debt' && p.k === 'debt');
   return out.filter(vis).sort((p, q) => (q.row - p.row) || (p.v - q.v));          // ROW (grey background) first, then small to big
 }
 const f1 = v => v.toFixed(1);
@@ -317,7 +325,7 @@ function pipeSvg(p, L) {
   const bx = p.e[0] + ux * 0.6, by = p.e[1] + uy * 0.6, Hh = p.Hh;   // base a hair inside the bed's end, so no seam
   const arrow = `${f1(x1)},${f1(y1)} ${f1(bx - uy * Hh)},${f1(by + ux * Hh)} ${f1(bx - ux * p.Ln * 0.18)},${f1(by - uy * p.Ln * 0.18)} ${f1(bx + uy * Hh)},${f1(by - ux * Hh)}`;
   const dur = (15 / (14 + 46 * p.f)).toFixed(2);
-  const cls = p.k === 'cap' ? 'bond' : p.row ? 'goods row' : 'goods';
+  const cls = p.k === 'cap' ? 'bond' : p.k === 'debt' ? 'debt' : p.row ? 'goods row' : 'goods';
   // chevrons along the way: one per ~110px, clear of the label zone near the source and of the arrowhead
   const nC = Math.max(1, Math.min(4, Math.round(p.len / (120 * L.s)))), cb = Math.max(5 * L.sf, p.w * 0.62 + 2.5), ca = cb * 0.85;
   const sw = clamp(p.w * 0.28, 1.8, 3.6);
@@ -330,7 +338,7 @@ function pipeSvg(p, L) {
     chev += `<g transform="translate(${f1(x)} ${f1(y)}) rotate(${a.toFixed(1)})"><path class="wm-chev-h" d="${dd}" stroke-width="${f1(sw + 2.6)}"/><path class="wm-chev" d="${dd}" stroke-width="${f1(sw)}"/></g>`;
   }
   const lab = fmtBn(p.v);
-  const what = p.k === 'cap' ? `${nameOf(p.from)}持有美债 ${lab}美元` : `${nameOf(p.from)} → ${nameOf(p.to)} 出口 ${lab}美元${p.row ? '（灰管 = 其他国家，背景）' : ''}`;
+  const what = p.k === 'debt' ? `地下连地下：${nameOf(p.to)}的非银行借的美元债 ${lab}美元（BIS）` : p.k === 'cap' ? `${nameOf(p.from)}持有美债 ${lab}美元` : `${nameOf(p.from)} → ${nameOf(p.to)} 出口 ${lab}美元${p.row ? '（灰管 = 其他国家，背景）' : ''}`;
   return `<g class="wm-pipe ${cls}${p.hl ? ' hl' : ''}" data-k="${p.k}" data-from="${p.from}" data-to="${p.to}" data-v="${p.v}" data-w="${p.w.toFixed(3)}" data-lane="${p.lane.toFixed(2)}" data-ah="${f1(Math.min(p.Ln, 2 * Hh))}"${p.row ? ' data-row="1"' : ''}><title>${esc(what)}</title>
     <path class="wm-bed" d="${d}" stroke-width="${p.w.toFixed(2)}"/><path class="wm-dash" d="${d}" stroke-width="${Math.max(1, p.w * 0.62).toFixed(2)}" style="animation-duration:${dur}s"/>
     <g class="wm-chevs">${chev}</g><polygon class="wm-arrow" points="${arrow}"/></g>`;
@@ -343,7 +351,7 @@ function chipsSvg(pipes, L) {
   if (st.sel) pick = pipes.filter(p => p.hl);
   else {
     const named = pipes.filter(p => p.k === 'trade' && !p.row).sort((a, b) => b.v - a.v), cap = pipes.filter(p => p.k === 'cap').sort((a, b) => b.v - a.v);
-    pick = [...named.slice(0, kind === 'trade' ? 8 : 5), ...cap.slice(0, kind === 'capital' ? 9 : 3)];
+    pick = [...named.slice(0, kind === 'trade' ? 8 : 5), ...cap.slice(0, kind === 'capital' ? 9 : 3), ...pipes.filter(p => p.k === 'debt')];
   }
   pick.sort((a, b) => b.v - a.v);
   const f = L.fs * 0.9, ch = Math.round(L.fs * 1.6), placed = [];
@@ -370,7 +378,7 @@ function chipsSvg(pipes, L) {
       const [[x, y]] = along(p, 0.22); spot = { x: x - cw / 2, y: y - ch / 2, w: cw, h: ch };
     }
     placed.push(spot);
-    const cls = p.k === 'cap' ? 'bond' : p.row ? 'goods row' : 'goods';
+    const cls = p.k === 'cap' ? 'bond' : p.k === 'debt' ? 'debt' : p.row ? 'goods row' : 'goods';
     out += `<g class="wm-chip ${cls}" data-from="${p.from}" data-to="${p.to}" transform="translate(${f1(spot.x + cw / 2)} ${f1(spot.y + ch / 2)})"><rect x="${f1(-cw / 2)}" y="${f1(-ch / 2)}" width="${f1(cw)}" height="${ch}" rx="${ch / 2}"/><text y="${f1(f * 0.36)}" text-anchor="middle">${lab}</text></g>`;
   }
   return out;
@@ -378,7 +386,7 @@ function chipsSvg(pipes, L) {
 
 /* ---------- boxes + pool ---------- */
 function boxSvg(b, L) {
-  const r = readings(b.iso), sel = st.sel === b.iso, f = L.fs;
+  const r = readings(b.iso), sel = st.sel === b.iso, f = L.fs, col = CCY_COL[r.ccy] || CCY_COL.mixed;
   const lvl = r.debt == null ? 0 : clamp(r.debt / 4.5, 0.06, 1);
   const wy = b.y + b.h * (1 - lvl);
   const col2 = b.x + b.w / 2 + 2, col1 = b.x + 9;
@@ -389,13 +397,36 @@ function boxSvg(b, L) {
   return `<g class="wm-box${sel ? ' sel' : ''}" data-iso="${b.iso}" tabindex="0" role="button" aria-pressed="${sel}" aria-label="${esc(nameOf(b.iso))}">
     <clipPath id="wmc-${b.iso}"><rect x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="10"/></clipPath>
     <rect class="wm-rect" x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="10"/>
-    <rect class="wm-water" clip-path="url(#wmc-${b.iso})" x="${b.x.toFixed(1)}" y="${wy.toFixed(1)}" width="${b.w.toFixed(1)}" height="${(b.y + b.h - wy).toFixed(1)}"/>
+    <rect class="wm-water" clip-path="url(#wmc-${b.iso})" x="${b.x.toFixed(1)}" y="${wy.toFixed(1)}" width="${b.w.toFixed(1)}" height="${(b.y + b.h - wy).toFixed(1)}" style="fill:${col};opacity:.13"/>
     <text class="wm-n" x="${col1.toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}">${esc(nameOf(b.iso))}</text>${gdp}
-    ${cell(col1, b.y + f + 7 + f * 1.55 + 3, '资产', r.house == null ? '—' : Math.round(r.house))}
-    ${cell(col2, b.y + f + 7 + f * 1.55 + 3, '债务', fmtPct0(r.debt))}
-    ${cell(col1, b.y + f + 7 + (f * 1.55 + 3) * 2, '利率', fmtPct1(r.rate))}
-    ${cell(col2, b.y + f + 7 + (f * 1.55 + 3) * 2, '大环', stage)}
+    ${layersSvg(b, L, r, col)}
   </g>`;
+}
+// the mini 3-layer icon: 河 (inflation), 湖 (suction = REAL policy rate), 地下 (private debt/GDP vs its own 1995–now mean)
+export function layersIcon(iso, year = st.year) {
+  const k = clamp(WORLD.years.indexOf(year), 0, WORLD.years.length - 1), C = WORLD.countries[iso] || {};
+  const g = key => (Array.isArray(C[key]) ? num(C[key][k]) : null);
+  const infl = g('cpiYoY'), rate = g('policyRate'), pvt = g('pvtDebtGdp');
+  const real = rate != null && infl != null ? rate - infl : null;
+  const a = (C.pvtDebtGdp || []).filter(v => v != null), avg = a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const gw = pvt != null && avg != null ? pvt - avg : null;     // + = more debt than usual = the table is LOWER
+  return { infl, real, gw };
+}
+function layersSvg(b, L, r, col) {
+  const k = layersIcon(b.iso), f = L.fs * 0.9, x = b.x + 8, w = b.w - 16, top = b.y + L.fs + 13, rh = Math.max(9, (b.h - (top - b.y) - 12 * L.sf) / 3);
+  const pct = v => v == null ? '—' : (v >= 0 ? '' : '−') + Math.abs(v * 100).toFixed(1) + '%';
+  const rows = [
+    ['wm-l-river', '河', k.infl == null ? '—' : '通胀 ' + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
+    ['wm-l-lake', '湖', k.real == null ? '—' : '吸力 ' + pct(k.real), k.real == null ? 0.3 : clamp(0.5 + k.real * 10, 0.08, 1)],
+    ['wm-l-ground', '地下', k.gw == null ? '—' : k.gw > 0.05 ? '低 ' + Math.round(k.gw * 100) + '点' : k.gw < -0.05 ? '高 ' + Math.round(-k.gw * 100) + '点' : '平常', k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],
+  ];
+  const tips = ['河水位 = 通胀（比一年前）', '湖吸力 = 实际利率（政策利率 − 通胀）', '地下水位 = 私人债务/GDP 比它自己 1995 年以来的平均（债越多，水位越低）'];
+  return '<g class="wm-layers">' + rows.map(([c, nm, v, lv], i) => {
+    const y = top + i * rh, bw = Math.max(14, Math.min(28 * L.sf, w * 0.22));
+    return `<g class="${c}"><title>${esc(tips[i] + '：' + v)}</title><rect class="wm-l-bg" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(rh - 2).toFixed(1)}" rx="2"/>` +
+      `<rect class="wm-l-fill" x="${x.toFixed(1)}" y="${(y + (rh - 2) * (1 - lv)).toFixed(1)}" width="${bw.toFixed(1)}" height="${((rh - 2) * lv).toFixed(1)}" rx="2" style="fill:${i === 2 ? '#9a7b4f' : col}"/>` +
+      `<text x="${(x + bw + 4).toFixed(1)}" y="${(y + rh / 2 + f * 0.33).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-k">${nm} </tspan><tspan class="wm-v">${esc(v)}</tspan></text></g>`;
+  }).join('') + '</g>';
 }
 // FX sluice under a box: 本币 per USD (annual mean) + 本币比一年前 (+ = stronger); USA: the broad dollar index. Tap = the 汇率 card.
 export function sluiceInfo(iso, year) {
@@ -447,7 +478,7 @@ function poolSvg(L) {
     const cw = bw / per;
     return `<g transform="translate(${(p.x + 8 + (i % per) * cw).toFixed(1)} ${(by + 18 + Math.floor(i / per) * (f + 3)).toFixed(1)})"><rect y="-7" width="7" height="7" rx="1.5" style="fill:var(${tok})"/><text x="10" class="wm-lg">${nm} ${Math.round(v * 100)}%</text></g>`;
   }).join('');
-  const ttl = usd == null ? '世界储备水库' : `世界储备水库 · 美元占 ${Math.round(usd * 100)}%`;
+  const ttl = usd == null ? '最大的湖：美元' : `最大的湖：美元 · 储备占 ${Math.round(usd * 100)}%`;
   const lvl = usd == null ? 0.5 : clamp(usd, 0.1, 1);
   const ih = Math.max(10, by - p.y - 24);                   // water inside the upper part
   return `<g class="wm-pool${st.kind === 'trade' ? ' dim' : ''}${st.kind === 'reserve' ? ' hl' : ''}">
@@ -456,7 +487,7 @@ function poolSvg(L) {
     <rect class="wm-prect" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" width="${p.w.toFixed(1)}" height="${p.h.toFixed(1)}" rx="12"/>
     <rect class="wm-pwater" clip-path="url(#wmc-pool)" x="${p.x.toFixed(1)}" y="${(p.y + 20 + ih * (1 - lvl)).toFixed(1)}" width="${p.w.toFixed(1)}" height="${(ih * lvl + 2).toFixed(1)}"/>
     <text class="wm-pt" x="${(p.x + 8).toFixed(1)}" y="${(p.y + f + 4).toFixed(1)}">${esc(ttl)}</text>
-    <text class="wm-ps" x="${(p.x + 8).toFixed(1)}" y="${(p.y + f + 4 + f * 1.3).toFixed(1)}">美国国债池 · 外国人买美债，水流进来</text>
+    <text class="wm-ps" x="${(p.x + 8).toFixed(1)}" y="${(p.y + f + 4 + f * 1.3).toFixed(1)}">美联储加息 = 最大的湖吸力变大，全世界的水往美国跑</text>
     ${bar}${legend}</g>`;
 }
 
@@ -475,9 +506,9 @@ function cardHtml() {
   const iso = st.sel;
   if (!iso) {
     return `<div class="wm-hint"><b>点一个框，看它的情况</b>
-      <p class="wm-more">框里四个读数：<b>资产</b>（实际房价指数）、<b>债务</b>（私人 + 政府，占 GDP）、<b>利率</b>（政策利率）、<b>大环</b>（长周期位置，现在的）。</p>
+      <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（通胀）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（私人债务比它自己的平常：债越多，水位越低）。框下面是闸。</p>
       <p class="wm-more">框越大，GDP 越大。水位越高，债务越多。</p>
-      <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 外国人买美债，流进美国的国债池<br>管越宽，水量越大。</p>
+      <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 湖连湖：外国人买美债，流进最大的湖<br><i class="wm-sw debt"></i> 棕管（地下·美元债）= 地下连地下：美国以外借的美元债（BIS）<br>管越宽，水量越大。</p>
       <p><b>箭头 = 水往哪流。</b>两国互相出口 = 两条并排的管，各靠右走；数字贴在出口国那一头。点一个框，只看它的管子。</p>
       <p class="wm-more"><i class="wm-sw sl"></i> 框下面的小闸 = 汇率：1 美元换多少本币，箭头 = 本币比一年前变强（↑）还是变弱（↓）。美国的闸是美元指数。点闸看「汇率」。</p>
       <p class="wm-mut wm-more">只有卡片里的「进入」按钮才会打开那个国家的水流图。</p></div>`;
@@ -492,6 +523,7 @@ function cardHtml() {
   const res = st.year >= (WORLD.reservedFrom || 2022) ? ' <span class="wm-res">保留样本</span>' : '';
   return `<div class="wm-cardin" data-iso="${iso}">
     <h3>${esc(nm)}<small>${esc(iso)} · ${st.year}${res}</small></h3>
+    <p class="wm-one" data-one="${iso}">${esc(ONE_LINER[iso] || '')}</p>
     <dl class="wm-rd">
       <div><dt>资产</dt><dd>${r.house == null ? '—' : Math.round(r.house)}<small>实际房价，2010 = 100</small></dd></div>
       <div><dt>债务</dt><dd>${fmtPct0(r.debt)}<small>占 GDP：私人 ${fmtPct0(r.pvt)} + 政府 ${fmtPct0(r.gov)}</small></dd></div>

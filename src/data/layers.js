@@ -12,9 +12,9 @@ export const LAYERS = [
   { id: 'L-water', name: '水从哪来、到哪去',
     // the main pump (放贷) with its owner box (the bank box + name; its approval number / valves come with L-short), the main drain (还本),
     // the 收入循环 loop, the 4 outlets = GDP, the 现金 tank, the household / firm boxes, the 本季水量 bar + legend row
-    parts: ['household', 'firm', 'channel', 'cash', 'repay', 'budget'],
+    parts: ['household', 'firm', 'channel', 'cash', 'repay', 'budget', 'weir'],
     pipes: ['newLoans', 'principalRepay', 'toCash', 'toConsumption', 'wages', 'profits', 'spillToGoods', 'outC', 'outI', 'outG', 'outNX'],
-    nodes: ['bank'], keys: ['bankTitle'], valves: ['saveAdj'],
+    nodes: ['bank'], keys: ['bankTitle', 'weir', 'ring', 'recharge'], valves: ['saveAdj'],
     extras: ['objective'] },
   { id: 'L-channel', name: '水的问题，还是河道的问题',
     // channel width (产能 brackets + number) / depth (the bank line, water over the bank), the 断面 cross-section inset, Capex
@@ -22,28 +22,42 @@ export const LAYERS = [
     extras: [] },
   { id: 'L-short', name: '一个会自己转的圈',
     // the bank's own readout + valves, 付息, the collateral loop and the house pool it reads, the central bank with its policy rate valve
-    parts: ['bank', 'interest', 'poolHousing', 'centralBank'],
+    parts: ['bank', 'interest', 'poolHousing', 'centralBank', 'suction'],
     pipes: ['interestPaid', 'collateral', 'toHousing'], nodes: ['approval', 'rate'], valves: ['policyRate', 'approval', 'lvrCap', 'borrowMult'],
+    keys: ['suction', 'suctionSave', 'suctionPump'],
     extras: ['dialShort'] },
   { id: 'L-long', name: '两个环怎么接上',
-    parts: ['iou'],                                   // 欠条箱 + the dashed 放贷 → 欠条 link and its caption
+    parts: ['iou', 'groundwater', 'liftLine'], keys: ['groundwater', 'liftLine'],   // 欠条箱 (v3: 地下水 band + 吸程线 on it) + the dashed 放贷 → 欠条 link and its caption
     extras: ['dialLong'] },
   { id: 'L-gov', name: '政府接手和实际利率',
     // government (fiscal pump + its two branches, taxes, surplus drain, debt / gross outlays), QE / QT and the bond pool QE buys, 实际利率
-    parts: ['government', 'poolBond'],
+    parts: ['government', 'poolBond', 'deepPump'],
     pipes: ['qe', 'qt', 'fiscalInjection', 'govPurchases', 'transfers', 'taxes', 'govSurplusDrain', 'toBond'],
-    nodes: ['realRate'], valves: ['qe', 'fiscalInjection'],
+    nodes: ['realRate'], valves: ['qe', 'fiscalInjection'], keys: ['deepPump', 'fiscalNew', 'fiscalLake'],
     extras: ['lamps'] },
   { id: 'L-border', name: '汇率和国境线',
-    parts: ['border'], pipes: ['exports', 'imports', 'foreignBonds'],   // the border band (line, FX gate / reactor, USD index), phone: the 净出口 gate
+    keys: ['gate'], parts: ['border'], pipes: ['exports', 'imports', 'foreignBonds'],   // the border band (line, FX gate / reactor, USD index), phone: the 净出口 gate
     extras: ['map'] },
   { id: 'L-assets', name: '投资者',
     // the remaining pools, their 历史正常区间 bands + 贵 / 便宜 tags (all four pools), the springs, the 资产池 captions
     parts: ['pool', 'poolEquity', 'poolGold', 'springs'],
-    pipes: ['toEquity', 'toGold', 'coupons', 'dividends', 'rent'], keys: ['band', 'poolStat'],
+    pipes: ['toEquity', 'toGold', 'coupons', 'dividends', 'rent'], keys: ['band', 'poolStat', 'springWire'],
     extras: [] },
 ];
 export const LAYER_IDS = LAYERS.map(l => l.id);
+
+// v3 PART-ID CONTRACT Rule 3 (tools/DESIGN-v3.md): role -> the valves / parts it turns. src/ui/flow.js highlightRole(role) glows these
+// (data-valve / data-lk / chip data-pipe / data-node ids; 'pools' = every asset pool) and dims the other valves. A5 role cards use the same keys.
+export const ROLE_VALVES = {
+  centralBank: ['policyRate', 'qe', 'suction'],
+  bank:        ['approval', 'lvrCap'],
+  household:   ['saveAdj', 'borrowMult'],
+  firm:        ['capexMult'],
+  government:  ['fiscalInjection', 'deepPump', 'taxes', 'weir'],
+  investor:    ['pools'],
+  foreign:     ['gate'],
+  economy:     ['lamps'],
+};
 
 // main-line lesson -> the layer it adds (null = adds none: 「八个视角」 shows all the layers before it)
 export const LESSON_LAYER = { m1: 'L-water', shk: 'L-channel', m2: 'L-short', m3: 'L-long', m4: 'L-gov', fx: 'L-border', m5: null, inv: 'L-assets' };

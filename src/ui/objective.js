@@ -79,7 +79,7 @@ export function lampsAt(snap, iso) {
   if (num(m.inflation)) {
     const d = Math.abs(m.inflation - cp.piTarget);
     const level = d < 0.01 ? 'green' : d <= 0.025 ? 'yellow' : 'red';
-    out.push({ id: 'flood', name: '泛滥', level, reason: `通胀 ${pc(m.inflation)}，目标 ${pc(cp.piTarget, 1).replace('.0', '')}，偏离 ${pp(d)}（<1pp 绿，1–2.5pp 黄，>2.5pp 红）。水涌出河岸：价格涨得太快或跌太多。` });
+    out.push({ id: 'flood', name: '河溢', level, reason: `通胀 ${pc(m.inflation)}，目标 ${pc(cp.piTarget, 1).replace('.0', '')}，偏离 ${pp(d)}（<1pp 绿，1–2.5pp 黄，>2.5pp 红）。水涌出河岸：价格涨得太快或跌太多。` });
   }
   // 干涸: unemployment above its normal rate
   if (num(m.unemployment)) {
@@ -90,7 +90,7 @@ export function lampsAt(snap, iso) {
     const GAP_NOTE = [[44, 53, '2006–08 模型失业率偏高（6–9%），真实约 4.5–5%'], [58, 75, '2009–13 模型失业率回落太快，真实更高（约 9–10%，2013 年还有 7–8%）'],
       [116, 123, '2024–25 模型失业率升到约 7%（增长几乎停住），真实约 4%']];
     const gn = iso === 'USA' ? GAP_NOTE.find(([a, b]) => snap.t >= a && snap.t <= b) : null, gap = !!gn;
-    out.push({ id: 'drought', name: '干涸', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河道闲着：人和工厂没活干。` +
+    out.push({ id: 'drought', name: '河干', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河道闲着：人和工厂没活干。` +
       (gap ? `【模型偏差：${gn[2]}】` : '') });
   }
   // 溃坝: long cycle on the B2 fork or in ⑤; amber when bad loans are above their band
@@ -104,7 +104,7 @@ export function lampsAt(snap, iso) {
     else if (L && L.forkPending) { level = 'yellow'; reason = `B2 待确认（${L.forkPending.have}/${L.forkPending.need} 季）：房价在跌、债务高、降了息信贷还在缩，再连续几季就是 B2。堤坝出现裂缝。`; }
     else if (badLv !== 'green') { level = 'yellow'; reason = `银行坏账率 ${pc(bad)}，超过正常区间（2%）。堤坝出现裂缝。`; }
     else reason = `大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，没走 B2，坏账率${num(bad) ? ' ' + pc(bad) : ''}在正常区间。堤坝稳。`;
-    out.push({ id: 'burst', name: '溃坝', level, reason });
+    out.push({ id: 'burst', name: '湖崩', level, reason });
   }
   // 透支: the worse of the DSR lamp and the 利息/税收 gauge
   {
@@ -115,7 +115,7 @@ export function lampsAt(snap, iso) {
     if (ds) parts.push(`家庭还本付息/收入 ${pc(ds.value)}（偿债灯${LV[a]}）`);
     if (num(i2t)) parts.push(`政府利息/税收 ${pc(i2t)}（${LV[b]}：<15% 绿，15–25% 黄，>25% 红）`);
     const note90s = iso === 'USA' && snap.t < 24 && b !== 'green' ? '1990 年代初美国利息负担确实偏高，后来靠增长和财政盈余化解。' : '';
-    out.push({ id: 'overdraft', name: '透支', level, reason: parts.join('；') + '。借来的水太多，利息吃掉收入。' + note90s });
+    out.push({ id: 'overdraft', name: '地下太低', level, reason: parts.join('；') + '。借来的水太多，利息吃掉收入。' + note90s });
   }
   return out;
 }
@@ -133,7 +133,7 @@ function realBurstLamp(rs) {
     level = 'yellow';
     reason = `真实数据：B2 的证据这一季成立${L && L.forkPending ? `（${L.forkPending.have}/${L.forkPending.need} 季）` : ''}，还没连续够季数，没确认${badTxt}。堤坝出现裂缝。`;
   } else reason = `真实数据：大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，B2 没成立${badTxt}。堤坝稳。`;
-  return { id: 'burst', name: '溃坝', level, reason, real: true };
+  return { id: 'burst', name: '湖崩', level, reason, real: true };
 }
 
 // 真实 mode: the score and 泛滥 / 干涸 / 透支 are still the model's (marked est = 模型估算); after the model's last quarter (realSnap.t is past
@@ -154,7 +154,7 @@ export function objectiveState(sim, snap, iso, realSnap) {
 /* ------------------------------------------------------------------ the 整个经济 card, inline fallback (tools/AB-CONTRACT.md A1) */
 export const ECONOMY_CARD = [
   ['想要什么', '长期运出最多的真实东西给人用（累计真实消费）'],
-  ['盯着什么', '四个扣分项：泛滥（通胀偏离目标）、干涸（失业、产能闲置）、溃坝（金融危机 / B2）、透支（债务/收入过高）'],
+  ['盯着什么', '四个扣分项：河溢（通胀偏离目标）、河干（失业、产能闲置）、湖崩（金融危机 / B2）、地下太低（债务/收入过高）'],
   ['能拧什么', '不直接拧：央行、政府、银行、家庭、企业、投资者、外国人各拧自己的阀门，合起来的结果就是这个分数'],
   ['常犯的错', '每个角色只顾自己的目标，加在一起就让某个扣分项爆掉：繁荣时一起借，萧条时一起省'],
 ];
@@ -201,7 +201,7 @@ function popHtml(st) {
   }
   const rows = pop.html || ECONOMY_CARD.map(([k, v]) => `<div class="ob-row"><b>${k}</b><span>${esc(v)}</span></div>`).join('');
   const ls = st.lamps.map(l => `<li><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><b>${l.name}</b> ${LV[l.level]}　<span class="muted">${esc(l.reason)}</span></li>`).join('');
-  const estP = st.est ? `<p class="ob-note ob-estnote">${EST_NOTE}：条上的数和泛滥、干涸、透支三盏灯是模型的估算（灰色）；只有溃坝灯读真实数据。${st.gone ? '这一季在模型的范围之后，所以是「—」。' : ''}</p>` : '';
+  const estP = st.est ? `<p class="ob-note ob-estnote">${EST_NOTE}：条上的数和河溢、河干、地下太低三盏灯是模型的估算（灰色）；只有湖崩灯读真实数据。${st.gone ? '这一季在模型的范围之后，所以是「—」。' : ''}</p>` : '';
   const note = st.level == null ? estP : estP + `<p class="muted ob-note">条上的数 = 这一季的${st.perPerson ? '每人' : ''}真实消费（家庭消费 ÷ 物价 ÷ 人口），第一季 = 100，现在 ${Math.round(st.level)}。总目标看的是它长期累计的量：衰退少掉的那几季，以后补不回来。累计到现在：${fmtScore(st.score)}。</p>`;
   return `<div class="ob-pop ob-card" role="dialog" aria-label="整个经济"><div class="ob-pop-h">${pop.html ? '' : '<b>整个经济</b>'}<button type="button" class="ob-x" data-act="close" aria-label="关闭">×</button></div>` +
     `${rows}${note}<ul class="ob-ls">${ls}</ul></div>`;
