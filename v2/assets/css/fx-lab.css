@@ -1,0 +1,118 @@
+/* FX lesson panels (src/ui/fx-lab.js). Uses the app tokens (assets/css/app.css :root); one colour per force, the currency itself is ink.
+   Force palette validated with the dataviz validator (light: all checks pass; adjacent CVD ΔE ≥ 21). Every mark is also direct-labelled. */
+.fxp {
+  --fx-infl: var(--c-repay);     /* 通胀差 */
+  --fx-rate: var(--c-credit);    /* 利差 */
+  --fx-prod: var(--c-goods);     /* 生产率 */
+  --fx-tot: var(--c-fiscal);     /* 贸易条件 */
+  --fx-conf: var(--c-housing);   /* 信心 */
+  position: relative; box-sizing: border-box; width: 100%; max-height: 100%; overflow-y: auto; overflow-x: hidden;
+  padding: 10px 12px 14px; background: var(--surface); color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+}
+.fxp *, .fxp *::before, .fxp *::after { box-sizing: border-box; }
+.fxp-h { margin: 2px 0 2px; font-size: 16px; font-weight: 700; }
+.fxp-sub { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.fxp-sub b { color: var(--text); }
+.fxp-src { margin: 8px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.fxp-note { margin: 8px 0 0; font-size: 13px; color: var(--text); }
+.fxp-chart { width: 100%; margin: 4px 0 2px; }
+.fxp-res { width: 100%; margin-top: 6px; }
+.fxp-svg { display: block; overflow: visible; touch-action: pan-y; }
+
+/* chart marks: recessive grid and axes, 2px lines, text in text tokens */
+.fxp-grid { stroke: var(--border); stroke-width: 1; }
+.fxp-zero, .fxp-base { stroke: var(--muted); stroke-width: 1; }
+.fxp-tick { stroke: var(--muted); stroke-width: 1; }
+.fxp-ax { fill: var(--muted); font-size: 11.5px; }
+.fxp-lab { fill: var(--text); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.fxp-bandlab { fill: var(--muted); font-size: 11.5px; font-weight: 600; }
+.fxp-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fxp-line.dash { stroke-dasharray: 5 4; }
+.fxp-area { opacity: .16; }
+.fxp-band { fill: var(--muted); opacity: .16; }
+.fxp-band.soft { opacity: .10; }
+.fxp-dot { stroke: var(--surface); stroke-width: 2; }
+.fxp-dot.hollow { fill: var(--surface); stroke-width: 2.5; }
+.fxp-bar { transition: opacity .15s; }
+.fxp-bar.dim { opacity: .45; }
+.fxp-stem { stroke-width: 2; stroke-dasharray: 2 3; }
+.fxp-vline { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.fxp-mark { stroke: var(--surface); stroke-width: 2; }
+.fxp-water { fill: var(--water); }
+.fxp-tank { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; }
+.fxp-drop { opacity: .9; }
+
+/* tooltip */
+.fxp-tip { position: absolute; z-index: 5; pointer-events: none; min-width: 150px; max-width: 240px; padding: 6px 9px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 12.5px; line-height: 1.45; }
+.fxp-tip > b { display: block; margin-bottom: 2px; }
+.fxp-tip div { white-space: nowrap; color: var(--muted); }
+.fxp-tip div b { color: var(--text); }
+.fxp-tip i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+
+/* legend */
+.fxp-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin: 0 0 2px; }
+.fxp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fxp-ln { display: inline-block; width: 18px; height: 2px; background: var(--text); border-radius: 1px; }
+.fxp-ring { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2.5px solid; }
+.fxp-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; flex: none; }
+
+/* data table view */
+.fxp-tbl { margin-top: 6px; font-size: 12px; }
+.fxp-tbl summary { cursor: pointer; color: var(--accent); min-height: 32px; display: flex; align-items: center; }
+.fxp-tblw { overflow-x: auto; max-width: 100%; }
+.fxp-tbl table, .fxp-map { border-collapse: collapse; width: 100%; }
+.fxp-tbl th, .fxp-tbl td { padding: 3px 6px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
+.fxp-tbl th:first-child, .fxp-tbl td:first-child { text-align: left; }
+.fxp-tbl .fxp-tblw { max-height: 220px; overflow-y: auto; }
+
+/* fx-frame: formula + map table + time scale */
+.fxp-formula { margin: 4px 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums; line-height: 1.6; }
+.fxp-formula small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+.fxp-map { font-size: 12.5px; }
+.fxp-map th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.fxp-map td { padding: 6px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.fxp-map td:first-child { white-space: nowrap; }
+.fxp-sym { color: var(--muted); font-weight: 400; font-size: 12px; }
+.fxp-step { display: block; color: var(--muted); font-size: 11.5px; padding-left: 16px; }
+.fxp-scale { margin-top: 10px; }
+
+/* fx-calc */
+.fxp-seg { display: flex; gap: 6px; margin: 2px 0 8px; }
+.fxp-seg button { flex: 1; min-height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font-weight: 600; cursor: pointer; }
+.fxp-seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fxp-out { padding: 8px 10px 4px; border-radius: 10px; background: var(--surface-2); }
+.fxp-big { font-size: 16px; }
+.fxp-big b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.fxp-per { font-size: 13px; color: var(--muted); }
+.fxp-range { fill: var(--accent); opacity: .18; }
+.fxp-midtick { stroke: var(--accent); stroke-width: 2; }
+.fxp-spot { fill: var(--muted); }
+.fxp-res-dot { fill: var(--text); stroke: var(--surface); stroke-width: 2.5; }
+.fxp-sliders { display: grid; grid-template-columns: 1fr; gap: 4px 16px; margin-top: 8px; }
+.fxp-sl { padding: 6px 0 6px; border-bottom: 1px solid var(--border); }
+.fxp-sl-top { display: flex; align-items: flex-start; gap: 4px; }
+.fxp-sl-top .fxp-sw { margin-top: 5px; }
+.fxp-sl-top label { flex: 1; font-weight: 600; line-height: 1.3; }
+.fxp-sl-top small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.fxp-sl-top > b { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13.5px; }
+.fxp-sl input[type="range"] { width: 100%; height: 30px; margin: 2px 0 0; accent-color: var(--accent); }
+.fxp-sl-bot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.fxp-ctr { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+.fxp-ctr-bar { position: relative; display: inline-block; width: 84px; height: 10px; border-radius: 3px; background: var(--surface-2); }
+.fxp-ctr-bar::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.fxp-ctr-bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.fxp-chk { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 13px; margin-top: 4px; }
+.fxp-chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+.fxp-warn { margin: 6px 0 0; padding: 7px 10px; border-radius: 10px; border-left: 4px solid var(--lamp-yellow); background: var(--surface-2); font-size: 12.5px; }
+
+/* wide host (iPad column and up): two slider columns when there is room */
+.fxp { container-type: inline-size; }
+@container (min-width: 620px) { .fxp-sliders { grid-template-columns: 1fr 1fr; } }
+.fxp-ctitle { fill: var(--text); font-size: 12.5px; font-weight: 600; }
+/* narrow host (phone): the time scale under the table already shows 多久见效 */
+@container (max-width: 480px) { .fxp-map th:nth-child(4), .fxp-map td:nth-child(4) { display: none; } }

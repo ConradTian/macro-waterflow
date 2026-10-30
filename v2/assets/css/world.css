@@ -1,0 +1,161 @@
+/* 地图 page (src/ui/world-map.js): full-screen overlay inside the app. Tokens only (app.css), so dark follows by itself. */
+.map-btn { flex: none; min-width: 56px; height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--accent);
+  background: var(--surface); color: var(--accent); font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.map-btn:active { background: var(--surface-2); }
+@media (max-width: 420px) {
+  .map-btn { min-width: 0; padding: 0 7px; font-size: 13px; }
+  .map-btn .mb-t { display: none; }
+  .timebar .badge { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+}
+
+.wm { position: fixed; inset: 0; z-index: 35; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+  padding: var(--safe-t) var(--safe-r) 0 var(--safe-l); }
+.wm[hidden] { display: none; }
+.wm-top { flex: none; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 6px var(--gutter); min-height: 52px; }
+.wm-back { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent);
+  font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.wm-back:active { background: var(--surface-2); }
+.wm-title { margin: 0; font-size: 17px; line-height: 1.25; }
+.wm-title small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+
+.wm-ctl { flex: none; display: flex; align-items: center; padding: 2px var(--gutter); background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.wm-year { flex: 1; display: flex; flex-direction: row; align-items: center; gap: 14px; min-width: 0; font-size: 13px; }
+.wm-yl { flex: none; display: flex; align-items: baseline; gap: 8px; min-width: 150px; }
+.wm-yv { font-size: 18px; font-variant-numeric: tabular-nums; }
+.wm-res { font-style: normal; font-size: 11.5px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--c-repay); color: var(--c-repay); white-space: nowrap; }
+.wm-res[hidden] { display: none; }
+.wm-slider { flex: 1; min-width: 0; height: 34px; margin: 0; accent-color: var(--accent); }
+.wm-seg { flex: none; margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.wm-seg button { min-height: 40px; padding: 0 14px; border: 0; border-right: 1px solid var(--border); background: none; font-size: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.wm-seg button:last-child { border-right: 0; }
+.wm-seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 700; }
+.wm-sw { display: inline-block; width: 16px; height: 0; border-top: 4px dashed var(--muted); vertical-align: middle; }
+.wm-sw.goods { border-top-color: var(--c-goods); } .wm-sw.bond { border-top-color: var(--c-bond); } .wm-sw.row { border-top-color: var(--c-cash, var(--muted)); }
+.wm-sw.sl { width: 14px; height: 9px; border: 1.5px solid var(--c-border, var(--accent)); border-radius: 2px;
+  background: repeating-linear-gradient(90deg, transparent 0 3px, var(--c-border, var(--accent)) 3px 4.2px); }
+.wm-seg button[aria-pressed="true"] .wm-sw { filter: brightness(2.2); }
+
+.wm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wm-stage { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--surface); position: relative; scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.wm-card { flex: none; max-height: 46dvh; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--border);
+  padding: 10px var(--gutter) calc(12px + var(--safe-b)); }
+@media (min-width: 900px) {
+  .wm-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+  .wm-card { max-height: none; border-top: 0; border-left: 1px solid var(--border); padding: 16px 18px; }
+  .wm-top, .wm-ctl { padding-left: 24px; padding-right: 24px; }
+}
+
+/* ---------- the svg ---------- */
+.wm-svg { display: block; font-family: inherit; user-select: none; -webkit-user-select: none; --wm-fs: 11px; }
+.wm-svg .wm-bg { fill: var(--surface); }
+.wm-svg text { fill: var(--text); font-size: var(--wm-fs); }
+.wm-box { cursor: pointer; outline: none; transition: opacity .2s; }
+.wm-box .wm-rect { fill: var(--surface); stroke: var(--muted); stroke-opacity: .6; stroke-width: 1.4; transition: stroke .15s, stroke-width .15s; }
+.wm-box .wm-water { fill: var(--c-credit); fill-opacity: .2; pointer-events: none; }
+.wm-box:hover .wm-rect { stroke: var(--accent); stroke-opacity: 1; }
+.wm-box:focus-visible .wm-rect { stroke: var(--accent); stroke-opacity: 1; stroke-width: 3; }
+.wm-box.sel .wm-rect { stroke: var(--accent); stroke-opacity: 1; stroke-width: 3.4; fill: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.wm-box text { pointer-events: none; }
+.wm-box .wm-n { font-size: calc(var(--wm-fs) * 1.2); font-weight: 800; }
+.wm-box .wm-g { fill: var(--muted); font-size: calc(var(--wm-fs) * .9); font-variant-numeric: tabular-nums; }
+.wm-box .wm-k { fill: var(--muted); }
+.wm-box .wm-v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.has-sel .wm-box:not(.sel):not(.nb) { opacity: .4; }
+
+.wm-pipe { transition: opacity .2s; pointer-events: none; }
+.wm-bed, .wm-dash { fill: none; stroke-linecap: butt; stroke: var(--pc); }
+.wm-bed { opacity: .2; }
+.wm-dash { stroke-dasharray: 6 9; animation: flowdash linear infinite; }
+.wm-arrow { fill: var(--pc); stroke: var(--surface); stroke-width: 1.2; stroke-linejoin: round; paint-order: stroke; }
+/* chevrons along the pipe: the direction stays readable in a still picture (the dashes move the same way) */
+.wm-chev { fill: none; stroke: var(--pc); stroke-linecap: round; stroke-linejoin: round; }
+.wm-chev-h { fill: none; stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+.wm-pipe.goods { --pc: var(--c-goods); } .wm-pipe.bond { --pc: var(--c-bond); }
+/* 其他国家 (ROW) trade: grey background pipes at their true width (never thinned); quieter dashes, no chips unless selected */
+.wm-pipe.row { --pc: var(--c-cash, var(--muted)); }
+.wm-pipe.row .wm-bed { opacity: .16; }
+.wm-pipe.row .wm-dash { opacity: .45; }
+.wm-pipe.row .wm-arrow, .wm-pipe.row .wm-chevs { opacity: .6; }
+/* a selection: its pipes at full strength, everything else nearly gone */
+.has-sel .wm-pipe:not(.hl) { opacity: .06; }
+.has-sel .wm-pipe.hl .wm-bed { opacity: .4; }
+.has-sel .wm-pipe.row.hl .wm-bed { opacity: .3; }
+.has-sel .wm-pipe.row.hl .wm-dash, .has-sel .wm-pipe.row.hl .wm-arrow, .has-sel .wm-pipe.row.hl .wm-chevs { opacity: .85; }
+.wm-chips { pointer-events: none; }
+.wm-chip { --pc: var(--c-goods); }
+.wm-chip.row { --pc: var(--c-cash, var(--muted)); }
+.wm-chip rect { fill: var(--surface); fill-opacity: .96; stroke: var(--pc); stroke-width: 1.3; }
+.wm-chip.bond { --pc: var(--c-bond); }
+.wm-chip text { font-size: calc(var(--wm-fs) * .9); font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .wm-dash { animation: none; } }
+
+/* FX sluice hanging under each country box (tap = the 汇率 card) */
+.wm-sluice { cursor: pointer; outline: none; transition: opacity .2s; }
+.wm-sluice .wm-sl-bg { fill: var(--surface); stroke: var(--c-border, var(--accent)); stroke-width: 1.2; }
+.wm-sluice .wm-sl-gate { fill: var(--surface); stroke: var(--c-border, var(--accent)); stroke-width: 1.3; }
+.wm-sluice .wm-sl-slat { stroke: var(--c-border, var(--accent)); stroke-width: 1.1; stroke-linecap: round; fill: none; }
+.wm-sluice text { pointer-events: none; font-variant-numeric: tabular-nums; }
+.wm-sluice .wm-sl-v { font-weight: 700; }
+.wm-sluice .wm-sl-c { font-weight: 700; fill: var(--muted); }
+.wm-sluice .wm-sl-c.up { fill: var(--c-goods); } .wm-sluice .wm-sl-c.dn { fill: var(--c-repay); }
+.wm-sluice:hover .wm-sl-bg, .wm-sluice:focus-visible .wm-sl-bg { stroke-width: 2.2; }
+.has-sel .wm-sluice:not(.sel):not(.nb) { opacity: .5; }
+
+/* the world reserve reservoir under the USA box */
+.wm-pool { transition: opacity .2s; pointer-events: none; }
+.wm-pool .wm-prect { fill: var(--surface); stroke: var(--c-bond); stroke-width: 1.8; }
+.wm-pool .wm-pwater { fill: var(--c-bond); fill-opacity: .24; }
+.wm-pool.hl .wm-prect { stroke-width: 3.2; }
+.wm-pool .wm-pt { font-weight: 800; fill: var(--c-bond); }
+.wm-pool .wm-ps, .wm-pool .wm-lg { fill: var(--muted); font-size: calc(var(--wm-fs) * .86); }
+.wm-pool .wm-lg { fill: var(--text); font-variant-numeric: tabular-nums; }
+.wm-pool.dim { opacity: .3; }
+.has-sel .wm-pool { opacity: .55; }
+.has-sel[data-kind="reserve"] .wm-pool, .wm-svg[data-kind="reserve"] .wm-pool { opacity: 1; }
+[data-kind="reserve"] .wm-box:not(.sel) { opacity: .75; }
+
+/* ---------- the card ---------- */
+.wm-hint { font-size: 14px; line-height: 1.55; }
+.wm-hint p { margin: 6px 0; }
+.wm-mut { color: var(--muted); font-size: 12.5px; }
+.wm-note { margin: 2px 0 6px; }
+.wm-cardin h3 { margin: 0 0 6px; font-size: 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.wm-cardin h3 small { font-size: 12.5px; color: var(--muted); font-weight: 400; display: inline-flex; gap: 8px; align-items: baseline; }
+.wm-rd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 4px; }
+.wm-rd > div { background: var(--surface-2); border-radius: 10px; padding: 6px 10px; min-width: 0; }
+.wm-rd dt { color: var(--muted); font-size: 12px; }
+.wm-rd dd { margin: 0; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.wm-rd dd small { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); line-height: 1.35; }
+.wm-line { margin: 6px 0; font-size: 13.5px; }
+.wm-partners { margin: 6px 0 10px; font-size: 13.5px; }
+.wm-partners ol { margin: 2px 0 0; padding-left: 20px; }
+.wm-partners li small { display: block; color: var(--muted); font-size: 11.5px; }
+.wm-enter { width: 100%; min-height: 48px; font-size: 16px; }
+.wm-enter:disabled { opacity: .55; cursor: not-allowed; background: var(--surface-2); border-color: var(--border); color: var(--muted); }
+.wm-act { margin-top: 4px; }
+.wm-cover { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+.wm-cover:empty { display: none; }
+
+@media (max-width: 899.98px) {
+  .wm-top { padding-top: 4px; padding-bottom: 4px; gap: 4px 8px; flex-wrap: nowrap; min-height: 48px; }
+  .wm-title { display: none; }
+  .wm-back { min-height: 40px; padding: 0 10px; font-size: 14px; }
+  .wm-seg button { min-height: 38px; padding: 0 8px; font-size: 13px; gap: 3px; }
+  .wm-sw { width: 10px; }
+  .wm-yl { min-width: 0; }
+  .wm-res { font-size: 11px; padding: 0 5px; }
+  .wm-card { max-height: 42dvh; }
+  .wm-act { position: sticky; bottom: calc(-12px - var(--safe-b)); margin: 0 calc(-1 * var(--gutter)); padding: 6px var(--gutter) calc(10px + var(--safe-b)); background: var(--surface); border-top: 1px solid var(--border); }
+  .wm-hint .wm-more { display: none; }
+  .wm-hint { font-size: 13.5px; } .wm-hint p { margin: 3px 0; }
+  .wm-rd { gap: 5px; } .wm-rd > div { padding: 4px 8px; }
+  .wm-rd dd { font-size: 17px; }
+  .wm-rd dd small { font-size: 11px; }
+  .wm-card { padding-top: 8px; }
+  .wm-cardin h3 { font-size: 16px; margin-bottom: 4px; }
+  .wm-enter { min-height: 44px; }
+}
+body[data-map="1"] .toast { z-index: 70; }

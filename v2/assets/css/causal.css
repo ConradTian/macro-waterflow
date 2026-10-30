@@ -1,0 +1,173 @@
+/* 传导链 (src/ui/causal-view.js, causal-overlay.js): chips + arrows in the concept card, badges + playback glow on the water diagram.
+   ↑ / ↓ / ? never rely on colour alone: the glyph and the pill shape carry the meaning (? is dashed). Tokens come from panels.css (--pn-*) and app.css. */
+
+:root {
+  --cv-up: #b4470d; --cv-up-bg: #ffedd5;
+  --cv-dn: #1d4ed8; --cv-dn-bg: #dbeafe;
+  --cv-q: #7e22ce; --cv-q-bg: #f3e8ff;
+  --cv-ok: #15803d; --cv-bad: #b91c1c;
+  --cv-glow: #c026d3;
+  --cv-valve: var(--pn-accent, #2b6cb0);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cv-up: #fdba74; --cv-up-bg: #4a1d08; --cv-dn: #93c5fd; --cv-dn-bg: #14264f; --cv-q: #d8b4fe; --cv-q-bg: #3b1366;
+    --cv-ok: #4ade80; --cv-bad: #fca5a5; --cv-glow: #f0abfc;
+  }
+}
+:root[data-theme="dark"] {
+  --cv-up: #fdba74; --cv-up-bg: #4a1d08; --cv-dn: #93c5fd; --cv-dn-bg: #14264f; --cv-q: #d8b4fe; --cv-q-bg: #3b1366;
+  --cv-ok: #4ade80; --cv-bad: #fca5a5; --cv-glow: #f0abfc;
+}
+
+/* ---------- the block ---------- */
+.cv { margin: 10px 0; padding: 8px 10px 10px; border: 1px solid var(--pn-border); border-radius: 12px; background: var(--pn-surface); }
+.cv * { box-sizing: border-box; }
+.cv-h { margin: 0 0 4px; font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.cv-h small { font-size: 12px; font-weight: 400; color: var(--pn-muted); }
+.cv-sec { margin: 6px 0 0; }
+.cv-sec + .cv-sec { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--pn-border); }
+.cv-sech { font-size: 12.5px; font-weight: 700; color: var(--pn-muted); margin-bottom: 3px; letter-spacing: .02em; }
+.cv-k { font-size: 12px; color: var(--pn-muted); margin: 4px 0 2px; }
+.cv-k small { margin-left: 6px; font-size: 11px; opacity: .85; }
+.cv-note { font-size: 12.5px; color: var(--pn-muted); line-height: 1.45; margin: 3px 0; }
+.cv-isvalve { display: flex; align-items: center; gap: 6px; color: var(--pn-text); font-weight: 600; font-size: 13.5px; }
+.cv-hist { padding: 4px 8px; border-left: 3px solid var(--pn-muted); background: var(--pn-bg); border-radius: 0 6px 6px 0; }
+.cv-sub { font-size: 12px; color: var(--pn-muted); margin: 2px 0 0 2px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+/* ---------- chips and arrows ---------- */
+.cv-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 2px 8px; margin: 2px 0; border-radius: 999px; border: 1.5px solid var(--pn-border);
+  background: var(--pn-bg); color: var(--pn-text); font: inherit; font-size: 13px; line-height: 1.2; cursor: pointer; max-width: 100%; text-align: left; }
+.cv-chip:hover, .cv-chip:focus-visible { border-color: var(--pn-accent); outline: none; background: color-mix(in srgb, var(--pn-accent) 10%, var(--pn-bg)); }
+.cv-chip .cv-nm { white-space: nowrap; }
+.cv-valve { border-color: var(--cv-valve); }
+.cv-vi { width: 14px; height: 14px; flex: none; fill: var(--cv-valve); stroke: var(--cv-valve); stroke-width: 1.4; }
+.cv-vi .st { fill: none; stroke-linecap: round; }
+.cv-self { cursor: default; border: 2px solid var(--hl-self, #e11d48); font-weight: 700; background: color-mix(in srgb, var(--hl-self, #e11d48) 10%, var(--pn-bg)); }
+.cv-dim { opacity: .55; }
+.cv-sm { min-height: 24px; padding: 0 6px; font-size: 12px; gap: 3px; }
+.cv-ar { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 4px; font-size: 12px; font-weight: 800; line-height: 1; border: 1.5px solid currentColor; }
+.cv-ar.up { color: var(--cv-up); background: var(--cv-up-bg); }
+.cv-ar.dn { color: var(--cv-dn); background: var(--cv-dn-bg); }
+.cv-ar.q { color: var(--cv-q); background: var(--cv-q-bg); border-style: dashed; }
+.cv-ar.q0 { color: var(--pn-muted); background: transparent; border-style: dotted; }
+.cv-sm .cv-ar { min-width: 14px; height: 14px; font-size: 11px; }
+
+.cv-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 1px 0; margin: 2px 0 4px; }
+.cv-ln { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; margin: 0 3px; color: var(--pn-muted); }
+.cv-ln em { font-style: normal; font-size: 9.5px; white-space: nowrap; margin-bottom: 1px; }
+.cv-ln i { font-style: normal; font-size: 15px; }
+.cv-ln0 { margin: 0 2px; }
+.cv-dots { min-width: 32px; min-height: 28px; padding: 0 8px; border-radius: 999px; border: 1.5px dashed var(--pn-muted); background: none; color: var(--pn-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.cv-dots.cv-fold { margin-left: 6px; font-size: 11.5px; min-height: 24px; }
+.cv-more { margin: 4px 0 2px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--pn-border); background: none; color: var(--pn-accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cv-more i { font-style: normal; }
+.cv-fold { padding-left: 6px; border-left: 2px solid var(--pn-border); margin: 2px 0; }
+
+/* ---------- 推它一下会怎样 ---------- */
+.cv-push { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 4px; }
+.cv-pb { min-height: 40px; padding: 0 16px; border-radius: 10px; border: 2px solid currentColor; background: var(--pn-surface); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.cv-pb.up { color: var(--cv-up); }
+.cv-pb.dn { color: var(--cv-dn); }
+.cv-pb.on.up { background: var(--cv-up-bg); box-shadow: 0 0 0 2px var(--cv-up); }
+.cv-pb.on.dn { background: var(--cv-dn-bg); box-shadow: 0 0 0 2px var(--cv-dn); }
+.cv-pn { font-size: 11.5px; color: var(--pn-muted); }
+.cv-row { padding: 4px 0 3px; border-top: 1px dashed var(--pn-border); }
+.cv-row:first-of-type { border-top: 0; }
+.cv-rh { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.cv-lag { display: inline-block; font-size: 11.5px; color: var(--pn-muted); border: 1px solid var(--pn-border); border-radius: 999px; padding: 0 7px; line-height: 1.5; white-space: nowrap; }
+.cv-rt { display: flex; align-items: flex-start; gap: 6px; }
+.cv-rt > .cv-ar { margin-top: 7px; flex: none; }
+.cv-loop { margin: 6px 0 0; padding: 3px 0 3px 8px; border-left: 3px solid var(--cv-up); }
+.cv-loop.bl { border-left-color: var(--cv-dn); }
+.cv-lt { font-size: 12.5px; font-weight: 700; }
+.cv-lt small { margin-left: 6px; font-weight: 400; color: var(--pn-muted); }
+
+/* ---------- buttons, status ---------- */
+.cv-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+.cv-btn { min-height: 42px; padding: 0 14px; border-radius: 10px; border: 1.5px solid var(--pn-border); background: var(--pn-surface); color: var(--pn-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.cv-btn.play { background: var(--pn-accent); border-color: var(--pn-accent); color: #fff; }
+.cv-btn.play.on { background: var(--pn-surface); color: var(--pn-accent); }
+.cv-btn.on:not(.play) { border-color: var(--pn-accent); box-shadow: 0 0 0 2px var(--pn-accent) inset; }
+@media (min-width: 768px) { .cv-btn.peek { display: none; } }
+.cv-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 6px 0 0; font-size: 12.5px; }
+.cv-status:empty { display: none; }
+.cv-pg { font-variant-numeric: tabular-nums; color: var(--pn-muted); }
+
+/* ---------- 用模拟核对 ---------- */
+.cv-check .cv-what { font-size: 13px; line-height: 1.5; }
+.cv-what small { display: block; font-size: 11.5px; color: var(--pn-muted); margin-top: 1px; }
+.cv-cr { padding: 3px 0; border-top: 1px dashed var(--pn-border); }
+.cv-sim { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 1px 0 3px 2px; font-size: 12.5px; }
+.cv-sk { font-size: 11px; color: var(--pn-muted); border: 1px solid var(--pn-border); border-radius: 4px; padding: 0 4px; }
+.cv-n { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cv-n small, .cv-won { font-weight: 400; font-size: 11px; color: var(--pn-muted); margin-left: 1px; }
+.cv-mk { font-style: normal; font-weight: 800; font-size: 14px; min-width: 18px; text-align: center; }
+.cv-mk.ok { color: var(--cv-ok); } .cv-mk.bad { color: var(--cv-bad); } .cv-mk.eq { color: var(--pn-muted); } .cv-mk.q { color: var(--cv-q); }
+.cv-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; margin-top: 6px; font-size: 11.5px; color: var(--pn-muted); }
+.cv-wait { display: flex; align-items: center; gap: 8px; }
+.cv-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pn-border); border-top-color: var(--pn-accent); animation: cv-spin .8s linear infinite; }
+@keyframes cv-spin { to { transform: rotate(360deg); } }
+
+/* ---------- detected results (cycle cards) ---------- */
+.cv-det { background: var(--pn-bg); }
+.cv-det-t { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 13.5px; }
+.cv-det-t span { color: var(--pn-muted); font-size: 12.5px; }
+
+/* ---------- phone: ▶ / 多看图 -> a low sheet, the diagram stays visible above it ---------- */
+@media (max-width: 767.98px) {
+  .cc-root.cv-peek .cc-card { max-height: 36dvh; }
+}
+
+/* ---------- on the diagram: badges (HTML layer inside #diagram) ---------- */
+.cv-layer { position: absolute; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
+.cv-bd { position: absolute; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border-radius: 10px; border: 2px solid currentColor; background: var(--surface, #fff);
+  font: 800 13px/1 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+.cv-bd.up { color: var(--cv-up); background: var(--cv-up-bg); }
+.cv-bd.dn { color: var(--cv-dn); background: var(--cv-dn-bg); }
+.cv-bd.q { color: var(--cv-q); background: var(--cv-q-bg); border-style: dashed; }
+.cv-bd.later { box-shadow: 0 1px 4px rgba(0, 0, 0, .3), 3px 0 0 -1px currentColor; }
+.cv-bd small { font-size: 10px; font-weight: 700; }
+.cv-bd.self { height: 24px; font-size: 15px; border-width: 2.5px; box-shadow: 0 0 0 2px var(--surface, #fff), 0 1px 5px rgba(0, 0, 0, .4); }
+.cv-bd-k { font-size: 10px; font-weight: 700; }
+.cv-bd.pop { animation: cv-pop .28s ease-out; }
+@keyframes cv-pop { 0% { transform: scale(.3); opacity: 0; } 70% { transform: scale(1.18); opacity: 1; } 100% { transform: none; } }
+
+/* ---------- on the diagram: the push travelling (▶): .cv-now = this hop, .cv-seen = already reached ---------- */
+.flow-svg .cv-seen { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--cv-glow) 70%, transparent)) !important; }
+.flow-svg rect.node.cv-seen, .flow-svg rect.tank.cv-seen { stroke: var(--cv-glow) !important; stroke-width: 2.4px !important; stroke-opacity: .7 !important; }
+.flow-svg g.cv-seen > rect.hit { fill: var(--cv-glow); fill-opacity: .14; }
+.flow-svg g.cv-seen .bed { stroke: var(--cv-glow) !important; opacity: .55 !important; }
+.flow-svg g.chip.cv-seen rect.bg { stroke: var(--cv-glow) !important; stroke-width: 2.4px !important; }
+.flow-svg .cv-now { filter: drop-shadow(0 0 3px var(--cv-glow)) drop-shadow(0 0 9px var(--cv-glow)) drop-shadow(0 0 16px var(--cv-glow)) !important; }
+.flow-svg rect.node.cv-now, .flow-svg rect.tank.cv-now { stroke: var(--cv-glow) !important; stroke-width: 5px !important; stroke-opacity: 1 !important; animation: cv-throb .55s ease-in-out 2; }
+.flow-svg g.cv-now > rect.hit { fill: var(--cv-glow); fill-opacity: .4; stroke: var(--cv-glow); stroke-width: 3; }
+.flow-svg g.cv-now .bed { stroke: var(--cv-glow) !important; opacity: .85 !important; }
+.flow-svg g.chip.cv-now rect.bg { stroke: var(--cv-glow) !important; stroke-width: 4px !important; }
+.flow-svg g.pump.cv-now .body, .flow-svg g.drain.cv-now .body { stroke: var(--cv-glow) !important; stroke-width: 4px !important; }
+.flow-budget button.term.cv-now { outline: 3px solid var(--cv-glow); outline-offset: 2px; border-radius: 5px; background: color-mix(in srgb, var(--cv-glow) 30%, transparent); }
+@keyframes cv-throb { 0%, 100% { stroke-width: 5px; } 50% { stroke-width: 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .cv-bd.pop, .flow-svg rect.node.cv-now, .flow-svg rect.tank.cv-now, .cv-spin { animation: none; }
+}
+
+/* ---------- compact variants added after the first screenshots ---------- */
+.cv-via { display: flex; align-items: flex-start; gap: 4px; }
+.cv-via .cv-vk { flex: none; font-size: 11.5px; color: var(--pn-muted); margin-top: 5px; }
+.cv-direct { font-size: 11.5px; color: var(--pn-muted); margin: 0 0 2px 2px; }
+.cv-bd { height: 18px; padding: 0 5px; font-size: 12px; }
+.cv-bd.self { height: 22px; font-size: 14px; }
+.cv-seg { display: inline-flex; align-items: center; white-space: nowrap; max-width: 100%; }
+.cv-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+.cv-top .cv-h { margin: 0; flex: 1 1 auto; }
+.cv-tb { display: flex; gap: 6px; flex: none; }
+.cv-tb .cv-btn { min-height: 38px; padding: 0 12px; font-size: 13.5px; }
+.cv-btns { margin: 8px 0 2px; align-items: center; }
+.cv-btns .cv-btn { min-height: 40px; }
+.cv-off { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--pn-muted); }
+.cv-status { margin: 4px 0 2px; min-height: 0; }
+.cv-top + .cv-status:not(:empty) { padding: 4px 8px; border-radius: 8px; background: var(--pn-bg); }
+
+/* dark theme: white text on the light-blue accent is too faint */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cv-btn.play:not(.on) { color: #0b1220; } }
+:root[data-theme="dark"] .cv-btn.play:not(.on) { color: #0b1220; }

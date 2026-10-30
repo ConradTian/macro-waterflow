@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>自由运行 · 宏观水流模拟器</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<link rel="stylesheet" href="../assets/css/panels.css">
+<link rel="stylesheet" href="../assets/css/lessons.css">
+<link rel="stylesheet" href="../assets/css/cycle.css">
+<link rel="stylesheet" href="../assets/css/concept-hl.css">
+<link rel="stylesheet" href="../assets/css/headline.css">
+<link rel="stylesheet" href="../assets/css/objective.css">
+<link rel="stylesheet" href="../assets/css/roles.css">
+<link rel="stylesheet" href="../assets/css/simple.css">
+<link rel="stylesheet" href="../assets/css/fx-reactor.css">
+</head>
+<body data-mode="free">
+<!-- Free run: same app as ../index.html in mode "free" (central bank by its own rule, runs to 2050), no lessons. -->
+<div id="app">
+  <header class="topbar">
+    <div class="timebar">
+      <div class="date" id="date">1995Q1</div>
+      <span class="badge" id="mode-badge">自由</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="btn-play" aria-label="播放/暂停">▶</button>
+      <button class="icon-btn" id="btn-back" aria-label="退一季" title="退一季">⏮</button>
+      <button class="icon-btn" id="btn-step" aria-label="前进一个季度">⏭</button>
+      <button class="icon-btn speed" id="btn-speed" aria-label="速度">1×</button>
+      <a class="teach-btn" id="btn-teach" href="../" aria-label="回到教学版">教学版</a>
+    </div>
+    <div class="progress"><i id="progress-bar"></i></div>
+    <div class="objective" id="objective" aria-label="总目标" hidden></div>
+    <div class="headline" id="headline" aria-label="本季看点" hidden></div>
+  </header>
+
+  <main class="main">
+    <section class="diagram" id="diagram" aria-label="水流示意图"></section>
+    <section class="panel">
+      <div class="simple" id="simple" aria-label="简洁视图：两个周期表盘"></div>
+      <div class="tab-content" id="tab-content"></div>
+      <nav class="tabbar" id="tabbar" role="tablist"></nav>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden>
+    <div class="toast-msg" id="toast-msg"></div>
+    <button class="btn primary" id="toast-ok">继续</button>
+  </div>
+</div>
+<script type="module" src="../src/app.js"></script>
+</body>
+</html>

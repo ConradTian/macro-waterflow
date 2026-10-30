@@ -1,0 +1,91 @@
+/* FX reactor (src/ui/fx-reactor.js): two pushing pipes + a needle + a faint PPP anchor line. Tokens only, so dark follows by itself.
+   Used in the flow.js border band (SVG, rules under .flow-svg in app.css), the phone 国境线 popover, the map card, lesson panels, the 汇率 card. */
+:root {
+  --fxr-cap: var(--c-credit);      /* 资本管 = 利差 + 信心 */
+  --fxr-goods: var(--c-repay);     /* 商品价格管 = 通胀差 + 生产率 + 贸易条件 */
+  --fxr-needle: var(--text);
+  /* the five forces: the same colours as the 汇率 lesson (assets/css/fx-lab.css --fx-*) */
+  --fxr-infl: var(--c-repay); --fxr-rate: var(--c-credit); --fxr-prod: var(--c-goods); --fxr-tot: var(--c-fiscal); --fxr-conf: var(--c-housing);
+}
+
+/* ---------- the SVG parts (shared) ---------- */
+.fxr text { fill: var(--text); font-variant-numeric: tabular-nums; }
+.fxr-track { stroke: var(--muted); stroke-opacity: .55; stroke-width: 1; fill: none; }
+.fxr-zlab { fill: var(--muted); }
+.fxr-zero { stroke: var(--muted); stroke-opacity: .7; stroke-width: 1; stroke-dasharray: 1.5 1.5; fill: none; }
+.fxr-end { fill: var(--muted) !important; }
+.fxr-pipe { cursor: pointer; outline: none; }
+.fxr-pipe .fxr-hit { fill: transparent; }
+.fxr-pipe .fxr-bed { stroke: var(--pc); stroke-linecap: butt; fill: none; opacity: .85; }
+.fxr-pipe .fxr-arrow { fill: var(--pc); }
+.fxr-pipe .fxr-name { fill: var(--pc) !important; font-weight: 700; }
+.fxr-pipe .fxr-val { fill: var(--pc) !important; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.fxr-pipe .fxr-miss { fill: var(--muted); font-weight: 400; }
+.fxr-pipe .fxr-totl { fill: var(--fxr-tot); font-weight: 700; }
+.fxr-pipe .fxr-tot { fill: none; stroke: var(--fxr-tot); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fxr-pipe:hover .fxr-bed, .fxr-pipe:focus-visible .fxr-bed { opacity: 1; }
+.fxr-pipe:focus-visible .fxr-hit { stroke: var(--accent); stroke-width: 1; }
+.fxr-sum { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 1 1.6; fill: none; }
+.fxr-gap path { stroke: var(--muted); stroke-width: 1; fill: none; }
+.fxr-gap text { fill: var(--muted) !important; font-weight: 600; }
+.fxr-needle .fxr-nl { stroke: var(--fxr-needle); stroke-width: 2; fill: none; }
+.fxr-needle .fxr-nh { fill: var(--fxr-needle); }
+.fxr-needle text { font-weight: 800; }
+.fxr-needle.off .fxr-nl { stroke-dasharray: 3 2; }
+.fxr-anchor path { stroke: var(--muted); stroke-opacity: .6; stroke-width: 1.2; stroke-dasharray: 3 2.5; fill: none; }
+.fxr-anchor text { fill: var(--muted) !important; }
+
+/* ---------- the HTML block ---------- */
+.fxr-box { font-size: 13px; line-height: 1.45; color: var(--text); }
+.fxr-box .fxr-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 2px; }
+.fxr-box .fxr-h b { font-size: 14px; }
+.fxr-box .fxr-h small { color: var(--muted); font-size: 11.5px; }
+.fxr-box .fxr-con { margin: 2px 0 4px; font-weight: 600; }
+.fxr-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.fxr-box .fxr-ppp { margin: 2px 0 4px; color: var(--muted); font-size: 12px; }
+.fxr-box .fxr-ppp i { display: inline-block; width: 14px; height: 0; border-top: 1.5px dashed var(--muted); vertical-align: middle; margin-right: 5px; }
+.fxr-note { margin: 6px 0 2px; color: var(--muted); font-size: 11.5px; }
+.fxr-forces { margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 4px; }
+.fxr-forces summary { cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 600; min-height: 28px; display: flex; align-items: center; }
+.fxr-grp { margin: 4px 0; padding: 4px 6px; border-radius: 8px; }
+.fxr-grp.hl { background: color-mix(in srgb, var(--accent) 8%, transparent); outline: 1.5px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.fxr-grp .fxr-gh { font-size: 12.5px; }
+.fxr-grp ul, .fxr-card ul { list-style: none; margin: 2px 0 0; padding: 0; }
+.fxr-f { display: flex; gap: 6px; align-items: flex-start; padding: 3px 0; }
+.fxr-f > i, .fxr-card li > i { flex: none; width: 9px; height: 9px; border-radius: 2px; margin-top: 5px; }
+.fxr-f span { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; min-width: 0; }
+.fxr-f span b:first-child { font-size: 13px; }
+.fxr-f b.up { color: var(--c-goods); } .fxr-f b.dn { color: var(--c-repay); } .fxr-f b.na { color: var(--muted); font-weight: 600; }
+.fxr-f small { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
+.fxr-na .fxr-con { color: var(--muted); font-weight: 400; }
+/* the 1-year fit (AUS, JPN): the 「1 年尺度拟合，探索性」 tag, 保留样本 (2022+), the risk sign under 信心; CHN: the managed-currency note */
+.fxr-box .fxr-tags { margin: 0 0 2px; display: flex; flex-wrap: wrap; gap: 4px; }
+.fxr-tag { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; color: var(--muted);
+  border: 1px solid var(--border); background: var(--surface-2); }
+.fxr-tag.hold { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.fxr-f em.fxr-risk { flex-basis: 100%; font-style: normal; font-weight: 700; font-size: 12px; color: var(--fxr-conf); }
+.fxr-box .fxr-managed { margin: 0 0 4px; }
+
+/* desktop: the popover over the diagram when a pipe in the border band is tapped */
+.fxr-pop { position: absolute; left: 8px; bottom: 44px; z-index: 20; width: min(470px, calc(100% - 16px)); max-height: min(70vh, 560px); overflow-y: auto;
+  background: var(--surface); border: 1.5px solid var(--c-border, var(--border)); border-radius: 14px; box-shadow: var(--shadow); padding: 8px 14px 10px; }
+.fxr-pop[hidden] { display: none; }
+.fxr-pop .fxr-x { float: right; width: 36px; height: 32px; margin: -4px -8px 0 4px; border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+@media (max-width: 767.98px) { .fxr-pop { display: none !important; } }
+
+/* inside the phone 国境线 popover */
+.flow-bpop .fxr-box { padding: 4px 0 6px; border-top: 1px dashed var(--border); }
+.flow-bpop .fxr-box .fxr-con { font-size: 12.5px; }
+
+/* the map card + lesson panels */
+.wm-fx { margin: 8px 0 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.fxr-panel { padding: 4px 2px; }
+.fxr-panel .fxr-box .fxr-h b { font-size: 16px; }
+
+/* the 汇率 concept card: the five forces + a button into the lesson */
+.fxr-card { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+.fxr-card .cc-k { display: block; margin-bottom: 2px; }
+.fxr-card li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; padding: 2px 0; }
+.fxr-card li > i { align-self: center; margin-top: 0; }
+.fxr-card li small { color: var(--muted); font-size: 11.5px; }
+.fxr-card .fxr-go { width: 100%; min-height: 44px; margin-top: 6px; font-size: 15px; }

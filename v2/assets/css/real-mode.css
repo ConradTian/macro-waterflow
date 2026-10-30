@@ -1,0 +1,142 @@
+/* 「真实 / 模型」 mode (src/app.js "real mode", src/ui/real-mode.js). Loaded by app.js. Colours only from tokens (app.css) + --rm-real.
+   body.rm-avail = the toggle is shown (USA / AUS history run, not the town); body.rm-real = 真实 mode is on. */
+:root { --rm-real: #0d7a5f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --rm-real: #45c7a3; } }
+:root[data-theme="dark"] { --rm-real: #45c7a3; }
+
+/* ---------- time bar: date + badge box, the toggle ---------- */
+.tb-dt { display: contents; }
+.rm-tog { flex: none; display: inline-flex; align-items: stretch; height: 34px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.rm-tog[hidden] { display: none; }
+.rm-tog button { min-width: 44px; padding: 0 9px; border: 0; background: none; color: var(--muted); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.rm-tog button + button { border-left: 1px solid var(--border); }
+.rm-tog button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.rm-tog button[data-m="real"][aria-pressed="true"] { background: var(--rm-real); }
+.rm-tog button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rm-tog button:disabled { cursor: not-allowed; }
+.rm-tog.forced { opacity: .55; }
+.badge.real { border-color: var(--rm-real); color: var(--rm-real); font-weight: 600; }
+.badge .bd-rs { display: none; }
+body.rm-real #btn-speed { display: none; }                 /* no play in 真实 mode: the speed button means nothing */
+.tabbar button.rm-off { opacity: .45; cursor: not-allowed; }
+.rm-locked .btn { margin-top: 8px; }
+
+/* 390px phones: date and badge stack (the badge shortens to 「真实 · 至 26Q3」), the toggle stacks 模型 over 真实 */
+@media (max-width: 420px) {
+  body.rm-avail .tb-dt { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; flex: none; min-width: 0; gap: 1px; }
+  body.rm-avail .tb-dt .date { line-height: 1.05; }
+  body.rm-avail .tb-dt .badge { font-size: 10.5px; line-height: 14px; padding: 0 6px; max-width: 116px; }   /* world.css caps it at 84px inline */
+  body.rm-avail .timebar .badge:has(.bd-c) .bd-m { display: inline; }      /* stacked: 「澳洲 · 历史」 fits again */
+  .badge.real .bd-rl { display: none; }
+  .badge.real .bd-rs { display: inline; }
+  .rm-tog { flex-direction: column; height: 44px; border-radius: 9px; }
+  .rm-tog button { min-width: 0; flex: 1; padding: 0 6px; font-size: 11.5px; line-height: 1; }
+  .rm-tog button + button { border-left: 0; border-top: 1px solid var(--border); }
+}
+
+/* ---------- the diagram ---------- */
+/* the tag sits in a strip of its own above the drawing (the drawing shrinks a little), left, away from the 曲线 / 显示全部 buttons */
+body.rm-real #diagram > .flow-wrap { padding-top: 22px; }
+.rm-tag { position: absolute; z-index: 4; top: 8px; left: 10px; display: flex; align-items: center; gap: 7px;
+  padding: 0 9px; border: 1px solid var(--rm-real); border-radius: 999px; background: var(--surface); font-size: 11.5px; line-height: 18px;
+  color: var(--muted); white-space: nowrap; }
+.rm-tag[hidden] { display: none; }
+.rm-tag b { color: var(--rm-real); }
+.rm-tag .rm-est { font-style: italic; }
+#diagram.wv-on > .rm-tag { display: none; }
+@media (max-width: 767.98px) {
+  body.rm-real #diagram > .flow-wrap { padding-top: 18px; }
+  .rm-tag { top: 2px; left: 6px; font-size: 10.5px; gap: 5px; padding: 0 7px; line-height: 15px; }
+}
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
+  body.rm-real .flow-wrap > .flow-svg { max-height: calc(100dvh - var(--top-h) - 42px);
+    height: min(calc(100dvh - var(--top-h) - 42px), calc((var(--dcol) - 17px) * 1.313)); }
+}
+
+.flow-svg text.v-est { fill: var(--muted); opacity: .62; font-style: italic; }
+/* no value (.v-none, mostly after the model's last quarter): no 「—」, the name only, faded once (each chip / text / pipe is its own element,
+   never nested in another faded one, so a whole empty group — bank, firm, government flows — reads as one calm faded group) */
+.flow-svg text.v-none { fill: var(--muted); opacity: .35; }
+.flow-svg .chip.v-est rect.bg { stroke: var(--muted); stroke-dasharray: 2.5 2; fill: var(--surface-2); }
+.flow-svg .chip.v-est text { fill: var(--muted); font-style: italic; font-weight: 500; }
+.flow-svg .chip.v-none { opacity: .35; }
+.flow-svg .chip.v-none rect.bg { stroke: var(--border); }
+.flow-svg .chip.v-none text { fill: var(--muted); }
+.flow-svg g.v-est > .bed, .flow-svg g.v-est > .dash, .flow-svg g.v-est > .arrow { opacity: .4; }
+.flow-svg g.v-none:not(.chip) > .bed, .flow-svg g.v-none:not(.chip) > .dash, .flow-svg g.v-none:not(.chip) > .arrow { opacity: .15; }
+.flow-svg .vstat.v-est { opacity: .55; }
+.flow-svg .rhint { fill: var(--muted); font-size: 7.2px; font-style: italic; }
+@media (max-width: 767.98px) { .flow-svg .rhint { font-size: 8px; } }
+.flow-budget.v-est .fb-net, .flow-budget.v-est .fb-detail b, .flow-budget.v-est .fb-mini b { color: var(--muted); font-style: italic; }
+.flow-budget.v-est .fb-net { border-color: var(--border); background: var(--surface-2); }
+.flow-budget .fb-est { flex: none; margin-left: 6px; padding: 0 6px; border: 1px dashed var(--muted); border-radius: 999px; color: var(--muted); font-size: 11px; font-style: italic; line-height: 16px; white-space: nowrap; }
+.flow-budget .fb-none { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 2px 0; }
+.flow-budget .fb-none small { color: var(--muted); font-size: 12px; }
+/* phone: one line, ellipsis (a wrapped second line overlapped the panel under the diagram); tap = the whole sentence above the bar */
+@media (max-width: 767.98px) {
+  .flow-budget .fb-none { flex-wrap: nowrap; align-items: center; gap: 8px; min-height: 36px; padding: 3px 8px; white-space: nowrap; overflow: hidden; cursor: pointer; }
+  .flow-budget .fb-none b { flex: none; font-size: 12px; }
+  .flow-budget .fb-none small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .flow-budget.open .fb-none { overflow: visible; }
+  .flow-budget.open .fb-none small { position: absolute; left: 0; right: 0; bottom: 100%; z-index: 12; padding: 6px 10px 8px; white-space: normal;
+    background: var(--surface-2); border-top: 1px solid var(--border); box-shadow: 0 -6px 14px rgba(0, 0, 0, .16); }
+}
+.flow-cpop .cp-note.v-tag { color: var(--muted); font-style: italic; }
+
+/* ---------- 总目标 strip (objective.js): in 真实 mode the score and 泛滥 / 干涸 / 透支 are the model's (grey, 模型估算); 溃坝 is real ---------- */
+.ob-sc.v-est { color: var(--muted); font-style: italic; font-weight: 600; }
+.ob-est-on .ob-yoy, .ob-est-on .ob-yoy.neg { color: var(--muted); font-style: italic; }
+.ob-est { flex: none; margin-left: 2px; padding: 0 6px; border: 1px dashed var(--muted); border-radius: 999px; color: var(--muted); font-size: 11px; font-weight: 400;
+  font-style: italic; line-height: 16px; white-space: nowrap; }
+.ob-lamp.v-est span { color: var(--muted); font-style: italic; font-weight: 400; }
+.ob-lamp.v-est .ob-dot { opacity: .5; box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 2.5px var(--muted); }
+.ob-lamp[data-level="none"] .ob-dot, .ob-dot[data-level="none"] { background: transparent; border: 1.5px dashed var(--muted); opacity: 1; box-shadow: none; }
+.ob-estnote { color: var(--muted); font-style: italic; }
+@media (max-width: 420px) {
+  .ob-est { display: none; }                                   /* phone: grey + a dotted underline say it */
+  .ob-sc.v-est .ob-n { text-decoration: underline dotted; text-underline-offset: 3px; }
+}
+
+/* ---------- simple panel: twin dials (rows = the two cycles, columns = 模型 | 真实) ---------- */
+.sp-dials.sp-twins { grid-template-columns: 1fr 1fr; }
+.sp-src { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px; border: 1px solid var(--border); color: var(--muted); }
+.sp-src-real { border-color: var(--rm-real); background: var(--rm-real); color: #fff; }
+.sp-dial.sp-real { box-shadow: inset 0 0 0 1.5px var(--rm-real); }
+.sp-nomodel { justify-content: center; min-height: 90px; color: var(--muted); font-size: 13px; text-align: center; }
+.sp-b2row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 2px; font-size: 12.5px; }
+.sp-b2 { font-weight: 700; }
+.sp-b2.pend { color: var(--lamp-yellow); }
+.sp-b2.on { color: var(--lamp-red); }
+.sp-bonus { color: var(--muted); font-size: 11.5px; }
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .sp-dials.sp-twins { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 767.98px) {
+  .sp-src { font-size: 10.5px; padding: 0 5px; line-height: 15px; }
+  .sp-dial.sp-twin .sp-dh small { display: none; }
+  .sp-b2row { font-size: 11px; }
+  .sp-bonus { display: none; }
+  .sp-nomodel { min-height: 70px; font-size: 12px; }
+}
+/* wide-short desktops: two rows of dials now, so each dial gets about half the height the single row had */
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
+  .sp-twins .sp-svg .cy-dial { width: min(100%, calc(var(--dw) * .62)); }
+}
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) and (max-height: 860px) {
+  .sp-dials.sp-twins { grid-template-columns: repeat(2, max-content); }
+  .sp-twins .sp-svg .cy-dial { width: calc(var(--dw) * .58); }
+}
+
+/* ---------- 周期 tab: the twin inside each card ---------- */
+.cy-dials.cy-dials-twin { grid-template-columns: minmax(0, 1fr); }
+.cy-twin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cy-tw { margin: 0; min-width: 0; border-radius: 10px; padding: 4px 4px 2px; }
+.cy-tw-real { box-shadow: inset 0 0 0 1.5px var(--rm-real); }
+.cy-tw figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 12.5px; }
+.cy-src { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; line-height: 17px; border: 1px solid var(--pn-border, var(--border)); color: var(--pn-muted, var(--muted)); }
+.cy-src-real { border-color: var(--rm-real); background: var(--rm-real); color: #fff; }
+.cy-now .cy-src { align-self: center; }
+.cy-tw-none { display: flex; align-items: center; justify-content: center; min-height: 120px; color: var(--pn-muted, var(--muted)); font-size: 13px; text-align: center; }
+@media (max-width: 767.98px) {
+  .cy-tw .cy-fk-s, .cy-tw .cy-exit-s, .cy-tw .cy-back { display: none; }
+}
