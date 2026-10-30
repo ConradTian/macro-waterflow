@@ -115,10 +115,10 @@ check(!/资产缓冲池|商品河道|欠条箱|资本管|商品价格管/.test(a
 for (const s of pSteps) check(PANEL_IDS.includes(s.panel.id), `panel id '${s.panel.id}' exists`);
 check(new Set(pSteps.map(s => s.panel.id)).size === pSteps.length, 'each panel used once');
 steps.forEach((s, i) => { if (i > 0) check(s.title && s.title.startsWith(`第 ${i} 步`), `step ${i} title numbered`); });
-// course v3 (tools/COURSE-V3.md): 第 8 课, ends with the 3 practice cards -> 历史盲测 and the fixed 三问 ending
+// course v3 (tools/COURSE-V3.md): 第 8 课, ends with the 3 practice cards -> 历史盲测 and the fixed 三问 ending, then hands over to L9 now
 {
   const last = steps[steps.length - 1], e = last.ending, Qs = ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'];
-  check(L.label === '第 8 课' && last.panel?.id === 'blind' && last.next == null, 'course v3: 第 8 课, last step = the blind links, end of the line (no next)');
+  check(L.label === '第 8 课' && last.panel?.id === 'blind' && last.next === 'now', 'course v3: 第 8 课, last step = the blind links, hands over to L9 now (现在在哪)');
   check(e && ['q1', 'q2', 'q3'].every((k, j) => typeof e[k] === 'string' && e[k].startsWith(Qs[j]) && e[k].length > Qs[j].length + 8), 'last step: the 三问 ending (q1 q2 q3, each starts with its question)');
   check(steps.slice(0, -1).every(s => !s.ending), 'only the last step has the ending');
 }

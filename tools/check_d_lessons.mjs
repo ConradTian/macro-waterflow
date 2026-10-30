@@ -1,11 +1,12 @@
 // node tools/check_d_lessons.mjs [--shots]
 //   Starts its own static server on port 8343 (BASE=http://localhost:PORT/ uses a server you already run); CDP port 9443.
 // CDP check of the course v3 (tools/COURSE-V3.md; contract tools/D-CONTRACT.md 「接线」 / 「课程 v3」) in the real app, iPad 1180×820 and phone 390×844:
-//  1. menu      教学 menu: the 4 parts (一个国家怎么运转 / 它怎么出毛病 / 国与国之间 / 你) with the 8 lessons in order, badges 1–8, the 「沙盒」 link,
+//  1. menu      教学 menu: the 4 parts (一个国家怎么运转 / 它怎么出毛病 / 国与国之间 / 你) with the 9 lessons in order, badges 1–9, the 「沙盒」 link,
 //               旧版课程 (collapsed) with everything else (Capex 5, 自由运行 7, 0.5, 世界 1 / 2 …); every lesson listed exactly once
 //  2. chain     m1 is started from the menu and the whole course is walked step by step through every 下一课: m1 → shk → m2 → m3 → m4 → fx →
-//               m5 → inv (inv in the AUS view). Every step: on the card, mw:lesson-active { id } names the lesson, exactly one panel of the right
-//               module in the right host (shock-lab .skp / FX reactor .fxr-panel / fx-lab .fxp / investor-lab .ivl), none on a sim / map
+//               m5 → inv (inv in the AUS view) → now (L9 现在在哪, back in the US view). Every step: on the card, mw:lesson-active { id } names the
+//               lesson, exactly one panel of the right module in the right host (shock-lab .skp / FX reactor .fxr-panel / fx-lab .fxp /
+//               investor-lab .ivl / now-panel .nowp; the reactor inside the now 闸 panel is part of it), none on a sim / map
 //               step (the diagram back), no sideways scroll. The last step of each lesson shows the 三问 ending (3 rows) and the 下一课 button
 //               names the next lesson; reaching it marks the lesson done (mw.lessons.v1 and src/ui/progress.js mw.course)
 //  3. course v3 L5 化债四个出口 (reveal); L6 the reactor (AUS 2025Q4), the five forces open, a drill-down swaps in the fx-lab panel and
@@ -81,7 +82,7 @@ const scrollCard = sel => ev(`(()=>{const b=document.querySelector('#ls-card .ls
 // state of the lesson screen: lesson / step on the card, panels in the document, where they sit, diagram hidden or not, the 三问 ending
 const state = () => ev(`(()=>{
   const c = document.querySelector('#ls-card'), dia = document.querySelector('#diagram'), fw = dia && dia.querySelector('.flow-wrap');
-  const p = [...document.querySelectorAll('.fxp, .ivl, .skp, .fxr-panel, .exg')];
+  const p = [...document.querySelectorAll('.fxp, .ivl, .skp, .fxr-panel, .exg, .nowp')].filter(e => !(e.classList.contains('fxr-panel') && e.closest('.nowp')));
   return JSON.stringify({
     on: document.body.classList.contains('lesson-on'), lesson: c && c.dataset.lesson, step: c ? +c.dataset.step : -1,
     panels: p.map(e => ({ cls: e.classList[0], id: e.classList.contains('fxr-panel') ? 'fx-reactor' : e.dataset.panel, date: e.dataset.date || '',
@@ -100,7 +101,7 @@ const course = async () => JSON.parse(await ev(`import('./src/data/lessons.js').
   L: Object.fromEntries(m.COURSE.main.map(id => { const l = m.LESSONS.find(x => String(x.id) === String(id)); return [id, { id: l.id, kind: l.kind, title: l.title, label: l.label, country: l.country || 'USA',
     steps: l.steps.map(s => ({ type: s.type, title: s.title, panel: s.panel || null, map: s.map || null, drills: (s.drills || []).map(d => ({ label: d.label, panel: d.panel })), drillCta: !!s.drillCta, ending: !!s.ending, next: s.next ?? null, question: !!s.question })) }]; })) }))`));
 // the module / class of a panel spec (src/ui/lessons.js panelKind) and its host (panelWhere: 投资者 assetTable in the card, everything else over the diagram)
-const clsOf = (L, sp) => (sp.id === 'fx-reactor' ? 'fxr-panel' : /^exp-/.test(sp.id) ? 'exg' : /^shk-/.test(sp.id) ? 'skp' : /^fx-/.test(sp.id) ? 'fxp' : L.kind === 'fx' ? 'fxp' : L.kind === 'shocks' ? 'skp' : 'ivl');
+const clsOf = (L, sp) => (sp.id === 'fx-reactor' ? 'fxr-panel' : /^now-/.test(sp.id) ? 'nowp' : /^exp-/.test(sp.id) ? 'exg' : /^shk-/.test(sp.id) ? 'skp' : /^fx-/.test(sp.id) ? 'fxp' : L.kind === 'fx' ? 'fxp' : L.kind === 'shocks' ? 'skp' : 'ivl');
 const whereOf = (L, sp) => (L.kind === 'capstone' && sp.id === 'assetTable' ? 'card' : 'diagram');
 // a step whose 下一步 is gated (town action, predict) or whose answer is hidden (reveal question): tap the gate
 const resolveGate = () => ev(`(()=>{const c=document.querySelector('#ls-card'); const b=c.querySelector('[data-act=do]')||c.querySelector('[data-act=reveal]')||c.querySelector('.ls-opt[data-act=pick]:not([disabled])'); if(b){b.click(); return b.dataset.act} return ''})()`);
@@ -145,8 +146,9 @@ try {
       return JSON.stringify({secs, ids, main, old, order, sand: sand ? sand.textContent + ' ' + sand.getAttribute('href') : '', soon: /制作中/.test(b.textContent), oldOpen: b.querySelector('.ls-old').open, open: !document.querySelector('#ls-menu').hidden})})()`));
     ok(menu.open, 'menu opens');
     ok(menu.secs.join() === D.course.parts.map(p => p.name).join() && menu.secs.join() === '一个国家怎么运转,它怎么出毛病,国与国之间,你', 'the 4 parts in order: ' + menu.secs.join(' / '));
-    ok(menu.main.map(x => x.id).join() === D.course.main.join() && D.course.main.join() === 'm1,shk,m2,m3,m4,fx,m5,inv', 'the 8 lessons in course order: ' + menu.main.map(x => x.id).join(' → '));
-    ok(menu.main.map(x => x.no).join() === '1,2,3,4,5,6,7,8' && menu.main.every(x => !x.dis), 'badges 1–8, all enabled');
+    ok(menu.main.map(x => x.id).join() === D.course.main.join() && D.course.main.join() === 'm1,shk,m2,m3,m4,fx,m5,inv,now', 'the 9 lessons in course order: ' + menu.main.map(x => x.id).join(' → '));
+    ok(menu.main.map(x => x.no).join() === '1,2,3,4,5,6,7,8,9' && menu.main.every(x => !x.dis), 'badges 1–9, all enabled');
+    ok(menu.main.some(x => x.id === 'now') && !(await ev(`!!document.querySelector('#ls-menu .ls-topics .ls-item[data-id="now"]')`)), 'now (L9) sits in the main line, not under 专题');
     ok(menu.order === 'part,part,part,part,sandbox,old', 'order: 4 parts → 沙盒 link → 旧版课程 (' + menu.order + ')');
     ok(/沙盒/.test(menu.sand) && /free\//.test(menu.sand) && !/自由运行/.test(menu.sand), '沙盒 link (free mode): ' + menu.sand);
     ok(!menu.oldOpen && ['0', '0b', '5', '7', 'w1', 'w2'].every(x => menu.old.includes(x)), '旧版课程 (collapsed) holds lesson 0, 0.5, Capex 5, 自由运行 7, 世界 1 / 2');
@@ -156,7 +158,7 @@ try {
     ok(D.ids.every(x => counts[x] === 1), 'every lesson of LESSONS is in the menu exactly once' + (D.ids.filter(x => counts[x] !== 1).length ? ': missing/dup ' + D.ids.filter(x => counts[x] !== 1) : ''));
     await shot(`menu-${dev}`);
 
-    // ---- 2. the whole chain from the menu: m1 → shk → m2 → m3 → m4 → fx → m5 → inv ----
+    // ---- 2. the whole chain from the menu: m1 → shk → m2 → m3 → m4 → fx → m5 → inv → now ----
     await click('#ls-menu .ls-item[data-id="m1"]', 2500);
     const ORDER = D.course.main;
     for (let k = 0; k < ORDER.length; k++) {
@@ -246,6 +248,12 @@ try {
             await scrollCard('.ls-end'); await sleep(250); await shot(`ending-${dev}`);
             if (dev === 'phone') await click('#ls-card [data-act=expand]', 400);
           }
+          if (L.id === 'inv') {                              // ---- L8 投资者 last step (AUS view): the three blind links, before 下一课 → L9
+            ok(s.country === 'AUS' && /澳洲/.test(s.badge), 'inv runs in the AUS view: ' + s.badge);
+            const links = await ev(`[...document.querySelectorAll('#ls-panel a[href]')].map(a=>a.getAttribute('href')).join(' | ')`);
+            ok((links.match(/blind\/\?card=/g) || []).length === 3 && /USA-2006/.test(links) && /AUS-2015/.test(links), 'blind step: three practice-card links: ' + links);
+            await shot(`inv-blind-${dev}`);
+          }
           if (k < ORDER.length - 1) {
             const N = D.L[ORDER[k + 1]];
             ok(s.next.includes('下一课') && s.next.includes(N.title), `${tag}: 下一课 → ${N.title} (${s.next})`);
@@ -254,12 +262,10 @@ try {
         }
       }
     }
-    // ---- L8 投资者 specifics (still on its last step, AUS view) ----
+    // ---- L9 现在在哪 (the end of the chain): back in the US view ----
     let s = await state();
-    ok(s.country === 'AUS' && s.lesson === 'inv' && /澳洲/.test(s.badge), 'inv runs in the AUS view: ' + s.badge);
-    const links = await ev(`[...document.querySelectorAll('#ls-panel a[href]')].map(a=>a.getAttribute('href')).join(' | ')`);
-    ok((links.match(/blind\/\?card=/g) || []).length === 3 && /USA-2006/.test(links) && /AUS-2015/.test(links), 'blind step: three practice-card links: ' + links);
-    await shot(`inv-blind-${dev}`);
+    ok(s.country === 'USA' && s.lesson === 'now', `now (L9) runs in the US view (${s.country}, ${s.lesson})`);
+    // ---- L8 投资者 specifics (AUS view) ----
     await go('?pause=1&country=AUS&lesson=inv&step=1', 4000);
     await sleep(600);
     s = await state();
@@ -283,7 +289,7 @@ try {
     ok(!/澳洲/.test(s.badge) && s.layout === 'simple' && await shown('#simple') && !(await shown('#tabbar')), 'inv exit: US, simple mode (' + s.badge + ', ' + s.layout + ')');
     ok(s.panels.length === 0 && !s.lsPanel, 'inv exit: no panel left');
     const prog = await ev(`(()=>{try{return (JSON.parse(localStorage.getItem('mw.course')).done||[]).join()}catch(e){return ''}})()`);
-    ok(D.course.main.every(x => prog.split(',').includes(x)), 'progress.js mw.course has all 8 lessons: ' + prog);
+    ok(D.course.main.every(x => prog.split(',').includes(x)), 'progress.js mw.course has all 9 lessons: ' + prog);
 
     // ---- 4. 汇率: ‹ 上一步 swaps panels back, exit from a panel step ----
     await go(`?pause=1&lesson=fx&step=${D.L.fx.steps.length - 1}`, 3500);

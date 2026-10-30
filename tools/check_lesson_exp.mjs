@@ -17,7 +17,7 @@
 //                and shuffling the places table does not change the order
 //  7. browser    headless Edge (CDP) at 390×844 and 1024×768: ?lesson=exp opens it directly, every step mounts its panel (one at a time),
 //                exit unmounts it, no JS errors, no horizontal scroll, panel numbers = engine numbers, sliders / buttons react, the menu lists
-//                「专题：预期」 under 「专题」 outside the 8 lessons. --shots writes tools/shots/exp/*.png
+//                「专题：预期」 under 「专题」 outside the 9 lessons. --shots writes tools/shots/exp/*.png
 // Exit code 1 on any FAIL.
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -73,10 +73,10 @@ steps.forEach((st, i) => {
   ok(i === 0 || st.title.startsWith(`第 ${i} 步`), `step ${i + 1} title numbered: ${st.title}`);
 });
 ok(!LESSONS.some(l => l.id === 'exp'), 'not in LESSONS (main data list)');
-ok(![...COURSE.main, ...COURSE.legacy, ...COURSE.parts.flatMap(p => p.ids)].map(String).includes('exp'), 'not in COURSE (the 8 lessons / 旧版)');
+ok(![...COURSE.main, ...COURSE.legacy, ...COURSE.parts.flatMap(p => p.ids)].map(String).includes('exp'), 'not in COURSE (the 9 lessons / 旧版)');
 ok(!LESSON_ORDER.includes('exp'), 'not in LESSON_ORDER (no layer, not counted)');
-ok(COURSE.main.length === 8, 'main line still 8 lessons');
-{ const ui = src('src/ui/lessons.js'); ok(/TOPIC_LESSONS = \[LESSON_EXP\]/.test(ui) && /\.\.\.TOPIC_LESSONS\]/.test(ui), 'registered in src/ui/lessons.js (TOPIC_LESSONS, lookup)'); }
+ok(COURSE.main.length === 9, 'main line 9 lessons (L9 now = 现在在哪), exp not among them');
+{ const ui = src('src/ui/lessons.js'); ok(/TOPIC_LESSONS = \[LESSON_EXP\]/.test(ui) && /\.\.\.TOPIC_LESSONS\]/.test(ui) && !/TOPIC_LESSONS\.push\(/.test(ui), 'registered in src/ui/lessons.js (TOPIC_LESSONS = [LESSON_EXP], the only 专题; lookup)'); }
 const last = steps[steps.length - 1];
 ok(last.ending && ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'].every((q, k) => String(last.ending['q' + (k + 1)]).startsWith(q)), 'last step: the 三问 ending');
 ok(arr(last.text).join('').includes('预期看▽'), 'last step: 口诀 「预期看▽」');
@@ -339,7 +339,7 @@ async function browser() {
     const menu = await ev(`(() => ({ lead: document.querySelector('#ls-menu .ls-lead').textContent, main: document.querySelectorAll('#ls-menu .ls-main .ls-item').length,
       inMain: [...document.querySelectorAll('#ls-menu .ls-main .ls-item')].some(b => b.dataset.id === 'exp'), sec: document.querySelector('#ls-menu .ls-topic-h').textContent, parts: document.querySelectorAll('#ls-menu h3.ls-sec').length,
       item: (document.querySelector('#ls-menu .ls-topics .ls-item[data-id="exp"]') || {}).textContent || '' }))()`);
-    ok(menu.main === 8 && menu.parts === 4 && /8 课/.test(menu.lead) && !menu.inMain, `${tag}: the 8 main lessons unchanged (${menu.main}, 「${menu.lead.slice(0, 18)}」), exp not among them`);
+    ok(menu.main === 9 && menu.parts === 4 && /9 课/.test(menu.lead) && !menu.inMain, `${tag}: the 9 main lessons (${menu.main}, 「${menu.lead.slice(0, 18)}」), exp not among them`);
     ok(menu.sec.startsWith('专题') && menu.item.includes('专题：预期'), `${tag}: menu shows 「专题：预期」 under 「专题」`);
     if (shots && w === 390) { const r = await send('Page.captureScreenshot', { format: 'png' }); const f = resolve(SHOT_DIR, `exp-menu-${w}x${h}.png`); writeFileSync(f, Buffer.from(r.result.data, 'base64')); saved.push(f); }
     await ev(`document.querySelector('#ls-menu .ls-topics .ls-item[data-id="exp"]').click()`);

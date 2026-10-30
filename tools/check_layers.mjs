@@ -1,7 +1,7 @@
 // node tools/check_layers.mjs [--shots]   (serve the repo root first: python -m http.server 8351; BASE=http://localhost:PORT/ overrides; CDP 9551)
 // CDP check of the PROGRESSIVE DIAGRAM (tools/COURSE-V3.md; src/data/layers.js, src/ui/progress.js, app.js syncLayers, flow.js tagLayers):
 //  1. a first-time viewer sees L-water only (+ the 「显示全部」 toggle); every diagram part carries a data-layer; no untagged part
-//  2. markDone m1 .. inv step by step: the layers appear in order (diagram, dials, lamps, border band, map button); persisted across a reload
+//  2. markDone m1 .. inv, now step by step: the layers appear in order (diagram, dials, lamps, border band, map button); persisted across a reload
 //  3. mw:lesson-active { id } shows that lesson's layer + the earlier ones whatever the progress; { id: null } goes back; a ?lesson= URL too
 //  4. 「显示全部」: everything, persisted in localStorage mw.layers.all across a reload; ?layers=all = everything, not stored
 //  5. full mode (「更多」) = everything; back to 简洁 = layers again
@@ -120,7 +120,7 @@ try {
   await shot('ipad-1-water');
 
   // ---- 2. markDone m1 .. inv ----
-  const seq = [['m1', 0], ['shk', 1], ['m2', 2], ['m3', 3], ['m4', 4], ['fx', 5], ['m5', 5], ['inv', 6]];
+  const seq = [['m1', 0], ['shk', 1], ['m2', 2], ['m3', 3], ['m4', 4], ['fx', 5], ['m5', 5], ['inv', 6], ['now', 6]];   // L9 now: no layer of its own
   for (const [lid, k] of seq) {
     await markDone(lid);
     const la = await layersAttr();
@@ -162,6 +162,8 @@ try {
   ok(await ev(`document.querySelectorAll('#simple .sp-dial').length`) === 2 || await ev(`document.body.dataset.layout`) === 'simple', 'm3: dials follow');
   await lessonActive('m5');
   ok(await layersAttr() === upTo(5), 'mw:lesson-active m5 (no layer of its own): up to L-border');
+  await lessonActive('now');
+  ok(await layersAttr() === upTo(6), 'mw:lesson-active now (L9, no layer of its own): all 7 layers (' + await layersAttr() + ')');
   await lessonActive('3b');
   ok(await layersAttr() === 'OFF', 'mw:lesson-active of an old lesson: the whole diagram');
   await lessonActive(null);

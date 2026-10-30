@@ -1,5 +1,5 @@
-// 专题 lesson 「专题：预期」 (?lesson=exp; user-approved design 2026-10-30). NOT part of the 8-lesson main line: not in COURSE / LESSON_ORDER,
-// no layer, not counted in the menu's 「8 课」. Registered by src/ui/lessons.js (TOPIC_LESSONS) and listed in the menu under 「专题」.
+// 专题 lesson 「专题：预期」 (?lesson=exp; user-approved design 2026-10-30). NOT part of the 9-lesson main line: not in COURSE / LESSON_ORDER,
+// no layer, not counted in the menu's 「9 课」. Registered by src/ui/lessons.js (TOPIC_LESSONS) and listed in the menu under 「专题」.
 // Slimmed 2026-10-30 (user-approved): the BASIC part (the ruler ▶ / ▼ / ▽, the band, 开阀 / 结账, the five places, the loop) moved into
 // lesson L3 (m2, src/data/lessons.js), which mounts the same exp-* panels by id. This 专题 keeps only the advanced part, 7 steps:
 //   0 intro (先学完第 3 课; recap ruler)  1 the rope toy  2 沃尔克 / 日本  3 资产池没有绳  4 汇率上的绳  5 四条规律  6 三问
@@ -73,7 +73,7 @@ export const LESSON_EXP = {
   id: 'exp', kind: 'topic', label: '专题', badge: '预',
   title: '专题：预期',
   question: '▽ 什么时候拴得住，拴不住会怎样？',
-  oneLine: '先学完第 3 课。进阶：只有绳拴得住 ▽；绳松了，涨价拖很多年；资产池和浮动汇率没有绳，会冲过头。不在 8 课主线里，随时可看。',
+  oneLine: '先学完第 3 课。进阶：只有绳拴得住 ▽；绳松了，涨价拖很多年；资产池和浮动汇率没有绳，会冲过头。不在 9 课主线里，随时可看。',
   rulesOn: 'all',
   startDate: '2023Q4', endDate: '2023Q4', mode: 'history', available: true,
   steps: [
