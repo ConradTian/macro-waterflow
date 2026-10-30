@@ -4,9 +4,9 @@
 //     the ring path; 工资 / 利润 / 利息 / 税 (and the spring wire) leave from the weir box
 //  2. the groundwater band lies BELOW the river (y) and spans the width; its water table is below the 吸程线 exactly when the long cycle is
 //     B2 or stage ⑤ (US 2004Q1 / 2008Q4 / 2015Q1, read from the snapshot); 「地下的洞 = 欠款 x% GDP」 = the snapshot's private debt / GDP
-//  3. the RULER SLOT group (the 吸力 knob) exists with its reserved box (>= 26 x 110 viewBox units, >= 38 x 150 px at 1440 x 900),
-//     beside the cash lake / central bank, and the knob sits inside it
-//  4. phone 390 x 844: the place switch 河 / 湖 / 地下 (default 河); each place shows its own part of the picture and the knob stays on screen;
+//  3. the RULER SLOT group (the 吸力尺, tools/check_ruler_main.mjs checks its readings) exists with its reserved box (>= 26 x 110 viewBox units, >= 38 x 150 px at 1440 x 900),
+//     beside the cash lake / central bank, and the ruler sits inside it
+//  4. phone 390 x 844: the place switch 河 / 湖 / 地下 (default 河); each place shows its own part of the picture and the ruler stays on screen;
 //     no horizontal scroll; the panel grip is still there
 //  5. the valCapex caption (「历史模式里关着：…」) is visible in history mode (desktop line; phone: the 湖 card and a tap on the chip)
 //  6. no JS errors
@@ -63,9 +63,9 @@ const GEO = `(()=>{
   const tab = q('[data-lk="groundwater"] .gw-table'), lift = q('[data-lk="liftLine"] .gw-lift');
   const yOf = p => { const m = /M\\s*[-\\d.]+[ ,]+([-\\d.]+)/.exec(p.getAttribute('d') || ''); return m ? +m[1] : NaN; };
   const hole = q('[data-lk="groundwater"] .gw-hole') || q('.gw-hole');
-  const slot = q('[data-ruler-slot]'), rbox = slot && slot.querySelector('.ruler-box'), dial = slot && slot.querySelector('.sk-dial');
+  const slot = q('[data-ruler-slot]'), rbox = slot && slot.querySelector('.ruler-box'), dial = slot && slot.querySelector('.rl');
   const rb = rbox ? { x: +rbox.getAttribute('x'), y: +rbox.getAttribute('y'), w: +rbox.getAttribute('width'), h: +rbox.getAttribute('height') } : null;
-  const db = dial ? (() => { const r = dial.getBoundingClientRect(), s = rbox.getBoundingClientRect(); return { in: r.left >= s.left - 1 && r.right <= s.right + 1 && r.top >= s.top - 1 && r.bottom <= s.bottom + 1 }; })() : null;
+  const db = dial ? (() => { const r = dial.getBoundingClientRect(), s = rbox.getBoundingClientRect(); return { in: r.width > 0 && r.left >= s.left - 1.5 && r.right <= s.right + 1.5 && r.top >= s.top - 1.5 && r.bottom <= s.bottom + 1.5 }; })() : null;
   const cash = bb(q('rect[data-node="cash"]')), cb = bb(q('rect[data-node="cb"]'));
   const rpx = rbox ? rbox.getBoundingClientRect() : null;
   return JSON.stringify({ boxes, pos, mouths, spring0: [s0.x, s0.y], gw, ringB: bb(ring), tableY: yOf(tab), liftY: yOf(lift), hole: hole ? hole.textContent : null,
@@ -125,7 +125,7 @@ try {
     ok(G.hole === `地下的洞 = 欠款 ${pctTxt} GDP`, `${date}: 「${G.hole}」 = snapshot private debt / GDP ${pctTxt}`);
     if (date === '2008Q4') {
       ok(G.rb && G.rb.w >= 26 && G.rb.h >= 110, `RULER SLOT reserved box ${G.rb && G.rb.w}x${G.rb && G.rb.h} (viewBox units)`);
-      ok(G.db && G.db.in, 'the 吸力 knob sits inside the RULER SLOT box');
+      ok(G.db && G.db.in, 'the 吸力尺 (staff, band, marks) sits inside the RULER SLOT box');
       ok(G.rb && G.cash && Math.abs(G.rb.x + G.rb.w - G.cash.x) < 10 && G.rb.y <= G.cash.y + 5 && G.rb.y + G.rb.h >= G.cash.b - 5, 'the slot stands beside the cash lake / central bank, as tall as the lake row');
       // v3.1 polish: the caption lines sit behind 「说明」 in the toolbar row (a drop-down over the drawing)
       ok(await ev(`(()=>{const t=document.querySelector('.flow-v3cap .v3-vc'); return !!t && !t.hidden && t.getClientRects().length === 0})()`), 'history mode: the valCapex caption waits behind 「说明」 (not taking height)');
@@ -175,7 +175,7 @@ try {
       const r = JSON.parse(await ev(`(()=>{
         const svg = document.querySelector('#diagram .flow-svg'), s = svg.getBoundingClientRect(), w = document.querySelector('.flow-wrap');
         const vis = n => { if (!n) return false; for (let x = n; x && x !== svg; x = x.parentNode) if (getComputedStyle(x).display === 'none') return false; const r = n.getBoundingClientRect(); return r.width > 0 && r.left >= s.left - 2 && r.right <= s.right + 2 && r.top >= s.top - 2 && r.bottom <= s.bottom + 2; };
-        const knob = svg.querySelector('[data-ruler-slot] .sk-dial');
+        const knob = svg.querySelector('[data-ruler-slot] .rl-staff');
         const rr = n => { const r = n.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
         return JSON.stringify({ place: w.dataset.place, main: vis(svg.querySelector(${JSON.stringify(sel)})), knob: vis(knob), kr: rr(knob), svg: rr(svg), vb: svg.getAttribute('viewBox'),
           pressed: document.querySelector('.flow-places [data-place="${place}"]').getAttribute('aria-pressed'), card: (document.querySelector('.flow-place-card') || {}).textContent || '', hs: document.documentElement.scrollWidth <= innerWidth,
@@ -187,7 +187,7 @@ try {
       ok(r.cardH <= 60 && r.more, `${date} phone ${place}: the card is short (${r.cardH} px, 1–2 lines) with 「更多」`);
       ok(r.place === place && r.pressed === 'true', `${date} phone ${place}: switched (${r.place}, viewBox ${r.vb})`);
       ok(r.main, `${date} phone ${place}: the place's own drawing is on screen`);
-      ok(r.knob, `${date} phone ${place}: the 吸力 knob stays visible (${r.kr} in svg ${r.svg})`);
+      ok(r.knob, `${date} phone ${place}: the 吸力尺 stays visible (${r.kr} in svg ${r.svg})`);
       ok(r.hs, `${date} phone ${place}: no horizontal scroll at 390`);
       if (place === 'lake') ok(/历史模式里关着/.test(r.card), `${date} phone 湖: the card carries the valCapex caption`);
       await shot(`phone-${date}-${place}`);

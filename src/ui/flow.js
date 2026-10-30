@@ -31,7 +31,14 @@
 //   B4 every chip shows % of GDP, annualised (quarterly flow x 4 / GDP; the town keeps 万元). Tap a chip: popover with the amounts.
 //   B5 pipe colours: pump = blue +, drain = red -, every other pipe grey (classes pc-pump / pc-drain / pc-pipe, tokens in app.css).
 //   B6 asset pools: 历史正常区间 band (middle half, p25-p75, of the history-mode run 1995-2021 of the same country); above = 贵, below = 便宜.
-//   A3 实际利率 (rates.realPolicy) next to 政策利率, tappable (realRate card).
+//   A3 到手实际利率 ▶ − ▼（结账） (rates.realPolicy) next to 政策利率, tappable (realRate card).
+//
+// 吸力尺 on the main diagram (tools/DESIGN-v3.md 「Parked: 吸力尺」, user GO 「水尺上墙」): the RULER SLOT holds a vertical ruler drawn with
+//   exp-gauge.js RULER_STYLE (scaled by RUL.k into viewBox units): thin grey staff, wide band ▶ − ▽ (blue / red = rulerSign), ▶ = rates.policy,
+//   ▽ hollow = macro.inflationExp, ▼ filled = macro.inflation, 调度线 = cp.piTarget with ▽ on a rope (slack = macro.deanchor, a read-only
+//   export of the engine's S.dean; taut when absent). 真实 mode: no ▽, the band = ▶ − ▼ = 结账读数. A thin line runs from the river's CPI to ▼.
+//   When the band flips sign or widens past RUL.step, the parts flash in the engine-lag order of exp-gauge.js fiveTurns().order.
+//   Phone (<768px): ▶, ▽ and the band; a tap on the ruler adds ▼, the rope, the 调度线 and the 0-stop.
 //
 // Progressive diagram (tools/COURSE-V3.md, table src/data/layers.js): build() ends with tagLayers(), which gives every part a data-layer;
 //   app.js writes body.layers-on + body[data-layers]; CSS (app.css) hides the layers not listed. The border band only switches on (svg.has-border,
@@ -44,6 +51,8 @@ import { US_Q } from '../data/us-quarterly.js';
 import { LAYERS, LAYER_IDS, LAYER_OF, ROLE_VALVES, LAYER_SHORT } from '../data/layers.js';
 import { layerShown } from './progress.js';
 import { computeFxReactor, reactorSvg, reactorHtml, usdIndexAt, usdHtml, reactorLine, wireFxReactor, ensureFxReactorCss, installFxCardHook, openForcesIn } from './fx-reactor.js';
+// 吸力尺 (RULER SLOT): the lesson's look and rules, imported read-only (exp-gauge.js is DOM-free at import time)
+import { RULER_STYLE, rulerSign, fiveTurns, ropeOf, ropePx, ropeWord, sg as sgPct, pc as pcPct } from './exp-gauge.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 // v3.1 picture (tools/DESIGN-v3.md): three places stacked in one 390-wide drawing.
@@ -100,9 +109,16 @@ const POOLS = [
 const poolCx = p => p.x + TANK_W / 2;
 const PB = TANK_Y + TANK_H;                 // pool bottom (326)
 const SPRING_Y = 357;                       // the 泉眼 dots under the pools; the spring wire runs just under them
-// RULER SLOT (吸力): a fixed box at the left end of the lake row, beside the central bank + cash lake. Today it holds the knob; a tall
-// narrow 吸力尺 (vertical gauge, >= 40×160 px on desktop) can replace the knob later without moving anything else.
+// RULER SLOT (吸力): a fixed box at the left end of the lake row, beside the central bank + cash lake. It holds the 吸力尺 (the vertical
+// ruler of 「专题：预期」; it replaced the v3 knob without moving anything else).
 const SLOT = { x: 4, y: 200, w: 32, h: 156 };          // from the lane above the lake row down to the spring lane
+// the 吸力尺 inside the slot. k = viewBox units per RULER_STYLE px (the lesson's px, scaled to fit the 32-unit slot; every ratio is kept:
+// band 24 : staff 2). rx = the staff, top..bot = the scale lo..hi (fixed, clamped), step = the band change that triggers the flash.
+const RUL = { k: 0.5, rx: 17.5, top: 218, bot: 294, lo: -0.01, hi: 0.09, step: 0.01, stop: 0.005, flashStep: 420 };
+const RUL_HB = RULER_STYLE.band.open.half * RUL.k, RUL_SZ = RULER_STYLE.mark.size * RUL.k;
+RUL.xm = RUL.rx + RUL_HB + RUL_SZ + 0.5;                 // ▼ column
+RUL.xe = RUL.xm + 2 * RUL_SZ;                            // ▽ column (and its rope)
+const rulY = v => RUL.top + (RUL.hi - clamp(v, RUL.lo, RUL.hi)) / (RUL.hi - RUL.lo) * (RUL.bot - RUL.top);
 // 央行 box on top of the 现金湖 (cash lake = all the water, M); the pipe 现金 drops into the lake left of the box
 const CB = { x: 48, y: TANK_Y, w: 64, h: 42 };
 const CASH = { x: 38, w: 74, y: 268, h: PB - 268 };
@@ -472,7 +488,14 @@ function valveIcon(parent, v) {
   return g;
 }
 
-export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸';
+export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸，预期看▽';
+// the 4 physical rules behind the whole picture (legend card only; the same four as 「专题：预期」)
+const PHYS_RULES = [
+  ['质量守恒', '泵入 − 排出 = 水量变化：水不会凭空多出来，也不会凭空没了'],
+  ['按势差流动', '钱往吸力大的地方流：色带蓝，水往湖里存；色带红，往外抽'],
+  ['一阶滞后', '▽ 每季只追上 ▼ 的一部分：慢半拍，峰被削平、推后'],
+  ['带延迟的反馈控制', '央行看 ▼ 拧 ▶，几个季度后才传到河：来回超调'],
+];
 export const FISCAL_SPLIT_TXT = '假设一半由银行和央行买国债（新抽的水），一半由存款人买（从湖里挪过来）';
 const lk = (n, id) => { n.setAttribute('data-lk', id); return n; };
 
@@ -505,11 +528,12 @@ function syncView(R) {
   R.wrap.classList.toggle('pan-l', pm && vb[0] > 0.5);
   R.wrap.classList.toggle('pan-r', pm && vb[0] + vb[2] < VB_W - 0.5);
   R.placesEl.querySelectorAll('[data-place]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.place === R.place)));
-  // RULER SLOT: the 吸力 knob stays on screen in every place (moved to the left edge of the crop; in 河 / 地下 to its top-left corner)
+  // RULER SLOT: the 吸力尺 stays on screen in every place (moved to the left edge of the crop; in 河 / 地下 to its top-left corner, as a
+  // compact card: ▶ ▽ band + the reading)
   let tx = 0, dy = 0;
   if (pm) {
     tx = vb[0];
-    const top = R.place === 'lake' ? clamp(SLOT.y, vb[1] + 4, vb[1] + vb[3] - 112) : vb[1] + 6;
+    const top = R.place === 'lake' ? clamp(SLOT.y, vb[1] + 4, vb[1] + vb[3] - 152) : vb[1] + 6;
     dy = +(top - SLOT.y).toFixed(1);
   }
   if (R.v3 && R.v3.slot) {
@@ -755,9 +779,10 @@ function build(host) {
   txt(top, CB.x + 4, CB.y + 14, '央行', 'ttl', 'start', 'centralBank');
   let g = termGroup(top, 'policyRate', [CB.x + 1, CB.y + 18, CB.w - 2, 12], 'centralBank', 'rate');
   R.rate = txt(g, CB.x + 3, CB.y + 27.5, '', 'sub cbr');
-  // A3: 实际利率 = 政策利率 − 通胀 (rates.realPolicy), the real master valve (= the 吸力 knob)
+  // A3: 到手实际利率 ▶ − ▼（结账） = 政策利率 − 通胀 (rates.realPolicy); 吸力 itself (▶ − ▽) is the band on the 吸力尺 in the RULER SLOT
   g = termGroup(top, 'realRate', [CB.x + 1, CB.y + 30, CB.w - 2, 11], 'centralBank', 'realRate');
-  R.realRate = txt(g, CB.x + 3, CB.y + 38.5, '', 'sub cbr');
+  R.realRate = txt(g, CB.x + 3, CB.y + 38.5, '', 'sub cbr rr');
+  R.realRateT = el('title', {}, g);
   txt(top, GOV.x + 6, GOV.y + 15, '政府', 'ttl', 'start', 'government', 'gov');
   g = termGroup(top, 'govDebtGdp', null, 'government');
   el('rect', { x: GOV.x + 2, y: GOV.y + 22, width: 100, height: 15, rx: 5, fill: 'transparent' }, g);   // touch target only
@@ -851,7 +876,7 @@ function build(host) {
 }
 
 /* =====================================================================================================================
-   v3 PICTURE (tools/DESIGN-v3.md): 分水堰 + 泉眼线, 地下水 + 吸程线, 吸力 knob (RULER SLOT), 政府深井泵, role -> valves, the mnemonic.
+   v3 PICTURE (tools/DESIGN-v3.md): 分水堰 + 泉眼线, 地下水 + 吸程线, 吸力尺 (RULER SLOT), 政府深井泵, role -> valves, the mnemonic.
    Every new element carries data-lk = its contract id (src/data/layers.js keys) and data-part = its own id + the existing part it sits on,
    so a lesson that reveals the old part still shows it. Nothing here changes the engine; the readouts are read from the snapshot.
    ===================================================================================================================== */
@@ -892,25 +917,59 @@ function buildV3(R, top, wrap) {
     txt(lg, 284, GW.lift - 2, '吸程线（低于它 = 抽不上来）', 'cap gw-lt', 'end');
     el('title', {}, lg).textContent = '吸程线：地下水位掉到这条线下面，泵就抽不上来了（= B2）';
   }
-  // RULER SLOT: the 吸力 knob (central bank = the real rate) lives in this group, with a FIXED reserved box (SLOT, 32×156 viewBox units,
-  // ~40×160 px on a desktop) beside the central bank / cash lake. A later vertical 吸力尺 replaces what is inside the box; nothing else moves.
-  // On phones syncView() moves the whole group into the place on screen, so the knob stays visible in 河 / 湖 / 地下.
+  // RULER SLOT: the 吸力尺 (the vertical ruler of 「专题：预期」, user GO 「水尺上墙」) lives in this group, in the FIXED reserved box (SLOT,
+  // 32×156 viewBox units) beside the central bank / cash lake; nothing else moved. Marks and colours = exp-gauge.js RULER_STYLE × RUL.k.
+  // On phones syncView() moves the whole group into the place on screen, so the ruler stays visible in 河 / 湖 / 地下.
   {
-    const cx = SLOT.x + SLOT.w / 2;
-    const g = V.slot = V.suction = lk(part(el('g', { class: 'v3-suction', 'data-ruler-slot': '' }, top), 'centralBank suction'), 'suction');
+    const cx = SLOT.x + SLOT.w / 2, RS = RULER_STYLE, k = RUL.k, rx = RUL.rx, hb = RUL_HB;
+    const g = V.slot = V.suction = lk(part(el('g', { class: 'v3-suction', 'data-ruler-slot': '', role: 'button', tabindex: 0, 'aria-label': '吸力尺：点一下看 ▼ 和绳' }, top), 'centralBank suction'), 'suction');
     el('rect', { class: 'ruler-box', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: SLOT.h, rx: 6 }, g);
-    txt(g, cx, SLOT.y + 13, '吸力', 'cap sk-n', 'middle');
-    const kn = el('g', { transform: `translate(${cx} ${SLOT.y + 29})` }, g);
-    el('circle', { class: 'sk-dial', r: 8.5 }, kn);
-    V.skPtr = el('path', { class: 'sk-ptr', d: 'M0 0 V-7' }, kn);
-    V.skVal = txt(g, cx, SLOT.y + 50, '', 'cap sk-v', 'middle');
+    el('rect', { class: 'rl-bg', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: 110, rx: 6 }, g);      // phone 河 / 地下: a backing card (the box is hidden there)
+    V.skName = txt(g, SLOT.x + SLOT.w - 1.5, SLOT.y + 11, '吸力', 'cap sk-n', 'end');
+    const rl = V.rl = { g: el('g', { class: 'rl', 'data-lo': RUL.lo, 'data-hi': RUL.hi, 'data-top': RUL.top, 'data-bot': RUL.bot }, g) };
+    const sty = (n, o) => { for (const key in o) n.style.setProperty(key, o[key]); return n; };
+    for (let v = 0; v <= RUL.hi + 1e-9; v += 0.02) {
+      const y = rulY(v).toFixed(2);
+      sty(el('path', { class: 'rl-tick' + (v === 0 ? ' zero' : ''), d: `M${rx - hb - RS.tick.len * k} ${y} H${rx + hb}` }, rl.g), { 'stroke-opacity': v === 0 ? 0.9 : RS.tick.opacity });
+    }
+    // the thin grey staff (a rect, so its width is measurable) and the wide band over it
+    rl.staff = sty(el('rect', { class: 'rl-staff', x: rx - RS.staff.width * k / 2, y: RUL.top, width: RS.staff.width * k, height: RUL.bot - RUL.top }, rl.g), { fill: RS.staff.color });
+    rl.band = sty(el('rect', { class: 'rl-band', x: rx - hb, width: 2 * hb, y: RUL.top, height: 0, rx: RS.band.radius * k }, rl.g), { 'fill-opacity': RS.band.open.opacity });
+    // 0-stop (the floor under ▶): only while ▶ < RUL.stop
+    rl.stop = el('g', { class: 'rl-stop', display: 'none' }, rl.g);
+    el('path', { d: `M${SLOT.x + 1.5} ${rulY(0)} H${rx - hb}` }, rl.stop);
+    el('title', {}, rl.stop).textContent = '0 挡：政策利率到 0 附近，央行很难再往下拧';
+    // 调度线 (cp.piTarget) + the rope ▽ hangs on
+    rl.tgt = sty(el('path', { class: 'rl-tgt', d: '' }, rl.g), { stroke: RS.target.color, 'stroke-width': RS.target.width * k * 1.4, 'stroke-dasharray': '2.5 1.5' });
+    rl.rope = sty(el('path', { class: 'rl-rope', d: '' }, rl.g), { stroke: RS.rope.color });
+    rl.knot = sty(el('circle', { class: 'rl-rope rl-knot', r: 0, cx: RUL.xe, cy: 0, display: 'none' }, rl.g), { fill: RS.rope.color });
+    // marks: ▼ filled, ▽ hollow, ▶ (pointing at the band)
+    rl.m = sty(el('polygon', { class: 'rl-m', points: '' }, rl.g), { fill: RS.m.color });
+    rl.e = sty(el('polygon', { class: 'rl-e', points: '' }, rl.g), { fill: 'var(--surface)', stroke: RS.e.color, 'stroke-width': RS.e.stroke * k * 1.2 });
+    rl.p = sty(el('polygon', { class: 'rl-p', points: '' }, rl.g), { fill: RS.p.color });
+    for (const key of ['m', 'e', 'p']) rl[key + 'T'] = el('title', {}, rl[key]);
+    V.skVal = txt(g, cx, SLOT.y + 104, '', 'cap sk-v', 'middle');
     V.skTitle = el('title', {}, g);
     const s1 = V.suctionSave = lk(part(el('g', { class: 'v3-sarrow' }, g), 'centralBank suction'), 'suctionSave');
-    V.saveT1 = txt(s1, cx, SLOT.y + 67, '存湖', 'cap sk-a', 'middle');
-    V.saveT = txt(s1, cx, SLOT.y + 76, '', 'cap sk-a sk-b', 'middle');
+    V.saveT1 = txt(s1, cx, SLOT.y + 117, '存湖', 'cap sk-a', 'middle');
+    V.saveT = txt(s1, cx, SLOT.y + 126, '', 'cap sk-a sk-b', 'middle');
     const s2 = V.suctionPump = lk(part(el('g', { class: 'v3-sarrow' }, g), 'centralBank suction'), 'suctionPump');
-    V.pumpT1 = txt(s2, cx, SLOT.y + 92, '抽水', 'cap sk-a', 'middle');
-    V.pumpT = txt(s2, cx, SLOT.y + 101, '', 'cap sk-a sk-b', 'middle');
+    V.pumpT1 = txt(s2, cx, SLOT.y + 139, '抽水', 'cap sk-a', 'middle');
+    V.pumpT = txt(s2, cx, SLOT.y + 148, '', 'cap sk-a sk-b', 'middle');
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); g.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } });
+  }
+  // the loop 河 → ▼ → 央行 → ▶: a thin line from the river's CPI (测流断面) to ▼, round the left edge (outside the ring and the household)
+  // and in over the top of the slot, down the ▼ column. Two pieces with the same id: the outer one in the BACK layer (chips and boxes
+  // draw over it), the inner one inside the slot (over the slot's box). Its ▼ end follows ▼ (applyRuler).
+  {
+    const tip = '河里量出来的 CPI = 尺上的 ▼：央行看 ▼ 拧 ▶（河 → ▼ → 央行 → ▶）';
+    const g = V.cpiLine = lk(part(el('g', { class: 'v3-rlcpi' }, R.svg.children[0]), 'channel suction'), 'cpiLine');
+    el('path', { class: 'rl-cpi', d: `M${CH_X0} ${CH_Y + 28} H${SLOT.x + 1.2} V${SLOT.y}` }, g);
+    el('circle', { class: 'rl-cpi-dot', cx: CH_X0, cy: CH_Y + 28, r: 1.6 }, g);
+    el('title', {}, g).textContent = tip;
+    const gi = V.cpiLineIn = lk(part(el('g', { class: 'v3-rlcpi in' }, V.slot), 'channel suction'), 'cpiLine');
+    V.cpiPath = el('path', { class: 'rl-cpi', d: '' }, gi);
+    el('title', {}, gi).textContent = tip;
   }
   // 政府深井泵: the deficit drawn as two streams (fInj = 0.5 stays in the engine; this is only the picture)
   {
@@ -958,7 +1017,7 @@ export function groundwaterDepth(long) {
   return clamp(d, 0, 1);
 }
 
-function applyV3(R, snap) {
+function applyV3(R, snap, prevSnap) {
   const V = R.v3;
   if (!V) return;
   // 地下水位: read from the existing B2 evidence only (groundwaterDepth); BELOW the 吸程线 exactly when the long cycle is B2 or ⑤
@@ -977,16 +1036,12 @@ function applyV3(R, snap) {
   V.gwStat.textContent = stat;
   V.gwStat.classList.toggle('below', below);
   R.gwTitle.textContent = stat + '。地下水位跌破吸程线 = B2（抽不上来）。' + (L?.forkSignal || '');
-  // 吸力 = the real policy rate
-  const rr = snap?.rates?.realPolicy;
-  const ok = typeof rr === 'number' && isFinite(rr);
-  const ang = ok ? clamp(rr / 0.05, -1, 1) * 75 : 0;
-  V.skPtr.setAttribute('transform', `rotate(${ang.toFixed(1)})`);
-  V.suction.classList.toggle('neg', ok && rr < 0);
-  V.skTitle.textContent = `吸力旋钮（央行）= 实际利率 ${ok ? pct(rr) : '—'}。高：存湖划算、抽水贵；低：存湖不划算、抽水便宜。预期不单独画：它藏在吸力和「怕」里。`;
-  V.skVal.textContent = ok ? pctTxt(rr) : '';
-  V.saveT.textContent = !ok ? '' : rr >= 0 ? '划算↑' : '不划算';
-  V.pumpT.textContent = !ok ? '' : rr >= 0 ? '贵↑' : '便宜';
+  // 吸力尺: ▶ − ▽ (真实 mode: ▶ − ▼ = 结账读数)
+  const RD = rulerRead(snap);
+  applyRuler(R, RD);
+  const ok = RD.band != null, rr = RD.band;
+  const realRr = snap?.rates?.realPolicy, realOk = typeof realRr === 'number' && isFinite(realRr);
+  maybeFlash(R, RD, prevSnap && prevSnap.date !== snap?.date ? rulerRead(prevSnap) : null);
   // 股价 → Capex: the visible caption while it is shut (desktop line under the diagram; phone: the 湖 card and a tap on the chip)
   const shut = valCapexState(snap) !== 'on';
   if (V.vc) V.vc.hidden = !shut;
@@ -996,13 +1051,134 @@ function applyV3(R, snap) {
   R.cards = {
     river: { s: `<b>河 · 现在的收入</b>一个环：<b>我花的 = 你赚的</b>。`,
       l: `家庭花钱 → 测流断面（宽 = 产能，水位 = 物价，流量 = GDP）→ 企业收到 → 分水堰分成 工资 / 利润 / 利息 / 税，工资回到家庭。` },
-    lake: { s: `<b>湖 · 存着的钱</b>现金湖 + 资产池。<span class="fpc-in" data-layer="L-short">吸力${ok ? ' ' + pctTxt(rr) : ''}：存湖划不划算。</span>`,
-      l: `资产池 = 国债、黄金、股票、房产。<span data-layer="L-short">吸力（央行的旋钮 = 实际利率${ok ? ' ' + pctTxt(rr) : ''}）：存湖划不划算、抽水贵不贵。</span>` +
+    lake: { s: `<b>湖 · 存着的钱</b>现金湖 + 资产池。<span class="fpc-in" data-layer="L-short">${RD.real ? '结账读数' : '吸力'}${ok ? ' ' + pctTxt(rr) : ''}：存湖划不划算。</span>`,
+      l: `资产池 = 国债、黄金、股票、房产。<span data-layer="L-short">${RD.real ? '结账读数 ▶ − ▼（真实数据里没有 ▽）' : '吸力 = 色带 ▶ − ▽'}${ok ? ' ' + pctTxt(rr) : ''}：存湖划不划算、抽水贵不贵。开阀看 ▽，结账看 ▼。` +
+        `到手实际利率 ▶ − ▼（结账）${realOk ? ' ' + pctTxt(realRr) : ''}。点尺子看 ▼ 和绳。</span>` +
         (shut ? `<span class="fpc-vc" data-layer="L-assets">股价 → Capex · 关：${VALCAPEX_SHUT}</span>` : '') },
     ground: { s: `<b>地下 · 未来的收入</b>抽水 = 借未来的收入，回灌 = 还本。<span class="fpc-in" data-layer="L-long">${esc(hole)}。</span>`,
       l: `抽水（放贷）把未来的收入抽上来，回灌（还本）还回去。<span data-layer="L-long">${esc(stat)}。</span>` },
   };
   fillPlaceCard(R);
+}
+
+/* ---------- 吸力尺 (RULER SLOT) ---------- */
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
+// what the ruler reads from a snapshot. real = 真实 mode (or no ▽ in the snapshot): ▽ hidden, the band = ▶ − ▼ (结账读数)
+export function rulerRead(snap) {
+  const p = snap?.rates?.policy, m = snap?.macro?.inflation, e0 = snap?.macro?.inflationExp;
+  const real = snap?.branch === 'real' || !!snap?.valueState || !isNum(e0);
+  const e = real ? null : e0, bottom = real ? m : e;
+  const band = isNum(p) && isNum(bottom) ? p - bottom : null;
+  let rope = null;
+  try { rope = ropeOf(curInfo().iso); } catch (err) { try { rope = ropeOf('USA'); } catch (err2) { rope = null; } }
+  return { p: isNum(p) ? p : null, m: isNum(m) ? m : null, e, real, bottom: isNum(bottom) ? bottom : null, band,
+    sign: band == null ? null : rulerSign(p, bottom), target: rope && isNum(rope.target) ? rope.target : null,
+    anchor: rope ? rope.anchor : null, dean: isNum(snap?.macro?.deanchor) ? snap.macro.deanchor : null, date: snap?.date };
+}
+const triPts = (x, y, dir, s = RUL_SZ) => (dir === 'r' ? `${x},${y} ${x - 2 * s},${y - s} ${x - 2 * s},${y + s}` : `${x},${y} ${x - s},${y - 1.7 * s} ${x + s},${y - 1.7 * s}`);
+function applyRuler(R, D) {
+  const V = R.v3, rl = V.rl, RS = RULER_STYLE, k = RUL.k, rx = RUL.rx, hb = RUL_HB, f = v => v.toFixed(2);
+  const show = (n, on) => { if (on) n.removeAttribute('display'); else n.setAttribute('display', 'none'); };
+  V.suction.classList.toggle('rl-real', D.real);
+  V.suction.classList.toggle('neg', D.sign === 'red');
+  V.suction.classList.toggle('blue', D.sign === 'blue'); V.suction.classList.toggle('red', D.sign === 'red');
+  V.suction.dataset.mode = D.real ? 'real' : 'open';
+  // ▶
+  show(rl.p, D.p != null);
+  if (D.p != null) { rl.p.setAttribute('points', triPts(rx - hb - 0.5, f(rulY(D.p)), 'r')); rl.p.dataset.v = String(D.p); rl.pT.textContent = `▶ 政策利率 ${pcPct(D.p, 2)}`; }
+  // ▼
+  show(rl.m, D.m != null);
+  if (D.m != null) { rl.m.setAttribute('points', triPts(RUL.xm, f(rulY(D.m)), 'd')); rl.m.dataset.v = String(D.m); rl.mT.textContent = `▼ 物价比一年前 ${pcPct(D.m)}（量出来的）`; }
+  // ▽ (none in 真实 mode)
+  show(rl.e, D.e != null);
+  if (D.e != null) { rl.e.setAttribute('points', triPts(RUL.xe, f(rulY(D.e)), 'd')); rl.e.dataset.v = String(D.e); rl.eT.textContent = `▽ 心里的涨价速度 ${pcPct(D.e)}`; }
+  else delete rl.e.dataset.v;
+  // the band ▶ − ▽ (or ▶ − ▼): its colour = rulerSign
+  show(rl.band, D.band != null);
+  if (D.band != null) {
+    const a = rulY(D.p), b = rulY(D.bottom), y0 = Math.min(a, b), h = Math.max(RS.band.minHeight * k, Math.abs(a - b));
+    rl.band.setAttribute('y', f((y0 + Math.max(a, b)) / 2 - h / 2)); rl.band.setAttribute('height', f(h));
+    rl.band.setAttribute('class', `rl-band ${D.real ? 'real' : 'open'} ${D.sign}`);
+    rl.band.style.setProperty('fill', RS[D.sign].color);
+    Object.assign(rl.band.dataset, { v: String(D.band), top: String(D.p), bot: String(D.bottom), sign: D.sign });
+  }
+  // 0-stop: only when ▶ < 0.5%
+  show(rl.stop, D.p != null && D.p < RUL.stop);
+  // 调度线 + rope (▽ only): taut unless the engine's S.dean (macro.deanchor) is there; thickness ∝ the anchor (ropePx)
+  const tg = D.target, hasT = tg != null;
+  rl.tgt.setAttribute('d', hasT ? `M${rx - hb - RS.tick.len * k} ${f(rulY(tg))} H${SLOT.x + SLOT.w - 1}` : '');
+  if (hasT) rl.tgt.dataset.v = String(tg);
+  let rope = '', knot = false;
+  if (hasT && D.e != null) {
+    const yt = rulY(tg), ye = rulY(D.e), y1 = ye < yt ? ye : ye - 1.7 * RUL_SZ, w = Math.max(0.6, ropePx(D.anchor ?? 0.0364) * k), d = clamp(D.dean ?? 0, 0, 1);
+    rl.rope.style.setProperty('stroke-width', f(w));
+    if (Math.abs(y1 - yt) <= 1) { knot = true; rl.knot.setAttribute('cy', f(yt)); rl.knot.setAttribute('r', f(w / 2 + 0.6)); }
+    else rope = D.dean == null ? `M${RUL.xe} ${f(yt)} L${RUL.xe} ${f(y1)}` : `M${RUL.xe} ${f(yt)} Q${f(RUL.xe + 1.5 + d * 30 * k)} ${f((yt + y1) / 2)} ${RUL.xe} ${f(y1)}`;
+  }
+  rl.rope.setAttribute('d', rope); show(rl.knot, knot);
+  rl.rope.dataset.taut = String(D.dean == null);
+  // the CPI → ▼ line: from the 测流断面 (CPI row) round the left edge, in over the slot top, down the ▼ column to ▼'s top
+  if (V.cpiPath) {
+    const ok = D.m != null, yTop = ok ? rulY(D.m) - 1.7 * RUL_SZ - 0.8 : 0;
+    V.cpiPath.setAttribute('d', ok ? `M${SLOT.x + 1.2} ${SLOT.y} V${RUL.top - 3.5} H${RUL.xm} V${f(Math.max(RUL.top - 3.5, yTop))}` : '');
+    V.cpiLine.classList.toggle('off', !ok); V.cpiLineIn.classList.toggle('off', !ok);
+  }
+  // texts
+  V.skName.textContent = D.real ? '结账读数' : '吸力';
+  V.skName.setAttribute('class', 'cap sk-n' + (D.real ? ' rl-realname' : ''));
+  V.skVal.textContent = D.band == null ? '' : sgPct(D.band);
+  V.skVal.setAttribute('class', 'cap sk-v ' + (D.sign || ''));
+  V.saveT.textContent = D.band == null ? '' : D.sign === 'blue' ? '划算↑' : '不划算';
+  V.pumpT.textContent = D.band == null ? '' : D.sign === 'blue' ? '贵↑' : '便宜';
+  for (const n of [V.suctionSave, V.suctionPump]) { n.classList.toggle('blue', D.sign === 'blue'); n.classList.toggle('red', D.sign === 'red'); }
+  const word = D.sign ? RS[D.sign].word : '';
+  V.skTitle.textContent = D.real
+    ? `结账读数 = ▶ − ▼ ${D.band == null ? '—' : sgPct(D.band)}（${word}）。真实数据里没有 ▽（心里的涨价速度），所以这里只能看结账。开阀看 ▽，结账看 ▼。`
+    : `吸力尺：▶ 政策利率 ${pcPct(D.p, 2)}，▽ 心里的涨价速度 ${pcPct(D.e)}，▼ 物价比一年前 ${pcPct(D.m)}。色带 = 吸力 ▶ − ▽ = ${D.band == null ? '—' : sgPct(D.band)}（${word}）。` +
+      `开阀看 ▽，结账看 ▼。调度线 = 目标 ${tg == null ? '—' : pcPct(tg, 0)}，▽ 挂在绳上（绳${D.dean == null ? '拉紧' : ropeWord(D.dean)}）。`;
+}
+// the flash: when the band flips colour or widens past a step (RUL.step), the parts light up in the engine's lag order = exp-gauge.js
+// fiveTurns().order (computed from the US engine replay; never typed here). Gentle, short; none with reduced motion.
+let FIVE_ORDER = null;
+function fiveOrder() {
+  if (FIVE_ORDER == null) { try { FIVE_ORDER = fiveTurns().order || []; } catch (e) { FIVE_ORDER = []; } }
+  return FIVE_ORDER;
+}
+try { if (typeof window !== 'undefined') setTimeout(() => { try { fiveOrder(); } catch (e) { /* ignore */ } }, 1500); } catch (e) { /* ignore */ }   // warm the replay off the first paint
+const FLASH_PARTS = {
+  lake: R => [R.svg.querySelector('rect[data-node="cash"]')],
+  pool: R => POOLS.map(p => R.pools[p.id].box),
+  pump: R => [R.pipes.newLoans.icon],
+  river: R => [R.river],
+};
+export function rulerFlashNeeded(cur, prev) {
+  if (!cur || !prev || cur.band == null || prev.band == null || cur.real !== prev.real) return false;
+  if (cur.sign !== prev.sign) return true;
+  return Math.floor(Math.abs(cur.band) / RUL.step + 1e-9) > Math.floor(Math.abs(prev.band) / RUL.step + 1e-9);
+}
+function maybeFlash(R, cur, prev) {
+  const V = R.v3;
+  if (!prev || !rulerFlashNeeded(cur, prev)) return;
+  const key = prev.date + '>' + cur.date + (cur.real ? 'r' : 'm');
+  if (V.flashKey === key) return;      // the same step re-rendered (band ranges, resize): flash once
+  V.flashKey = key;
+  const order = fiveOrder();
+  if (!order.length) return;
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  clearTimeout(V.flashT);
+  R.svg.querySelectorAll('.rl-flash').forEach(n => { n.classList.remove('rl-flash'); n.style.removeProperty('animation-delay'); });
+  R.wrap.style.setProperty('--rl-flash', RULER_STYLE[cur.sign].color);
+  order.forEach((grp, i) => grp.forEach(id => (FLASH_PARTS[id] ? FLASH_PARTS[id](R) : []).forEach(n => {
+    if (!n) return;
+    n.dataset.rlFlash = String(i);
+    if (reduce) return;
+    void n.getBoundingClientRect();
+    n.style.setProperty('animation-delay', i * RUL.flashStep + 'ms');
+    n.classList.add('rl-flash');
+  })));
+  V.suction.dataset.flash = order.map(g => g.join('+')).join('>');
+  V.suction.dataset.flashAt = key;
+  V.flashT = setTimeout(() => R.svg.querySelectorAll('.rl-flash').forEach(n => { n.classList.remove('rl-flash'); n.style.removeProperty('animation-delay'); }), order.length * RUL.flashStep + 1000);
 }
 
 // role -> valves (src/data/layers.js ROLE_VALVES): glow that role's valves / parts, dim the other valves. null = clear.
@@ -1093,6 +1269,7 @@ function legendHtml() {
   ];
   return `<div class="fl-head"><b>图例</b><button type="button" class="fl-x" data-act="legend" aria-label="关闭">✕</button></div>` +
     rows.map(([ic, t, d]) => `<div class="fl-row">${ic}<span><b>${t}</b><small>${d}</small></span></div>`).join('') +
+    `<div class="fl-laws"><b>四条水文规律</b>${PHYS_RULES.map(([n, d]) => `<div class="fl-law" data-law="${n}"><b>${n}</b>：${d}</div>`).join('')}</div>` +
     `<div class="fl-note fl-mn"><b>${MNEMONIC}</b></div><div class="fl-note">带下划线的词可以点开看解释；点底部「本季水量」看泵入 / 排出明细。</div>`;
 }
 
@@ -1507,7 +1684,9 @@ function setTexts(R, snap, prevSnap, st) {
   // main drain icon follows principalRepay (icon registered above)
   R.rate.textContent = `政策利率 ${pct(snap.rates?.policy ?? 0, 2)}`;
   { const rr = snap.rates?.realPolicy ?? ((snap.rates?.policy ?? 0) - (m.inflation ?? 0));
-    R.realRate.textContent = `实际 ${pctTxt(rr)}`; R.realRate.classList.toggle('neg', rr < -0.0005); }
+    // 到手实际利率 ▶ − ▼（结账）: the box is 64 units wide, so the tag reads 「到手 ▶−▼ x%」 and its title carries the full name
+    R.realRate.textContent = `到手 ▶−▼ ${pctTxt(rr)}`; R.realRate.classList.toggle('neg', rr < -0.0005);
+    if (R.realRateT) R.realRateT.textContent = `到手实际利率 ▶ − ▼（结账）= ${pctTxt(rr)}：存钱的人扣掉物价上涨后真正到手的。开阀看 ▽，结账看 ▼。`; }
   R.gov.textContent = `债务/GDP ${pct(snap.gov?.debtGdp ?? 0, 0)}`;
   { const gq = snap.gov?.spendingGross != null ? snap.gov.spendingGross * 0.25 : (f.taxes ?? 0) + (snap.gov?.deficit ?? 0) * 0.25;   // quarterly gross outlays = taxes + deficit
     R.govGross.textContent = `总支出 ${town ? fmtMoney(gq, town) : Math.round(gq)}`; }
@@ -1859,6 +2038,8 @@ function wireEvents(host, R) {
     // phone: the 河 / 湖 / 地下 place switch
     const pl = tg && tg.closest('.flow-places [data-place]');
     if (pl) { e.preventDefault(); R.place = pl.dataset.place; R.cpop.hidden = true; closeValvePopover(); syncView(R); return; }
+    // phone: a tap on the 吸力尺 adds ▼, the rope, the 调度线 and the 0-stop (tap again: back to ▶ / ▽ / the band)
+    if (tg && tg.closest('[data-ruler-slot]') && isPhone()) { e.preventDefault(); const on = !R.wrap.classList.contains('rl-open'); R.wrap.classList.toggle('rl-open', on); R.v3.suction.setAttribute('aria-expanded', String(on)); return; }
     // 「还有 n 层没显示」 hint = the 「显示全部」 button (app.js owns the toggle and the stored state)
     if (tg && tg.closest('.flow-lhint')) { e.preventDefault(); const t = document.getElementById('layers-toggle'); if (t) t.click(); return; }
     // phone place card: 「更多」 opens the rest of the card (the drawing gives up the height it needs)
@@ -2036,7 +2217,7 @@ export function renderFlow(host, snap, prevSnap) {
   st.snap = snap; st.prev = prevSnap || null;
   const tgt = targets(snap, prevSnap, st);
   setTexts(st.R, snap, prevSnap, st);
-  applyV3(st.R, snap);
+  applyV3(st.R, snap, prevSnap);
   updateMarks(st, snap);
   syncDangling(host);
 

@@ -25,7 +25,7 @@ export const LAYERS = [
     // the bank's own readout + valves, 付息, the collateral loop and the house pool it reads, the central bank with its policy rate valve
     parts: ['bank', 'interest', 'poolHousing', 'centralBank', 'suction'],
     pipes: ['interestPaid', 'collateral', 'toHousing'], nodes: ['approval', 'rate'], valves: ['policyRate', 'approval', 'lvrCap', 'borrowMult'],
-    keys: ['suction', 'suctionSave', 'suctionPump'],
+    keys: ['suction', 'suctionSave', 'suctionPump', 'cpiLine'],   // cpiLine: the thin line CPI (河) → ▼ on the 吸力尺 (both ends shown by L-short)
     extras: ['dialShort'] },
   { id: 'L-long', name: '两个环怎么接上',
     parts: ['iou', 'groundwater', 'liftLine'], keys: ['groundwater', 'liftLine'],   // 欠条箱 (v3: 地下水 band + 吸程线 on it) + the dashed 放贷 → 欠条 link and its caption
