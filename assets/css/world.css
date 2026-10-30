@@ -124,11 +124,24 @@
 .wm-note { margin: 2px 0 6px; }
 .wm-cardin h3 { margin: 0 0 6px; font-size: 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .wm-cardin h3 small { font-size: 12.5px; color: var(--muted); font-weight: 400; display: inline-flex; gap: 8px; align-items: baseline; }
-.wm-rd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 4px; }
-.wm-rd > div { background: var(--surface-2); border-radius: 10px; padding: 6px 10px; min-width: 0; }
-.wm-rd dt { color: var(--muted); font-size: 12px; }
-.wm-rd dd { margin: 0; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; }
-.wm-rd dd small { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); line-height: 1.35; }
+/* the card's three layers = the box icon in words: 河 / 湖吸力 / 地下 (one row each) */
+.wm-lys { display: flex; flex-direction: column; gap: 6px; margin: 0 0 4px; }
+.wm-ly { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 8px; align-items: baseline; background: var(--surface-2);
+  border-radius: 10px; border-left: 4px solid var(--ly-c, var(--accent)); padding: 6px 10px; min-width: 0; }
+.wm-ly.ground { border-left-color: #9a7b4f; }
+.wm-ly-k { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.wm-ly-v { display: block; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.wm-ly small { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.wm-def { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text); }
+.wm-ly .wm-def { padding-top: 4px; border-top: 1px dashed #d8cbb6; }
+.wm-hint .wm-def { padding: 4px 8px; border-left: 3px solid #9a7b4f; background: #f7f2ea; font-size: 12.5px; }
+/* tap the 地下 row of a box: its one-line definition floats under the row */
+.wm-layers .wm-l-hit { fill: transparent; pointer-events: all; cursor: help; }
+.wm-tip { position: absolute; z-index: 3; box-sizing: border-box; padding: 7px 10px; border-radius: 10px; background: var(--surface);
+  border: 1.5px solid #9a7b4f; box-shadow: 0 4px 14px rgba(0, 0, 0, .14); font-size: 12.5px; line-height: 1.45; cursor: pointer; }
+.wm-tip[hidden] { display: none; }
+.wm-tip b { display: block; font-size: 13px; }
+.wm-tip span { display: block; color: var(--text); }
 .wm-line { margin: 6px 0; font-size: 13.5px; }
 .wm-partners { margin: 6px 0 10px; font-size: 13.5px; }
 .wm-partners ol { margin: 2px 0 0; padding-left: 20px; }
@@ -151,9 +164,9 @@
   .wm-act { position: sticky; bottom: calc(-12px - var(--safe-b)); margin: 0 calc(-1 * var(--gutter)); padding: 6px var(--gutter) calc(10px + var(--safe-b)); background: var(--surface); border-top: 1px solid var(--border); }
   .wm-hint .wm-more { display: none; }
   .wm-hint { font-size: 13.5px; } .wm-hint p { margin: 3px 0; }
-  .wm-rd { gap: 5px; } .wm-rd > div { padding: 4px 8px; }
-  .wm-rd dd { font-size: 17px; }
-  .wm-rd dd small { font-size: 11px; }
+  .wm-lys { gap: 5px; } .wm-ly { padding: 4px 8px; gap: 6px; grid-template-columns: 3.9em minmax(0, 1fr); }
+  .wm-ly-v { font-size: 15.5px; }
+  .wm-ly small { font-size: 11px; }
   .wm-card { padding-top: 8px; }
   .wm-cardin h3 { font-size: 16px; margin-bottom: 4px; }
   .wm-enter { min-height: 44px; }

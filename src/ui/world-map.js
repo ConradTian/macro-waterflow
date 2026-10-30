@@ -1,5 +1,6 @@
-// 地图 page: a schematic world (not a GIS map) laid over the whole app. Seven lumped boxes = small reservoirs with four readings
-// (资产 / 债务 / 利率 / 大环), pipes between them in the same visual language as the main diagram (dashed, animated, width = amount),
+// 地图 page: a schematic world (not a GIS map) laid over the whole app. Seven lumped boxes = small reservoirs with a mini 3-layer icon
+// (河 = 物价, 湖吸力 = 实际利率, 地下 = 私人欠款/GDP 比自己平均 洞深 / 洞浅 N 点; the selected country's card repeats the same three
+// layers in words), pipes between them in the same visual language as the main diagram (dashed, animated, width = amount),
 // and the USD as "the world's big reservoir" under the USA box. Data: src/data/world.js (annual, USD bn) + countries/index.js (readiness).
 // app.js owns the open/close wiring (button, ?map=1, mw:map event); this module owns the DOM inside the host element.
 //   openWorldMap(host, { year, select, country, onEnter(iso), onClose() })   closeWorldMap()   selectOnMap(iso|null)   isMapOpen()
@@ -46,9 +47,15 @@ const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
 const nameOf = iso => WORLD.countries[iso]?.name || iso;
 const fmtBn = v => v == null ? '—' : v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + '万亿' : Math.round(v) + '十亿';
 const fmtPct0 = v => v == null ? '—' : Math.round(v * 100) + '%';
-const fmtPct1 = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+const fmtPct1 = v => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%';
+// 地下: private debt/GDP minus the country's own average over all its years in WORLD (1995–2025; 欧元区 from 1999).
+// + = more debt than usual = the hole is DEEPER (洞深). Within ±5 points = 平常.
+const GW_FLAT = 0.05;
+const gwWord = gw => gw == null ? '—' : gw > GW_FLAT ? `洞深 +${Math.round(gw * 100)}点` : gw < -GW_FLAT ? `洞浅 −${Math.round(-gw * 100)}点` : '平常';
+const gwDef = span => `地下 = 私人欠款占 GDP，比自己 ${span} 平均高（洞更深）或低多少个百分点`;
+const SPAN_ALL = () => `${WORLD.years[0]}–${WORLD.years[WORLD.years.length - 1]}`;
 
-const st = { host: null, opts: null, year: 2008, sel: null, kind: 'all', open: false, last: null, ro: null, cover: {} };
+const st = { host: null, opts: null, year: 2008, sel: null, kind: 'all', open: false, last: null, ro: null, cover: {}, tip: null };
 let els = {};
 
 /* ---------- data access ---------- */
@@ -59,8 +66,8 @@ const tradeV = (a, b) => at(WORLD.trade?.[a]?.[b]);
 function readings(iso) {
   const c = WORLD.countries[iso] || {};
   const pvt = ser(iso, 'pvtDebtGdp'), gov = ser(iso, 'govDebtGdp');
-  return { gdp: ser(iso, 'gdpUsd'), house: ser(iso, 'houseReal'), pvt, gov, debt: pvt != null && gov != null ? pvt + gov : null,
-    rate: ser(iso, 'policyRate'), stage: c.longStage || null, fx: ser(iso, 'fxPerUsd'), ccy: c.ccy };
+  return { gdp: ser(iso, 'gdpUsd'), pvt, gov, debt: pvt != null && gov != null ? pvt + gov : null,
+    rate: ser(iso, 'policyRate'), fx: ser(iso, 'fxPerUsd'), ccy: c.ccy };
 }
 
 /* ---------- geometry ---------- */
@@ -404,30 +411,34 @@ function boxSvg(b, L) {
     ${layersSvg(b, L, r, col)}
   </g>`;
 }
-// the mini 3-layer icon: 河 (inflation), 湖 (suction = REAL policy rate), 地下 (private debt/GDP vs its own 1995–now mean)
+// the mini 3-layer icon: 河 (inflation), 湖 (suction = REAL policy rate), 地下 (private debt/GDP vs its own average over all its years)
 export function layersIcon(iso, year = st.year) {
   const k = clamp(WORLD.years.indexOf(year), 0, WORLD.years.length - 1), C = WORLD.countries[iso] || {};
   const g = key => (Array.isArray(C[key]) ? num(C[key][k]) : null);
   const infl = g('cpiYoY'), rate = g('policyRate'), pvt = g('pvtDebtGdp');
   const real = rate != null && infl != null ? rate - infl : null;
-  const a = (C.pvtDebtGdp || []).filter(v => v != null), avg = a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-  const gw = pvt != null && avg != null ? pvt - avg : null;     // + = more debt than usual = the table is LOWER
-  return { infl, real, gw };
+  const yrs = (C.pvtDebtGdp || []).map((v, i) => (num(v) == null ? null : WORLD.years[i])).filter(y => y != null);
+  const a = (C.pvtDebtGdp || []).filter(v => num(v) != null), avg = a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const gw = pvt != null && avg != null ? pvt - avg : null;     // + = more debt than usual = the hole is DEEPER (the table is lower)
+  const span = yrs.length ? `${yrs[0]}–${yrs[yrs.length - 1]}` : SPAN_ALL();   // the baseline window of this country's average
+  return { infl, real, rate, gw, pvt, avg, span };
 }
 function layersSvg(b, L, r, col) {
   const k = layersIcon(b.iso), f = L.fs * 0.9, x = b.x + 8, w = b.w - 16, top = b.y + L.fs + 13, rh = Math.max(9, (b.h - (top - b.y) - 12 * L.sf) / 3);
-  const pct = v => v == null ? '—' : (v >= 0 ? '' : '−') + Math.abs(v * 100).toFixed(1) + '%';
+  const pct = fmtPct1;
   const rows = [
     ['wm-l-river', '河', k.infl == null ? '—' : '通胀 ' + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
     ['wm-l-lake', '湖', k.real == null ? '—' : '吸力 ' + pct(k.real), k.real == null ? 0.3 : clamp(0.5 + k.real * 10, 0.08, 1)],
-    ['wm-l-ground', '地下', k.gw == null ? '—' : k.gw > 0.05 ? '低 ' + Math.round(k.gw * 100) + '点' : k.gw < -0.05 ? '高 ' + Math.round(-k.gw * 100) + '点' : '平常', k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],
+    ['wm-l-ground', '地下', gwWord(k.gw), k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],   // bar = the water table: a deeper hole = lower
   ];
-  const tips = ['河水位 = 通胀（比一年前）', '湖吸力 = 实际利率（政策利率 − 通胀）', '地下水位 = 私人债务/GDP 比它自己 1995 年以来的平均（债越多，水位越低）'];
+  const tips = ['河水位 = 通胀（物价比一年前）', '湖吸力 = 实际利率（政策利率 − 通胀）', gwDef(k.span) + '。点这一行看说明'];
   return '<g class="wm-layers">' + rows.map(([c, nm, v, lv], i) => {
     const y = top + i * rh, bw = Math.max(14, Math.min(28 * L.sf, w * 0.22));
+    // the 地下 row carries a transparent hit strip: tapping it selects the box AND shows the one-line definition (st.tip)
+    const hit = i === 2 ? `<rect class="wm-l-hit" data-def="gw" x="${(x - 3).toFixed(1)}" y="${(y - 1).toFixed(1)}" width="${(w + 6).toFixed(1)}" height="${rh.toFixed(1)}"/>` : '';
     return `<g class="${c}"><title>${esc(tips[i] + '：' + v)}</title><rect class="wm-l-bg" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(rh - 2).toFixed(1)}" rx="2"/>` +
       `<rect class="wm-l-fill" x="${x.toFixed(1)}" y="${(y + (rh - 2) * (1 - lv)).toFixed(1)}" width="${bw.toFixed(1)}" height="${((rh - 2) * lv).toFixed(1)}" rx="2" style="fill:${i === 2 ? '#9a7b4f' : col}"/>` +
-      `<text x="${(x + bw + 4).toFixed(1)}" y="${(y + rh / 2 + f * 0.33).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-k">${nm} </tspan><tspan class="wm-v">${esc(v)}</tspan></text></g>`;
+      `<text x="${(x + bw + 4).toFixed(1)}" y="${(y + rh / 2 + f * 0.33).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-k">${nm} </tspan><tspan class="wm-v">${esc(v)}</tspan></text>${hit}</g>`;   // hit strip on top of the bar
   }).join('') + '</g>';
 }
 // FX sluice under a box: 本币 per USD (annual mean) + 本币比一年前 (+ = stronger); USA: the broad dollar index. Tap = the 汇率 card.
@@ -508,8 +519,9 @@ function cardHtml() {
   const iso = st.sel;
   if (!iso) {
     return `<div class="wm-hint"><b>点一个框，看它的情况</b>
-      <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（通胀）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（私人债务比它自己的平常：债越多，水位越低）。框下面是闸。</p>
-      <p class="wm-more">框越大，GDP 越大。水位越高，债务越多。</p>
+      <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（通胀）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（洞深 / 洞浅 N 点 / 平常）。框下面是闸。</p>
+      <p class="wm-def" data-def="gw">${esc(gwDef(SPAN_ALL()))}。洞越深，以后要还的越多。</p>
+      <p class="wm-more">框越大，GDP 越大。框里的水越高，债务（私人 + 政府）越多。</p>
       <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 湖连湖：外国人买美债，流进最大的湖<br><i class="wm-sw debt"></i> 棕管（地下·美元债）= 地下连地下：美国以外借的美元债（BIS）<br>管越宽，水量越大。</p>
       <p><b>箭头 = 水往哪流。</b>两国互相出口 = 两条并排的管，各靠右走；数字贴在出口国那一头。点一个框，只看它的管子。</p>
       <p class="wm-more"><i class="wm-sw sl"></i> 框下面的小闸 = 汇率：1 美元换多少本币，箭头 = 本币比一年前变强（↑）还是变弱（↓）。美国的闸是美元指数。点闸看「汇率」。</p>
@@ -517,7 +529,16 @@ function cardHtml() {
   }
   const r = readings(iso), nm = nameOf(iso);
   const parts = topPartners(iso).map(p => `<li><b>${esc(nameOf(p.j))}</b> 合计 ${fmtBn(p.tot)}美元<small>出口 ${fmtBn(p.ex)} · 进口 ${fmtBn(p.im)}</small></li>`).join('');
-  const fx = iso === 'USA' ? '本币就是美元' : r.fx == null || !r.ccy || r.ccy === 'mixed' ? '—' : `1 美元 = ${r.fx >= 100 ? r.fx.toFixed(0) : r.fx.toFixed(2)} ${esc(r.ccy)}`;
+  const fx = iso === 'USA' ? '本币就是美元' : r.fx == null || !r.ccy || r.ccy === 'mixed' ? '—' : `1 美元 = ${r.fx >= 100 ? r.fx.toFixed(0) : r.fx.toFixed(2)} ${esc(CCY_CN[r.ccy] || '')}（${esc(r.ccy)}）`;
+  const k = layersIcon(iso), col = CCY_COL[r.ccy] || CCY_COL.mixed;
+  // the same three layers as the box icon, in words (DESIGN-v3 「World + FX」): 河 / 湖吸力 / 地下
+  const gwSub = k.pvt == null ? '没有私人欠款数据' : `私人欠款占 GDP ${fmtPct0(k.pvt)}，自己 ${k.span} 平均 ${fmtPct0(k.avg)}`;
+  const lay = (cls, nm, v, sub, extra = '') => `<div class="wm-ly ${cls}"><b class="wm-ly-k">${nm}</b><div class="wm-ly-b"><span class="wm-ly-v">${v}</span><small>${sub}</small>${extra}</div></div>`;
+  const layers = `<div class="wm-lys" style="--ly-c:${col}">
+      ${lay('river', '河', k.infl == null ? '—' : `物价比一年前 ${fmtPct1(k.infl)}`, `GDP ${fmtBn(r.gdp)}美元`)}
+      ${lay('lake', '湖吸力', k.real == null ? '—' : `实际利率 ${fmtPct1(k.real)}`, k.rate == null ? '政策利率：没有数据' : `政策利率 ${fmtPct1(k.rate)}${k.infl == null ? '' : ` − 物价涨幅 ${fmtPct1(k.infl)}`}`)}
+      ${lay('ground', '地下', gwWord(k.gw), esc(gwSub), `<p class="wm-def" data-def="gw">${esc(gwDef(k.span))}</p>`)}
+    </div>`;
   const ready = !!COUNTRY_READY[iso];
   const here = st.opts?.country || 'USA';
   const label = ready ? `进入 ${esc(nm)} 的水流图 →` : iso === 'ROW' ? '合并项，没有单独的水流图' : '细图制作中';
@@ -526,14 +547,8 @@ function cardHtml() {
   return `<div class="wm-cardin" data-iso="${iso}">
     <h3>${esc(nm)}<small>${esc(iso)} · ${st.year}${res}</small></h3>
     <p class="wm-one" data-one="${iso}">${esc(ONE_LINER[iso] || '')}</p>
-    <dl class="wm-rd">
-      <div><dt>资产</dt><dd>${r.house == null ? '—' : Math.round(r.house)}<small>实际房价，2010 = 100</small></dd></div>
-      <div><dt>债务</dt><dd>${fmtPct0(r.debt)}<small>占 GDP：私人 ${fmtPct0(r.pvt)} + 政府 ${fmtPct0(r.gov)}</small></dd></div>
-      <div><dt>利率</dt><dd>${fmtPct1(r.rate)}<small>政策利率</small></dd></div>
-      <div><dt>大环</dt><dd>${r.stage?.mark ? esc(r.stage.mark) : '—'}<small>${r.stage?.text ? esc(r.stage.text) : '这个国家的大环位置还没标'}</small></dd></div>
-    </dl>
-    <p class="wm-mut wm-note">大环是「现在」的位置，不跟着年份动。</p>
-    <p class="wm-line"><b>GDP</b> ${fmtBn(r.gdp)}美元 · <b>汇率</b> ${fx}</p>
+    ${layers}
+    <p class="wm-line"><b>汇率</b> ${fx}</p>
     ${iso === 'ROW' ? '' : `<div class="wm-fx" data-fx="${iso}" data-year="${st.year}">${iso === 'USA' ? usdHtml(null, { year: st.year }) : '<p class="wm-mut">汇率闸：读数据…</p>'}</div>`}
     ${parts ? `<div class="wm-partners"><b>贸易对手前三</b><ol>${parts}</ol></div>` : '<p class="wm-mut">这一年没有贸易数据。</p>'}
     <div class="wm-act"><button type="button" class="btn primary wm-enter" data-act="enter" data-iso="${iso}"${ready ? '' : ' disabled'}>${label}</button>
@@ -585,6 +600,27 @@ function renderMap() {
     <g class="wm-chips">${chipsSvg(pipes, L)}</g>`;
   st.last = { W, H };
   els.svg.dataset.pipes = pipes.length;
+  placeTip();
+}
+// the 地下 definition, shown under the tapped box's 地下 row (st.tip = that iso); any other tap hides it
+function placeTip() {
+  const t = els.tip;
+  if (!t) return;
+  const hit = st.tip && els.svg.querySelector(`.wm-box[data-iso="${st.tip}"] .wm-l-hit`);
+  if (!hit) { t.hidden = true; t.dataset.iso = ''; return; }
+  const k = layersIcon(st.tip), W = +els.svg.getAttribute('width'), H = +els.svg.getAttribute('height');
+  const now = k.gw == null ? '没有数据' : gwWord(k.gw) + (k.pvt == null ? '' : `（私人欠款占 GDP ${fmtPct0(k.pvt)}，平均 ${fmtPct0(k.avg)}）`);
+  t.innerHTML = `<b>${esc(nameOf(st.tip))} ${st.year} 地下：${esc(now)}</b><span data-def="gw">${esc(gwDef(k.span))}</span>`;
+  t.dataset.iso = st.tip; t.hidden = false;
+  const b = hit.getBBox(), tw = Math.min(300, W - 16);
+  t.style.maxWidth = tw + 'px';
+  const w = t.offsetWidth, h = t.offsetHeight;
+  const x = clamp(b.x + b.width / 2 - w / 2, 8, W - w - 8);
+  const y = b.y + b.height + 6 + h > H - 4 ? b.y - h - 6 : b.y + b.height + 6;   // below the row, or above it near the bottom
+  // svg elements have no offsetLeft: the svg's place inside the (scrolling, position: relative) stage, from the two rects
+  const sr = els.stage.getBoundingClientRect(), vr = els.svg.getBoundingClientRect();
+  const ox = vr.left - sr.left + els.stage.scrollLeft - els.stage.clientLeft, oy = vr.top - sr.top + els.stage.scrollTop - els.stage.clientTop;
+  t.style.left = Math.round(ox + x) + 'px'; t.style.top = Math.round(oy + y) + 'px';
 }
 function renderCard() {
   els.card.innerHTML = cardHtml();
@@ -619,6 +655,7 @@ function renderAll() { renderCtl(); renderMap(); renderCard(); }
 /* ---------- selection ---------- */
 export function selectOnMap(iso, scroll = true) {
   st.sel = iso && ISOS.includes(iso) ? iso : null;
+  if (st.tip && st.tip !== st.sel) st.tip = null;
   if (st.open) {
     renderMap(); renderCard();
     if (st.sel && scroll) {                                  // phone: the card sits under the stage, keep the selected box in view above it
@@ -642,8 +679,8 @@ function buildDom(host) {
       <label class="wm-year"><span class="wm-yl">年份 <b class="wm-yv"></b><i class="wm-res" hidden>保留样本</i></span>
         <input type="range" class="wm-slider" min="${YMIN}" max="${YMAX}" step="1" aria-label="年份"></label>
     </div>
-    <div class="wm-body"><div class="wm-stage"><svg class="wm-svg" role="img" aria-label="世界地图：七个水库和它们之间的管子"></svg></div><aside class="wm-card" aria-live="polite"></aside></div>`;
-  els = { host, stage: host.querySelector('.wm-stage'), svg: host.querySelector('.wm-svg'), card: host.querySelector('.wm-card'), body: host.querySelector('.wm-body'),
+    <div class="wm-body"><div class="wm-stage"><svg class="wm-svg" role="img" aria-label="世界地图：七个水库和它们之间的管子"></svg><div class="wm-tip" role="note" hidden></div></div><aside class="wm-card" aria-live="polite"></aside></div>`;
+  els = { host, stage: host.querySelector('.wm-stage'), svg: host.querySelector('.wm-svg'), card: host.querySelector('.wm-card'), body: host.querySelector('.wm-body'), tip: host.querySelector('.wm-tip'),
     slider: host.querySelector('.wm-slider'), yv: host.querySelector('.wm-yv'), res: host.querySelector('.wm-res'), seg: host.querySelector('.wm-seg') };
   host.onclick = onClick;
   els.slider.oninput = () => { st.year = clamp(+els.slider.value, YMIN, YMAX); renderAll(); };
@@ -662,10 +699,12 @@ function onClick(e) {
   if (act && act.dataset.act === 'enter') { if (!act.disabled && st.opts.onEnter) st.opts.onEnter(act.dataset.iso); return; }
   const kb = t.closest && t.closest('.wm-seg button');
   if (kb) { st.kind = kb.dataset.kind; renderCtl(); renderMap(); return; }
+  if (t.closest && t.closest('.wm-tip')) { st.tip = null; placeTip(); return; }   // tapping the definition closes it
   if (t.closest && t.closest('.wm-svg')) {
     if (t.closest('.wm-sluice')) return;            // the FX sluice: the document-level [data-term] delegate opens the 汇率 card; no (de)selection
     const g = t.closest('.wm-box');
-    if (g) selectOnMap(g.dataset.iso); else if (st.sel) selectOnMap(null);     // tapping empty space deselects
+    st.tip = g && t.closest('.wm-l-hit') ? g.dataset.iso : null;   // the 地下 row: select + show its one-line definition
+    if (g) selectOnMap(g.dataset.iso); else if (st.sel) selectOnMap(null); else placeTip();     // tapping empty space deselects
   }
 }
 function onKey(e) { if (e.key === 'Escape' && st.open && !document.querySelector('.sheet.open')) close(true); }

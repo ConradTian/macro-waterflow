@@ -153,6 +153,20 @@ try {
   // box readings present
   const txt = await A.ev(`document.querySelector('.wm-box[data-iso="USA"]').textContent.replace(/\\s+/g, ' ')`), nL = await A.ev(`document.querySelectorAll('.wm-box .wm-layers').length`);
   ok(['河', '湖', '吸力', '地下'].every(w => txt.includes(w)) && !txt.includes('大环') && nL === 7, `v3: every box shows the 3-layer icon (河 / 湖吸力 / 地下), not the four numbers: ${nL} boxes · ${txt.slice(0, 80)}`);
+  // 地下 wording: the direction is spelled out (洞深 = more private debt than its own average), never the old 低 / 高 N点
+  const gwRows = await A.ev(`[...document.querySelectorAll('.wm-box .wm-l-ground text')].map(t => t.textContent.replace(/\\s+/g, ' ').trim())`);
+  ok(gwRows.length === 7 && gwRows.every(s => /^地下 (洞深 \+\d+点|洞浅 −\d+点|平常|—)$/.test(s)), `v3 fix: every box's 地下 row reads 洞深 +N点 / 洞浅 −N点 / 平常: ${gwRows.join(' · ')}`);
+  const boxAll = await A.ev(`[...document.querySelectorAll('.wm-box')].map(b => b.textContent).join(' ')`);
+  ok(!/大环|同比|环比/.test(boxAll), 'v3 fix: no box text contains 大环 / 同比 / 环比');
+  const hintDef = await A.text('.wm-hint .wm-def[data-def="gw"]');
+  ok(/^地下 = 私人欠款占 GDP，比自己 1995–2025 平均高（洞更深）或低多少个百分点/.test(hintDef) && await A.ev(`(()=>{const e=document.querySelector('.wm-hint .wm-def'); return !!e && e.getBoundingClientRect().height > 0})()`), 'v3 fix: the map legend carries the 地下 definition line (visible): ' + hintDef);
+  ok(await A.count('.wm-box .wm-l-ground .wm-l-hit[data-def="gw"]') === 7, 'v3 fix: every box has a tappable 地下 row');
+  await A.click('.wm-box[data-iso="JPN"] .wm-l-hit'); await sleep(300);
+  const tip = await A.ev(`(()=>{const t=document.querySelector('.wm-tip'); if(!t||t.hidden) return null; const r=t.getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(); const h=document.querySelector('.wm-box[data-iso="JPN"] .wm-l-hit').getBoundingClientRect(); return { iso: t.dataset.iso, txt: t.textContent, inside: r.left >= s.left - 1 && r.right <= s.right + 1, near: Math.min(Math.abs(r.top - h.bottom), Math.abs(r.bottom - h.top)) < 12 && r.left < h.right && r.right > h.left, sel: document.querySelector('.wm-box.sel')?.dataset.iso }})()`);
+  ok(tip && tip.iso === 'JPN' && tip.sel === 'JPN' && tip.txt.includes('地下 = 私人欠款占 GDP') && tip.txt.includes('洞更深') && tip.inside && tip.near,'v3 fix: tapping JPN\'s 地下 row selects it and shows the definition inside the stage: ' + JSON.stringify(tip));
+  ok((await A.text('.wm-card .wm-def[data-def="gw"]')).includes('私人欠款占 GDP'), 'v3 fix: the selected card repeats the definition under its 地下 layer');
+  await A.click('.wm-bg'); await sleep(200);
+  ok(await A.ev(`document.querySelector('.wm-tip').hidden && !document.querySelector('.wm-box.sel')`), 'tapping empty space hides the definition and deselects');
   ok(await A.count('.wm-seg button[data-kind="debt"]') === 1, 'v3: a 地下·美元债 (地下连地下) layer button');
   await geom(A, 'iPad 2008');
   const lab0 = await A.count('.wm-chip');
@@ -164,7 +178,15 @@ try {
   await A.click('.wm-box[data-iso="AUS"]'); await sleep(300);
   ok(await A.ev(`document.querySelector('.wm-box.sel')?.dataset.iso`) === 'AUS', 'tap selects AUS');
   ok(await mapOpen(A) && navs.length === nav0, 'selecting does not navigate or close (navigations: ' + (navs.length - nav0) + ')');
-  ok((await A.text('.wm-card')).includes('澳洲') && await A.count('.wm-card .wm-rd > div') === 4, 'card shows the name and four readings');
+  const cl = await A.ev(`[...document.querySelectorAll('.wm-card .wm-lys > .wm-ly')].map(d => ({ c: d.className.replace('wm-ly ', ''), k: d.querySelector('.wm-ly-k').textContent, t: d.textContent.replace(/\\s+/g, ' ').trim() }))`);
+  ok((await A.text('.wm-card')).includes('澳洲') && cl.length === 3 && cl.map(x => x.k).join('/') === '河/湖吸力/地下' && !(await A.count('.wm-card .wm-rd')),
+    'v3 fix: card shows the name and the same three layers as the box (河 / 湖吸力 / 地下), not the old four readings: ' + cl.map(x => x.k).join('/'));
+  ok(/物价比一年前 −?\d/.test(cl[0]?.t) && cl[0].t.includes('GDP') && /实际利率 −?\d/.test(cl[1]?.t) && /政策利率 \d/.test(cl[1].t) && /洞深 \+\d+点|洞浅 −\d+点|平常/.test(cl[2]?.t) && /私人欠款占 GDP \d+%/.test(cl[2].t),
+    'card layers: 河 = 物价比一年前 + GDP · 湖吸力 = 实际利率 + 政策利率 detail · 地下 = 洞深/洞浅 + 私人欠款占 GDP: ' + cl.map(x => x.t).join(' | '));
+  const cardAll = await A.text('.wm-card');
+  ok(!/大环|同比|环比/.test(cardAll) && !cardAll.includes('实际房价'), 'v3 fix: card text has no 大环 / 同比 / 环比, no old 资产 reading');
+  ok(/1995–2025 平均/.test(await A.text('.wm-card .wm-def[data-def="gw"]')), 'card: the 地下 definition line names the baseline window (1995–2025)');
+  ok(await A.count('.wm-card .wm-one') === 1 && await A.count('.wm-card .wm-fx') === 1, 'card keeps the one-liner and the FX reactor block');
   ok(await A.count('.wm-partners li') === 3, 'card lists the top 3 trade partners');
   await sleep(500);
   const rx = await A.ev(`(()=>{const b=document.querySelector('.wm-card .wm-fx .fxr-box'); return b ? { pipes: b.querySelectorAll('[data-fxr-pipe]').length, date: b.dataset.date, con: (b.querySelector('.fxr-con')||{}).textContent } : null})()`);
@@ -296,6 +318,10 @@ try {
     ok(vis.bottom <= vis.cardTop + 1 && vis.top >= vis.stageTop - 1, `phone: selected ${iso} is fully above the card (${Math.round(vis.bottom)} <= ${Math.round(vis.cardTop)})`);
   }
   ok(await A.ev(`(()=>{const c=document.querySelector('.wm-card'); return c.scrollHeight <= c.clientHeight + 1 || getComputedStyle(c).overflowY === 'auto'})()`), 'phone: card scrolls if tall');
+  await A.click('.wm-box[data-iso="EA"] .wm-l-hit'); await sleep(400);
+  const ptip = await A.ev(`(()=>{const t=document.querySelector('.wm-tip'), r=t.getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(), c=document.querySelector('.wm-card'), h=document.querySelector('.wm-box[data-iso="EA"] .wm-l-hit').getBoundingClientRect(); return { shown: !t.hidden, inside: r.left >= s.left - 1 && r.right <= s.right + 1 && (Math.min(Math.abs(r.top - h.bottom), Math.abs(r.bottom - h.top)) < 12), w: Math.round(r.width), cardDef: (c.querySelector('.wm-def')||{}).textContent || '', cardX: c.scrollWidth <= c.clientWidth + 1, lys: c.querySelectorAll('.wm-ly').length }})()`);
+  ok(ptip.shown && ptip.inside && ptip.lys === 3 && ptip.cardX && ptip.cardDef.includes('1999–2025'), `phone: EA 地下 tap shows the definition inside the stage (${ptip.w}px), card has 3 layers, no sideways overflow, EA baseline 1999–2025: ${ptip.cardDef}`);
+  ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1`), 'phone: still no horizontal page scroll with the definition open');
 
   // ---- 10. desktop 1920×1000: the same geometry rules ----
   await A.viewport(1920, 1000);
