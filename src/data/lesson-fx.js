@@ -254,6 +254,8 @@ export const LESSON_FX = {
     { type: 'reveal', title: '第 5 步：怕：澳元 2008，日元 2022',
       panel: { id: 'fx-reactor', iso: AUS, date: '2008Q4', dates: ['2003Q4', '2008Q4', '2011Q2', '2025Q4'] }, hl: ['fx'],
       drills: [DRILL_PIPE, DRILL_TOT],
+      // pointer to the 专题 lesson 「专题：预期」, step 「汇率上的绳」 (peg = rope, float = no rope; ?lesson=exp&step=10, src/ui/lessons.js lessonLink)
+      lessonLink: { id: 'exp', step: 10, label: '再往下看：汇率上的「绳」（钉住和浮动，专题：预期）→' },
       text: [
         '**结论：怕的规则：一慌，水往最大的湖（美元）跑、往家（日元）跑。澳元 2008 是怕；日元 2022 没人慌，是被吸力差拖弱的。**',
         '**澳元 2008：怕。**澳元一个季度从 0.88 跌到 0.67 美元，比一年前弱 24%。利差还在推强（6.1%），可 VIX 这一季平均冲到 59，怕这一股就推弱 21.2%，把吸力差（+怕）拧成推弱 15.1%。拟合推弱 16.3%，只剩 8% 说不清。',

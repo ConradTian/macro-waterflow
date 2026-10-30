@@ -41,6 +41,10 @@ import { pulseHeadline, closeHeadline } from './headline.js';   // lesson step f
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
 import { markDone } from './progress.js';      // course v3: the progressive diagram learns a lesson's layer when the lesson reaches its last step
 import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep, setWorldData } from './lessons-town.js';
+// 专题 lessons: outside the 8-lesson main line (not in COURSE / LESSON_ORDER, not counted); menu group 「专题」 after the 4 parts.
+// 「专题：预期」 (src/data/lesson-exp.js) mounts the exp-* panels of src/ui/exp-gauge.js.
+import { LESSON_EXP } from '../data/lesson-exp.js';
+export const TOPIC_LESSONS = [LESSON_EXP];
 
 const P = new URLSearchParams(location.search);
 const KEY = 'mw.lessons.v1';
@@ -58,7 +62,7 @@ const touched = new Map(); // 'rule.key' -> default value (captured before first
 let ROLE_LESSONS = [];
 let rolesReady = Promise.resolve();
 const isAvail = L => !!L && L.available !== false && Array.isArray(L.steps) && L.steps.length > 0 && countryOk(L);
-const all = () => [...LESSONS, ...ROLE_LESSONS];
+const all = () => [...LESSONS, ...ROLE_LESSONS, ...TOPIC_LESSONS];
 function lookup(id) {            // numeric/string id, or 'role:<playerId>'
   if (id == null) return null;
   const s = String(id);
@@ -271,6 +275,7 @@ function badgeOf(key, L) {
   const s = String(key);
   if (s.startsWith('role:')) return (ROLE_NAME[s.slice(5)] || '?').slice(0, 1);
   if (COURSE_NO[s]) return String(COURSE_NO[s]);
+  if (L && L.badge) return L.badge;                          // 专题 lessons carry their own badge
   if (L && (L.kind === 'fx' || L.kind === 'capstone')) return (L.title || '?').slice(0, 1);
   if (s === '0b') return '½';
   if (s === '3b') return '3½';
@@ -309,6 +314,8 @@ export async function openMenu() {
     `<div class="ls-head"><h2>教学</h2><button type="button" class="ls-x" data-act="menu-close" aria-label="关闭">✕</button></div>` +
     `<p class="ls-lead"><b>一条故事线，${parts.length} 部分，${total} 课。</b>每课给图加一层，学完就是历史盲测的整张图。每课最后都回答同样的三问：水的问题还是河道的问题？环上哪一步？谁赢谁输、钱放哪？</p>` +
     parts.map((pt, k) => `<h3 class="ls-sec ls-part"><i>${'一二三四五六'[k] || k + 1}</i>${esc(pt.name)}</h3><ol class="ls-list ls-main" data-part="${k + 1}">${list(pt.ids)}</ol>`).join('') +
+    // 专题 group: a wrapper section and an h3 WITHOUT .ls-sec, so the menu still reads as exactly 4 parts (tools/check_d_lessons.mjs)
+    (TOPIC_LESSONS.length ? `<section class="ls-topics-box"><h3 class="ls-topic-h" style="margin:14px 0 6px;font-size:14px;color:var(--accent)">专题 <small style="color:var(--muted);font-weight:400;font-size:12px;margin-left:4px">不在 ${total} 课主线里，随时可看</small></h3><ol class="ls-list ls-topics">${list(TOPIC_LESSONS.map(l => l.id))}</ol></section>` : '') +
     `<a class="ls-free-link" href="${esc(freeUrl())}" target="_blank" rel="noopener">沙盒（新窗口，自己拧阀门）↗</a>` +
     `<details class="ls-old"${oldOpen ? ' open' : ''}><summary>旧版课程 <small>小镇入门、第 0.5 课、7 个角色课、旧的周期课、Capex 与产能、世界 1 和 2；内容已并进新课</small></summary>` +
     `<a class="ls-v2-link" href="${esc(V2_URL)}" target="_blank" rel="noopener">打开旧版网站 ↗（旧图、旧课，冻结不再改）</a>` +
@@ -421,11 +428,12 @@ const PANEL_MODS = {
   fx: () => import('./fx-lab.js'), inv: () => import('./investor-lab.js'),
   shocks: () => import('./shock-lab.js').then(m => { ensureCss('shock-lab.css'); return m; }),
   fxr: () => import('./fx-reactor.js').then(m => { if (typeof m.ensureFxReactorCss === 'function') m.ensureFxReactorCss(); return m; }),
+  exp: () => import('./exp-gauge.js').then(m => { m.ensureExpCss(); return m; }),   // 专题：预期 (panel ids 'exp-*')
 };
 const panelLib = {};                                        // kind -> loaded module
 const CARD_PANELS = { inv: ['assetTable'] };                // these panels go in the lesson card: their step needs the diagram (pool flashes)
 // the module of a panel: by its id first (a lesson may mix kinds: 汇率 = reactor + fx-lab, m5 = one reactor drill), then by the lesson's kind
-const panelKind = (L, spec) => (spec.id === 'fx-reactor' ? 'fxr' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
+const panelKind = (L, spec) => (spec.id === 'fx-reactor' ? 'fxr' : /^exp-/.test(spec.id) ? 'exp' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
   : L.kind === 'fx' ? 'fx' : L.kind === 'shocks' ? 'shocks' : 'inv');
 export const panelWhere = (L, spec) => ((CARD_PANELS[panelKind(L, spec)] || []).includes(spec.id) ? 'card' : 'diagram');
 let pnl = null;                                             // the mounted panel: { kind, where, key, host }
@@ -457,6 +465,7 @@ function mountPanel(kind, host, spec) {
     if (kind === 'fx') return m.mountFxPanel(host, spec);
     if (kind === 'shocks') return m.mountShockPanel(host, spec);
     if (kind === 'fxr') return mountReactor(m, host, spec);
+    if (kind === 'exp') return m.mountExpPanel(host, spec);
     return m.mountInvestorPanel(host, spec);
   } catch (e) { console.error(e); return null; }
 }
@@ -467,6 +476,7 @@ function dropPanel() {
     if (pnl.kind === 'fx') m.unmountFxPanel();
     else if (pnl.kind === 'shocks') m.unmountShockPanel();
     else if (pnl.kind === 'fxr') m.unmountFxReactor();
+    else if (pnl.kind === 'exp') m.unmountExpPanel();
     else m.unmountInvestorPanel();
   } catch (e) { console.error(e); }
   if (pnl.where === 'diagram') { pnl.host.remove(); document.getElementById('diagram')?.classList.remove('ls-pnl-on'); }
@@ -540,6 +550,10 @@ function continueEnter(i) {
   ss.before = ctx.getSnap();                                // for the "之前 → 现在" readout (st.metrics)
   ss.tbl = null;
   if (!town && (st.vals || st.type === 'experiment')) { try { ss.tbl = buildTable(ctx.real(), L, st, pos[i], st.slider ? st.slider.def : null); } catch (e) { ss.tbl = null; } }   // live numbers {key}
+  if (ss.tbl) for (const d of arr(st.derive)) {             // step field derive:[{key, a, b, fmt}]: raw[key] = raw[a] − raw[b] (专题：预期, e.g. ▶ − ▽)
+    const a = ss.tbl.raw[d.a], b = ss.tbl.raw[d.b];
+    ss.tbl.raw[d.key] = typeof a === 'number' && typeof b === 'number' ? a - b : null; ss.tbl.fmt[d.key] = d.fmt;
+  }
   setHl(st.hl);
   if (st.glow) setTimeout(() => { if (cur && cur.i === i) flash(st.glow, 3500); }, 450);
   if (st.strip) setTimeout(() => { if (cur && cur.i === i) pulseHeadline(false); }, 700);   // point at the 本季看点 strip
@@ -1076,6 +1090,12 @@ function draw() {
   // handover: the LAST step of any other type with `next` gets the 下一课 button too (main line), once its question is answered
   if (i === n - 1 && st.next != null && !['chain', 'zoom', 'recap'].includes(st.type) && answered && !drillOpen) body += nextLessonBtn(st.next);
   if (st.freeLink) body += `<a class="btn ls-freebtn" href="${esc(freeUrl())}" target="_blank" rel="noopener">打开沙盒 ↗（新窗口，自己拧阀门）</a>`;
+  if (st.lessonLink && !drillOpen) {                         // step field lessonLink:{ id, step?, label }: a pointer to another lesson (opens ?lesson=id&step=N)
+    const ll = st.lessonLink, u = new URL(location.href);
+    ['country', 'lesson', 'step', 'map', 'view', 'menu'].forEach(k => u.searchParams.delete(k));
+    u.searchParams.set('lesson', String(ll.id)); if (ll.step) u.searchParams.set('step', String(ll.step));
+    body += `<a class="btn ls-freebtn ls-lessonlink" href="${esc(u.href)}">${esc(ll.label)}</a>`;
+  }
   const pSpec = curSpec(st);
   const pCard = pSpec && !ss.zooming && panelWhere(L, pSpec) === 'card';
   if (pCard) body += '<div class="ls-pnl ls-pnl-card"></div>';        // host of a card panel (filled by syncPanel below)
