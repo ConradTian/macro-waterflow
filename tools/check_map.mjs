@@ -4,6 +4,8 @@
 // Geometry (iPad 1180×820, phone 390, desktop 1920×1000): boxes do not overlap, every pipe has an arrowhead ≥ ARROW_MIN px, no pipe passes
 // through a box interior, the two lanes of a two-way pair do not overlap; selection fades all other pipes and labels only its own.
 // 1440×900: the AUS 地下 tip does not cover the AUS box; the year span (1995–2025) never wraps; box 河 rows read 河 物价 x%.
+// 吸力尺 at the gates (iPad, 390, 1440): ▶差 = the data, only CNY has a rope, bar only ≥ 768px, the card's 利率平价 line, no overflow at 390.
+// SHOTS=<folder> saves the 2008 CHN-selected screenshots (1440, 390, 390 card) there.
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const port = 9361, BASE = process.env.BASE || 'http://localhost:8185/';
@@ -102,6 +104,57 @@ const FOCUS = `(() => {
     chipsOk: !sel || chips.every(k => k.split('>').includes(sel) || (sel === 'USA' && k.endsWith('>POOL'))), hlLab: hl.length };
 })()`;
 
+// mini 吸力尺 at the gates: every non-US box shows ▶差 = its policy rate − the US one (= the data), the USA its own ▶, no ROW ruler;
+// only CNY has a rope (to the 官方价 line, 有绳（钉住）); the bar only from 768px; each ruler sits inside the stage and covers no box,
+// no sluice and no other ruler. The tooltip carries the ▽汇 note; no 同比 / 环比.
+const PARITY = '真推力 = 利差 − 预期贬值（利率平价）', NO_FX_EXP = '▽汇（预期汇率变化）没有数据：闸用利差 + 恐慌代替';
+const RULER = `import('/src/data/world.js').then(m => {
+  const W = m.WORLD, k = W.years.indexOf(+document.querySelector('.wm-slider').value), pr = i => W.countries[i].policyRate[k];
+  const s = document.querySelector('.wm-stage').getBoundingClientRect(), R = q => { const r = q.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+  const hit = (a, b) => a.l < b.r - 0.5 && a.r > b.l + 0.5 && a.t < b.b - 0.5 && a.b > b.t + 0.5;
+  const fmt = v => (Math.abs(v) < 0.0005 ? '' : v > 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1) + '点';
+  const rects = [...document.querySelectorAll('.wm-box')].map(g => ({ id: 'box ' + g.dataset.iso, r: R(g.querySelector('.wm-rect')) }))
+    .concat([...document.querySelectorAll('.wm-sluice')].map(g => ({ id: 'sluice ' + g.dataset.iso, r: R(g.querySelector('.wm-sl-bg')) })), [{ id: 'pool', r: R(document.querySelector('.wm-prect')) }],
+      [...document.querySelectorAll('.wm-chip')].map(g => ({ id: 'label ' + g.textContent, r: R(g.querySelector('rect')) })));
+  const out = { isos: [], bad: [], ropes: [], bars: [], outside: [], cover: [], peg: '', tipOk: true, words: false };
+  const rs = [...document.querySelectorAll('.wm-ruler')];
+  for (const g of rs) {
+    const iso = g.dataset.iso, txt = g.querySelector('.wm-r-t').textContent.replace(/\\s+/g, ' ').trim(), tip = g.querySelector('title').textContent;
+    out.isos.push(iso); out.bars.push(g.dataset.bar === '1' && !!g.querySelector('.wm-r-band'));
+    if (iso === 'USA') { if (Math.abs(+g.dataset.p - pr('USA')) > 1e-12 || !/^▶ \\d+\\.\\d%$/.test(txt)) out.bad.push(iso + ' ' + txt); }
+    else { const want = pr(iso) - pr('USA'); if (Math.abs(+g.dataset.gap - want) > 1e-12 || txt !== '▶差 ' + fmt(want)) out.bad.push(iso + ' ' + txt + ' want ' + fmt(want)); }
+    if (g.querySelector('.wm-rope')) { out.ropes.push(iso); out.peg = g.querySelector('.wm-peg-t')?.textContent || ''; }
+    if (!tip.includes(${JSON.stringify(NO_FX_EXP)})) out.tipOk = false;
+    if (/同比|环比/.test(tip + txt)) out.words = true;
+    const r = R(g.querySelector('.wm-r-bg')), peg = g.querySelector('.wm-peg'), rr = peg ? R(peg) : null;
+    for (const q of [r, rr].filter(Boolean)) if (q.l < s.left - 1 || q.r > s.right + 1) out.outside.push(iso);
+    for (const o of rects) if (hit(r, o.r) || (rr && o.id !== 'sluice ' + iso && hit(rr, o.r))) out.cover.push(iso + '/' + o.id);
+    for (const h of rs) if (h !== g && hit(r, R(h.querySelector('.wm-r-bg')))) out.cover.push(iso + '/ruler ' + h.dataset.iso);
+  }
+  return out;
+})`;
+async function rulers(c, label, bar) {
+  const r = await c.ev(RULER);
+  ok(r.isos.join(',') === 'USA,GBR,EA,CHN,JPN,AUS' && !r.bad.length, `[${label}] 吸力尺: every non-US box shows ▶差 = its policy rate − the US one (= the data), the USA its own ▶, no ROW ruler (${r.isos.join(',')})${r.bad.length ? ': ' + r.bad.join('; ') : ''}`);
+  ok(r.ropes.join(',') === 'CHN' && r.peg.includes('官方价') && r.peg.includes('有绳（钉住）'), `[${label}] only CNY has a rope, to the 官方价 line, labelled 有绳（钉住） (ropes: ${r.ropes.join(',') || 'none'} · ${r.peg})`);
+  ok(r.bars.every(b => b === bar), `[${label}] ruler bar ${bar ? 'shown (≥ 768px)' : 'hidden: ▶差 number only (< 768px)'}: ${r.bars.join(',')}`);
+  ok(!r.outside.length && !r.cover.length, `[${label}] every ruler inside the stage, covering no box / sluice / other ruler, and no pipe label on it${r.outside.length ? '; outside: ' + r.outside : ''}${r.cover.length ? '; covers: ' + r.cover.join(', ') : ''}`);
+  ok(r.tipOk && !r.words, `[${label}] each ruler tooltip carries the ▽汇 note; no 同比 / 环比`);
+}
+async function rulerCard(c, iso, label) {
+  const k = await c.ev(`(()=>{const d=document.querySelector('.wm-card .wm-rc[data-ruler="${iso}"]'); if(!d) return null; const c=document.querySelector('.wm-card'); return { par: (d.querySelector('[data-parity]')||{}).textContent, rope: d.querySelector('[data-rope]')?.dataset.rope, ropeT: (d.querySelector('[data-rope]')||{}).textContent, txt: d.textContent, x: c.scrollWidth <= c.clientWidth + 1 }})()`);
+  ok(k && k.par === PARITY && k.txt.includes(NO_FX_EXP) && k.x && !/同比|环比/.test(k.txt), `[${label}] ${iso} card: one 吸力尺 block with 「${PARITY}」 and the ▽汇 note, no sideways overflow: ${k && k.txt.replace(/\s+/g, ' ').slice(0, 90)}`);
+  ok(k && (iso === 'CHN' ? k.rope === 'peg' && k.ropeT.includes('有绳（钉住）') : k.rope === 'float' && k.ropeT.includes('没绳（浮动）')), `[${label}] ${iso} card: ${iso === 'CHN' ? '有绳（钉住）' : '没绳（浮动）'} (${k && k.ropeT})`);
+}
+const SHOTS = process.env.SHOTS || '';            // a folder: save the 吸力尺 screenshots there (1440 + 390, 2008, CHN selected)
+async function shot(c, name) {
+  if (!SHOTS) return;
+  const fs = await import('node:fs'), path = await import('node:path');
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const r = await c.send('Page.captureScreenshot', { format: 'png' });
+  const f = path.resolve(SHOTS, name); fs.writeFileSync(f, Buffer.from(r.result.data, 'base64')); console.log('   shot:', f);
+}
+
 try {
   let ver = null;
   for (let i = 0; i < 40 && !ver; i++) { try { ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); } catch (e) { await sleep(250); } }
@@ -148,6 +201,16 @@ try {
   ok(fxc && fxc.t === '汇率' && fxc.five === 5 && fxc.go, `tapping the AUS sluice opens the 汇率 card (five forces + 「去上「汇率」课」): ${JSON.stringify(fxc)}`);
   ok(await mapOpen(A) && !(await A.ev(`document.querySelector('.wm-box.sel')`)), 'the sluice tap neither closes the map nor selects / deselects');
   await A.ev(`document.querySelector('#concept-root [data-cc-close]').click()`); await sleep(200);
+  await rulers(A, 'iPad 2008', true);
+  ok(!(await A.ev(`[...document.querySelectorAll('.wm-box')].some(b => b.textContent.includes('▽汇'))`)), '吸力尺: the ▽汇 note is not written on any box (tooltip / card only)');
+  await A.click('.wm-ruler[data-iso="JPN"] .wm-r-bg'); await sleep(300);
+  ok(await mapOpen(A) && await A.ev(`document.querySelector('.wm-box.sel')?.dataset.iso`) === 'JPN' && await A.ev(`document.querySelector('.wm-ruler.sel')?.dataset.iso`) === 'JPN', 'tapping the JPN 吸力尺 selects JPN (map stays open)');
+  await rulerCard(A, 'JPN', 'iPad 2008');
+  await A.click('.wm-box[data-iso="CHN"]'); await sleep(300);
+  await rulerCard(A, 'CHN', 'iPad 2008');
+  await A.click('.wm-box[data-iso="USA"]'); await sleep(300);
+  await rulerCard(A, 'USA', 'iPad 2008');
+  await A.click('.wm-bg'); await sleep(200);
   ok(await pipes(A, 'cap') >= 1 && await A.count('.wm-pipe[data-k="cap"][data-to="POOL"]') === await pipes(A, 'cap'), 'capital pipes end in the US bond pool: ' + await pipes(A, 'cap'));
   ok(await A.ev(`getComputedStyle(document.body).backgroundColor`) !== 'rgb(15, 20, 27)', 'light theme by default');
   ok(await A.ev(`(()=>{const r=document.querySelector('.wm-svg').getBoundingClientRect(); return [...document.querySelectorAll('.wm-box')].every(b=>{const q=b.getBoundingClientRect(); return q.left>=r.left-1&&q.right<=r.right+1&&q.top>=r.top-1})})()`), 'all boxes inside the stage');
@@ -326,6 +389,15 @@ try {
   const ptip = await A.ev(`(()=>{const t=document.querySelector('.wm-tip'), r=t.getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(), c=document.querySelector('.wm-card'), h=document.querySelector('.wm-box[data-iso="EA"] .wm-l-hit').getBoundingClientRect(); return { shown: !t.hidden, inside: r.left >= s.left - 1 && r.right <= s.right + 1 && (Math.min(Math.abs(r.top - h.bottom), Math.abs(r.bottom - h.top)) < 12), w: Math.round(r.width), cardDef: (c.querySelector('.wm-def')||{}).textContent || '', cardX: c.scrollWidth <= c.clientWidth + 1, lys: c.querySelectorAll('.wm-ly').length }})()`);
   ok(ptip.shown && ptip.inside && ptip.lys === 3 && ptip.cardX && ptip.cardDef.includes('1999–2025'), `phone: EA 地下 tap shows the definition inside the stage (${ptip.w}px), card has 3 layers, no sideways overflow, EA baseline 1999–2025: ${ptip.cardDef}`);
   ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1`), 'phone: still no horizontal page scroll with the definition open');
+  // 吸力尺 at 390: number only, inside the stage, no overflow; CHN selected = the 2008 screenshot
+  await A.go(BASE + '?pause=1&t=53&map=1&year=2008&select=CHN'); await sleep(400);
+  await rulers(A, 'phone 390 2008', false);
+  await rulerCard(A, 'CHN', 'phone 390 2008');
+  ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1 && (()=>{const s=document.querySelector('.wm-stage'); return s.scrollWidth <= s.clientWidth + 1})()`), 'phone 390: no horizontal overflow (page or stage) with the rulers drawn');
+  await geom(A, 'phone 2008 CHN selected');
+  await shot(A, 'map-ruler-390-2008-CHN.png');
+  await A.ev(`(()=>{const d=document.querySelector('.wm-card .wm-rc'); if(d) d.scrollIntoView({block:'center'}); return 1})()`); await sleep(300);
+  await shot(A, 'map-ruler-390-2008-CHN-card.png');
 
   // ---- 9b. 1440×900 (map fix 2): AUS sits at the bottom; its 地下 tip must not cover the box, the year span never wraps ----
   await A.viewport(1440, 900);
@@ -338,6 +410,10 @@ try {
   ok(t14.shown && t14.iso === 'AUS' && t14.inside && !t14.cover && t14.near, `1440: AUS 地下 tip opens beside / below the row, inside the stage, not covering the AUS box: ${JSON.stringify(t14)}`);
   const nw14 = await A.ev(`[...document.querySelectorAll('.wm-card .wm-ly .wm-nw, .wm-tip .wm-nw')].map(e => ({ t: e.textContent, lines: new Set([...e.getClientRects()].map(q => Math.round(q.top))).size }))`);
   ok(nw14.length >= 3 && nw14.every(e => /^\d{4}–\d{4}$/.test(e.t) && e.lines === 1), `1440: the year span 1995–2025 never breaks (card 地下 line + definition + tip): ${JSON.stringify(nw14)}`);
+  await A.go(BASE + '?pause=1&t=53&map=1&year=2008&select=CHN'); await sleep(400);
+  await rulers(A, '1440 2008 CHN selected', true);
+  await rulerCard(A, 'CHN', '1440 2008');
+  await shot(A, 'map-ruler-1440-2008-CHN.png');
   await A.click('.wm-bg'); await sleep(200);
 
   // ---- 10. desktop 1920×1000: the same geometry rules ----

@@ -14,6 +14,9 @@
 // FX: a small sluice hangs under each country box: 1 美元 = x 本币 (annual mean) and the change 比一年前; the USA shows the broad dollar index.
 //   Tap = the 汇率 concept card (data-term="fx", opened by src/ui/concepts.js). The card of a selected country adds the FX reactor
 //   (src/ui/fx-reactor.js, last quarter of the year) or, for the USA, the dollar index.
+// 吸力尺 at the gate: a chip under each sluice, ▶差 = policy rate − US policy rate (the USA: its own ▶), with a tiny bar from 768px;
+//   only the pegged CNY has a rope (gate → 官方价 line, 有绳（钉住）). Tap = select; the card adds 「真推力 = 利差 − 预期贬值（利率平价）」,
+//   有绳 / 没绳, and that ▽汇 has no data.
 import { WORLD, WORLD_USD_DEBT } from '../data/world.js';
 import { COUNTRY_DATA, COUNTRY_READY } from '../data/countries/index.js';
 import { computeFxReactor, reactorHtml, usdHtml, usdIndexYear, loadCountry, wireFxReactor, ensureFxReactorCss, installFxCardHook } from './fx-reactor.js';
@@ -40,6 +43,15 @@ const TRADE_MIN = 0.08;       // a named pair is drawn if its exports >= 8% of t
 const TRADE_SHARE = 0.15;     // ... or >= 15% of the exporter's total exports (so a small economy's main buyers show: AUS -> CHN, AUS -> JPN)
 const CCY_CN = { AUD: '澳元', GBP: '英镑', JPY: '日元', EUR: '欧元', CNY: '人民币', USD: '美元' };
 const SHORT = { USA: '美', JPN: '日', AUS: '澳', CHN: '中', GBR: '英', EA: '欧', ROW: '其他', POOL: '美' };   // amount labels say who → whom
+// mini 吸力尺 at each gate (tools/DESIGN-v3.md 「Parked: 吸力尺」, the user's go): ▶差 = this country's policy rate − the US policy rate
+// (the USA box shows its own ▶). ▽汇 (expected FX change) has no data: said once in the tooltip and the card, never on a box.
+// Only a pegged currency has a rope (gate → 官方价 line); on the map that is the CNY. The others float: 没绳, said in the card.
+const PEG = { CHN: true };
+const RULER_H = 14, PEG_H = 29;   // heights (× text scale) of the ruler chip row and of the rope + 官方价 row
+const RULER_BAR_MIN = 768;        // the little bar shows from this viewport width; below it the chip is the ▶差 number only
+const RULER_SPAN = 0.06;          // the bar's half-length = 6 points of ▶差 (the USA: 0 … 6% for its own ▶)
+const PARITY = '真推力 = 利差 − 预期贬值（利率平价）';
+const NO_FX_EXP = '▽汇（预期汇率变化）没有数据：闸用利差 + 恐慌代替';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -79,7 +91,9 @@ function layout(W, H, tall) {
   const sf = clamp(s, 1, 1.25);                              // text scale
   const wMin = 112 * sf, wMax = wMin + (tall ? 40 : 92) * s;  // phone: smaller spread, so two boxes fit side by side with a channel between
   const gmax = Math.max(1, ...ISOS.map(i => ser(i, 'gdpUsd') || 0));
-  const P = tall ? POS_TALL : POS_WIDE, box = {}, ext = 9 * sf; // ext: the FX sluice hangs this far under a box
+  // ext: what hangs under a box: the FX sluice (straddles the bottom edge), the 吸力尺 chip under it, and for a pegged currency
+  // the rope + 官方价 line between the two (see rulerGeo)
+  const P = tall ? POS_TALL : POS_WIDE, box = {}, ext0 = 15 * sf / 2 + 3 + RULER_H * sf + 2, extPeg = ext0 + PEG_H * sf;
   const put = (o, fx, fy) => {
     o.cx = clamp(fx * W, o.w / 2 + 6, W - o.w / 2 - 6); o.cy = clamp(fy * H, o.h / 2 + 8, H - o.h / 2 - 8 - (o.ext || 0));
   };
@@ -87,7 +101,7 @@ function layout(W, H, tall) {
     const g = ser(iso, 'gdpUsd');
     const w = g == null ? wMin : wMin + (wMax - wMin) * Math.sqrt(g / gmax);   // area-ish: side grows with sqrt(GDP), with a floor so the text fits
     const h = Math.max(70 * sf, w * 0.6);
-    box[iso] = { iso, w, h, ext: iso === 'ROW' ? 0 : ext };
+    box[iso] = { iso, w, h, ext: iso === 'ROW' ? 0 : PEG[iso] ? extPeg : ext0 };
     put(box[iso], P[iso][0], P[iso][1]);
   }
   const pool = { iso: 'POOL', w: tall ? 172 * sf : Math.max(box.USA.w * 1.1, 196 * sf), h: (tall ? 104 : 112) * sf, ext: 0 };
@@ -387,7 +401,16 @@ function chipsSvg(pipes, L) {
     }
     if (!spot) {
       if (!st.sel) continue;                                  // unselected: skip a label that has no room
-      const [[x, y]] = along(p, 0.22); spot = { x: x - cw / 2, y: y - ch / 2, w: cw, h: ch };
+      // selected: it must show; take the spot along the pipe that covers the least of the boxes (+ the sluice / 吸力尺 under them)
+      const ovl = r => [...placed, ...Object.values(L.ob)].reduce((n, q) => n + Math.max(0, Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x)) * Math.max(0, Math.min(r.y + r.h, q.y + q.h) - Math.max(r.y, q.y)), 0);
+      let best = null;
+      for (const t of [0.22, 0.3, 0.15, 0.4, 0.5, 0.6, 0.7, 0.8]) for (const sd of [0, 1, -1, 1.8, -1.8, 2.6, -2.6]) {
+        const [[x0, y0], [tx, ty]] = along(p, t), side = (Math.abs(ty) * cw / 2 + Math.abs(tx) * ch / 2 + p.w / 2 + 2) * sd;
+        const x = x0 - ty * side, y = y0 + tx * side;
+        const r = { x: clamp(x - cw / 2, 2, L.W - cw - 2), y: clamp(y - ch / 2, 2, L.H - ch - 2), w: cw, h: ch }, c = ovl(r);
+        if (!best || c < best.c - 1) best = { r, c };
+      }
+      spot = best.r;
     }
     placed.push(spot);
     const cls = p.k === 'cap' ? 'bond' : p.k === 'debt' ? 'debt' : p.row ? 'goods row' : 'goods';
@@ -457,21 +480,79 @@ export function sluiceInfo(iso, year) {
   return { usd: false, fx, chg, ccy, txt: `${v}${ccy}`,
     tip: `1 美元 = ${v} ${ccy}（${year} 年平均）${chg == null ? '' : `；${ccy}比一年前${Math.abs(chg) < 0.5 ? '基本没变' : (chg > 0 ? '变强 ' : '变弱 ') + Math.abs(chg).toFixed(0) + '%'}`}` };
 }
+const textW = (s, f) => { let n = 0; for (const c of s) n += c.charCodeAt(0) > 255 ? f : f * 0.6; return n; };
+// the sluice pill's place under a box (shared by the sluice and the 吸力尺 that hangs under it)
+function sluiceGeo(b, L, s) {
+  const f = L.fs * 0.86, h = 15 * L.sf;
+  const ch = s.chg == null ? '' : Math.abs(s.chg) < 0.5 ? '持平' : `${s.chg > 0 ? '↑' : '↓'}${Math.abs(s.chg).toFixed(0)}%`;
+  const gw = 13 * L.sf, w = 8 + gw + 4 + textW(s.txt, f) + (ch ? 5 + textW(ch, f) : 0) + 8;
+  const x = clamp(b.x + b.w - w - 6, b.x + 4, b.x + b.w - w), y = b.y + b.h - h / 2 + 1;
+  return { f, h, ch, gw, w, x, y, gx: x + 8, gy: y + (h - 9 * L.sf) / 2, gh: 9 * L.sf };
+}
 function sluiceSvg(b, L) {
   const s = sluiceInfo(b.iso, st.year);
   if (!s) return '';
-  const f = L.fs * 0.86, h = 15 * L.sf;
-  const ch = s.chg == null ? '' : Math.abs(s.chg) < 0.5 ? '持平' : `${s.chg > 0 ? '↑' : '↓'}${Math.abs(s.chg).toFixed(0)}%`;
+  const { f, h, ch, gw, w, x, y, gx, gy, gh } = sluiceGeo(b, L, s);
   const cls = s.chg == null || Math.abs(s.chg) < 0.5 ? 'flat' : s.chg > 0 ? 'up' : 'dn';
-  const tw = w => { let n = 0; for (const c of w) n += c.charCodeAt(0) > 255 ? f : f * 0.6; return n; };
-  const gw = 13 * L.sf, w = 8 + gw + 4 + tw(s.txt) + (ch ? 5 + tw(ch) : 0) + 8;
-  const x = clamp(b.x + b.w - w - 6, b.x + 4, b.x + b.w - w), y = b.y + b.h - h / 2 + 1;
-  const gx = x + 8, gy = y + (h - 9 * L.sf) / 2, gh = 9 * L.sf;
   return `<g class="wm-sluice${s.usd ? ' usd' : ''}" data-term="fx" data-iso="${b.iso}" role="button" tabindex="0" aria-label="${esc(s.tip)}"><title>${esc(s.tip + '。点开看「汇率」')}</title>
     <rect class="wm-sl-bg" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${(h / 2).toFixed(1)}"/>
     <rect class="wm-sl-gate" x="${gx.toFixed(1)}" y="${gy.toFixed(1)}" width="${gw.toFixed(1)}" height="${gh.toFixed(1)}" rx="2"/>
     <path class="wm-sl-slat" d="M${(gx + gw * 0.3).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)} M${(gx + gw * 0.5).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)} M${(gx + gw * 0.7).toFixed(1)} ${(gy + 2).toFixed(1)} v${(gh - 4).toFixed(1)}"/>
     <text x="${(gx + gw + 4).toFixed(1)}" y="${(y + h / 2 + f * 0.36).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-sl-v">${esc(s.txt)}</tspan>${ch ? `<tspan class="wm-sl-c ${cls}" dx="5">${ch}</tspan>` : ''}</text></g>`;
+}
+// the mini 吸力尺 under a gate. { usa, p (this ▶), us (the US ▶), gap (▶差 = p − us), peg }; null for ROW / no data.
+const fmtPts = v => (Math.abs(v) < 0.0005 ? '' : v > 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1) + '点';
+export function rulerInfo(iso, year = st.year) {
+  if (iso === 'ROW' || !WORLD.countries[iso]) return null;
+  const k = clamp(WORLD.years.indexOf(year), 0, WORLD.years.length - 1), pr = i => { const a = WORLD.countries[i]?.policyRate; return Array.isArray(a) ? num(a[k]) : null; };
+  const p = pr(iso), us = pr('USA');
+  if (p == null) return null;
+  if (iso === 'USA') return { usa: true, p, us: p, gap: 0, peg: false };
+  if (us == null) return null;
+  return { usa: false, p, us, gap: p - us, peg: !!PEG[iso] };
+}
+function rulerTip(iso, r) {
+  const head = r.usa ? `闸上的尺：▶ = 美国政策利率 ${fmtPct1(r.p)}，别国的 ▶差 都拿它来减`
+    : `闸上的尺：▶差 = ${nameOf(iso)}政策利率 ${fmtPct1(r.p)} − 美国 ${fmtPct1(r.us)} = ${fmtPts(r.gap)}（利差）`;
+  return `${head}。${PARITY}。${NO_FX_EXP}。${r.peg ? '有绳（钉住）：闸拴在官方价上' : '没绳（浮动）'}`;
+}
+function rulerSvg(b, L) {
+  const r = rulerInfo(b.iso, st.year), s = sluiceInfo(b.iso, st.year);
+  if (!r || !s) return '';
+  const G = sluiceGeo(b, L, s), sf = L.sf, f = L.fs * 0.86, tip = rulerTip(b.iso, r);
+  let out = '';
+  // the rope (pegged only): from the gate down to the 官方价 line (dashed like the 调度线), labelled 有绳（钉住）
+  if (r.peg) {
+    const rx = G.gx + G.gw / 2, y0 = G.y + G.h, ly = y0 + 11 * sf, lx0 = G.x + 2, lx1 = G.x + G.w - 2;
+    const lab = '官方价 · 有绳（钉住）', lw = textW(lab, f), tx = clamp(G.x + 2, 4, L.W - lw - 4);
+    out += `<g class="wm-peg"><line class="wm-r-off" x1="${lx0.toFixed(1)}" x2="${lx1.toFixed(1)}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}"/>` +
+      `<path class="wm-rope" d="M${rx.toFixed(1)} ${y0.toFixed(1)} Q${(rx + 6 * sf).toFixed(1)} ${((y0 + ly) / 2).toFixed(1)} ${rx.toFixed(1)} ${ly.toFixed(1)}" stroke-width="${(2.4 * sf).toFixed(2)}"/>` +
+      `<circle class="wm-knot" cx="${rx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${(2.6 * sf).toFixed(2)}"/>` +
+      `<text class="wm-peg-t" x="${tx.toFixed(1)}" y="${(ly + f * 1.25).toFixed(1)}" style="font-size:${f.toFixed(1)}px">${esc(lab)}</text></g>`;
+  }
+  // the chip: ▶差 +x点 (the USA: ▶ x%), and from RULER_BAR_MIN a tiny bar: zero tick + band (blue ▶差 ≥ 0 / red < 0), USA: 0 … its ▶
+  const top = G.y + G.h + 2 + (r.peg ? PEG_H * sf : 0), h = RULER_H * sf, cy = top + h / 2;
+  const lab = r.usa ? '▶' : '▶差', val = r.usa ? fmtPct1(r.p) : fmtPts(r.gap), bw = L.bar ? 34 * sf : 0;
+  const w = 7 + textW(lab + ' ' + val, f) + (bw ? 7 + bw : 0) + 7;
+  let x = G.x + G.w - w; if (x < b.x + 2) x = b.x + 2; x = clamp(x, 4, L.W - w - 4);
+  let bar = '';
+  if (bw) {
+    const b0 = x + w - 7 - bw, bh = 6 * sf;
+    if (r.usa) {
+      const v = clamp(r.p / RULER_SPAN, 0, 1) * bw;
+      bar = `<line class="wm-r-ax" x1="${b0.toFixed(1)}" x2="${(b0 + bw).toFixed(1)}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}"/>` +
+        `<rect class="wm-r-band p" x="${b0.toFixed(1)}" y="${(cy - bh / 2).toFixed(1)}" width="${Math.max(1.5, v).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5"/>` +
+        `<line class="wm-r-zero" x1="${b0.toFixed(1)}" x2="${b0.toFixed(1)}" y1="${(cy - bh * 0.8).toFixed(1)}" y2="${(cy + bh * 0.8).toFixed(1)}"/>`;
+    } else {
+      const zx = b0 + bw / 2, v = clamp(r.gap / RULER_SPAN, -1, 1) * bw / 2;
+      bar = `<line class="wm-r-ax" x1="${b0.toFixed(1)}" x2="${(b0 + bw).toFixed(1)}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}"/>` +
+        `<rect class="wm-r-band ${r.gap >= 0 ? 'blue' : 'red'}" x="${Math.min(zx, zx + v).toFixed(1)}" y="${(cy - bh / 2).toFixed(1)}" width="${Math.max(1.5, Math.abs(v)).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5"/>` +
+        `<line class="wm-r-zero" x1="${zx.toFixed(1)}" x2="${zx.toFixed(1)}" y1="${(cy - bh * 0.8).toFixed(1)}" y2="${(cy + bh * 0.8).toFixed(1)}"/>`;
+    }
+  }
+  out += `<rect class="wm-r-bg" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${(h / 2).toFixed(1)}"/>` +
+    `<text class="wm-r-t" x="${(x + 7).toFixed(1)}" y="${(cy + f * 0.36).toFixed(1)}" style="font-size:${f.toFixed(1)}px"><tspan class="wm-r-k">${lab} </tspan><tspan class="wm-r-v">${esc(val)}</tspan></text>${bar}`;
+  return `<g class="wm-ruler${r.usa ? ' usa' : ''}${r.peg ? ' peg' : ''}" data-iso="${b.iso}" data-p="${r.p}" data-us="${r.us}" data-gap="${r.gap}" data-bar="${bw ? 1 : 0}" role="button" tabindex="0" aria-label="${esc(tip)}"><title>${esc(tip)}</title>${out}</g>`;
 }
 function poolSvg(L) {
   const p = L.pool, f = L.fs, ri = yi();
@@ -524,6 +605,7 @@ function cardHtml() {
       <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 湖连湖：外国人买美债，流进最大的湖<br><i class="wm-sw debt"></i> 棕管（地下·美元债）= 地下连地下：美国以外借的美元债（BIS）<br>管越宽，水量越大。</p>
       <p><b>箭头 = 水往哪流。</b>两国互相出口 = 两条并排的管，各靠右走；数字贴在出口国那一头。点一个框，只看它的管子。</p>
       <p class="wm-more"><i class="wm-sw sl"></i> 框下面的小闸 = 汇率：1 美元换多少本币，箭头 = 本币比一年前变强（↑）还是变弱（↓）。美国的闸是美元指数。点闸看「汇率」。</p>
+      <p class="wm-more"><b>闸下面的小尺 = ▶差</b>：本国政策利率 − 美国政策利率（美国框是它自己的 ▶）。只有人民币有绳（钉住官方价），别的货币浮动、没绳。</p>
       <p class="wm-mut wm-more">只有卡片里的「进入」按钮才会打开那个国家的水流图。</p></div>`;
   }
   const r = readings(iso), nm = nameOf(iso);
@@ -538,6 +620,15 @@ function cardHtml() {
       ${lay('lake', '湖吸力', k.real == null ? '—' : `实际利率 ${fmtPct1(k.real)}`, k.rate == null ? '政策利率：没有数据' : `政策利率 ${fmtPct1(k.rate)}${k.infl == null ? '' : ` − 物价涨幅 ${fmtPct1(k.infl)}`}`)}
       ${lay('ground', '地下', gwWord(k.gw), gwSub, `<p class="wm-def" data-def="gw">${gwDefHtml(k.span)}</p>`)}
     </div>`;
+  // the mini 吸力尺 under the gate, in words: the reading, the one parity line, the rope, and the missing ▽汇
+  const ru = rulerInfo(iso, st.year);
+  const ruler = !ru ? '' : `<div class="wm-rc" data-ruler="${iso}">
+      <p class="wm-rc-h"><b>闸上的尺</b> ${ru.usa ? `▶ 美国政策利率 <b class="wm-rc-v">${fmtPct1(ru.p)}</b><small>别国的 ▶差 = 它们的 ▶ − 这个</small>`
+        : `▶差 = ${esc(nm)} ${fmtPct1(ru.p)} − 美国 ${fmtPct1(ru.us)} = <b class="wm-rc-v ${ru.gap >= 0 ? 'blue' : 'red'}">${fmtPts(ru.gap)}</b>`}</p>
+      <p class="wm-rc-par" data-parity>${esc(PARITY)}</p>
+      <p class="wm-rc-rope" data-rope="${ru.peg ? 'peg' : 'float'}">${ru.peg ? '<b>有绳（钉住）</b>：闸拴在官方价上，绳的粗细 = 外汇储备 + 信誉' : '<b>没绳（浮动）</b>：闸跟着市场走'}</p>
+      <p class="wm-rc-no">${esc(NO_FX_EXP)}</p>
+    </div>`;
   const ready = !!COUNTRY_READY[iso];
   const here = st.opts?.country || 'USA';
   const label = ready ? `进入 ${esc(nm)} 的水流图 →` : iso === 'ROW' ? '合并项，没有单独的水流图' : '细图制作中';
@@ -548,6 +639,7 @@ function cardHtml() {
     <p class="wm-one" data-one="${iso}">${esc(ONE_LINER[iso] || '')}</p>
     ${layers}
     <p class="wm-line"><b>汇率</b> ${fx}</p>
+    ${ruler}
     ${iso === 'ROW' ? '' : `<div class="wm-fx" data-fx="${iso}" data-year="${st.year}">${iso === 'USA' ? usdHtml(null, { year: st.year }) : '<p class="wm-mut">汇率闸：读数据…</p>'}</div>`}
     ${parts ? `<div class="wm-partners"><b>贸易对手前三</b><ol>${parts}</ol></div>` : '<p class="wm-mut">这一年没有贸易数据。</p>'}
     <div class="wm-act"><button type="button" class="btn primary wm-enter" data-act="enter" data-iso="${iso}"${ready ? '' : ' disabled'}>${label}</button>
@@ -584,6 +676,7 @@ function renderMap() {
   if (!st.open) return;
   const { W, H, tall } = stageSize();
   const L = layout(W, H, tall);
+  L.bar = (window.innerWidth || W) >= RULER_BAR_MIN;            // the 吸力尺 chip: number + bar on iPad / desktop, number only on a phone
   const pipes = collectPipes(L);
   const nb = new Set(); for (const p of pipes) if (p.hl) { nb.add(p.from); if (p.to !== 'POOL') nb.add(p.to); }
   els.svg.setAttribute('width', W); els.svg.setAttribute('height', H); els.svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -596,6 +689,7 @@ function renderMap() {
     ${poolSvg(L)}
     <g class="wm-boxes">${ISOS.map(i => boxSvg(L.box[i], L).replace('class="wm-box', `class="wm-box${stateBox(i)}`)).join('')}</g>
     <g class="wm-sluices">${ISOS.map(i => sluiceSvg(L.box[i], L).replace('class="wm-sluice', `class="wm-sluice${st.sel === i ? ' sel' : stateBox(i)}`)).join('')}</g>
+    <g class="wm-rulers">${ISOS.map(i => rulerSvg(L.box[i], L).replace('class="wm-ruler', `class="wm-ruler${st.sel === i ? ' sel' : stateBox(i)}`)).join('')}</g>
     <g class="wm-chips">${chipsSvg(pipes, L)}</g>`;
   st.last = { W, H };
   els.svg.dataset.pipes = pipes.length;
@@ -696,7 +790,7 @@ function buildDom(host) {
   els.svg.addEventListener('keydown', e => {
     const sl = e.target.closest && e.target.closest('.wm-sluice');
     if (sl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sl.dispatchEvent(new MouseEvent('click', { bubbles: true })); return; }
-    const g = e.target.closest && e.target.closest('.wm-box');
+    const g = e.target.closest && (e.target.closest('.wm-box') || e.target.closest('.wm-ruler'));
     if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectOnMap(g.dataset.iso); }
   });
   wireFxReactor(els.card);                           // tap a reactor pipe in the card = its five forces
@@ -711,6 +805,8 @@ function onClick(e) {
   if (t.closest && t.closest('.wm-tip')) { st.tip = null; placeTip(); return; }   // tapping the definition closes it
   if (t.closest && t.closest('.wm-svg')) {
     if (t.closest('.wm-sluice')) return;            // the FX sluice: the document-level [data-term] delegate opens the 汇率 card; no (de)selection
+    const ru = t.closest('.wm-ruler');               // the 吸力尺 under the gate: select that country, its card explains the ruler
+    if (ru) { st.tip = null; selectOnMap(ru.dataset.iso); return; }
     const g = t.closest('.wm-box');
     st.tip = g && t.closest('.wm-l-hit') ? g.dataset.iso : null;   // the 地下 row: select + show its one-line definition
     if (g) selectOnMap(g.dataset.iso); else if (st.sel) selectOnMap(null); else placeTip();     // tapping empty space deselects
