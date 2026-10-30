@@ -71,6 +71,10 @@ Everything below is pushed; no work is pending in any worktree.
    7. Who to ask: an ASIC-registered, fee-only adviser, for tax / super / structure (not for timing).
    8. Ending: the 三问 + 「这是用框架演示的样板，不是个人建议」.
    - Every number from data or engine, never typed. Push, then send the peer the link.
+   - **CORRECTION from SITU-AWARE v2** (5_situ_aware\reports\MORNING.md v2, TEST_V2.md): the bottleneck radar and the leading data gave no profitable early signal; industry momentum doesn't beat SPY after 2011 net of costs; the macro switch has only 4 episodes. Therefore:
+     - step 5 adds 「我们用公开数据做的卡点雷达和行业动量，回测里扣掉成本后都没有稳定跑赢大盘：市场比公开数据快。所以卡点只当背景，不当择时信号」;
+     - step 6: the 10% tilt becomes a fixed 「信念仓位」 (0–10% by conviction), rebalanced yearly, NOT rotated. REMOVE the 「卡点挪了」 button. Keep 收紧 / AI 信用压力, labelled 「风险控制，不是赚钱信号；历史上只有 4 次收紧，证据不足」;
+     - conclusion: the core (60% global ex-AU unhedged) does most of the work; the tilt is optional.
 1. **EA:**
    - fix the COVID shock the GBR way (shockMult 1, slackVsCapEff, furlough);
    - EA initial values (household 0.46 / private 1.12 / gov 0.70);
