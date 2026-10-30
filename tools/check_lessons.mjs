@@ -19,14 +19,14 @@
 // 10. town steps  (m1 starts in the 万元 town, then zooms to the US): townClaims [{ at:'before'|'after', get, minus?:'before', gt|gte|lt|lte }] are
 //                 checked on a town replay with the SAME code as the UI (replayTown + the tap); the US steps after the zoom run the usual checks
 // 11. mark / roleCard / roleCards ids exist (m5: 1-2 cards per step, at most 6 steps); ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
-// 12. course v3 (tools/COURSE-V3.md): COURSE.parts = 4 parts, COURSE.main = m1 shk m2 m3 m4 fx m5 inv; each hands over to the next (last step
-//                `next`), inv ends on the 盲测 links; labels 第 1–8 课; COURSE lists every lesson / role lesson exactly once (the rest under 旧版)
+// 12. course v3 (tools/COURSE-V3.md): COURSE.parts = 4 parts, COURSE.main = m1 shk m2 m3 m4 fx m5 inv now; each hands over to the next (last
+//                step `next`), inv shows the 盲测 links and hands over to now (L9 现在在哪, the end of the line); labels 第 1–9 课; COURSE lists every lesson / role lesson exactly once (the rest under 旧版)
 // BIG LESSONS (kind:'fx' 汇率, kind:'capstone' 投资者; src/data/lesson-fx.js, lesson-investor.js): their numbers, facts and claims are verified by
 //  tools/check_lesson_fx.mjs / check_lesson_investor.mjs, so the per-step checks above (incl. the world rule 7 "no typed numbers") skip them.
 //  Checked here: 13. place in the course  handovers; country / panel ids (incl. drill-down panels) / panel hosts
 // SHOCKS (kind:'shocks' 冲击 shk, src/data/lesson-shocks.js; numbers checked by tools/check_lesson_shocks.mjs): its sim step (Capex, the only
 //  step with vals / claims) gets the full per-step checks here (templates, claims); the panel steps only the structural ones.
-// 14. 三问 ending  the last step of each of the 8 lessons has ending { q1, q2, q3 }, each starting with its fixed question; the {placeholders}
+// 14. 三问 ending  the last step of each of the 9 lessons has ending { q1, q2, q3 }, each starting with its fixed question; the {placeholders}
 //                of the main lessons are declared vals and fill without gaps
 // 15. drills     step.drills [{ label, panel, text, nums, facts }] of the main lessons (m5 外国人 -> the AUS FX reactor): panel ids exist, every
 //                number typed in a drill text is listed in nums and recomputes from the repo's quarterly data / the FX reactor (D.q, D.fxr)
@@ -339,20 +339,20 @@ for (const L of [...ROUTINE, ...MAIN, ...SHK, ...CYC, ...WORLDL]) {
 /* ---------- cross-lesson ---------- */
 console.log('\n--- cross-lesson ---');
 if (pendingSeen.size) console.log('  PENDING concept cards (not written yet, world lessons point at them): ' + [...pendingSeen].join(', '));
-ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LESSONS.length - 4, 'world lessons w1, w2 sit after the cycle lessons (then the two big lessons)');
+ok(WORLDL.map(l => l.id).join() === 'w1,w2' && LESSONS.indexOf(WORLDL[0]) === LESSONS.length - 5, 'world lessons w1, w2 sit after the cycle lessons (then fx, inv, now)');
 ok(WORLDL.every(l => l.label && l.title), 'world lessons have label and title');
 ok(CYC.map(l => l.id).join() === '1,2,3,3b,4,5,6,7', 'cycle lessons 1..7 (+ 3b) all present, in order');
 ok(CYC.every(l => l.available === true && l.steps.length >= 5), 'all available with steps');
 // old chain 1 -> 2 -> 3 -> 3b -> 4 -> 5; lesson 5 (选学) now hands over to 7 (选学), 6 (旧版) to 7, 7 to w2 (选学)
 const NEXT_OF = { 5: 7, 6: 7, 7: 'w2' };
 ok(CYC.every((l, k) => String(l.steps[l.steps.length - 1].next) === String(NEXT_OF[l.id] ?? CYC[k + 1].id)), 'each cycle lesson hands over to the next (5 -> 7 -> w2 in the 选学 group)');
-/* ---------- 12. course v3: 4 parts, 8 lessons, one chain (COURSE) ---------- */
+/* ---------- 12. course v3: 4 parts, 9 lessons, one chain (COURSE) ---------- */
 console.log('\n--- course v3: parts, order, handovers, labels, 三问 ending ---');
-const COURSE_IDS = 'm1,shk,m2,m3,m4,fx,m5,inv';
+const COURSE_IDS = 'm1,shk,m2,m3,m4,fx,m5,inv,now';
 ok(MAIN.map(l => l.id).join() === 'm1,m2,m3,m4,m5', 'the five main lessons m1..m5 (kind main) are in LESSONS in order');
-ok(COURSE.main.map(String).join() === COURSE_IDS, 'COURSE.main = L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv: ' + COURSE.main.join());
-ok(JSON.stringify(COURSE.parts.map(p => [p.name, p.ids])) === JSON.stringify([['一个国家怎么运转', ['m1', 'shk']], ['它怎么出毛病', ['m2', 'm3', 'm4']], ['国与国之间', ['fx']], ['你', ['m5', 'inv']]]),
-  'COURSE.parts = 一个国家怎么运转 (m1 shk) / 它怎么出毛病 (m2 m3 m4) / 国与国之间 (fx) / 你 (m5 inv)');
+ok(COURSE.main.map(String).join() === COURSE_IDS, 'COURSE.main = L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv → L9 now: ' + COURSE.main.join());
+ok(JSON.stringify(COURSE.parts.map(p => [p.name, p.ids])) === JSON.stringify([['一个国家怎么运转', ['m1', 'shk']], ['它怎么出毛病', ['m2', 'm3', 'm4']], ['国与国之间', ['fx']], ['你', ['m5', 'inv', 'now']]]),
+  'COURSE.parts = 一个国家怎么运转 (m1 shk) / 它怎么出毛病 (m2 m3 m4) / 国与国之间 (fx) / 你 (m5 inv now)');
 ok(COURSE.parts.flatMap(p => p.ids).join() === COURSE.main.join(), 'COURSE.main = the parts flattened');
 const CL = COURSE.main.map(id => LESSONS.find(l => String(l.id) === String(id)));
 ok(CL.every(Boolean), 'every course lesson is registered');
@@ -360,7 +360,7 @@ CL.forEach((l, k) => {
   if (!l) return;
   const last = l.steps[l.steps.length - 1], want = k < CL.length - 1 ? CL[k + 1].id : null;
   ok(l.available === true, `${l.id} available`);
-  ok(want == null ? last.next == null : String(last.next) === String(want), `L${k + 1} ${l.id} hands over to ${want ?? '(end: 历史盲测)'} (got ${last.next})`);
+  ok(want == null ? last.next == null : String(last.next) === String(want), `L${k + 1} ${l.id} hands over to ${want ?? '(end of the line)'} (got ${last.next})`);
   ok(l.label === `第 ${k + 1} 课`, `L${k + 1} ${l.id} label 第 ${k + 1} 课 (got ${l.label})`);
   // ---- 14. the fixed 三问 ending on the last step
   const e = last.ending;
@@ -368,7 +368,7 @@ CL.forEach((l, k) => {
   ok(l.steps.slice(0, -1).every(s => !s.ending), `L${k + 1} ${l.id}: only the last step has an ending`);
   if (e && (l.kind === 'fx' || l.kind === 'capstone')) ok(!/[{}]/.test(Object.values(e).join('')), `L${k + 1} ${l.id}: ending has no placeholders (its numbers: its own checker)`);
 });
-ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 8 course lessons');
+ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 9 course lessons');
 { // L5 (m4): the step 化债四个出口和谁被砍, tied to ⑦
   const m4 = MAIN[3], k = m4.steps.findIndex(s => /化债四个出口/.test(s.title || ''));
   const t = k >= 0 ? m4.steps[k].text.join('') : '';
@@ -415,11 +415,14 @@ ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 8 course 
   const src = f => readFileSync(new URL('../src/ui/' + f, import.meta.url), 'utf8');
   const ids = (f, name) => { const m = src(f).match(new RegExp(name + ' = \\[([^\\]]*)\\]')); return m ? [...m[1].matchAll(/'([\w-]+)'/g)].map(x => x[1]) : []; };
   const PANEL_IDS = { fx: [...ids('fx-lab.js', 'FX_PANELS'), 'fx-reactor'], capstone: ids('investor-lab.js', 'INVESTOR_PANEL_IDS'), shocks: ids('shock-lab.js', 'SHOCK_PANELS') };
-  ok(BIG.map(l => l.id).join() === 'fx,inv' && LESSONS.slice(-2).map(l => l.id).join() === 'fx,inv', 'fx (汇率) and inv (投资者) are registered, last in LESSONS');
+  ok(BIG.map(l => l.id).join() === 'fx,inv' && LESSONS.slice(-3).map(l => l.id).join() === 'fx,inv,now', 'fx (汇率), inv (投资者) and now (现在在哪; numbers: check_lesson_now) are registered, last in LESSONS');
   ok(SHK.map(l => l.id).join() === 'shk', 'shk (冲击) is registered');
   const [FX, INV] = BIG;
   ok(FX && FX.kind === 'fx' && FX.label === '第 6 课' && INV && INV.kind === 'capstone' && INV.label === '第 8 课', 'kinds: fx = 第 6 课, inv = capstone 第 8 课');
-  ok(INV && (INV.steps[INV.steps.length - 1].panel || {}).id === 'blind', 'inv is the end of the line: its last step shows the 盲测 links (panel blind)');
+  ok(INV && (INV.steps[INV.steps.length - 1].panel || {}).id === 'blind' && INV.steps[INV.steps.length - 1].next === 'now', 'inv: its last step shows the 盲测 links (panel blind) and hands over to now (L9)');
+  { const NOW = LESSONS.find(l => l.id === 'now');
+    ok(NOW && NOW.kind === 'now' && NOW.label === '第 9 课' && !NOW.country && NOW.available === true && NOW.steps.every(s => s.panel && /^now-/.test(s.panel.id)) && NOW.steps[NOW.steps.length - 1].next == null,
+      'now: 第 9 课, US view, every step mounts a now-* panel, the end of the line (no next)'); }
   ok(INV && INV.country === 'AUS' && COUNTRY_READY.AUS === true && !!DATA.AUS, 'inv lives in the AUS view (country:AUS, COUNTRY_READY.AUS)');
   for (const L of [...BIG, ...SHK]) {
     ok(L.available === true && L.rulesOn === 'all' && D_OK(L), `${L.id} available, rulesOn all, startDate in its data`);
@@ -451,7 +454,7 @@ for (const l of LESSONS) ok(menuKeys.includes(String(l.id)), `lesson ${l.id} is 
 for (const l of ROLE_LESSONS) ok(menuKeys.includes('role:' + l.role), `role lesson ${l.id} is in the menu (旧版)`);
 for (const k of menuKeys) ok(k.startsWith('role:') ? ROLE_LESSONS.some(l => l.role === k.slice(5)) : LESSONS.some(l => String(l.id) === k), 'menu key exists: ' + k);
 ok(COURSE.legacy.map(String).join() === '0,0b,role:bank,role:household,role:centralBank,role:government,role:firm,role:investor,role:foreign,1,2,3,3b,4,5,6,7,w1,w2', '旧版课程 = lesson 0, 0.5, the 7 role lessons, cycle lessons 1-7 (+3b; 5 Capex -> L2, 7 自由运行 -> 沙盒), 世界 1 and 2 (-> L6)');
-ok(Object.keys(COURSE).join() === 'parts,main,legacy', 'menu groups in order: the 4 parts (8 lessons), then 旧版 (the 沙盒 link sits between them in the menu)');
+ok(Object.keys(COURSE).join() === 'parts,main,legacy', 'menu groups in order: the 4 parts (9 lessons), then 旧版 (the 沙盒 link sits between them in the menu)');
 ok(ROUTINE.length === 1 && ROUTINE[0].id === '0b' && LESSONS[1] === ROUTINE[0], '第 0.5 课 sits right after lesson 0');
 ok(ROUTINE.every(l => l.steps.length >= 5 && l.steps.length <= 8 && l.steps.some(s => s.strip) && l.steps.filter(s => s.type === 'predict').length === 1), '第 0.5 课: 5-8 steps, points at the strip, one 猜一猜');
 const L7 = CYC[CYC.length - 1];

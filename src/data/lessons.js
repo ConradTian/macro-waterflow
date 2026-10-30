@@ -55,8 +55,8 @@
 //   predict option.when [cond]   the claim an option makes; exactly the ok option must hold
 //   claims [cond]                every factual sentence of a step.  cond = { get, from?, until?, set?, vs?, mul?, gt|gte|lt|lte, dateBetween?, dateBefore? }
 
-// COURSE v3 (tools/COURSE-V3.md, 2026-10-29): one storyline, 4 parts, 8 lessons; see COURSE at the bottom.
-//   L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv → 历史盲测
+// COURSE v3 (tools/COURSE-V3.md, 2026-10-29): one storyline, 4 parts, 9 lessons; see COURSE at the bottom.
+//   L1 m1 → L2 shk → L3 m2 → L4 m3 → L5 m4 → L6 fx → L7 m5 → L8 inv (→ 历史盲测 links) → L9 now (现在在哪, 2026-10-30)
 // Course-v3 step fields (src/ui/lessons.js):
 //   ending:{ q1, q2, q3 }   on the LAST step of each of the 8 lessons: the fixed 三问 block (① 水的问题还是河道的问题？ ② 环上哪一步？
 //                           ③ 谁赢谁输、钱放哪？), each string starts with its question; {placeholders} are filled from the step's vals.
@@ -71,6 +71,7 @@ import { LESSON_INVESTOR } from './lesson-investor.js';
 import { LESSON_SHOCKS } from './lesson-shocks.js';
 import { COUNTRY_PARAMS } from './country-params.js';
 import { LESSON_EXP } from './lesson-exp.js';
+import { LESSON_NOW } from './lesson-now.js';
 import { B1_STORY } from './b1-story.js';
 // rule params quoted in the texts: the USA's live values (RULE_DEFS defaults + the USA overrides in country-params.js). The town lesson 0
 // quotes none of the overridden rules, so this is also right there.
@@ -2636,22 +2637,26 @@ export const LESSONS = [
    */
   LESSON_FX,
   LESSON_INVESTOR,
+  /* 第 9 课 现在在哪 (inv -> now, the end of the line): today's real data on the whole picture; src/data/lesson-now.js, panels 'now-*'
+   * (src/ui/now-panel.js), numbers checked by tools/check_lesson_now.mjs. Adds no layer (shows them all). */
+  LESSON_NOW,
 ];
 
 export const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]));
 
 // The course menu (src/ui/lessons.js), top to bottom (course v3, tools/COURSE-V3.md). Keys are lesson ids, or 'role:<player>' for the town
 // role lessons.
-//   parts   the 4 parts of the one storyline, 8 lessons in order (第 1–8 课); each hands over to the next (last step `next`), the last
-//           (inv) ends on the 历史盲测 links. Then the 「沙盒」 link (free mode; it replaced lesson 7 自由运行).
-//   main    the same 8 ids, flattened (L1..L8)
+//   parts   the 4 parts of the one storyline, 9 lessons in order (第 1–9 课); each hands over to the next (last step `next`): inv (L8)
+//           shows the 历史盲测 links and hands over to now (L9 现在在哪), the end of the line. Then the 「沙盒」 link (free mode; it replaced
+//           lesson 7 自由运行).
+//   main    the same 9 ids, flattened (L1..L9)
 //   legacy  旧版课程 (collapsed group at the bottom): still reachable by ?lesson=ID, nothing removed (lesson 0.5 -> the fixed 三问 ending,
 //           Capex 与产能 (5) -> L2, 世界 1 / 世界 2 -> L6, 自由运行 (7) -> 沙盒)
 const PARTS = [
   { name: '一个国家怎么运转', ids: ['m1', 'shk'] },
   { name: '它怎么出毛病', ids: ['m2', 'm3', 'm4'] },
   { name: '国与国之间', ids: ['fx'] },
-  { name: '你', ids: ['m5', 'inv'] },
+  { name: '你', ids: ['m5', 'inv', 'now'] },
 ];
 export const COURSE = {
   parts: PARTS,

@@ -2,7 +2,9 @@
 // USA to realLastDate('USA') (2026Q3) and AUS to realLastDate('AUS') (2026Q2), in five places: 河 → 地下 → 湖 → 吸力尺 → 闸, then the 三问.
 // A reading, not a fit: everything after 2021 is 保留样本 (display only). It ends with 「这是读图，不是预测」.
 //
-// Registered by src/ui/lessons.js (block 「lesson now (C3)」); panels 'now-*' = src/ui/now-panel.js (mountNowPanel / unmountNowPanel).
+// Main line L9 (the last lesson; inv hands over to it): listed in LESSONS / COURSE (part 「你」) of src/data/lessons.js; adds no diagram layer
+// (src/data/layers.js LESSON_LAYER.now = null: it shows all of them). Panels 'now-*' = src/ui/now-panel.js (mountNowPanel / unmountNowPanel),
+// dispatched by src/ui/lessons.js (block 「lesson now (C3)」).
 //
 // NUMBERS: never typed. The step texts carry {key} placeholders; NOW_NUMS[key] = [f(F), fmt] reads them from the facts F = nowFacts(),
 // which are computed from realSnapshot() (src/data/real/real-snapshot.js) — plus three constants that are not data: the 调度线 (cp.piTarget),
@@ -188,7 +190,7 @@ function step(o) {
 }
 
 export const LESSON_NOW = {
-  id: 'now', kind: 'topic', label: '第 9 课', badge: '9',
+  id: 'now', kind: 'now', label: '第 9 课',
   title: '现在在哪',
   question: '用整张图读今天：现在在哪？',
   oneLine: '用最新的真实数据，把整张图读一遍：河、地下、湖、吸力尺、闸，最后回答今天的三问。读图，不是预测。',

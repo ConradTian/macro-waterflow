@@ -20,7 +20,7 @@
 //   Host per step (contract: tools/D-CONTRACT.md 「接线」): 'diagram' = div#ls-panel over the water-diagram column (covers it like the curves
 //   view); 'card' = div.ls-pnl-card in the lesson card body (投资者 assetTable flashes the pools). Panel modules load lazily in startLesson.
 // COURSE v3 (tools/COURSE-V3.md; contract tools/D-CONTRACT.md 「课程 v3」):
-//   menu      COURSE.parts (4 parts, 8 lessons, badges 1–8) -> 「沙盒」 link (free mode) -> 旧版课程 (collapsed)
+//   menu      COURSE.parts (4 parts, 9 lessons, badges 1–9) -> 「沙盒」 link (free mode) -> 旧版课程 (collapsed)
 //   ending    the last step's ending:{q1,q2,q3} renders as the fixed 三问 block (.ls-end) once the step is answered; {placeholders} filled
 //   drills    step field drills:[{label, panel, text, back?}] = optional drill-down buttons: the drill's panel replaces the step's (over the
 //             diagram) and its text shows in the card until 「回到」; drillCta:true = the first drill is the primary button (m5 外国人 -> AUS reactor)
@@ -43,7 +43,7 @@ import { pulseHeadline, closeHeadline } from './headline.js';   // lesson step f
 import * as FLOW from './flow.js';             // feature-detected: FLOW.playValveRipple / FLOW.zoomOut may be missing in older diagrams
 import { markDone } from './progress.js';      // course v3: the progressive diagram learns a lesson's layer when the lesson reaches its last step
 import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fmtV, aggregate, dateT, getPath, scratchRun, buildTable, fillStep, setWorldData } from './lessons-town.js';
-// 专题 lessons: outside the 8-lesson main line (not in COURSE / LESSON_ORDER, not counted); menu group 「专题」 after the 4 parts.
+// 专题 lessons: outside the 9-lesson main line (not in COURSE / LESSON_ORDER, not counted); menu group 「专题」 after the 4 parts.
 // 「专题：预期」 (src/data/lesson-exp.js) mounts the exp-* panels of src/ui/exp-gauge.js.
 import { LESSON_EXP } from '../data/lesson-exp.js';
 export const TOPIC_LESSONS = [LESSON_EXP];
@@ -287,8 +287,8 @@ function syncPad() {
   document.documentElement.style.setProperty('--ls-h', h + 'px');
 }
 
-/* ---------- course menu (COURSE in data/lessons.js, course v3): 4 parts × 8 lessons / 沙盒 link / 旧版课程 (collapsed) ---------- */
-// the course number (1..8) of a lesson in COURSE.main (the 4 parts flattened)
+/* ---------- course menu (COURSE in data/lessons.js, course v3): 4 parts × 9 lessons / 沙盒 link / 旧版课程 (collapsed) ---------- */
+// the course number (1..9) of a lesson in COURSE.main (the 4 parts flattened)
 const COURSE_NO = Object.fromEntries((COURSE.main || []).map((k, i) => [String(k), i + 1]));
 // badge (the round number on the left) per menu key
 function badgeOf(key, L) {
@@ -451,9 +451,7 @@ const PANEL_MODS = {
   exp: () => import('./exp-gauge.js').then(m => { m.ensureExpCss(); return m; }),   // 专题：预期 (panel ids 'exp-*')
 };
 // --- lesson now (C3) --- 「第 9 课 · 现在在哪」 (src/data/lesson-now.js): today's REAL data on the five places; panels 'now-*' = src/ui/now-panel.js.
-// Listed under 专题 for now (the main-line menu is COURSE in src/data/lessons.js); the three lines tagged 「C3 now」 below dispatch its panels.
-import { LESSON_NOW } from '../data/lesson-now.js';
-TOPIC_LESSONS.push(LESSON_NOW);
+// Main line L9: registered in LESSONS / COURSE of src/data/lessons.js (not a 专题 any more); the three lines tagged 「C3 now」 below dispatch its panels.
 PANEL_MODS.now = () => import('./now-panel.js').then(m => { m.ensureNowCss(); return m; });
 const isNowPanel = spec => /^now-/.test(spec.id);
 // --- end lesson now (C3) ---

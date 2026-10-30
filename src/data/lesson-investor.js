@@ -140,6 +140,8 @@ export const LESSON_INVESTOR = {
         q2: '环上哪一步？澳洲小周期在「降息」，大周期没有走上 B2：中国的刺激加上澳联储很快降息，接住了。',
         q3: '谁赢谁输、钱放哪？手里有美元、日元的澳洲人赢：澳元对美元跌了 30%；只有澳元资产的人输。钱放哪：降息时按 债 → 股 → 房 的顺序看，平时配一份外币当保险。',
       },
+      next: 'now',   // course v3: L8 hands over to L9 现在在哪 (src/data/lesson-now.js), the end of the line
+
       claims: [
         { shown: '30%', src: 'fx', what: 'fall', pair: 'USD', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
         { shown: '「降息」', src: 'sim', get: 'start:cycles.short.phase', from: '2009Q1', until: '2009Q1', eq: 'ease', note: '2009Q1 澳洲小周期在降息' },

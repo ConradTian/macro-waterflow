@@ -2,7 +2,8 @@
 //                                                                          e.g. python -m http.server 8883)
 // Checks the capstone 「第 9 课：现在在哪」 (src/data/lesson-now.js) and its panels (src/ui/now-panel.js):
 //  1. structure  ≤ 7 steps, intro 「下面分 N 步」 = N, every step mounts a now-* panel, concepts exist, the last step has the 三问 ending and
-//                「这是读图，不是预测」; registered in src/ui/lessons.js (block 「lesson now (C3)」); the 8-lesson main line untouched
+//                「这是读图，不是预测」; main line L9 (COURSE / LESSONS / LESSON_ORDER, inv → now); panels dispatched by src/ui/lessons.js
+//                (block 「lesson now (C3)」)
 //  2. wording    no 同比 / 环比 / 预报 in the lesson (filled), lesson-now.js, now-panel.js, now-panel.css
 //  3. numbers    every {placeholder} is recomputed HERE from realSnapshot (own code, own formats) and equals the lesson's; the private debt
 //                ratio also equals the raw BIS series; every digit left in the texts is a listed constant (no typed data number)
@@ -49,13 +50,18 @@ const last = steps[steps.length - 1];
 ok(last.ending && ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'].every((q, k) => String(last.ending['q' + (k + 1)]).startsWith(q)), 'last step: the 三问 ending');
 ok(NOW_TRUTH === '这是读图，不是预测' && arr(last.text).join('').includes(NOW_TRUTH) && String(last.ending.q3).includes(NOW_TRUTH), 'last step: 「这是读图，不是预测」 in the text and in 三问 ③');
 ok(arr(steps[0].text).join('').includes(NOW_TRUTH), 'intro: 「这是读图，不是预测」');
-ok(!LESSONS.some(l => l.id === 'now') && ![...COURSE.main, ...COURSE.legacy].map(String).includes('now') && !LESSON_ORDER.includes('now') && COURSE.main.length === 8,
-  'not in LESSONS / COURSE / LESSON_ORDER; the main line still has 8 lessons (src/data/lessons.js untouched)');
+// main line L9 (2026-10-30): the last lesson of COURSE (part 「你」), last in LESSONS, inv hands over to it; no layer of its own
+// (src/data/layers.js LESSON_ORDER ends with 'now', LESSON_LAYER.now = null: it shows every layer)
+ok(LESSONS.filter(l => l.id === 'now').length === 1 && LESSONS[LESSONS.length - 1] === L && COURSE.main.length === 9 && COURSE.main[8] === 'now' && !COURSE.legacy.map(String).includes('now'),
+  'main line L9: last in LESSONS and in COURSE.main (9 lessons), not under 旧版');
+ok(COURSE.parts[COURSE.parts.length - 1].ids.slice(-1)[0] === 'now', 'COURSE: now is the last lesson of the last part');
+{ const inv = LESSONS.find(l => l.id === 'inv'); ok(inv && inv.steps[inv.steps.length - 1].next === 'now' && last.next == null, 'inv (L8) hands over to now; now is the end of the line (no next)'); }
+ok(LESSON_ORDER.indexOf('now') === LESSON_ORDER.length - 1 && LESSON_ORDER.length === 9, `src/data/layers.js: LESSON_ORDER ends with 'now' (L9) — needs the one-line layers.js change`);
 {
   const ui = src('src/ui/lessons.js');
   const blk = /\/\/ --- lesson now \(C3\) ---[\s\S]*?\/\/ --- end lesson now \(C3\) ---/.exec(ui);
-  ok(blk && /import \{ LESSON_NOW \} from '\.\.\/data\/lesson-now\.js';/.test(blk[0]) && /TOPIC_LESSONS\.push\(LESSON_NOW\)/.test(blk[0]) && /PANEL_MODS\.now = /.test(blk[0]),
-    'src/ui/lessons.js: one marked block imports + registers the lesson and its panel module');
+  ok(blk && !/TOPIC_LESSONS\.push\(LESSON_NOW\)/.test(ui) && /PANEL_MODS\.now = /.test(blk[0]),
+    'src/ui/lessons.js: one marked block registers the panel module; the lesson is no longer a 专题 (no TOPIC_LESSONS.push)');
   ok((ui.match(/(\/\/|\/\*) C3 now/g) || []).length === 3 && /isNowPanel\(spec\) \? 'now'/.test(ui) && /kind === 'now'\) return m\.mountNowPanel/.test(ui) && /pnl\.kind === 'now'\) m\.unmountNowPanel/.test(ui),
     'src/ui/lessons.js: the three tagged dispatch lines (panelKind, mountPanel, dropPanel)');
   ok(/TOPIC_LESSONS = \[LESSON_EXP\]/.test(ui), 'src/ui/lessons.js: TOPIC_LESSONS = [LESSON_EXP] line unchanged (check_lesson_exp reads it)');
@@ -150,10 +156,10 @@ for (const k of used) ok(E[k] || WORD_KEYS.has(k), `text placeholder {${k}} is r
 // digits typed in the texts: only these constants (each with its reason)
 {
   const ALLOWED = new Map([
-    ['8', `前 8 课 = the main line (${COURSE.main.length})`], [String(steps.length - 1), '下面分 N 步'], ['2022', `保留样本 from ${realData('USA').reservedFrom}`],
+    ['8', `前 8 课 = the main-line lessons before now (${COURSE.main.indexOf('now')})`], [String(steps.length - 1), '下面分 N 步'], ['2022', `保留样本 from ${realData('USA').reservedFrom}`],
     ['1995', `the real grid starts ${realDates('USA')[0]}`], ['1996–2021', `FX_FIT normal window ${FX_FIT.fit?.join?.('–') || ''}`], ['10', '10 年国债'], ['1', '1 澳元 / 1 倍'], ['0', '贴着 0'], ['6', '第 6 课 (汇率)'],
   ]);
-  ok(realData('USA').reservedFrom.startsWith('2022') && realDates('USA')[0].startsWith('1995') && COURSE.main.length === 8 && COURSE.main[5] === 'fx', 'the allowed constants match the data (2022 保留样本, 1995 grid start, 8 lessons, 第 6 课 = fx)');
+  ok(realData('USA').reservedFrom.startsWith('2022') && realDates('USA')[0].startsWith('1995') && COURSE.main.indexOf('now') === 8 && COURSE.main[5] === 'fx', 'the allowed constants match the data (2022 保留样本, 1995 grid start, 前 8 课 = the lessons before now, 第 6 课 = fx)');
   for (const st of steps) {
     const bare = [...st.rawText, ...(st.rawEnding ? Object.values(st.rawEnding) : [])].join(' ').replace(/\{\w+\}/g, '').replace(/B[12]/g, '');
     const nums = bare.match(/\d{4}–\d{4}|\d+(?:\.\d+)?/g) || [];
@@ -236,11 +242,13 @@ async function browser() {
     // the menu
     errors.length = 0;
     await send('Page.navigate', { url: BASE + '?pause=1&menu=1' });
-    ok(await waitFor(`!!document.querySelector('#ls-menu .ls-item[data-id="now"]')`), `${tag}: the menu lists the lesson`);
-    const menu = await ev(`(() => ({ main: document.querySelectorAll('#ls-menu .ls-main .ls-item').length, parts: document.querySelectorAll('#ls-menu h3.ls-sec').length,
-      item: (document.querySelector('#ls-menu .ls-item[data-id="now"]') || {}).textContent || '', no: ((document.querySelector('#ls-menu .ls-item[data-id="now"] .ls-no')) || {}).textContent || '' }))()`);
-    ok(menu.main === 8 && menu.parts === 4 && menu.item.includes('现在在哪') && menu.no === '9', `${tag}: menu item 「9 · 现在在哪」 (main line unchanged: ${menu.main} lessons, ${menu.parts} parts)`);
-    await ev(`document.querySelector('#ls-menu .ls-item[data-id="now"]').click()`);
+    ok(await waitFor(`!!document.querySelector('#ls-menu .ls-main .ls-item[data-id="now"]')`), `${tag}: the menu lists the lesson in the main line`);
+    const menu = await ev(`(() => ({ main: [...document.querySelectorAll('#ls-menu .ls-main .ls-item')].map(b => b.dataset.id), parts: document.querySelectorAll('#ls-menu h3.ls-sec').length,
+      lead: (document.querySelector('#ls-menu .ls-lead') || {}).textContent || '', topic: !!document.querySelector('#ls-menu .ls-topics .ls-item[data-id="now"]'),
+      item: (document.querySelector('#ls-menu .ls-main .ls-item[data-id="now"]') || {}).textContent || '', no: ((document.querySelector('#ls-menu .ls-main .ls-item[data-id="now"] .ls-no')) || {}).textContent || '' }))()`);
+    ok(menu.main.length === 9 && menu.main[8] === 'now' && menu.parts === 4 && /9 课/.test(menu.lead) && !menu.topic && menu.item.includes('现在在哪') && menu.no === '9',
+      `${tag}: menu item 「9 · 现在在哪」 last of the main line (${menu.main.length} lessons, ${menu.parts} parts, 「${menu.lead.slice(0, 18)}」), not under 专题`);
+    await ev(`document.querySelector('#ls-menu .ls-main .ls-item[data-id="now"]').click()`);
     ok(await waitFor(`!!document.querySelector('#ls-panel .nowp[data-panel="now-map"]')`), `${tag}: tapping it in the menu starts the lesson`);
     ok(!errors.length, `${tag}: menu, no JS errors ${errors.slice(0, 3).join(' | ')}`);
   }
