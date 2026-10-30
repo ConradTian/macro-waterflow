@@ -16,6 +16,7 @@ truncated at the card's year; the checker asserts the two are identical.
 """
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -28,7 +29,8 @@ import world_common as W  # noqa: E402  (BIS / FRED loaders over data_src/world)
 ROOT = Path(__file__).resolve().parent.parent
 BL = ROOT / "data_src" / "blind"
 WD = ROOT / "data_src" / "world"
-JST = ROOT.parent / "dalio_432" / "data" / "jst_panel.csv"
+# BLIND_JST overrides the path (a git worktree has no ../dalio_432 next to it); still read-only
+JST = Path(os.environ["BLIND_JST"]) if os.environ.get("BLIND_JST") else ROOT.parent / "dalio_432" / "data" / "jst_panel.csv"
 OUT = ROOT / "src" / "data" / "blind-cards.js"
 LAST = 2025                     # last complete year used anywhere
 AS_OF = "2026-10-29"
@@ -768,7 +770,7 @@ def returns(panels, iso, year):
     Pc, Pa = panels[iso], panels["AUS"]
     assets = {"cash": (iso, "r_cash"), "bond": (iso, "r_bond"), "equity": (iso, "r_eq"), "house": (iso, "r_house"),
               "fxUSD": ("USA", "r_cash"), "fxJPY": ("JPN", "r_cash"), "fxCNY": ("CHN", "r_cash"), "fxAUD": ("AUS", "r_cash")}
-    out1, out3, used = {}, {}, set()
+    out1, out3, yearly, used = {}, {}, {}, set()
     navail = max(0, min(3, LAST - year))
     for name, (c, col) in assets.items():
         g1 = aud_real(panels[c], Pa, col, year + 1)
@@ -776,8 +778,10 @@ def returns(panels, iso, year):
         gs = [aud_real(panels[c], Pa, col, year + k) for k in range(1, navail + 1)]
         if navail and all(g is not None for g in gs):
             out3[name] = sig(float(np.prod(gs)) ** (1 / navail) - 1)
+            yearly[name] = [sig(g - 1, 6) for g in gs]   # year 1..n, so the game can rebalance a portfolio every year
         else:
             out3[name] = None
+            yearly[name] = None
         for k in range(1, navail + 1):
             tg = panels[c].attrs["tags"].get((col, year + k))
             if tg and out1.get(name) is not None:
@@ -791,7 +795,7 @@ def returns(panels, iso, year):
     bs = [bench(year + k) for k in range(1, navail + 1)]
     out3["bench"] = sig(float(np.prod(bs)) ** (1 / navail) - 1) if navail and all(b is not None for b in bs) else None
     out3["years"] = navail
-    return out1, out3, sorted(used)
+    return out1, out3, yearly, sorted(used)
 
 
 # ---------------------------------------------------------------- build
@@ -851,12 +855,12 @@ def build(write=True):
     cards = []
     for iso, year, typ, what in DECK:
         cid = f"{iso}-{year}"
-        r1, r3, used = returns(panels, iso, year)
+        r1, r3, yearly, used = returns(panels, iso, year)
         v = views[cid]
         cards.append({
             "id": cid, "iso": iso, "year": year, "type": typ, "holdout": year + 3 >= 2021, "batch": 1 if cid in BATCH1 else 2,
             "view": v,
-            "reveal": {"ret1": r1, "ret3": r3, "what": what, **({"why": REVEAL_WHY[cid]} if cid in REVEAL_WHY else {})},
+            "reveal": {"ret1": r1, "ret3": r3, "yearly": yearly, "what": what, **({"why": REVEAL_WHY[cid]} if cid in REVEAL_WHY else {})},
             "notes": card_notes(iso, year, v, used, r1, r3),
         })
     blind = {
@@ -865,6 +869,7 @@ def build(write=True):
             "returns": "实际澳元回报：本地名义回报 × 换成澳元的汇率变化 ÷ 澳洲 CPI；汇率和 CPI 用年均值（JST 口径），资产回报是 1 月到 12 月",
             "ret3": "3 年年化（几何平均）；不够 3 年时按现有年数年化，years 给出年数",
             "bench": "基准 = 本国 60% 股票 + 40% 国债，每年再平衡",
+            "yearly": "reveal.yearly = 每项资产逐年的实际澳元回报（第 1..years 年）；玩家组合和基准一样每年再平衡回原权重，3 年 = 逐年复利再年化",
             "fx": "外币现金 = 持有该国货币、拿该国短期利率",
             "gdpGap": "实际 GDP（取对数）减去趋势；趋势 = 单边 HP 滤波（λ = 100），只用当年及以前最多 40 年",
             "pct": "相对历史位置 = 截至当年的自身历史里，有多少比例的年份 ≤ 今年（0 = 最低，1 = 最高），至少 8 年数据；信贷/GDP、实际利率用全部历史，房价/收入、股票估值用近 30 年（这两个长期有趋势）",

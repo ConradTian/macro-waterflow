@@ -137,6 +137,30 @@ ok(await count('.bl-node.call') === 2, 'both dials now show the framework call')
 ok((await text('.bl-what')).length > 5, 'one line on what happened: ' + await text('.bl-what'));
 ok(await count('#bl-bias') === 0, 'no bias profile after 1 card');
 
+/* 3-year by hand: one card, a mixed allocation, yearly rebalancing written out here (not via the model) */
+{
+  const hc = BY['JPN-1989'], Y = hc.reveal.yearly, n = hc.reveal.ret3.years;
+  const w = { equity: 5, fxUSD: 3, house: 2 };
+  let gp = 1, gb = 1;
+  for (let y = 0; y < n; y++) {
+    gp *= 1 + 0.5 * Y.equity[y] + 0.3 * Y.fxUSD[y] + 0.2 * Y.house[y];
+    gb *= 1 + 0.6 * Y.equity[y] + 0.4 * Y.bond[y];
+  }
+  const p3 = gp ** (1 / n) - 1, b3 = gb ** (1 / n) - 1;
+  const avg = 0.5 * hc.reveal.ret3.equity + 0.3 * hc.reveal.ret3.fxUSD + 0.2 * hc.reveal.ret3.house;   // the old, wrong convention
+  const pf = M.portfolio(hc, w);
+  ok(n === 3 && Math.abs(pf.p3 - p3) < 1e-12 && Math.abs(pf.b3 - b3) < 1e-12, `JPN-1989 by hand: player 3y ${(p3 * 100).toFixed(2)}%, 60/40 ${(b3 * 100).toFixed(2)}% = model`);
+  ok(Math.abs(b3 - hc.reveal.ret3.bench) < 1e-4, `JPN-1989 hand 60/40 ${(b3 * 100).toFixed(3)}% = data ret3.bench ${(hc.reveal.ret3.bench * 100).toFixed(3)}% (same rebalancing)`);
+  ok(Math.abs(p3 - avg) > 1e-3, `JPN-1989 rebalanced ${(p3 * 100).toFixed(2)}% ≠ weight × annualised legs ${(avg * 100).toFixed(2)}%`);
+  ok(Math.abs(pf.wealth - 100 * gp) < 1e-9, `JPN-1989 100 万 → ${(100 * gp).toFixed(1)} 万`);
+  await go('?card=JPN-1989');
+  await playCard({ w });
+  const sp = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%';
+  const pfT = await text('#bl-reveal .bl-pf');
+  ok(pfT.includes(`3 年年化 ${sp(p3)}`) && pfT.includes(`3 年年化 ${sp(b3)}`) && pfT.includes(`${(100 * gp).toFixed(0)} 万`),
+    `JPN-1989 reveal shows the hand numbers (${sp(p3)}, ${sp(b3)}, ${(100 * gp).toFixed(0)} 万)`);
+}
+
 /* 「只有 N 年」 */
 const shortCard = BLIND.cards.find(c => (c.reveal.ret3.years || 3) < 3);
 if (shortCard) {
