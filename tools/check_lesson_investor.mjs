@@ -6,6 +6,8 @@
 //  3. JST data    JPN_JST = recomputed from ../dalio_432/data/jst_panel.csv (WARN if missing); JPN_SIGNALS years = recomputed
 //  4. claims      every claim's number is recomputed from repo data, formatted, equal to `shown`, and `shown` appears in its step's text
 //  5. toy         the real-rate toy formulas: bonds, gold and equity valuation all fall as the real rate rises (they move together)
+//  5b. 开阀       step 4: assets read 10 年期利率 − ▽ (engine rates.gov10y − macro.inflationExp, AUS sim 2009Q1, vals + derive), the slider
+//                 starts there, the toy label says so, the panel's 「现在」 marker uses the same number (not rates.realPolicy)
 //  6. browser     headless Edge runs tools/investor-lab-demo.html?selftest=1 (light + dark, iPad right panel + phone width): every panel
 //                 mounts, reacts (follow the sim / tap / slide), unmounts leaving the host empty, no JS errors, no horizontal overflow,
 //                 and shows the key numbers. Uses a small node static server on port 8292 (closed at the end).
@@ -15,13 +17,13 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { resolve, extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LESSON_INVESTOR, ASSET_ROWS, ASSET_COLS, JPN_JST, JPN_SIGNALS, TOY } from '../src/data/lesson-investor.js';
+import { LESSON_INVESTOR, ASSET_ROWS, ASSET_COLS, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../src/data/lesson-investor.js';
 import { BLIND } from '../src/data/blind-cards.js';
 import { CONCEPTS } from '../src/data/concepts.js';
 import { AUS_Q } from '../src/data/countries/aus-quarterly.js';
 import { JPN_Q } from '../src/data/countries/jpn-quarterly.js';
 import { CHN_Q } from '../src/data/countries/chn-quarterly.js';
-import { evalGet } from '../src/ui/lessons-town.js';
+import { evalGet, buildTable, fillStep, fmtV } from '../src/ui/lessons-town.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DALIO = resolve(ROOT, '../dalio_432');
@@ -236,6 +238,27 @@ specs.forEach(s => console.log('spec ' + s));
   check(mono && TOY.rMin + TOY.erp - TOY.growth > 0, 'toy: bonds, gold, equity valuation all fall as the real rate rises (finite on the slider range)');
   check(/玩具/.test(textOf(steps.find(s => s.panel?.id === 'realRate'))) && /玩具公式/.test(labSrc), 'toy formulas are labelled 玩具');
   check(/还没有用数据逐格验证/.test(textOf(steps.find(s => s.panel?.id === 'assetTable'))) && /还没有用数据逐格验证/.test(labSrc), 'asset table says it is not verified cell by cell');
+}
+
+/* ---------- 5b. step 4: assets read 开阀 = 10 年期利率 − ▽ (live engine numbers via vals / derive, as src/ui/lessons.js fills them) ---------- */
+{
+  const si = steps.findIndex(s => s.panel?.id === 'realRate'), st = steps[si];
+  const tbl = buildTable(AUS_Q, L, st, { from: L.startDate, until: L.endDate });
+  for (const d of [].concat(st.derive || [])) { const a = tbl.raw[d.a], b = tbl.raw[d.b]; tbl.raw[d.key] = typeof a === 'number' && typeof b === 'number' ? a - b : null; tbl.fmt[d.key] = d.fmt; }
+  const miss = [], filled = fillStep({ text: st.text }, tbl, miss).text.join('\n');
+  check(!miss.length && !/[{}]/.test(filled) && !/—/.test(filled), `step ${si}: every placeholder filled ${miss.join(' ')}`);
+  // independent: the AUS sim's own snapshot at 2009Q1
+  const { createSim } = await import('../src/engine/sim.js');
+  const sim = createSim({ data: AUS_Q, mode: 'history', country: 'AUS' }); while (!sim.done) sim.step();
+  const s9 = sim.history().find(h => h.date === '2009Q1'), open = s9.rates.gov10y - s9.macro.inflationExp;
+  check(Math.abs(tbl.raw.open09 - open) < 1e-12 && Math.abs(nowRate(s9) - open) < 1e-12, `step ${si}: 开阀 2009Q1 = 10 年期 ${fmtV(s9.rates.gov10y, 'pct')} − ▽ ${fmtV(s9.macro.inflationExp, 'pct')} = ${fmtV(open, 'chg1')} (card ${fmtV(tbl.raw.open09, 'chg1')}, nowRate)`);
+  check(Math.abs(tbl.raw.real09 - s9.rates.realPolicy) < 1e-12 && filled.includes(fmtV(s9.rates.realPolicy, 'chg1')), `step ${si}: 结账 政策利率 − ▼ 2009Q1 = ${fmtV(s9.rates.realPolicy, 'chg1')} shown for contrast`);
+  check(st.panel.def === Math.round(open / 0.0025) * 0.0025, `step ${si}: the slider starts at 开阀 2009Q1 on its 0.25-point grid (def ${st.panel.def})`);
+  check(/10 年期利率 − ▽/.test(TOY.rateName) && /10 年期/.test(st.title) && /开阀/.test(filled) && /▽/.test(filled), `step ${si}: title, text and the toy label say 开阀 = 10 年期 − ▽ (「${TOY.rateName}」)`);
+  const eco = readFileSync(join(ROOT, 'src/engine/economy.js'), 'utf8');
+  check(/S\.real10y = S\.gov10y - S\.piE/.test(eco) && /S\.gov10y \+ erp - \(S0\.piE/.test(eco), 'engine: bonds / gold (real10y) and the P/E use 10 年期 − ▽ (piE)');
+  const rr = labSrc.slice(labSrc.indexOf('3. realRate'), labSrc.indexOf('4. priced'));
+  check(/nowRate\(/.test(rr) && !/realPolicy/.test(rr) && /TOY\.rateName/.test(rr), 'realRate panel: label = TOY.rateName, 「现在」 = nowRate (10 年期 − ▽), not rates.realPolicy');
 }
 
 /* ---------- 6. headless Edge ---------- */

@@ -52,7 +52,16 @@ export const JPN_SIGNALS = [
 ];
 
 // the toy formulas of the real-rate panel (shown on screen next to the chart)
-export const TOY = { r0: 0.01, bondYears: 10, goldYears: 20, erp: 0.05, growth: 0.015, rMin: -0.02, rMax: 0.05 };
+// The rate on the x axis is 开阀 for assets: 10 年期利率 − ▽ (rates.gov10y − macro.inflationExp), the same as the engine's real10y
+// (src/engine/economy.js: S.real10y = S.gov10y − S.piE drives bonds and gold; the P/E denominator uses gov10y − piE too). NOT the policy rate
+// minus measured inflation (rates.realPolicy = 结账, what savers get). Panel 'realRate' (src/ui/investor-lab.js) shows `rateName` and puts
+// its 「现在」 marker at nowRate(snap).
+export const TOY = { r0: 0.01, bondYears: 10, goldYears: 20, erp: 0.05, growth: 0.015, rMin: -0.02, rMax: 0.05,
+  rateName: '开阀 = 10 年期利率 − ▽', rateShort: '开阀（10 年 − ▽）' };
+export const nowRate = snap => {
+  const y = snap && snap.rates && snap.rates.gov10y, e = snap && snap.macro && snap.macro.inflationExp;
+  return typeof y === 'number' && typeof e === 'number' && Number.isFinite(y - e) ? y - e : null;
+};
 
 // Course v3 (tools/DESIGN-v3.md): one question 「钱放哪？」, one new piece (the 湖 zoom, panel 'lake'), one example (2009: 债 → 股 → 房),
 // at most 6 steps, the 三问 ending. The panels priced / timeline / fx stay in investor-lab.js (demo page, 旧版课程 at /v2/) but this
@@ -101,12 +110,21 @@ export const LESSON_INVESTOR = {
         '点「股票」：左边看吸力（稳股、成长股），右边看水量（周期股）。窄池子跳得多。',
       ] },
 
-    { type: 'reveal', title: '第 4 步：吸力 = 实际利率',
-      panel: { id: 'realRate', def: -0.01 },
+    // assets read 开阀 = 10 年期利率 − ▽ (L3), not 结账 = 政策利率 − ▼. Numbers: the AUS sim (lesson country), vals + derive (src/ui/lessons.js);
+    // the slider starts at the same number (def = 开阀 2009Q1 on the slider's 0.25-point grid; tools/check_lesson_investor.mjs recomputes it).
+    { type: 'reveal', title: '第 4 步：吸力 = 开阀（10 年期 − ▽）',
+      panel: { id: 'realRate', def: 0.025 },
+      vals: [
+        { key: 'y10', get: 'at:2009Q1:rates.gov10y', fmt: 'pct', from: '2008Q4', until: '2009Q1' },
+        { key: 'e09', get: 'at:2009Q1:macro.inflationExp', fmt: 'pct', from: '2008Q4', until: '2009Q1' },
+        { key: 'real09', get: 'at:2009Q1:rates.realPolicy', fmt: 'chg1', from: '2008Q4', until: '2009Q1' },
+      ],
+      derive: [{ key: 'open09', a: 'y10', b: 'e09', fmt: 'chg1' }],
       text: [
-        '**结论：吸力一动，国债、黄金、股票估值一起动，方向相同。**',
-        '吸力就是央行手里的那一个旋钮：实际利率 = 政策利率 − 通胀。吸力大，存在湖里划算，越远的泉眼越不值钱；吸力为负，远处的池子就抢手。',
-        '拖动滑块。图里的公式是**玩具**：只用来看方向和谁更敏感，不是预测。',
+        '**结论：资产看开阀：10 年期利率 − ▽。它一动，国债、黄金、股票估值一起动，方向相同。**',
+        '第 3 课的规矩：开阀看 ▽，结账看 ▼。国债、黄金、股票的泉眼都在很远的将来，所以看长期的那一头：10 年期利率减 ▽（大家心里的涨价速度）。开阀大，存在湖里划算，越远的泉眼越不值钱；开阀为负，远处的池子就抢手。',
+        '模型里的澳洲，2009 年第一季度：10 年期 {y10}，▽ {e09}，开阀 = {open09}。同一季政策利率 − ▼ 只有 {real09}：那是存钱的人到手的（结账），资产不看它。',
+        '拖动滑块，横轴就是开阀。图里的公式是**玩具**：只用来看方向和谁更敏感，不是预测。',
       ] },
 
     { type: 'reveal', title: '第 5 步：去历史盲测里练',

@@ -80,7 +80,7 @@ export function metric(rows, k, key) {
 }
 const hits = (v, th, dir) => ok(v) && (dir === '<=' ? v <= th : v >= th);
 
-// step 5a: when each place moves. blue = first quarter in the window with ▶ − ▽ > 0; a place turns at the first quarter >= blue where its
+// panel exp-five (L3 「吸力一变，哪里跟着动」): when each place moves. blue = first quarter in the window with ▶ − ▽ > 0; a place turns at the first quarter >= blue where its
 // year-ago change crosses its threshold (EXP_FIVE). The order is sorted from these computed dates (ties = the same quarter).
 export function fiveTurns(rows = replay()) {
   const { from, until, places } = EXP_FIVE;
@@ -98,7 +98,7 @@ export function fiveTurns(rows = replay()) {
   const lag = Object.fromEntries(out.map(p => [p.id, p.k != null && b ? p.k - b.k : null]));
   return { blue, places: out, order: groups.map(g => g.map(p => p.id)), orderText, lag };
 }
-// step 5b: the loop. firstHike = first quarter (from EXP_FIVE.from) where ▶ rose >= 0.1 point on the quarter; firstCut = the first fall after it
+// panel exp-loop (L3): the loop. firstHike = first quarter (from EXP_FIVE.from) where ▶ rose >= 0.1 point on the quarter; firstCut = the first fall after it
 export function loopInfo(rows = replay()) {
   const { from, until } = EXP_FIVE;
   let firstHike = null, firstCut = null;
@@ -112,7 +112,7 @@ export function loopInfo(rows = replay()) {
 }
 
 /* =====================================================================================================================
-   the ▽ rule as a toy (step 7). The same rule as src/engine/economy.js (hh_infl_deanchor branch); the rule params come from the engine's
+   the ▽ rule as a toy (panel exp-rope, 专题 step 1). The same rule as src/engine/economy.js (hh_infl_deanchor branch); the rule params come from the engine's
    own tables (RULE_BY_ID + country overrides), the three literals of the dean update are copied (checker: equal to the engine's source).
    ===================================================================================================================== */
 export const DEAN_K = { keep: 0.8, push: 0.2, width: 0.03 };   // S.dean = keep·dean + push·clamp((piX − pi)/width, 0, 1)
@@ -150,9 +150,9 @@ export function toyRun(pathId, ropeId) {
   return out;
 }
 export const ropeWord = (dean, cut) => (cut ? '剪断' : dean < 0.15 ? '拉紧' : dean < 0.5 ? '有点松' : '松了');
-export const ropePx = anchor => anchor * 40;   // thickness ∝ the anchor (US 0.0364 → 1.5 px, AUS 0.0996 → 4 px)
+export const ropePx = anchor => anchor * RULER_STYLE.rope.pxPerAnchor;   // thickness ∝ the anchor (US 0.0364 → 1.5 px, AUS 0.0996 → 4 px)
 
-/* step 9: an asset pool with no rope (toy) */
+/* panel exp-pool (专题 step 3): an asset pool with no rope (toy) */
 let POOL = null;
 export function poolRun() {
   if (POOL) return POOL;
@@ -190,7 +190,30 @@ const usAvg = (k, a, b) => { const v = US_Q.dates.map((d, i) => [d, US_Q.series[
 /* =====================================================================================================================
    SVG pieces
    ===================================================================================================================== */
-const tri = (x, y, dir, s = 6) => (dir === 'r' ? `${x},${y} ${x - 2 * s},${y - s} ${x - 2 * s},${y + s}` : `${x},${y} ${x - s},${y - 1.7 * s} ${x + s},${y - 1.7 * s}`);
+// The 吸力尺 look in ONE table, so the main diagram's `// RULER SLOT` (tools/DESIGN-v3.md, parked) can import it and draw the same marks:
+//   import { RULER_STYLE, rulerSign } from './exp-gauge.js'.
+// Geometry is in SVG px. Colours are CSS custom properties with app.css fallbacks, so they work even where exp-gauge.css is not loaded
+// (exp-gauge.css :root defines the --exg-* variables). Design (user, 2026-10-30): the staff is a thin grey line, the BAND is the thing you
+// see: a wide coloured strip centred on the staff. Blue = ▶ − ▽ ≥ 0 (存湖划算、抽水贵), red = the opposite.
+export const RULER_STYLE = Object.freeze({
+  staff: { width: 2, color: 'var(--exg-staff, #9aa5b4)' },
+  band: {
+    open: { half: 12, opacity: 0.62 },             // ▶ − ▽ (开阀): 24 px wide, centred on the staff
+    real: { width: 9, gap: 3, opacity: 0.42 },     // ▶ − ▼ (结账): a narrower strip right of the open band (centred on the staff when it is the only band)
+    minHeight: 3, radius: 2,
+  },
+  tick: { len: 4, opacity: 0.55 },
+  mark: { size: 6 },                               // triangle half-height in px
+  p: { glyph: '▶', name: '政策利率', color: 'var(--exg-p, var(--text))', fill: true },
+  m: { glyph: '▼', name: '物价比一年前', color: 'var(--exg-m, var(--c-repay))', fill: true },
+  e: { glyph: '▽', name: '心里的涨价速度', color: 'var(--exg-e, var(--c-fiscal))', fill: false, stroke: 2 },
+  blue: { color: 'var(--exg-blue, var(--c-pump))', word: '蓝：存湖划算、抽水贵' },
+  red: { color: 'var(--exg-red, var(--c-drain))', word: '红：存湖不划算、抽水便宜' },
+  target: { color: 'var(--muted)', width: 1.2, dash: '5 3', name: '调度线' },
+  rope: { color: 'var(--exg-rope, #8a6a3c)', pxPerAnchor: 40 },
+});
+export const rulerSign = (top, bottom) => (top - bottom >= 0 ? 'blue' : 'red');   // band colour of ▶ − ▽ (or ▶ − ▼)
+const tri = (x, y, dir, s = RULER_STYLE.mark.size) => (dir === 'r' ? `${x},${y} ${x - 2 * s},${y - s} ${x - 2 * s},${y + s}` : `${x},${y} ${x - s},${y - 1.7 * s} ${x + s},${y - 1.7 * s}`);
 function niceTicks(lo, hi) {
   const span = hi - lo, st = span > 0.12 ? 0.05 : span > 0.06 ? 0.02 : span > 0.025 ? 0.01 : 0.005;
   const out = []; for (let v = Math.ceil(lo / st - 1e-9) * st; v <= hi + 1e-9; v += st) out.push(Math.round(v * 1e4) / 1e4);
@@ -201,23 +224,26 @@ function niceTicks(lo, hi) {
 export function gaugeSvg(o) {
   const W = o.W, H = o.H, top = o.title ? 26 : 12, bot = H - 10, lo = o.lo, hi = o.hi;
   const Y = v => top + (hi - clamp(v, lo, hi)) / (hi - lo) * (bot - top);
-  const rx = 44, xm = rx + 24, xe = rx + 44, M = new Set(o.marks || ['p', 'm', 'e']);
+  // columns (RULER_STYLE): tick labels | ▶ | [ wide open band on the thin staff ] [ real strip ] | ▼ | ▽ + rope | 意外
+  const RS = RULER_STYLE, hb = RS.band.open.half, sz = RS.mark.size, rb = RS.band.real;
+  const rx = 2 * sz + hb + 34, xr0 = rx + hb + rb.gap, xm = xr0 + rb.width + sz + 3, xe = xm + 3 * sz, M = new Set(o.marks || ['p', 'm', 'e']);
   const s = [];
   if (o.title) s.push(`<text class="exg-gt" x="${W / 2}" y="14" text-anchor="middle">${esc(o.title)}</text>`);
   for (const v of niceTicks(lo, hi)) {
-    s.push(`<line class="exg-tick" x1="${rx - 4}" x2="${rx + 4}" y1="${Y(v)}" y2="${Y(v)}"/>`);
-    s.push(`<text class="exg-tl" x="${rx - 22}" y="${Y(v) + 3.5}" text-anchor="end">${Math.round(v * 1000) / 10}%</text>`);
+    s.push(`<line class="exg-tick" x1="${rx - hb - RS.tick.len}" x2="${rx + hb}" y1="${Y(v)}" y2="${Y(v)}" stroke-opacity="${RS.tick.opacity}"/>`);
+    s.push(`<text class="exg-tl" x="${rx - hb - 2 * sz - 5}" y="${Y(v) + 3.5}" text-anchor="end">${Math.round(v * 1000) / 10}%</text>`);
   }
-  if (lo < 0 && hi > 0) s.push(`<line class="exg-zero" x1="${rx - 20}" x2="${W - 4}" y1="${Y(0)}" y2="${Y(0)}"/>${o.zeroLabel ? `<text class="exg-zl" x="${W - 4}" y="${Y(0) - 3}" text-anchor="end">${esc(o.zeroLabel)}</text>` : ''}`);
-  s.push(`<line class="exg-rule" x1="${rx}" x2="${rx}" y1="${top}" y2="${bot}"/>`);
-  // bands
-  const band = (a, b, x0, x1, cls) => { if (!ok(a) || !ok(b)) return; const y0 = Math.min(Y(a), Y(b)), y1 = Math.max(Y(a), Y(b)); s.push(`<rect class="exg-band ${cls} ${a - b >= 0 ? 'blue' : 'red'}" x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(1.5, y1 - y0)}" rx="2"/>`); };
-  if (o.band === 'open' || o.band === 'split') band(o.p, o.e, rx - 5, rx + 5, 'open');
-  if (o.band === 'real' || o.band === 'split') band(o.p, o.m, rx + 7, rx + 13, 'real');
+  if (lo < 0 && hi > 0) s.push(`<line class="exg-zero" x1="${rx - hb - RS.tick.len}" x2="${W - 4}" y1="${Y(0)}" y2="${Y(0)}"/>${o.zeroLabel ? `<text class="exg-zl" x="${W - 4}" y="${Y(0) - 3}" text-anchor="end">${esc(o.zeroLabel)}</text>` : ''}`);
+  s.push(`<line class="exg-rule" x1="${rx}" x2="${rx}" y1="${top}" y2="${bot}" stroke-width="${RS.staff.width}"/>`);
+  // bands, drawn over the staff: the staff shows faintly through, the colour is what you see
+  const band = (a, b, x0, x1, cls, op) => { if (!ok(a) || !ok(b)) return; const y0 = Math.min(Y(a), Y(b)), y1 = Math.max(Y(a), Y(b)), h = Math.max(RS.band.minHeight, y1 - y0); s.push(`<rect class="exg-band ${cls} ${rulerSign(a, b)}" x="${x0}" y="${((y0 + y1) / 2 - h / 2).toFixed(2)}" width="${x1 - x0}" height="${h.toFixed(2)}" rx="${RS.band.radius}" fill-opacity="${op}"/>`); };
+  if (o.band === 'open' || o.band === 'split') band(o.p, o.e, rx - hb, rx + hb, 'open', RS.band.open.opacity);
+  if (o.band === 'split') band(o.p, o.m, xr0, xr0 + rb.width, 'real', rb.opacity);
+  if (o.band === 'real') band(o.p, o.m, rx - hb, rx + hb, 'real', RS.band.open.opacity);   // the only band: centred and wide like the open one
   // 调度线 + rope
   if (ok(o.target)) {
     const yt = Y(o.target);
-    s.push(`<line class="exg-tgt" x1="${rx - 20}" x2="${W - 4}" y1="${yt}" y2="${yt}"/><text class="exg-tgl" x="${W - 4}" y="${yt + 11}" text-anchor="end">调度线 ${pc(o.target, o.target * 1000 % 10 ? 1 : 0)}</text>`);
+    s.push(`<line class="exg-tgt" x1="${rx - hb - RS.tick.len}" x2="${W - 4}" y1="${yt}" y2="${yt}"/><text class="exg-tgl" x="${W - 4}" y="${yt + 11}" text-anchor="end">调度线 ${pc(o.target, o.target * 1000 % 10 ? 1 : 0)}</text>`);
     if (M.has('e') && ok(o.e)) {
       const ye = Y(o.e), above = ye < yt, y1 = above ? ye : ye - 10.2;
       const w = Math.max(0.8, ropePx(o.anchor ?? 0.0364)), d = clamp(o.dean || 0, 0, 1);
@@ -233,7 +259,7 @@ export function gaugeSvg(o) {
   if (o.ghostE && ok(o.ghostE.v)) s.push(`<polygon class="exg-e ghost" points="${tri(xe, Y(o.ghostE.v), 'd')}"/><text class="exg-gl" x="${xe + 9}" y="${Y(o.ghostE.v) - 2}">${esc(o.ghostE.label)}</text>`);
   if (M.has('m') && ok(o.m)) s.push(`<polygon class="exg-m" points="${tri(xm, Y(o.m), 'd')}"><title>▼ 物价比一年前 ${pc(o.m)}</title></polygon>`);
   if (M.has('e') && ok(o.e)) s.push(`<polygon class="exg-e" points="${tri(xe, Y(o.e), 'd')}"><title>▽ 心里的涨价速度 ${pc(o.e)}</title></polygon>`);
-  if (M.has('p') && ok(o.p)) s.push(`<polygon class="exg-p" points="${tri(rx - 6, Y(o.p), 'r')}"><title>▶ 政策利率 ${pc(o.p)}</title></polygon>`);
+  if (M.has('p') && ok(o.p)) s.push(`<polygon class="exg-p" points="${tri(rx - hb - 1, Y(o.p), 'r')}"><title>▶ 政策利率 ${pc(o.p)}</title></polygon>`);
   return `<svg class="exg-gauge" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="吸力尺">${s.join('')}</svg>`;
 }
 
@@ -271,7 +297,7 @@ const yearLabels = (rows, get = r => r.date) => rows.map((r, k) => ({ k, d: get(
 
 const SYM = { p: '<b class="s-p">▶</b>', m: '<b class="s-m">▼</b>', e: '<b class="s-e">▽</b>' };
 const legend = (marks, extra = '') => `<div class="exg-leg">${marks.includes('p') ? `<span>${SYM.p} 政策利率（央行拧的）</span>` : ''}${marks.includes('m') ? `<span>${SYM.m} 物价比一年前（量出来的）</span>` : ''}${marks.includes('e') ? `<span>${SYM.e} 心里的涨价速度</span>` : ''}${extra}</div>`;
-const bandWord = v => (v >= 0 ? '蓝：存湖划算、抽水贵' : '红：存湖不划算、抽水便宜');
+const bandWord = v => RULER_STYLE[v >= 0 ? 'blue' : 'red'].word;
 
 /* =====================================================================================================================
    panels
@@ -355,7 +381,7 @@ function render(m, fromSlider = false) {
 }
 const slider = (n, k, rows, lab = r => r.date) => `<div class="exg-sl"><input type="range" min="0" max="${n - 1}" step="1" value="${k}" data-exg-k aria-label="选一个季度"><div class="exg-slr"><span>${esc(lab(rows[0]))}</span><b>${esc(lab(rows[k]))}</b><span>${esc(lab(rows[n - 1]))}</span></div></div>`;
 
-/* step 1–2: two rulers, 1980 and 2023, ▶ = 5% (the opening question) */
+/* panel exp-ruler (L3): two rulers, 1980 and 2023, ▶ = 5% (the opening question) */
 function rulerHtml(m, w) {
   const two = m.spec.stage >= 2, r = EXP_STORY.hookRate, gw = Math.min(170, Math.floor((w - 12) / 2)), H = 250;
   const c23 = usAvg('cpiYoY', '2023Q1', '2023Q4');
@@ -366,7 +392,7 @@ function rulerHtml(m, w) {
     legend(two ? ['p', 'm'] : ['p']) + (two ? '<p class="exg-note">实测的画实心（水文的老规矩）。▶ 和 ▼ 之间的色带 = 存钱的人到手的。</p>' : '<p class="exg-note">两把尺子一样高：只看 ▶，分不出 1980 年和 2023 年。</p>');
 }
 
-/* step 2–4: the US model 2020–2023, scrubbable */
+/* panel exp-hist (L3; 专题 intro): the US model 2020–2023, scrubbable */
 function histHtml(m, w) {
   const sp = m.spec, st = m.st, rows = st.rows, k = st.k, r = rows[k], band = sp.band || null, marks = sp.marks || ['p', 'm', 'e'];
   const cpT = COUNTRY_PARAMS.USA.piTarget, an = ropeOf('USA').anchor;
@@ -385,7 +411,7 @@ function histHtml(m, w) {
     `<div class="exg-row">${g}${c}</div>${slider(rows.length, k, rows)}${ro}` + legend(marks, extra + (band ? '<span><i class="exg-sw blue"></i>蓝 <i class="exg-sw red"></i>红 = 吸力</span>' : '') + '<span><i class="exg-tgsw"></i> 调度线（目标）和绳</span>');
 }
 
-/* step 5a: five places light up in the engine's order */
+/* panel exp-five (L3): five places light up in the engine's order */
 const ICON = {
   pump: '<svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="11" rx="2"/><path d="M12 9V2M8.5 5.5 12 2l3.5 3.5"/></svg>',
   lake: '<svg viewBox="0 0 24 24"><path d="M2 9q2.5-2.5 5 0t5 0 5 0 5 0M2 14q2.5-2.5 5 0t5 0 5 0 5 0M2 19q2.5-2.5 5 0t5 0 5 0 5 0"/></svg>',
@@ -421,7 +447,7 @@ function fiveHtml(m, w) {
     `<div class="exg-ro">吸力 ${SYM.p} − ${SYM.e} = <b class="${open >= 0 ? 'c-blue' : 'c-red'}">${sg(open)}</b><small>　色带 ${esc(F.blue)} 转蓝；顺序：${esc(F.orderText)}</small></div>`;
 }
 
-/* step 5b: the loop ▼ → 央行 → ▶ → 吸力 → 五处 → 河 → ▼ */
+/* panel exp-loop (L3): the loop ▼ → 央行 → ▶ → 吸力 → 五处 → 河 → ▼ */
 export function loopNodes(all, K, five) {
   const r = all[K], prev = all[K - 1], tgt = COUNTRY_PARAMS.USA.piTarget, dP = r.p - prev.p, uD = metric(all, K, 'uD'), mD = metric(all, K, 'mYoY');
   const moved = five.places.filter(p => p.turn && r.date >= p.turn).length;
@@ -463,7 +489,7 @@ function loopHtml(m, w) {
     `<p class="exg-note">亮的箭头 = 这一季正在传的那一环。</p>`;
 }
 
-/* step 7: the rope toy */
+/* panel exp-rope (专题 step 1; L3): the rope toy */
 function ropeHtml(m, w) {
   const st = m.st, T = toyRun(st.path, st.rope), rows = T.rows, n = rows.length, k = st.k == null ? n - 1 : st.k, r = rows[k], rp = T.rope;
   const gw = 140, narrow = w < 520, cw = narrow ? w - gw - 4 : Math.min(520, w - gw - 12), H = 230;
@@ -480,7 +506,7 @@ function ropeHtml(m, w) {
     legend(['m', 'e'], '<span><i class="exg-ghost"></i> 另外两根绳下的 ▽</span>') + (T.path.note ? `<p class="exg-note">${esc(T.path.note)}</p>` : '');
 }
 
-/* step 8: two story readings (approximate history, not a model replay) */
+/* panel exp-story (专题 step 2): two story readings (approximate history, not a model replay) */
 export function storyNumbers() {
   return {
     vE: mich.at('1980Q1'), vE83: mich.avg('1983Q1', '1983Q4'), vP: EXP_STORY.volckerPolPeak, vM: EXP_STORY.cpi1980, vU: EXP_STORY.volckerU,
@@ -497,7 +523,7 @@ function storyHtml(m, w) {
     `</div><p class="exg-note">${SYM.e} 沃尔克：密歇根家庭调查；${SYM.p} ${SYM.m} 日本：repo 里的日本季度数据；其余是大致的历史数。</p>`;
 }
 
-/* step 9: an asset pool with no rope */
+/* panel exp-pool (专题 step 3): an asset pool with no rope */
 function poolHtml(m, w) {
   const P = poolRun(), rows = P.rows, n = rows.length, W = Math.min(w, 560), H1 = 170, H2 = 92, L = 34, R = 8;
   const X = k => L + k * (W - L - R) / (n - 1);
@@ -520,7 +546,7 @@ function poolHtml(m, w) {
     `<div class="exg-stack">${a}${b}</div><p class="exg-note">吸力 ${pc(EXP_POOL.suction, 0)}、怕 ${pc(EXP_POOL.fear, 0)} 不变。只看形状：涨速一停就大跌，跌过头再回来（明斯基）。</p>`;
 }
 
-/* step 10 「汇率上的绳」: the gate gauge (▶差 = rate gap, ▽汇 = expected depreciation) + three story readings from the data */
+/* panel exp-gate (专题 step 4 「汇率上的绳」, ?lesson=exp&step=4): the gate gauge (▶差 = rate gap, ▽汇 = expected depreciation) + three story readings from the data */
 const audQ = d => { const i = AUS_Q.dates.indexOf(d); return i < 0 ? null : 1 / AUS_Q.series.fxPerUsd[i]; };
 const polQ = (D, d) => { const i = D.dates.indexOf(d); return i < 0 ? null : D.series.policyRate[i]; };
 export const fxAt = {
@@ -572,7 +598,7 @@ function gateHtml(m, w) {
     `<p class="exg-note">加息后汇率先冲过头、再慢慢回来 = 多恩布什（1976）汇率超调。引擎里没有汇率预期；汇率闸现在用利差 + 恐慌指数代替。</p>`;
 }
 
-/* step 11 「背后只有四条规律」 */
+/* panel exp-laws (专题 step 5 「背后只有四条规律」) */
 export const LAWS = () => [
   { law: '质量守恒', hydro: '水量平衡 / 连续方程', here: '抽上来 − 回灌 = 存量变化' },
   { law: '按势差流动', hydro: '达西定律：流量 ≈ 渗透系数 × 吸力差', here: '中间那根细管 = 渗透系数小 → 滞后；中国手动的闸 = 渗透系数极小' },
@@ -589,7 +615,7 @@ function lawsHtml(m, w) {
     `<li><b>连通器</b>物价水平几十年才拉平：只看通胀差，1 年解释 ${pc(r2(1), 0)}，40 年 ${pc(r2(40), 0)}（${FX_SPEC.countries} 国，${FX_SPEC.from}–${FX_SPEC.to}）</li><li><b>绳</b>钉住还是浮动</li></ul>`;
 }
 
-/* step 12: the summary */
+/* panel exp-sum (专题 step 6): the summary */
 function sumHtml(m, w) {
   const r = m.st.rows[m.st.k], gw = 150, H = 230;
   const g = gaugeSvg({ W: gw, H, lo: -0.01, hi: 0.07, p: r.p, m: r.m, e: r.e, target: COUNTRY_PARAMS.USA.piTarget, dean: r.dean, anchor: ropeOf('USA').anchor, band: 'split' });

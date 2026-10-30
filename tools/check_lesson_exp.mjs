@@ -1,8 +1,10 @@
-// node tools/check_lesson_exp.mjs [--no-browser] [--shots] [--verbose]      (BASE=http://localhost:8821/ by default: serve the repo first,
-//                                                                            e.g. python -m http.server 8821)
+// node tools/check_lesson_exp.mjs [--no-browser] [--shots] [--shot-dir=tools/shots/exp] [--verbose]
+//                                         (BASE=http://localhost:8821/ by default: serve the repo first, e.g. python -m http.server 8821)
 // Checks the 专题 lesson 「专题：预期」 (src/data/lesson-exp.js) and its panels (src/ui/exp-gauge.js):
-//  1. structure  ≤ 13 steps, intro 「下面分 N 步」 = N, panel ids exist, concept ids exist, NOT in the main line (COURSE / LESSON_ORDER / LESSONS),
-//                registered in src/ui/lessons.js TOPIC_LESSONS, the last step has the 三问 ending + 「预期看▽」
+//  1. structure  ≤ 7 steps (slimmed 2026-10-30: the basic part lives in L3), the first line says 「先学完第 3 课」, intro 「下面分 N 步」 = N,
+//                the advanced steps in order (rope → story → pool → gate → laws → sum), panel ids exist, concept ids exist,
+//                NOT in the main line (COURSE / LESSON_ORDER / LESSONS), registered in src/ui/lessons.js TOPIC_LESSONS,
+//                the last step has the 三问 ending + 「预期看▽」; RULER_STYLE (the ruler look other modules import) is exported and sane
 //  2. wording    no 预报 / 水头 / 同比 / 环比 in the lesson, the panel module or its CSS
 //  3. vals       every {placeholder} fills (no 「—」); every vals number equals the engine replay of the panel (same quarter, same path);
 //                prints the 2022Q4 numbers
@@ -48,8 +50,23 @@ const ECO = src('src/engine/economy.js');
 /* ---------- 1. structure ---------- */
 const PANELS = ['exp-ruler', 'exp-hist', 'exp-five', 'exp-loop', 'exp-rope', 'exp-story', 'exp-pool', 'exp-gate', 'exp-laws', 'exp-sum'];
 ok(L.id === 'exp' && L.title === '专题：预期' && L.available === true, 'lesson id exp, title 专题：预期');
-ok(steps.length >= 3 && steps.length <= 13, `≤ 13 steps (${steps.length})`);
+ok(steps.length >= 3 && steps.length <= 7, `≤ 7 steps (${steps.length})`);
 { const m = /下面分 (\d+) 步/.exec(arr(steps[0].text).join('')); ok(m && +m[1] === steps.length - 1, `intro says 下面分 ${m && m[1]} 步 = ${steps.length - 1}`); }
+ok(arr(steps[0].text)[0].includes('先学完第 3 课'), 'first line: 「先学完第 3 课」');
+ok(steps.slice(1).map(s => s.panel && s.panel.id).join() === 'exp-rope,exp-story,exp-pool,exp-gate,exp-laws,exp-sum', 'advanced steps: ' + steps.slice(1).map(s => s.panel && s.panel.id).join(' → '));
+ok(!steps.some(s => ['exp-ruler', 'exp-five', 'exp-loop'].includes(s.panel && s.panel.id)), 'the basic panels (ruler, five places, loop) are not steps here (they live in L3)');
+{
+  const R = G.RULER_STYLE;
+  ok(R && Object.isFrozen(R) && R.staff.width <= 2.5 && 2 * R.band.open.half >= 6 * R.staff.width && R.band.real.width > R.staff.width
+    && ['p', 'm', 'e'].every(k => R[k] && R[k].glyph && /^var\(--exg-/.test(R[k].color)) && /^var\(--exg-blue/.test(R.blue.color) && /^var\(--exg-red/.test(R.red.color),
+  `RULER_STYLE exported: staff ${R && R.staff.width}px grey, open band ${R && 2 * R.band.open.half}px wide, ▶ ▼ ▽ + blue / red as CSS variables`);
+  ok(G.rulerSign(0.05, 0.03) === 'blue' && G.rulerSign(0.01, 0.03) === 'red', 'rulerSign: ▶ above ▽ = blue, below = red');
+  const svg = G.gaugeSvg({ W: 150, H: 230, lo: -0.01, hi: 0.07, p: 0.037, m: 0.052, e: 0.03, target: 0.02, band: 'split' });
+  const bw = [...svg.matchAll(/class="exg-band open[^"]*"[^>]*width="([\d.]+)"/g)].map(x => +x[1]), sw = /class="exg-rule"[^>]*stroke-width="([\d.]+)"/.exec(svg);
+  ok(bw.length === 1 && bw[0] === 2 * G.RULER_STYLE.band.open.half && sw && +sw[1] === G.RULER_STYLE.staff.width, `gauge draws the band ${bw[0]}px wide on a ${sw && sw[1]}px staff (RULER_STYLE)`);
+  const css = src('assets/css/exp-gauge.css');
+  ok(/--exg-staff:/.test(css) && /\.exg-rule \{ stroke: var\(--exg-staff\)/.test(css) && !/\.exg-rule \{[^}]*var\(--text\)/.test(css), 'css: the staff is grey (--exg-staff), not the text colour');
+}
 steps.forEach((st, i) => {
   ok(st.panel && PANELS.includes(st.panel.id), `step ${i + 1} has an exp panel (${st.panel && st.panel.id})`);
   for (const c of arr(st.concept)) ok(!!CONCEPTS[c], `step ${i + 1} concept ${c} exists`);
@@ -101,8 +118,10 @@ steps.forEach((st, i) => {
   ok(!miss.length && !/[{}]/.test(text), `step ${i + 1}: every placeholder filled ${miss.join(' ')}`);
   TBL[i] = { tbl, text };
 });
+const I22 = steps.findIndex(s => arr(s.derive).some(d => d.key === 'open22'));   // the step with the 2022Q4 开阀 / 结账 numbers (the intro recap)
+ok(I22 >= 0, `a step carries the 2022Q4 numbers (step ${I22 + 1})`);
 {
-  const t = TBL[4].tbl.raw, F = k => fmtV(t[k], TBL[4].tbl.fmt[k]);
+  const t = TBL[I22].tbl.raw, F = k => fmtV(t[k], TBL[I22].tbl.fmt[k]);
   console.log(`2022Q4 (engine): ▶ ${F('p22')}  ▼ ${F('m22')}  ▽ ${F('e22')}  开阀 ▶−▽ ${F('open22')}  到手 ▶−▼ ${F('real22')}  意外 ▼−▽ ${F('sur22')}`);
   ok(Math.abs(t.real22 - (t.p22 - t.m22)) < 1e-12, '到手 = ▶ − ▼ exactly (rates.realPolicy)');
 }
@@ -225,10 +244,12 @@ async function browser() {
   const ev = async expr => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval error'); return r.result.result.value; };
   const waitFor = async (expr, ms = 8000) => { for (let t = 0; t < ms; t += 150) { if (await ev(expr).catch(() => false)) return true; await sleep(150); } return false; };
   await send('Runtime.enable'); await send('Page.enable'); await send('Network.enable');
-  const shots = process.argv.includes('--shots'), SHOT_DIR = resolve(ROOT, 'tools/shots/exp'), saved = [];
+  const shotArg = process.argv.find(a => a.startsWith('--shot-dir='));
+  const shots = process.argv.includes('--shots') || !!shotArg, SHOT_DIR = resolve(ROOT, shotArg ? shotArg.slice(11) : 'tools/shots/exp'), saved = [];
   if (shots) mkdirSync(SHOT_DIR, { recursive: true });
-  const SHOT_STEPS = { 0: 'q1-question', 2: 'q3-expectation', 4: 'q5-open-vs-settle', 5: 'q5a-five-places', 6: 'q5b-loop', 7: 'q6-rope', 8: 'q7-story', 9: 'q8-pool', 10: 'qA-fx-rope', 11: 'qB-four-laws', 12: 'q9-ending' };
-  const t22 = TBL[4].tbl, F22 = k => fmtV(t22.raw[k], t22.fmt[k]);
+  const SHOT_NAME = { 'exp-hist': 'recap-ruler', 'exp-rope': 'rope', 'exp-story': 'story', 'exp-pool': 'pool', 'exp-gate': 'fx-rope', 'exp-laws': 'four-laws', 'exp-sum': 'ending', 'exp-ruler': 'ruler', 'exp-five': 'five-places', 'exp-loop': 'loop' };
+  const t22 = TBL[I22].tbl, F22 = k => fmtV(t22.raw[k], t22.fmt[k]);
+  const HIST1 = steps.findIndex(s => s.panel.id === 'exp-hist');   // the first scrubbable history panel
   for (const [w, h] of [[390, 844], [1024, 768]]) {
     const tag = `${w}×${h}`;
     await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: w < 500 ? 2 : 1, mobile: w < 500 });
@@ -248,19 +269,23 @@ async function browser() {
           card: document.querySelector('#ls-card .ls-body').textContent }; })()`);
       ok(lay.page <= 0 && lay.body <= 0 && lay.pnl <= 0 && !lay.svgOut, `${tag} step ${i + 1}: no horizontal scroll (page ${lay.page}, panel ${lay.pnl}, svg out ${lay.svgOut})`);
       ok(!/—|\{[a-z]/i.test(lay.card.replace(/1966–1980|–/g, '')), `${tag} step ${i + 1}: card text has no 「—」 / unfilled placeholder`);
-      if (i === 4) {
+      if (i === I22) {
         const ro = await ev(`document.querySelector('#ls-panel .exg').textContent`);
-        ok(['p22', 'm22', 'e22', 'open22', 'real22'].every(k => ro.includes(F22(k))) && lay.card.includes(F22('open22')) && lay.card.includes(F22('real22')), `${tag} step 5: panel and card show the engine's 2022Q4 numbers ${['p22', 'm22', 'e22', 'open22', 'real22'].map(F22).join(' ')}`);
+        ok(['p22', 'm22', 'e22', 'open22', 'real22'].every(k => ro.includes(F22(k))) && lay.card.includes(F22('open22')) && lay.card.includes(F22('real22')), `${tag} step ${i + 1}: panel and card show the engine's 2022Q4 numbers ${['p22', 'm22', 'e22', 'open22', 'real22'].map(F22).join(' ')}`);
+        // the ruler look (RULER_STYLE): a wide band on a thin grey staff
+        const look = await ev(`(() => { const g = document.querySelector('#ls-panel .exg-gauge'), st = g.querySelector('.exg-rule'), b = g.querySelector('.exg-band.open');
+          return { sw: st.getBoundingClientRect().width, bw: b.getBoundingClientRect().width, sc: getComputedStyle(st).stroke, tc: getComputedStyle(document.body).color, bf: getComputedStyle(b).fill }; })()`);
+        ok(look.bw >= 5 * look.sw && look.sc !== look.tc && look.bf !== look.sc, `${tag} step ${i + 1}: the ruler reads as a band (band ${look.bw.toFixed(1)}px vs staff ${look.sw.toFixed(1)}px; staff ${look.sc}, not the text colour ${look.tc})`);
       }
-      if (i === 2) {   // slider reacts
+      if (i === HIST1) {   // slider reacts
         const r = await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = 0; s.dispatchEvent(new Event('input', { bubbles: true })); return document.querySelector('#ls-panel .exg-slr b').textContent; })()`);
-        ok(r === '2020Q1', `${tag} step 3: slider scrubs (${r})`);
+        ok(r === '2020Q1', `${tag} step ${i + 1}: slider scrubs (${r})`);
         const k = rows.findIndex(x => x.date === '2022Q1');
         await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${k - rows.findIndex(x => x.date === '2020Q1')}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
         const t = await ev(`document.querySelector('#ls-panel .exg-ro').textContent`);
-        ok(t.includes(G.pc(rows[k].p)) && t.includes(G.pc(rows[k].m)) && t.includes(G.pc(rows[k].e)), `${tag} step 3: readout at 2022Q1 = engine (${t.slice(0, 40)})`);
+        ok(t.includes(G.pc(rows[k].p)) && t.includes(G.pc(rows[k].m)) && t.includes(G.pc(rows[k].e)), `${tag} step ${i + 1}: readout at 2022Q1 = engine (${t.slice(0, 40)})`);
       }
-      if (i === 5) {   // five places: DOM order = computed rank, lit set + numbers = engine at several quarters
+      if (steps[i].panel.id === 'exp-five') {   // five places: DOM order = computed rank, lit set + numbers = engine at several quarters
         const F = G.fiveTurns(rows), from = rows.findIndex(x => x.date === EXP_FIVE.from);
         for (const d of ['2022Q4', '2023Q2', '2023Q4', '2024Q1', '2024Q4']) {
           await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${rows.findIndex(x => x.date === d) - from}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -270,14 +295,14 @@ async function browser() {
           const domIds = dom.filter(x => x.id !== 'hole');
           const rankOk = domIds.every((x, j) => !j || (F.places.find(p => p.id === x.id).rank || 9) >= (F.places.find(p => p.id === domIds[j - 1].id).rank || 9));
           const nums = { pump: G.sg(s.flows.newLoans / y.flows.newLoans - 1, 0), lake: G.pc(s.household.savingRate), pool: G.sg(s.assets.bond.price / y.assets.bond.price - 1, 0), river: G.pc(s.macro.unemployment), hole: G.pc(s.gov.debtGdp) };
-          ok(rankOk && domIds.filter(x => x.lit).map(x => x.id).sort().join() === expLit && dom.every(x => x.t.includes(nums[x.id])), `${tag} step 6 @${d}: icons in computed order, lit = {${expLit}}, numbers = engine`);
+          ok(rankOk && domIds.filter(x => x.lit).map(x => x.id).sort().join() === expLit && dom.every(x => x.t.includes(nums[x.id])), `${tag} step ${i + 1} @${d}: icons in computed order, lit = {${expLit}}, numbers = engine`);
         }
       }
-      if (i === 7) {   // rope toy buttons
+      if (steps[i].panel.id === 'exp-rope') {   // rope toy buttons
         for (const [p, r] of [['oil', 'cut'], ['heat', 'AUS'], ['heat', 'USA']]) {
           await ev(`document.querySelector('#ls-panel [data-exg="path:${p}"]').click()`); await ev(`document.querySelector('#ls-panel [data-exg="rope:${r}"]').click()`);
           const t = await ev(`document.querySelector('#ls-panel .exg-ro').textContent`), end = G.toyRun(p, r).end;
-          ok(t.includes(G.pc(end.e)) && t.includes(G.ropeWord(end.dean, r === 'cut')), `${tag} step 8: toy ${p}/${r} → ▽ ${G.pc(end.e)}, 绳 ${G.ropeWord(end.dean, r === 'cut')}`);
+          ok(t.includes(G.pc(end.e)) && t.includes(G.ropeWord(end.dean, r === 'cut')), `${tag} step ${i + 1}: toy ${p}/${r} → ▽ ${G.pc(end.e)}, 绳 ${G.ropeWord(end.dean, r === 'cut')}`);
         }
       }
       if (steps[i].panel.id === 'exp-gate') {   // the gate: ▶差 from the data, ▽汇 slider, story lines = the FRED / repo data
@@ -293,13 +318,14 @@ async function browser() {
         }
         await ev(`document.querySelector('#ls-panel [data-exg="story:thb"]').click()`);
       }
-      if (shots && SHOT_STEPS[i] != null) {
-        if (i === 7) { await ev(`document.querySelector('#ls-panel [data-exg="path:heat"]').click()`); await ev(`document.querySelector('#ls-panel [data-exg="rope:USA"]').click()`); }
-        if (i === 2) await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${rows.findIndex(x => x.date === '2022Q1') - rows.findIndex(x => x.date === '2020Q1')}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-        if (i === 5) await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${rows.findIndex(x => x.date === '2023Q4') - rows.findIndex(x => x.date === EXP_FIVE.from)}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      if (shots) {
+        const pid = steps[i].panel.id;
+        if (pid === 'exp-rope') { await ev(`document.querySelector('#ls-panel [data-exg="path:heat"]').click()`); await ev(`document.querySelector('#ls-panel [data-exg="rope:USA"]').click()`); }
+        if (pid === 'exp-hist') await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${rows.findIndex(x => x.date === (steps[i].panel.date || '2022Q1')) - rows.findIndex(x => x.date === '2020Q1')}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+        if (pid === 'exp-five') await ev(`(() => { const s = document.querySelector('#ls-panel [data-exg-k]'); s.value = ${rows.findIndex(x => x.date === '2023Q4') - rows.findIndex(x => x.date === EXP_FIVE.from)}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
         await sleep(300);
         const r = await send('Page.captureScreenshot', { format: 'png' });
-        const f = resolve(SHOT_DIR, `exp-${SHOT_STEPS[i]}-${w}x${h}.png`); writeFileSync(f, Buffer.from(r.result.data, 'base64')); saved.push(f);
+        const f = resolve(SHOT_DIR, `exp-s${i}-${SHOT_NAME[pid] || pid}-${w}x${h}.png`); writeFileSync(f, Buffer.from(r.result.data, 'base64')); saved.push(f);
       }
     }
     ok(await ev(`!!document.querySelector('#ls-card .ls-end')`), `${tag}: last step shows the 三问 block`);
@@ -317,7 +343,7 @@ async function browser() {
     ok(menu.sec.startsWith('专题') && menu.item.includes('专题：预期'), `${tag}: menu shows 「专题：预期」 under 「专题」`);
     if (shots && w === 390) { const r = await send('Page.captureScreenshot', { format: 'png' }); const f = resolve(SHOT_DIR, `exp-menu-${w}x${h}.png`); writeFileSync(f, Buffer.from(r.result.data, 'base64')); saved.push(f); }
     await ev(`document.querySelector('#ls-menu .ls-topics .ls-item[data-id="exp"]').click()`);
-    ok(await waitFor(`!!document.querySelector('#ls-panel .exg[data-panel="exp-ruler"]')`), `${tag}: tapping it in the menu starts the lesson`);
+    ok(await waitFor(`!!document.querySelector('#ls-panel .exg[data-panel="${steps[0].panel.id}"]')`), `${tag}: tapping it in the menu starts the lesson`);
     ok(!errors.length, `${tag}: menu, no JS errors ${errors.slice(0, 3).join(' | ')}`);
     // the L6 pointer opens this lesson at 「汇率上的绳」
     const fi = LESSON_FX.steps.findIndex(s => s.lessonLink);
