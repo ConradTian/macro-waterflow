@@ -44,6 +44,14 @@ Everything below is pushed; no work is pending in any worktree.
 - **Trigger word 「皇帝内经」:** send the latest macro data and game status to the holiday idea collector session. End every reply with the reminder line.
 
 ## 3. Queue (user-approved order, next first)
+0. **FIRST, before EA: the check scripts filled the C: drive.** About 1,300 Edge profiles × ~0.5 GB, roughly 80 GB since 10-28. RESOURCER already deleted them with the owner's OK.
+   - **Cause:** tools/check_*.mjs create a fresh Edge profile in %TEMP% with mkdtempSync on every run and never delete it (e.g. check_d_lessons.mjs 'mw-dles-', check_real_mode.mjs 'mw-real-'). Launches without --user-data-dir also leave HeadlessEdge* folders behind.
+   - **Fix it in ALL check scripts:**
+     - (1) reuse one fixed profile per script under tools/_edge_<name> (as _edge_now / _edge_exp already do), and clear storage via CDP (Storage.clearDataForOrigin);
+     - (2) where a temp dir is unavoidable: kill Edge, wait for it to exit, then rmSync(profile, {recursive, force}) in try/finally, plus a process.on('exit') hook that also covers failure and early-exit paths;
+     - (3) every launch gets an explicit --user-data-dir plus --disk-cache-size=1 --no-first-run --no-default-browser-check;
+     - (4) add a checker that counts %TEMP%\mw-* and HeadlessEdge* before and after a full check run, and fails if any are left.
+   - Also remove the stale `.claude/worktrees/*` (about 40; everything is merged). Then reply to RESOURCER and to the Ray-Dalio-Framework peer.
 1. **EA:**
    - fix the COVID shock the GBR way (shockMult 1, slackVsCapEff, furlough);
    - EA initial values (household 0.46 / private 1.12 / gov 0.70);
