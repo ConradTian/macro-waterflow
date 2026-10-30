@@ -960,7 +960,8 @@ export function buildSnapshot(S, K, extra, branch, base = null) {   // base: pre
   return {
     t: S.t, date: dateOf(S, S.t), branch,
     macro: { gdpNominal: S.gdp, realOutput: S.Y, capacity: S.Ystar * (1 - S.capLoss), outputGap: S.Y / (S.Ystar * (1 - S.capLoss)) - 1,
-      priceLevel: S.P * 100, inflation: infl, inflationExp: S.piE, unemployment: S.u, demandPressure: v.pressure, capacityPotential: S.Ystar },
+      priceLevel: S.P * 100, inflation: infl, inflationExp: S.piE, unemployment: S.u, demandPressure: v.pressure, capacityPotential: S.Ystar,
+      deanchor: S.dean ?? 0 },   // read-only export of S.dean (the ▽ rope's slack, 0 = taut) for the main diagram's 吸力尺; nothing reads it back
     rates: { policy: S.policy, mortgageEff: S.mortEff, mortgageNew: S.mortNew, gov10y: S.gov10y, riskPremium: S.rp, realPolicy: S.policy - infl },
     money: { M: S.M },
     debt: { household: S.Dh, firm: S.Df, government: S.Dg },
