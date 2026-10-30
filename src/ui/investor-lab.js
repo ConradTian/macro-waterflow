@@ -9,6 +9,7 @@ import { currentSim } from './flow.js';
 import { flash, clearFlash } from './links.js';
 import { LONG_LABEL } from '../engine/regimes.js';
 import { ASSET_COLS, ASSET_ROWS, JPN_JST, JPN_SIGNALS, TOY } from '../data/lesson-investor.js';
+import { lakeHtml, lakeAct, ensureLakeCss } from './asset-lake.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ok = v => typeof v === 'number' && isFinite(v);
@@ -66,7 +67,7 @@ export function unmountInvestorPanel() {
   M = null;
 }
 export function refreshInvestorPanel() { if (M && M.alive) PANELS[M.id]?.update?.(M); }
-export const INVESTOR_PANEL_IDS = ['gauges', 'assetTable', 'realRate', 'priced', 'timeline', 'fx', 'blind'];
+export const INVESTOR_PANEL_IDS = ['gauges', 'assetTable', 'lake', 'realRate', 'priced', 'timeline', 'fx', 'blind'];
 
 function handle() { const m = M; return m ? { id: m.id, el: m.root, refresh: () => { if (M === m) refreshInvestorPanel(); } } : null; }
 function width() { return Math.max(260, Math.round(M.root.clientWidth || M.host.clientWidth || 360)); }
@@ -550,7 +551,7 @@ function blindHtml(m) {
       `<a class="btn ivl-go" href="${esc(href)}" target="_blank" rel="noopener">打开 ↗</a></li>`;
   }).join('');
   return `<div class="ivl-head"><b>去历史盲测里练</b><span class="ivl-date">3 张练习卡</span></div>
-    <ol class="ivl-do"><li>定位置（五个表）</li><li>查资产反应表</li><li>看贵不贵</li><li>数信号</li><li>配四种货币</li></ol>
+    <ol class="ivl-do"><li>定位置（五个表）</li><li>查资产反应表</li><li>看湖：水从哪根管子进</li><li>看吸力（实际利率）</li></ol>
     <ol class="ivl-cards">${cards}</ol>
     <a class="btn primary ivl-all" href="${esc(base)}" target="_blank" rel="noopener">进入历史盲测：整副 ${Object.keys(by).length || ''} 张牌 ↗</a>
     <p class="ivl-note">盲测页面没有专门的教学模式：这三张就是普通卡，在新窗口打开，这一课留在这里。</p>`;
@@ -562,4 +563,21 @@ const blind = {
   },
 };
 
-const PANELS = { gauges, assetTable, realRate, priced, timeline, fx, blind };
+/* =====================================================================================================
+ * 8. lake: the 湖 zoom (course v3 asset page, src/ui/asset-lake.js): pools, pipes, 泉眼, the narrow middle pipe; tap = sub-pools
+ * ===================================================================================================== */
+function histOf(m) {
+  if (m.spec.snap) return m.spec.hist || [snapOf(m)];
+  try { const h = getSim()?.history?.(); return Array.isArray(h) && h.length ? h : [snapOf(m)]; } catch (e) { return [snapOf(m)]; }
+}
+const lakeDraw = m => { m.root.innerHTML = lakeHtml(m.st, snapOf(m), histOf(m)); };
+const lake = {
+  mount(m) { ensureLakeCss(); if (m.spec.open) m.st.sel = m.spec.open; follow(m, () => lakeDraw(m)); },
+  update(m) { lakeDraw(m); },
+  act(m, act, b) {
+    const part = lakeAct(m.st, act, b); lakeDraw(m);
+    try { if (part && m.st.sel) flash({ parts: [part] }, 2500); } catch (e) { /* no diagram */ }
+  },
+};
+
+const PANELS = { gauges, assetTable, lake, realRate, priced, timeline, fx, blind };
