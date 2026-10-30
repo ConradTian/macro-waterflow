@@ -161,9 +161,12 @@ async function mainPage(port) {
     ok(await openMenu(b), `${tag}: 教学 menu opens again`);
     await b.ev(`document.querySelector('#ls-menu .ls-topics .ls-item[data-id="exp"]').click()`);
     ok(await b.waitFor(`!!document.querySelector('#ls-panel .exg svg')`), `${tag}: 专题：预期 starts with its 吸力尺 panel`);
-    for (let k = 0; k < 3; k++) { await b.ev(`(() => { const n = document.querySelector('#ls-card [data-act=next]'); if (n && !n.disabled) n.click(); })()`); await sleep(600); }
+    // the ruler is on the first step (the slimmed 专题's later panels are toys without ruler shapes): count shapes there, then step on and only check for black
     const e = await b.ev(BLACK('#ls-panel'));
-    ok(e.n > 0 && !e.black.length, `${tag}: 专题 panel ${e.n} shapes, none black ${e.black.join(' ')}`);
+    ok(e.n > 0 && !e.black.length, `${tag}: 专题 ruler panel ${e.n} shapes, none black ${e.black.join(' ')}`);
+    for (let k = 0; k < 3; k++) { await b.ev(`(() => { const n = document.querySelector('#ls-card [data-act=next]'); if (n && !n.disabled) n.click(); })()`); await sleep(600); }
+    const e3 = await b.ev(BLACK('#ls-panel'));
+    ok(!e3.black.length, `${tag}: 专题 step 3 panel, none black ${e3.black.join(' ')}`);
     await b.ev(`(document.querySelector('#ls-card [data-act=exit]') || { click() {} }).click()`); await sleep(700);
     // 第 2 课 (other lazy modules), then the 周期 tab
     ok(await openMenu(b), `${tag}: 教学 menu opens a third time`);
