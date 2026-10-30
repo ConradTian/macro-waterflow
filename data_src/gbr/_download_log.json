@@ -38,14 +38,28 @@
   "file": "ons_J5II.csv",
   "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/j5ii/pusf",
   "date": "2026-10-30",
-  "note": "ONS J5II: PS net borrowing ex public sector banks, GBP m, NSA",
+  "note": "ONS J5II: PS net borrowing ex public sector banks, GBP m, NSA (negative = borrowing); used for GBR govDeficitGdp (round 2)",
   "bytes": 14875
  },
  {
   "file": "ons_HF6X.csv",
   "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6x/pusf",
   "date": "2026-10-30",
-  "note": "ONS HF6X: PS net debt ex public sector banks, % of GDP, NSA (not used in round 1)",
+  "note": "ONS HF6X: PS net debt ex public sector banks, % of GDP, NSA (not used: the engine targets the BIS general-government ratio)",
   "bytes": 11419
+ },
+ {
+  "file": "ons_NMFX.csv",
+  "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/nmfx/pusf",
+  "date": "2026-10-30",
+  "note": "ONS NMFX: CG current expenditure: net interest payable, GBP m, NSA; used for GBR govInterestGdp (round 2)",
+  "bytes": 13171
+ },
+ {
+  "file": "wb_FB.AST.NPER.ZS_GBR.json",
+  "url": "https://api.worldbank.org/v2/country/GBR/indicator/FB.AST.NPER.ZS?format=json&per_page=100",
+  "date": "2026-10-30",
+  "note": "World Bank FB.AST.NPER.ZS: bank nonperforming loans / total gross loans, %, annual (IMF FSI); GBR bankNplRatio, display only (B2 card)",
+  "bytes": 15768
  }
 ]

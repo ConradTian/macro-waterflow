@@ -28,7 +28,7 @@ const RAW = [
     paramDoc: { floorRate: '政策利率低于此值才考虑 QE', uOn: '失业率高于此值（或缺口深）才启动 QE', uOff: '失业率低于此值停止 QE', piOff: '通胀高于此值停止 QE', sizeGdp: 'QE 规模（年化，占 GDP 比例）' },
     immediate: '央行买债，存款 M 增加，长端收益率下降', delayed: '资产价格上升；若私人信贷不恢复则传导偏弱' },
   // ---- 政府
-  // only acts where the country has the fiscal data and cp.fiscalRealPath (USA); elsewhere the fiscal rules below always run
+  // only acts where the country has the fiscal data and cp.fiscalRealPath (USA, GBR); elsewhere the fiscal rules below always run
   { id: 'gov_real_path', player: 'government', enabled: true, tpl: () => '历史模式：财政赤字沿用真实数据（外生输入，自动稳定器按模型的失业率另算）；关闭后改用下面的财政规则（加码 / 紧缩）',
     params: {}, paramDoc: {}, immediate: '财政净注入随真实赤字变化，M 随之变化', delayed: '政府债务/GDP 与利息负担跟着真实赤字走' },
   { id: 'gov_stimulus', player: 'government', enabled: true,

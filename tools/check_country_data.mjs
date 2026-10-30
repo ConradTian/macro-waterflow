@@ -9,15 +9,15 @@ const warns = [];
 const err = (m) => errors.push(m);
 const warn = (m) => warns.push(m);
 
-// US-only series used by the engine's real fiscal path (cp.fiscalRealPath, USA only): other countries need not carry them
-const US_ONLY = new Set(['govDeficitGdp', 'govInterestGdp']);
+// optional series: the engine's real fiscal path (cp.fiscalRealPath: USA, GBR) and display-only extras (GBR bankNplRatio); not required
+const US_ONLY = new Set(['govDeficitGdp', 'govInterestGdp', 'bankNplRatio']);
 const US_KEYS = Object.keys(US_Q.series).filter((k) => !US_ONLY.has(k));
 const EXTRA_KEYS = ['fxPerUsd', 'exportsGdp', 'importsGdp', 'foreignGovHoldShare'];
 const RANGES = {
   policyRate: [-0.01, 0.25], mortgageRate: [-0.01, 0.25], gov10y: [-0.01, 0.25],
   cpiYoY: [-0.05, 0.30], coreCpiYoY: [-0.05, 0.30], unemployment: [0.01, 0.30],
   gdpRealGrowthYoY: [-0.30, 0.30], hhDsr: [0, 0.5], privateCreditGdp: [0, 6], hhDebtGdp: [0, 3], govDebtGdp: [0, 5],
-  exportsGdp: [0, 1.5], importsGdp: [0, 1.5], foreignGovHoldShare: [0, 1],
+  exportsGdp: [0, 1.5], importsGdp: [0, 1.5], foreignGovHoldShare: [0, 1], govDeficitGdp: [-0.1, 0.35], govInterestGdp: [-0.01, 0.12], bankNplRatio: [0, 0.5],
   fxPerUsd: [0.2, 2000], houseIndex: [1, 2000], equityIndex: [1, 5000], goldIndex: [1, 5000],
 };
 const positive = ['gdpNominal', 'oilPrice', 'bankCredit', 'fxPerUsd', 'houseIndex', 'equityIndex', 'goldIndex'];

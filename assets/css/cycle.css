@@ -87,6 +87,7 @@
 .cy-fkb { margin-top: 12px; padding-top: 6px; border-top: 2px solid var(--cy-s5); }
 .cy-fkh { margin-top: 4px; font-weight: 700; }
 .cy-fkn { margin: 2px 0 4px; font-size: 12px; color: var(--pn-muted); line-height: 1.45; }
+.cy-notb2 { color: var(--pn-text); padding: 3px 0 3px 8px; border-left: 3px solid var(--pn-border); }
 .cy-fkc { margin: 8px 0 0; font-size: 12.5px; } .cy-fkc.ok { color: var(--lamp-green, #2a9547); } .cy-fkc.no b { color: var(--pn-text); }
 /* B2 pending (the three conditions hold, not yet b2N quarters in a row): the ② -> ⑤ edge half-lit */
 .cy-fk.pend .cy-fk-l { stroke: var(--fk); stroke-width: 2.6; stroke-dasharray: 2 3; opacity: 1; }

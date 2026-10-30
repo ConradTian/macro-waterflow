@@ -23,8 +23,10 @@ ORDER = ["policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unempl
          "gdpRealGrowthYoY", "houseIndex", "equityIndex", "cape", "goldIndex", "oilPrice", "hhDsr",
          "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "bankCredit"]
 EXTRA = ["fxPerUsd", "exportsGdp", "importsGdp", "foreignGovHoldShare"]
+OPTIONAL = ["govDeficitGdp", "govInterestGdp", "bankNplRatio"]  # optional (only written for a country whose build() returns them: GBR)
 RATIOS = {"policyRate", "mortgageRate", "gov10y", "cpiYoY", "coreCpiYoY", "unemployment", "gdpRealGrowthYoY", "hhDsr",
-          "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "exportsGdp", "importsGdp", "foreignGovHoldShare"}
+          "privateCreditGdp", "hhDebtGdp", "govDebtGdp", "exportsGdp", "importsGdp", "foreignGovHoldShare",
+          "govDeficitGdp", "govInterestGdp", "bankNplRatio"}
 
 NAN = pd.Series(np.nan, index=QIDX)
 
@@ -74,6 +76,60 @@ def ons_unemp():
 def eurostat_unemp():
     d = pd.read_csv(RAW / "eurostat" / "une_rt_m_EA21.csv")
     return pd.Series(d.OBS_VALUE.values, index=pd.PeriodIndex(d.TIME_PERIOD, freq="M")).dropna()
+
+
+def ons_q(path):
+    """ONS generator csv (PUSF): the quarterly block, rows like "1995 Q1","-10335" -> Series on a quarterly PeriodIndex."""
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parts = [p.strip('"') for p in line.split('","')]
+        if len(parts) != 2:
+            continue
+        bits = parts[0].strip('"').split()
+        if len(bits) == 2 and bits[0].isdigit() and bits[1] in ("Q1", "Q2", "Q3", "Q4"):
+            try:
+                out[pd.Period(f"{bits[0]}{bits[1]}", freq="Q")] = float(parts[1].strip('"'))
+            except ValueError:
+                pass
+    return pd.Series(out).sort_index()
+
+
+def sa_ratio(x_m, gdp_ann_bn):
+    """NSA quarterly flow (GBP m) over the quarter's GDP (annualised bn / 4), seasonally adjusted with ADDITIVE quarter-of-year
+    factors (share of GDP): deviation from a centred 2x4 moving average, MEDIAN per quarter of the year over 1995Q1-2021Q4 only
+    (the median keeps the 2020Q2 lockdown spike out of the Q2 factor; 2022+ never enters), factors re-centred to sum to zero.
+    Ratio-to-GDP form, so the result reads like the US SAAR deficit / GDP (no trailing-sum lag)."""
+    r = (x_m.reindex(QIDX) / (gdp_ann_bn * 1000 / 4)).astype(float)
+    trend = (0.5 * r.shift(2) + r.shift(1) + r + r.shift(-1) + 0.5 * r.shift(-2)) / 4
+    d = (r - trend)[(r.index >= pd.Period("1995Q1", "Q")) & (r.index <= pd.Period("2021Q4", "Q"))]
+    f = d.groupby(d.index.quarter).median()
+    f = f - f.mean()
+    return r - pd.Series(r.index.quarter, index=r.index).map(f).values, f
+
+
+GBR_RAW = ROOT / "data_src" / "gbr"
+
+
+def gbr_fiscal(gdp):
+    """GBR round 2: the real fiscal path series (same meaning as the US NIPA pair: positive = deficit, both / GDP)."""
+    if not (GBR_RAW / "ons_J5II.csv").exists() or not (GBR_RAW / "ons_NMFX.csv").exists():
+        return None
+    dfc, fd = sa_ratio(-ons_q(GBR_RAW / "ons_J5II.csv"), gdp)
+    itr, fi = sa_ratio(ons_q(GBR_RAW / "ons_NMFX.csv"), gdp)
+    print("  GBR fiscal seasonal factors (pp of GDP, Q1..Q4): deficit", [round(100 * float(v), 2) for v in fd.values],
+          "interest", [round(100 * float(v), 2) for v in fi.values])
+    return dfc, itr
+
+
+def gbr_npl():
+    """World Bank FB.AST.NPER.ZS (bank nonperforming loans / total gross loans, %, annual; IMF FSI) for GBR, held flat within each
+    year, /100. Display only (the B2 card's 加分项); the engine and the dials never read it. None when the file is missing."""
+    p = GBR_RAW / "wb_FB.AST.NPER.ZS_GBR.json"
+    if not p.exists():
+        return None
+    j = json.loads(p.read_text(encoding="utf-8"))
+    out = {int(r["date"]): float(r["value"]) for r in (j[1] or []) if r.get("value") is not None and r.get("countryiso3code") == "GBR"}
+    return wc.annual_to_q(pd.Series(out).sort_index().reindex(wc.YEARS)) / 100
 
 
 def imf_cpi_jpn_q():
@@ -199,6 +255,25 @@ def build(iso):
         gdp = v.reindex(QIDX) * 4 / 1e9
         src["gdpNominal"] = f"IMF QNEA {c['imf']} B1GQ current prices, SA, x4 (annualised), {c['ccy']} bn"
     S["gdpNominal"] = gdp
+    if iso == "GBR":
+        fis = gbr_fiscal(gdp)
+        if fis is not None:
+            S["govDeficitGdp"], S["govInterestGdp"] = fis
+            src["govDeficitGdp"] = ("ONS PUSF J5II (public sector net borrowing excl. public sector banks, GBP m, NSA), sign flipped "
+                                    "(positive = deficit), / quarterly GDP (gdpNominal / 4); seasonally adjusted with additive quarter-of-year "
+                                    "factors (median deviation from a centred 2x4 moving average, 1995-2021 only)")
+            src["govInterestGdp"] = ("ONS PUSF NMFX (central government current expenditure: net interest payable, GBP m, NSA), "
+                                     "/ quarterly GDP; same seasonal adjustment")
+            nt.append("govDeficitGdp / govInterestGdp (GBR) feed the engine's real fiscal path (cp.fiscalRealPath), like the US NIPA pair. "
+                      "UK borrowing covers the whole public sector (central + local government + public corporations, excl. public sector "
+                      "banks: the 2008-09 bank nationalisations are outside); interest is central government only (net interest payable, "
+                      "incl. the index-linked uplift, so it jumps with RPI in 2022-23). The US pair is federal only.")
+        npl = gbr_npl()
+        if npl is not None:
+            S["bankNplRatio"] = npl
+            src["bankNplRatio"] = ("World Bank WDI FB.AST.NPER.ZS (bank nonperforming loans to total gross loans, %, annual, from the IMF "
+                                   "Financial Soundness Indicators), held flat within each year, /100; gaps before 2008 except 2005")
+            nt.append("bankNplRatio (GBR) is display only: the B2 card's 'how hurt are the banks' 加分项. The engine and the cycle dials never read it.")
     if iso == "CHN":
         q = wc.qnea("CHN", "Q", "NSA")
         g = (q / q.shift(4) - 1).reindex(QIDX)
@@ -303,7 +378,8 @@ FOREIGN_SERIES = {"AUS": aofm_foreign_share}  # iso -> loader returning a quarte
 
 def write_country(iso, S, src, nt):
     series = {}
-    for k in ORDER + EXTRA:
+    KEYS = ORDER + EXTRA + [k for k in OPTIONAL if k in S]
+    for k in KEYS:
         s = S[k].reindex(QIDX)
         n = 4 if k in RATIOS else 5
         series[k] = [wc.sig(v, n) for v in s.values]
@@ -321,10 +397,10 @@ def write_country(iso, S, src, nt):
     lines.append("  dates: " + json.dumps(DATES, separators=(",", ":")) + ",")
     lines.append("  reservedFrom: '2022Q1',")
     lines.append("  series: {")
-    for k in ORDER + EXTRA:
+    for k in KEYS:
         lines.append(f"    {k}: " + json.dumps(series[k], separators=(",", ":")) + ",")
     lines.append("  },")
-    meta = {"sources": {k: src[k] for k in ORDER + EXTRA}, "notes": notes}
+    meta = {"sources": {k: src[k] for k in KEYS}, "notes": notes}
     lines.append("  meta: " + json.dumps(meta, ensure_ascii=False, indent=2).replace("\n", "\n  ") + "\n};")
     p = OUTDIR / f"{iso.lower()}-quarterly.js"
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -359,7 +435,7 @@ if __name__ == "__main__":
     print("wrote index.js")
     for iso, series in cov.items():
         row = []
-        for k in ORDER + EXTRA:
+        for k in series:
             v = series[k]
             nn = [i for i, x in enumerate(v) if x is not None]
             row.append(f"{k}:{DATES[nn[0]] + '-' + DATES[nn[-1]] if nn else '--'}")

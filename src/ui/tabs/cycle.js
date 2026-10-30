@@ -8,6 +8,7 @@ import { lampBarHtml } from '../gauge.js';
 import { fmtV, nextText, evidenceList, reqMet, beginRows, initPins, applyUrlPin, wireEvidence } from './_cycle-ev.js';
 import { wavesHtml, wireWaves } from './_cycle-waves.js';
 import { KEY_LABEL, TOP_LABEL } from '../../engine/regimes.js';
+import { countryParams } from '../../data/country-params.js';
 
 // own stylesheet (index.html links it too; this keeps free/ and any other host working)
 try {
@@ -169,9 +170,10 @@ function pips(have, need) {
 const headLong = k => `${LONG_MARK[k]} ${LONG_NODE[k]}`;
 const headShort = k => KEY_LABEL[k] || k;
 /** the long card's B2 fork: three conditions at once (房价在跌 / 债务重 / 降了息信贷还在缩), each with its rows */
-function forkBlock(L, ctx) {
+function forkBlock(L, ctx, t) {
   const fe = L.forkEvidence;
   if (!fe || !fe.length || (L.stage !== 1 && L.stage !== 2)) return '';
+  const bk = bankHurtCtx(ctx, t);
   const c1 = fe.filter(e => !e.grp && e.term === 'housePrice'), c2 = fe.filter(e => e.grp === 'a');
   const c3 = fe.filter(e => !c1.includes(e) && !c2.includes(e));
   const parts = [['房价比一年前在跌', c1], ['债务够重（DSR 或 私人债务/GDP）', c2], ['降了息、信贷还在缩', c3]].filter(([, it]) => it.length);
@@ -184,10 +186,34 @@ function forkBlock(L, ctx) {
   return `<div class="cy-fkb"><div class="cy-evh cy-fkh">地下水位跌破吸程线（B2）：${parts.length === 3 ? '三条' : '这几条'}同时成立、连续 ${need} 季才算${state}</div>` +
     `<p class="cy-fkn">成立 = 降息推不动：小周期降了息，信贷还是缩 → 大周期走 B2 → ⑤。降息推得动（回到扩张）就解除。（没成立时，超额的债多半溢出成通胀，走 B1，交给小周期。）</p>` +
     parts.map(([nm, it], i) => `<div class="cy-fkc ${reqMet(it) ? 'ok' : 'no'}"><b>${i + 1}. ${nm}</b> ${reqMet(it) ? '✔' : '✖'}</div>${evidenceList(it, o)}`).join('') +
-    bonusBlock(L.forkExtra) + `</div>`;
+    notB2Note(L, parts, bk) + bonusBlock(L.forkExtra, bk) + `</div>`;
+}
+// 「银行伤了 ≠ B2」(display only; the B2 gate is unchanged). Bank damage counts as high at the dial's own bad-loan line (cp.cycle.LT.bad,
+// the ⑤ test): the model's bad-loan rate, or a real display-only series of the country (GBR: bankNplRatio, World Bank / IMF FSI).
+// Shown when the banks are hurt, B2 is not confirmed and a condition fails; a country may add its own why (cp.b2Note, dated window).
+function bankHurtCtx(ctx, t) {
+  const iso = ctx.realMode ? ctx.realSnap?.real?.iso : ctx.sim?.country;
+  const cp = countryParams(iso || 'USA');
+  const date = ctx.realMode ? ctx.realDates?.[t] : ctx.real?.dates?.[t];
+  const npl = !ctx.realMode && ctx.real?.series?.bankNplRatio ? ctx.real.series.bankNplRatio[t] : null;
+  const note = cp.b2Note && date && date >= cp.b2Note.from && date <= cp.b2Note.to ? cp.b2Note : null;
+  return { line: cp.cycle?.LT?.bad ?? 0.035, npl: typeof npl === 'number' && isFinite(npl) ? npl : null, note, name: cp.name || iso, real: !!ctx.realMode };
+}
+function notB2Note(L, parts, bk) {
+  if (L.fork === 'B2') return '';
+  const ok = v => typeof v === 'number' && isFinite(v);
+  const P = v => (v * 100).toFixed(1) + '%';
+  const x = L.forkExtra || {}, bad = ok(x.bad) ? x.bad : null;
+  const hurt = (bad != null && bad >= bk.line) || (bk.npl != null && bk.npl >= bk.line);
+  const fail = parts.map(([, it], i) => (reqMet(it) ? 0 : i + 1)).filter(Boolean);
+  if (!hurt || !fail.length) return bk.note ? `<p class="cy-fkn cy-notb2">${esc(bk.note.text)}</p>` : '';
+  const what = [bad != null ? `${bk.real ? '' : '模型'}坏账率 ${P(bad)}` : '', bk.npl != null ? `${bk.name}真实不良贷款率 ${P(bk.npl)}` : ''].filter(Boolean).join('，');
+  const c3 = fail.includes(3) ? '：降了息，信贷没有一直缩（降息推得动）' : '';
+  return `<p class="cy-fkn cy-notb2"><b>银行伤了 ≠ B2</b>：${esc(what)}，银行确实受伤（≥ ${P(bk.line)}），但第 ${fail.join('、')} 条不成立${c3} → 现在不算 B2。</p>` +
+    (bk.note ? `<p class="cy-fkn cy-notb2">${esc(bk.note.text)}</p>` : '');
 }
 /** 加分项 on the B2 card (display only, never in the threshold): how much negative equity, how hurt the banks are */
-function bonusBlock(x) {
+function bonusBlock(x, bk) {
   if (!x) return '';
   const ok = v => typeof v === 'number' && isFinite(v);
   const P = (v, d = 1) => (ok(v) ? (v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(d) + '%' : '—');
@@ -195,9 +221,10 @@ function bonusBlock(x) {
   const bank = ok(x.badCap) ? `坏账 ≈ 银行资本的 ${P(x.badCap, 0)}（坏账率 ${P(x.bad)}）`
     : ok(x.badRes) || ok(x.bad) ? `房贷拖欠率 ${P(x.badRes)} · 全部贷款拖欠 ${P(x.bad)} · 核销率 ${P(x.chargeOff)}（没有资本数据）`
     : '没有数据';
+  const real = bk && bk.npl != null ? ` · ${bk.name}真实不良贷款率 ${P(bk.npl)}（World Bank，年度）` : '';
   return `<div class="cy-bonus"><div class="cy-orcap">加分项（不计入门槛，只帮你看 B2 会有多重）</div>` +
     `<div class="cy-bonus-r"><b>${term('lvr', '负资产范围')}</b><span>${esc(neg)}</span></div>` +
-    `<div class="cy-bonus-r"><b>${term('badLoans', '银行受伤程度')}</b><span>${esc(bank)}</span></div>` +
+    `<div class="cy-bonus-r"><b>${term('badLoans', '银行受伤程度')}</b><span>${esc(bank + real)}</span></div>` +
     `<p class="cy-fkn">负资产多、并且伤到银行，B2 才可能来；最后要看降息推不推得动。</p></div>`;
 }
 // the one line under both dials (tap = the B2 concept card with the full sentence)
@@ -214,7 +241,7 @@ function card(kind, snapSide, t, ctx, other) {
     ? `<div class="cy-between-note">◆ B2 待确认：三条已同时成立 ${C.forkPending.have}/${C.forkPending.need} 季，连续 ${C.forkPending.need} 季才算 B2</div>` : '';
   let ev;
   if (isLong) {
-    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence, { kind, ctx, mark: LONG_MARK[C.progress.target] })}${forkBlock(C, ctx)}`;
+    ev = `<div class="cy-evh">要进入 <b>${esc(C.progress.label)}</b> 需要：${pips(C.progress.have, C.progress.need)}</div>${evidenceList(C.evidence, { kind, ctx, mark: LONG_MARK[C.progress.target] })}${forkBlock(C, ctx, t)}`;
   } else {
     const groups = C.progress.map(p => {
       const items = C.evidence.filter(e => e.targetId === p.target);

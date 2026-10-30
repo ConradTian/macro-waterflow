@@ -49,7 +49,7 @@ const USA_BASE = {
   // fiscalRealPath (history mode): the government's stance follows the data - the real cyclically adjusted primary deficit
   // (govDeficitGdp - govInterestGdp - the model's own automatic stabilisers at the REAL unemployment gap; us-quarterly.js has the
   // NIPA series), like cb_real_path for the policy rate; the rules run only in free mode, without the series, or on a takeover.
-  // OFF in this base (AUS, town); ON for the USA (see USA below). Switched on alone it failed 9/17 targets: the old rule government
+  // OFF in this base (AUS, town); ON for the USA and GBR (see below). Switched on alone it failed 9/17 targets: the old rule government
   // had been filling a model-made demand hole (model deficit ~13% of GDP in 2007 and ~15% in 2024-25, real ~2% and ~6.5%), which is
   // also why it 'tightened' in 2008Q3 (interest/tax > 22%). The rule gov_real_path switches it off per sim (lessons' experiments).
   fiscalRealPath: false,
@@ -227,6 +227,14 @@ const AUS = {
 // BoE SVR 8.3%, Bank Rate 6.46%, ONS unemployment 8.9%, 10y gilt 8.7%); the seed below repeats them for the fallback only.
 // Known misses (reported, not hidden): the 2010-13 unemployment plateau (model ~4.7%, real ~8%: no UK austerity / bank-repair
 // mechanism), model gov debt runs ahead of the real one before 2008 (~65% vs 41%: the rule government fills a demand hole).
+// GBR round 2 (2026-10-30): the REAL fiscal path is ON (gbr-quarterly.js govDeficitGdp = ONS PSNB ex banks J5II, govInterestGdp =
+// ONS CG net interest NMFX, both seasonally adjusted / GDP; history mode only). Alone it broke 4 hard rows (10/14): the 2001-03 deficit
+// swing (-1.6% -> +4.4% of GDP) reads as a demand boom, then a 2006-07 slump (u 2007Q4 8.5%) and a house bust before 2008 (G1a 118%,
+// G1b -35%). Re-fit on 1995-2021 only, 4 numbers changed (search over 19 candidates, <= 8 allowed): okun 0.5062 -> 0.3839,
+// badDsr 0.5 -> 0.5668, firm_capex_up.p 0.01 -> 0.04574 (Capex expands only on clear excess demand: the 2003-05 stance does not build a
+// capacity overhang), inv_momentum.hpMom 0.35 -> 0.4318. Result: 14/14 hard rows, gov debt/GDP 2007 43% (real 43%; was 65%), max 75%
+// (real 106%), u RMSE 1995-2021 1.68pp (was 1.74); the 2009-13 plateau is NOT fixed (4.5%, was 4.7%; real 7.8%). +-10% one-at-a-time
+// on 69 numbers: 47/138 runs break a hard row (was 55/138). Switch it off per sim with the rule gov_real_path.
 // The numbers carry 3-4 digits on purpose (search output).
 const GBR = {
   ...USA_BASE,
@@ -241,12 +249,13 @@ const GBR = {
   // quarter's depth), the lost capacity is not labour slack (slackVsCapEff), 80% of the forced demand collapse is not slack either
   // (furlough), and only a small layoff term.
   shockMult: 1, slackVsCapEff: true, furlough: 0.8, shockLayoff: 0.05,
-  cycleDebtGdp4q: true,       // BIS debt/GDP (4-quarter GDP): the 2020Q2 GDP collapse does not fake a debt/GDP jump
+  fiscalRealPath: true,       // round 2: the government follows the real UK deficit in history mode (see above)
+  cycleDebtGdp4q: true,      // BIS debt/GDP (4-quarter GDP): the 2020Q2 GDP collapse does not fake a debt/GDP jump
   // ---- macro anchors. 2% target: CPI target since Dec 2003 (RPIX 2.5% before; the 2% anchor is used throughout)
   piTarget: 0.02, gT: 0.025, gBase: 0.05138,   // UK nominal GDP grew ~5%/yr 1995-2007, ~4% after; trend real growth ~2.5% pre-2008
   // NAIRU: ~7% in the mid-1990s (u 8.9% in 1995Q1), ~5% by the 2000s (BoE/OBR), ~4.2% by 2019 (BoE MPR estimates 4-4.5%)
   uStar: 0.05, uStarPath: [['1995Q1', 0.02], ['2003Q1', 0], ['2019Q1', -0.008]],
-  okun: 0.5062,
+  okun: 0.3839,               // round 2 (real fiscal path): was 0.5062
   // ---- households and housing. About half or more of the stock repriced with Bank Rate before 2008 (SVR / trackers / 2-year fixes);
   // the engine's "fixed" leg is priced off the 10y, so UK 2-5 year fixes count mostly as the floating leg: mortFixed 0.22.
   // BoE IADB: SVR - Bank Rate averages 2.7pp 1995-2025; the stock effective rate (CFMHSDE) sits ~1.5-2.5pp over Bank Rate
@@ -254,15 +263,21 @@ const GBR = {
   mortFixed: 0.2168, mortVarSpread: 0.015, mortReprice: 0.2214,
   lvr0: 0.4146,               // starting LVR in the engine's units (the US 0.38 scale of the LVR rules; UK 1995 had post-1990 negative equity)
   rateSens: 0.6, wealthLevel: 0.06265,
-  // ---- government (UK primary outlays / taxes in the engine's federal-style units; the real fiscal path is off)
+  badDsr: 0.5668,             // round 2 (real fiscal path): was the USA_BASE 0.5
+  // ---- government (UK primary outlays / taxes in the engine's federal-style units; in history mode the real fiscal path sets the stance)
   spendGdp: 0.192, taxGdp: 0.18,
   // ---- equities: the OECD UK share price index is price-only with a high payout (FTSE yield ~3-4%): EPS lags aggregate profit
   mktCapGdp: 1.103, eqDilution: 0.045, termPrem0: -0.0001561,   // gilt term premium ~0 (pension / LDI demand for long gilts)
+  // B2 card note (display only, 周期 tab; the B2 gate is unchanged): why the 2008-10 bank damage did not make B2. Real UK data with the
+  // same dial rules (node tools/gbr_real_dial.mjs --fork): the three conditions held together only in 2009Q1-Q2 (2 of the 3 quarters
+  // needed); from 2009Q3 the credit impulse after the cuts turned positive, so condition 3 failed (推得动).
+  b2Note: { from: '2008Q1', to: '2010Q4',
+    text: '英国 2008–10（真实数据）：三条同时成立只有 2009Q1–Q2 两季，不够连续 3 季；2009Q3 起降息后信贷脉冲转正，第 3 条「降了息、信贷还在缩」不成立 —— 降息推得动。原因：大量跟踪利率 / 浮动利率房贷随降息马上变便宜，银行普遍宽限（forbearance）、少逼卖，负资产少。' },
   seed: { gdp0: 838, hhDebtGdp: 0.58, privateCreditGdp: 1.095, govDebtGdp: 0.425, mortgageRate: 0.083, policyRate: 0.0646,
     cpiYoY: 0.024, unemployment: 0.0887, gov10y: 0.0866 },
   rules: {
-    firm_capex_up: { max: 1.1451 }, firm_capex_cut: { min: 0.93 }, firm_oil_passthrough: { k: 0.0299 },
-    inv_momentum: { hpMom: 0.35 },
+    firm_capex_up: { max: 1.1451, p: 0.04574 }, firm_capex_cut: { min: 0.93 }, firm_oil_passthrough: { k: 0.0299 },   // p: round 2 (was 0.01)
+    inv_momentum: { hpMom: 0.4318 },              // round 2 (was 0.35)
     inv_valuation: { revert: 0.0584, apprElast: 0.6955, rateElast: 0.5567 },   // 1995-2007: credit availability + falling rates (UK +236%)
     hh_chase: { up: 0.04586 },
     hh_overhang: { save: 0.047, decay: 0.9162, lvr0: 0.4815 },

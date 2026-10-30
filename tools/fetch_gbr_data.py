@@ -46,6 +46,9 @@ BOE = {
 ONS = {
     "J5II": ("/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/j5ii/pusf", "PS net borrowing ex public sector banks, GBP m, NSA (annual/quarterly/monthly blocks)"),
     "HF6X": ("/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6x/pusf", "PS net debt ex public sector banks, % of GDP, NSA"),
+    # GBR round 2: debt interest for the real fiscal path (govInterestGdp). Candidates checked 2026-10-30: JNYX (CG interest payable
+    # ex index-linked uplift) starts 1998; ANLO (PS interest AND dividends paid, jumps in 2009 with the bank rescues) is not debt interest.
+    "NMFX": ("/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/nmfx/pusf", "CG current expenditure: net interest payable, GBP m, NSA (quarterly block from 1995)"),
 }
 
 if __name__ == "__main__":
@@ -61,4 +64,10 @@ if __name__ == "__main__":
             save(f"ons_{code}.csv", get(url), url, "ONS " + code + ": " + note)
         except Exception as e:  # noqa
             print("  FAIL", code, e)
+    # bank bad loans (display only, the B2 card's 加分项): World Bank / IMF FSI NPL ratio, annual
+    url = "https://api.worldbank.org/v2/country/GBR/indicator/FB.AST.NPER.ZS?format=json&per_page=100"
+    try:
+        save("wb_FB.AST.NPER.ZS_GBR.json", get(url), url, "World Bank FB.AST.NPER.ZS: bank nonperforming loans / total gross loans, %, annual (IMF FSI); display only")
+    except Exception as e:  # noqa
+        print("  FAIL NPL", e)
     (RAW / "_download_log.json").write_text(json.dumps(LOG, indent=1), encoding="utf-8")
