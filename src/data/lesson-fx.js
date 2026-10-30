@@ -126,13 +126,13 @@ export const FX_DRILLS = { anchor: DRILL_ANCHOR, pipe: DRILL_PIPE, prod: DRILL_P
 
 const AUS = 'AUS';
 // v3 (tools/DESIGN-v3.md 「World + FX (A3)」): question 「水怎么过境？」, examples AUD 2008 and JPY 2022; show first, then name.
-// Three gate rules: 快 = 吸力差 (water runs to the lake with the higher real rate); 慢 = 水位差 (PPP anchor) + 卖的东西贵不贵 (ToT);
+// Three gate rules: 快 = 吸力差 (water runs to the lake with the higher ▶ − ▽; the reactor uses the policy-rate gap); 慢 = 水位差 (PPP anchor) + 卖的东西贵不贵 (ToT);
 // 怕 = in fear, water runs to the biggest lake (USD) and home (JPY). Pipe names: 吸力差（+怕） / 水位差（+卖的东西贵不贵）.
 export const LESSON_FX = {
   id: 'fx', kind: 'fx', label: '第 6 课',
   title: '水怎么过境？',
   question: '水怎么过境？',
-  oneLine: '每个国家的水一种颜色，过境要在闸口换颜色，闸价就是汇率。快 = 吸力差（水往实际利率高的湖跑），慢 = 水位差 + 卖的东西贵不贵，怕 = 一慌，水往最大的湖（美元）和家（日元）跑。例子：澳元 2008，日元 2022。',
+  oneLine: '每个国家的水一种颜色，过境要在闸口换颜色，闸价就是汇率。快 = 吸力差（水往 ▶ − ▽ 高的湖跑），慢 = 水位差 + 卖的东西贵不贵，怕 = 一慌，水往最大的湖（美元）和家（日元）跑。例子：澳元 2008，日元 2022。',
   rulesOn: 'all',
   startDate: '2025Q4', endDate: '2025Q4', mode: 'history', available: true,
   steps: [
@@ -185,10 +185,10 @@ export const LESSON_FX = {
     { type: 'reveal', title: '第 2 步：快：水往吸力大的湖跑', panel: { id: 'fx-reactor', iso: AUS, date: '2025Q4', forces: true }, hl: ['fx'],
       drills: [DRILL_ANCHOR, DRILL_PIPE, DRILL_PROD, DRILL_TOT, DRILL_CONF],
       text: [
-        '**结论：快的规则叫吸力差：哪边的湖吸力大（实际利率高），水就往哪边跑，那边的货币变强。几个季度就见效。**',
+        '**结论：快的规则叫吸力差：哪边的湖吸力大（▶ − ▽ 高），水就往哪边跑，那边的货币变强。几个季度就见效。**',
         '**美联储加息 = 最大的湖吸力变大，全世界的水往美国跑。**别国的闸都被往弱推，除非它们也跟着加息。',
         '图里两根管已经拆成五股力：吸力差（+怕）= 利差 + 信心（怕），水位差（+卖的东西贵不贵）= 通胀差 + 生产率 + 贸易条件。快的是上面那根，慢的是下面那根。',
-        '吸力该看实际利率（利率减通胀）。这里的利差用政策利率，通胀那一块放在下面那根管里，两根管合起来就是实际利率的差。',
+        '吸力本该是 ▶ − ▽。这里的利差只用两国政策利率 ▶ 的差（各国没有可比的 ▽，判断）；物价差（▼ 的差）放在下面那根管里。',
         '澳洲（和日本）的怕用 VIX（恐慌指数）量，贸易条件用 ABS 贸易条件指数（日本用油价）；生产率试过，放进去保留样本猜得更差，所以写「不计入」。别的国家没有这些数据，就老实写「没有数据」。',
         '想看每股力的历史证据，点下面的按钮（可选）：图会换成那股力的例子，看完点「回到汇率闸」。',
       ],

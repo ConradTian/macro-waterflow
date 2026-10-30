@@ -74,6 +74,8 @@ function countryFacts(iso) {
     pvt: pi >= 0 ? pvtOf(hist[pi]) : null, pvtDate: pi >= 0 ? hist[pi].date : null, pvtAvg: mean(pvtAll), pvtNotYet: pi < t,
     pvtSeries: hist.map(h => ({ date: h.date, v: pvtOf(h) })),
     long: { stage: long.stage, label: long.label, fork: long.fork, pending: long.forkPending, evidence: long.forkEvidence, b1Overlay: !!long.b1Overlay, depth },
+    // ⑧ 出圈 evidence 「政府债务/GDP 三年变化」 (the same row m4 第 5 步 reads)
+    govUp3: (long.evidence || []).find(e => e.name === '政府债务/GDP 三年变化') || null,
     b2From: b2q[0] || null, b2To: b2q[b2q.length - 1] || null, b2N: b2q.length, pendQ,
     short: s.cycles.short.label,
     house: V.parts.house, equity: V.parts.equity, valBands: V.bands, valAxis: V.axis,
@@ -231,7 +233,7 @@ export const LESSON_NOW = {
       ],
       concept: ['priceToIncome', 'equityAsset', 'lampValuation'] }),
 
-    step({ type: 'reveal', title: '第 4 步：吸力尺：存湖划不划算', panel: { id: 'now-ruler' },
+    step({ type: 'reveal', title: '第 4 步：吸力尺：存钱的人到手多少（结账读数）', panel: { id: 'now-ruler' },
       text: [
         '**结论：两国的色带都很窄：美国 {uBand}（{uBandW}），澳洲 {aBand}（{aBandW}）。存现金的人到手大致打平。**',
         '▶ 政策利率：美国 {uPol}，澳洲 {aPol}。▼ 物价比一年前：美国 {uInfl}，澳洲 {aInfl}。',
@@ -260,19 +262,20 @@ export const LESSON_NOW = {
 
     step({ type: 'reveal', title: '第 6 步：三问：今天的答案', panel: { id: 'now-sum' },
       text: [
-        '**结论：两国都在 ⑦（靠增长化债）；河偏满，吸力贴着 0，湖里有贵的池子。' + NOW_TRUTH + '。**',
+        '**结论：两国都在 ⑦（靠增长化债）；河偏满，结账读数（▶ − ▼）贴着 0，湖里有贵的池子。' + NOW_TRUTH + '。**',
         '数据会更新，答案也会跟着变：下一季的数一发布，这一课的每个数都会重算。',
       ],
       // the fixed 三问, answered for today (USA {dU}, AUS {dA})
       ending: {
         q1: '水的问题还是河道的问题？读图像水偏多：两国物价都高过调度线（美国 {uInfl}，澳洲 {aInfl}），失业率又低于自己的平均（{uU}、{aU}）。河道变窄（油价、供给）这里不单独拆。',
         q2: '环上哪一步？大周期：{longCon}，地下水位都没跌破吸程线。小周期：美国 {uShort}，澳洲 {aShort}。',
-        q3: '谁赢谁输、钱放哪？吸力贴着 0（美国 {uBand}，澳洲 {aBand}）：存现金的人大致打平；政府的债靠名义增长慢慢变轻（⑦）。湖：美国{uLake}，澳洲{aLake}。这一课只读哪个池子贵，不给买卖建议：' + NOW_TRUTH + '。',
+        q3: '谁赢谁输、钱放哪？结账读数（▶ − ▼）贴着 0（美国 {uBand}，澳洲 {aBand}）：存现金的人大致打平；政府的债：⑦ 的帮手（名义增长）还在，可政府债务/GDP 这三年又升了，所以还出不了圈（见第五课「⑧ 出圈」）。湖：美国{uLake}，澳洲{aLake}。这一课只读哪个池子贵，不给买卖建议：' + NOW_TRUTH + '。',
       },
       facts: [
         { f: Fx => NOW_ISOS.every(i => Fx[i].long.stage === 7), note: '两国都在 ⑦' },
         { f: Fx => NOW_ISOS.every(i => Fx[i].infl > Fx[i].target && Fx[i].u < Fx[i].uAvg), note: '河偏满：物价高过调度线、失业率低于平均（两国）' },
-        { f: Fx => NOW_ISOS.every(i => Math.abs(Fx[i].band) < 0.005), note: '吸力贴着 0' },
+        { f: Fx => NOW_ISOS.every(i => Math.abs(Fx[i].band) < 0.005), note: '结账读数贴着 0' },
+        { f: Fx => NOW_ISOS.every(i => Fx[i].long.stage === 7 && Fx[i].govUp3 && Fx[i].govUp3.ok === false && Fx[i].govUp3.value > 0), note: '政府债务/GDP 三年又升了（出圈这一条不满足，两国）' },
         { f: Fx => NOW_ISOS.some(i => Fx[i].houseLv === 'red' || Fx[i].equityLv === 'red'), note: '湖里有贵的池子' },
       ],
       concept: ['longCycle', 'shortCycle'] }),

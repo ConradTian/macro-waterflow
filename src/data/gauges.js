@@ -59,7 +59,7 @@ export const GAUGES = {
     get: s => s.rates?.realPolicy, fmt: 'pct', label: '', bands: lamp('policy'),
     pair: s => {
       const a = { label: '政策利率', v: s.rates?.policy }, b = { label: '通胀', v: s.macro?.inflation };
-      return both(a, b) ? { a, b, fmt: 'pct', verdict: a.v >= b.v ? '利率跑赢通胀：吸力（实际利率）为正，偏紧' : '通胀跑赢利率：吸力（实际利率）为负，偏松' } : null;
+      return both(a, b) ? { a, b, fmt: 'pct', verdict: a.v >= b.v ? '利率跑赢通胀：到手实际利率（▶ − ▼）为正，偏紧' : '通胀跑赢利率：到手实际利率（▶ − ▼）为负，偏松' } : null;
     },
   },
   mortgageEff: { get: s => s.rates?.mortgageEff, fmt: 'pct', label: '' },
