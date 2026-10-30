@@ -4,9 +4,10 @@ Same method as dalio_432/closeout/scripts/dalio_waves.py (read-only source):
   log real GDP (whole economy) -> straight line (average growth over the window) -> deviation; long wave = HP(lambda=100) of the deviation.
   Output also carries the caption metadata the 三条线 charts print: lam (HP lambda), per country src / basis (总量 ...).
   US quarterly: log GDPC1 minus HP(lambda=1600) trend, 1947Q1-2026Q2 fitted, 1995Q1-2025Q4 kept.
-Run:  <venv>/Scripts/python.exe -I tools/build_waves.py
+Run:  <venv>/Scripts/python.exe -I tools/build_waves.py   (from a git worktree: set DALIO432_DIR to the dalio_432 folder)
 """
 import json
+import os
 import sys
 from pathlib import Path
 import numpy as np
@@ -14,7 +15,7 @@ import pandas as pd
 
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parent.parent
-D432 = ROOT.parent / "dalio_432"
+D432 = Path(os.environ["DALIO432_DIR"]) if os.environ.get("DALIO432_DIR") else ROOT.parent / "dalio_432"
 OUT = ROOT / "src" / "data" / "waves.js"
 
 
@@ -43,10 +44,10 @@ def extend(g, growth):
 
 # today's position: dalio_432/closeout/handover_macro.md section 6 (judgement as of 2026-10, post-hoc)
 NOW = {
-    "USA": ("⑦", "金融压制·增长化债，上面叠着小周期的 B1 过热"),
+    "USA": ("⑦", "增长化债（g > r），上面叠着小周期的 B1 过热"),
     "JPN": ("⑧", "修复：刚走出 1990 年起的长周期"),
     "AUS": ("小", "小周期在收紧：加息压通胀，偿债变重（2020 年起的短周期）"),
-    "GBR": ("⑦", "金融压制·增长化债，和美国相同"),
+    "GBR": ("⑦", "增长化债（g > r），和美国相同"),
     "CHN": ("⑤", "降息失灵·私人去杠杆（跌破吸程线 B2，像日本 1993–95 年）"),
 }
 LAM = 100        # HP lambda for the long wave (annual data): gain 1/2 at a period of about 20 years

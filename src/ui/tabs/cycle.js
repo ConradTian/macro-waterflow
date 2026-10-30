@@ -444,6 +444,7 @@ export function render(container, ctx) {
     ${wavesHtml(ctx0)}
     <h3 class="pn-h">四盏灯${RM ? '（真实数据）' : ''} <small>形状 + 文字 + 颜色同时表示；点灯，看图里哪些水管在喂它</small></h3>
     <div class="lp-grid">${lamps}</div>
+    ${RM ? '<div class="cy-bt"></div>' : ''}
     <h3 class="pn-h">真实 vs 模型 <small>模型偏离真实本来就正常：它是玩具</small></h3>
     <div class="pn-charts"><div id="cy-c1"></div><div id="cy-c2"></div><div id="cy-c3"></div></div>
     ${dataNoteHtml(ctx0)}
@@ -453,6 +454,9 @@ export function render(container, ctx) {
     d.addEventListener('toggle', () => { openMap[d.dataset.k] = d.open; });
   });
   if (trail) wireTrail(container, ctx, trail);
+  // 真实 mode only: 「这张表盘准不准？（回测）」 + the frozen-rules log (../backtest-view.js, loaded on demand)
+  const btBox = RM && container.querySelector('.cy-bt');
+  if (btBox) import('../backtest-view.js').then(m => { if (btBox.isConnected) m.mountBacktest(btBox, ctx.realSnap.real?.iso); }).catch(e => console.error(e));
   wireWaves(container, ctx0);
   if (s.cycles) wireEvidence(container, ctx);
   container.querySelectorAll('.lp[data-lamp]').forEach(lp => {

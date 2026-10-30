@@ -1,0 +1,53 @@
+/* 周期 tab, 真实 mode: 「这张表盘准不准？（回测）」 + the frozen-rules log (src/ui/backtest-view.js). Light theme first; dark via the --pn-* tokens. */
+:root { --bt-win: #1f7a4d; --bt-win-bg: #e6f4ec; --bt-star: #b7791f; --bt-out: #f3f5f8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bt-win: #6fd3a0; --bt-win-bg: #173326; --bt-star: #f0b45a; --bt-out: #20262f; } }
+:root[data-theme="dark"] { --bt-win: #6fd3a0; --bt-win-bg: #173326; --bt-star: #f0b45a; --bt-out: #20262f; }
+
+.bt-sec { margin: 4px 0 0; max-width: 720px; }
+.bt-head { margin: 2px 0 8px; padding: 9px 12px; background: var(--pn-surface); border: 1px solid var(--pn-border); border-left: 4px solid var(--pn-accent);
+  border-radius: 8px; font-size: 15px; font-weight: 600; }
+.bt-sum { margin: 0 0 8px; font-size: 13.5px; }
+
+.bt-tw { max-width: 100%; overflow-x: auto; }
+.bt-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--pn-surface); }
+.bt-table th, .bt-table td { border: 1px solid var(--pn-border); padding: 5px 6px; }
+.bt-table thead th { font-weight: 600; font-size: 12px; color: var(--pn-muted); text-align: center; }
+.bt-table .bt-corner { text-align: left; color: var(--pn-text); }
+.bt-table tbody th { text-align: left; font-weight: 500; white-space: nowrap; }
+.bt-table .bt-out { background: var(--bt-out); }
+.bt-table td[data-w="out"] { background: var(--bt-out); }
+.bt-n { text-align: right; white-space: nowrap; }
+.bt-n.win { font-weight: 700; color: var(--bt-win); }
+.bt-table tr.bt-sep > * { border-top: 2px solid var(--pn-muted); }
+.bt-star { color: var(--bt-star); margin-left: 2px; }
+.bt-legend { margin: 5px 0 0; font-size: 12px; color: var(--pn-muted); line-height: 1.5; }
+
+.bt-win { margin: 10px 0 6px; padding: 8px 11px; border-radius: 8px; background: var(--bt-win-bg); border: 1px solid var(--pn-border); font-size: 13.5px; }
+.bt-win b { color: var(--bt-win); }
+.bt-win small { display: block; color: var(--pn-muted); font-size: 12px; margin-top: 2px; }
+.bt-win.none { background: var(--pn-surface); }
+
+.bt-cav { margin: 6px 0; padding-left: 18px; font-size: 12.5px; color: var(--pn-muted); }
+.bt-cav li { margin: 1px 0; }
+
+.bt-how { margin: 4px 0 10px; }
+.bt-how > summary { cursor: pointer; font-size: 13px; color: var(--pn-accent); min-height: 36px; display: inline-flex; align-items: center; }
+.bt-how-l { margin: 0; padding-left: 20px; font-size: 13px; }
+
+.bt-fz { margin: 12px 0 0; padding: 10px 12px; border: 1px dashed var(--pn-border); border-radius: 8px; background: var(--pn-surface); }
+.bt-fz-h { margin: 0; font-size: 14px; }
+.bt-fz-sub { margin: 2px 0 6px; font-size: 12.5px; color: var(--pn-muted); }
+.bt-fz-list { list-style: none; margin: 0; padding: 0; }
+.bt-fz-list li { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--pn-border); font-size: 13px; }
+.bt-fz-list li:first-child { border-top: 0; }
+.bt-q { font-variant-numeric: tabular-nums; }
+.bt-rd { min-width: 0; overflow-wrap: anywhere; }
+.bt-rec { color: var(--pn-muted); font-size: 12px; }
+.bt-fz-foot { margin: 6px 0 0; font-size: 12px; color: var(--pn-muted); overflow-wrap: anywhere; }
+.bt-fz-foot code { font-size: 11.5px; }
+
+@media (max-width: 420px) {
+  .bt-table { font-size: 12px; }
+  .bt-table th, .bt-table td { padding: 4px 4px; }
+  .bt-table tbody th { white-space: normal; }
+}

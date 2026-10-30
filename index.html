@@ -35,12 +35,14 @@
 "./src/data/layers.js": "./src/data/layers.js?v=40ff64222f",
 "./src/data/lesson-exp.js": "./src/data/lesson-exp.js?v=e5b992134e",
 "./src/data/lesson-fx.js": "./src/data/lesson-fx.js?v=fd062516cb",
-"./src/data/lesson-investor.js": "./src/data/lesson-investor.js?v=fd75db1cfe",
+"./src/data/lesson-investor.js": "./src/data/lesson-investor.js?v=972a7e8f83",
 "./src/data/lesson-now.js": "./src/data/lesson-now.js?v=5c7f058970",
 "./src/data/lesson-shocks.js": "./src/data/lesson-shocks.js?v=4ec23e8e56",
 "./src/data/lessons.js": "./src/data/lessons.js?v=4459c2a892",
 "./src/data/real/aus-real.js": "./src/data/real/aus-real.js?v=568147605a",
+"./src/data/real/backtest-readout.js": "./src/data/real/backtest-readout.js?v=4c1b284c8d",
 "./src/data/real/backtest.js": "./src/data/real/backtest.js?v=63370cd548",
+"./src/data/real/frozen-log.js": "./src/data/real/frozen-log.js?v=bbddbf5388",
 "./src/data/real/real-snapshot.js": "./src/data/real/real-snapshot.js?v=511b12962f",
 "./src/data/real/usa-real.js": "./src/data/real/usa-real.js?v=879f3afd4d",
 "./src/data/role-cards.js": "./src/data/role-cards.js?v=34c0745ee6",
@@ -49,8 +51,8 @@
 "./src/data/sub-index.js": "./src/data/sub-index.js?v=ea361de54c",
 "./src/data/us-quarterly.js": "./src/data/us-quarterly.js?v=8d926b12e8",
 "./src/data/usd-index.js": "./src/data/usd-index.js?v=7998dad4fb",
-"./src/data/waves.js": "./src/data/waves.js?v=2e956552b6",
-"./src/data/world.js": "./src/data/world.js?v=6638a0be1e",
+"./src/data/waves.js": "./src/data/waves.js?v=89228bd25e",
+"./src/data/world.js": "./src/data/world.js?v=79c6c1aa67",
 "./src/engine/economy.js": "./src/engine/economy.js?v=2f5c863683",
 "./src/engine/mock-sim.js": "./src/engine/mock-sim.js?v=fecbf50119",
 "./src/engine/regimes.js": "./src/engine/regimes.js?v=b462c0c118",
@@ -60,6 +62,7 @@
 "./src/engine/town.js": "./src/engine/town.js?v=129ef4d737",
 "./src/engine/valves.js": "./src/engine/valves.js?v=f925d3955d",
 "./src/ui/asset-lake.js": "./src/ui/asset-lake.js?v=177101c4e4",
+"./src/ui/backtest-view.js": "./src/ui/backtest-view.js?v=b018edbe9b",
 "./src/ui/causal-graph.js": "./src/ui/causal-graph.js?v=ea4a073185",
 "./src/ui/causal-overlay.js": "./src/ui/causal-overlay.js?v=cbce0c83fb",
 "./src/ui/causal-view.js": "./src/ui/causal-view.js?v=7f925f5ead",
@@ -88,7 +91,7 @@
 "./src/ui/tabs/_cycle-waves.js": "./src/ui/tabs/_cycle-waves.js?v=6dcca67d67",
 "./src/ui/tabs/_util.js": "./src/ui/tabs/_util.js?v=c4c70cd107",
 "./src/ui/tabs/assets.js": "./src/ui/tabs/assets.js?v=c363f81727",
-"./src/ui/tabs/cycle.js": "./src/ui/tabs/cycle.js?v=e0bad308d7",
+"./src/ui/tabs/cycle.js": "./src/ui/tabs/cycle.js?v=583f6dce9f",
 "./src/ui/tabs/ledger.js": "./src/ui/tabs/ledger.js?v=23d5aaa211",
 "./src/ui/tabs/takeover.js": "./src/ui/tabs/takeover.js?v=0b383d0307",
 "./src/ui/wave-view.js": "./src/ui/wave-view.js?v=bd6c1a927e",
@@ -99,7 +102,7 @@
 <script>
 /* stylesheets injected later by the modules get ?v=<hash> too (tools/stamp_version.mjs) */
 (function () {
-  var V = window.MW_CSS_V = {"app.css":"b509b0f08e","asset-lake.css":"05acd608a7","blind.css":"cc47ae9597","causal.css":"e65f35fea2","concept-hl.css":"eadb1b6eaa","cycle.css":"87cd00265e","exp-gauge.css":"1bddccf842","fx-lab.css":"ea42c91983","fx-reactor.css":"5b6ff36548","gauge.css":"78bc033c13","headline.css":"93c9cc38e2","investor-lab.css":"375deccf99","lessons.css":"ed02e7fb8d","now-panel.css":"7f46f3e876","objective.css":"942491534b","panels.css":"51d7497fcd","real-mode.css":"83c26ce0c9","roles.css":"cd83766fcd","shock-lab.css":"17069400da","simple.css":"5c1200889d","world.css":"b4148f82b6"};
+  var V = window.MW_CSS_V = {"app.css":"b509b0f08e","asset-lake.css":"05acd608a7","backtest.css":"21aac13377","blind.css":"cc47ae9597","causal.css":"e65f35fea2","concept-hl.css":"eadb1b6eaa","cycle.css":"87cd00265e","exp-gauge.css":"1bddccf842","fx-lab.css":"ea42c91983","fx-reactor.css":"5b6ff36548","gauge.css":"78bc033c13","headline.css":"93c9cc38e2","investor-lab.css":"375deccf99","lessons.css":"ed02e7fb8d","now-panel.css":"7f46f3e876","objective.css":"942491534b","panels.css":"51d7497fcd","real-mode.css":"83c26ce0c9","roles.css":"cd83766fcd","shock-lab.css":"17069400da","simple.css":"5c1200889d","world.css":"b4148f82b6"};
   var BASE = new URL("./assets/css/", document.baseURI).href;
   function stamp(href) {
     if (typeof href !== 'string' || href.indexOf(BASE) !== 0) return null;

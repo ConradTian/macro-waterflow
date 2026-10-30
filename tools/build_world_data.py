@@ -234,6 +234,29 @@ notes = [
     "exportsGdp/importsGdp: latest World Bank year is usually 2024; later years are null.",
 ]
 lines.append("  meta: " + json.dumps({"sources": sources, "notes": notes}, ensure_ascii=False, indent=2).replace("\n", "\n  ") + "\n};")
+
+# WORLD_USD_DEBT (map layer 地下连地下): from data_src/bis/usd_credit_nonbanks.json (tools/build_bis_usd_credit.py), series "B" = USD bn
+_usd = json.loads((ROOT / "data_src" / "bis" / "usd_credit_nonbanks.json").read_text(encoding="utf-8"))
+
+
+def _js_num(v):
+    return "null" if v is None else (str(int(v)) if float(v).is_integer() else repr(float(v)))
+
+
+def _usd_row(key):
+    s = _usd[key]["B"]
+    return "[" + ",".join(_js_num(s.get(str(y))) for y in YEARS) + "]"
+
+
+lines += ["",
+          "// BIS Global Liquidity Indicators (WS_GLI): USD-denominated credit (bank loans + debt securities) to non-bank borrowers, USD bn,",
+          "// last available quarter of each year. Built by tools/build_bis_usd_credit.py from data_src/bis/gli_all.csv (map layer 地下连地下).",
+          "// BIS publishes USD credit by borrower country only for emerging economies (China here); the rest is the world-outside-the-US total.",
+          "export const WORLD_USD_DEBT = {",
+          '  src: "BIS GLI, USD credit to non-banks",',
+          "  outsideUs: " + _usd_row("WORLD_EX_US") + ",",
+          "  CHN: " + _usd_row("CHN") + ",",
+          "};"]
 OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
 print("wrote", OUT, OUT.stat().st_size, "bytes")
 
