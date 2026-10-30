@@ -21,7 +21,7 @@ export const ASSET_COLS = [
   { k: 'bond', name: '长期国债', part: 'poolBond', spring: '泉水 = 票息；利率 ↑ 价格 ↓（跷跷板）' },
   { k: 'equity', name: '股票', part: 'poolEquity', spring: '泉水 = 利润和分红' },
   { k: 'house', name: '房产', part: 'poolHousing', spring: '泉水 = 租金；也是银行的抵押品' },
-  { k: 'gold', name: '黄金/实物', part: 'poolGold', spring: '没有泉水：只看实际利率和对货币的信心' },
+  { k: 'gold', name: '黄金/实物', part: 'poolGold', spring: '没有泉水：只看开阀（10 年 − ▽）和对货币的信心' },
   { k: 'fx', name: '本币', part: null, spring: '本币对外的价格：跌了，手里的外币就值钱' },
 ];
 export const ASSET_ROWS = [
@@ -87,7 +87,7 @@ export const LESSON_INVESTOR = {
       panel: { id: 'gauges' },
       text: [
         '**结论：先定位，再动手。五个表各回答一个问题。**',
-        '小周期走到哪一步？大周期在哪一站？吸力（实际利率）是正是负？池子满不满（估值）？本币在涨还是在跌？',
+        '小周期走到哪一步？大周期在哪一站？到手实际利率（▶ − ▼）是正是负？池子满不满（估值）？本币在涨还是在跌？',
         '按 ▶ 播放：澳洲从 2007Q4 走到 2009Q1，看五个表一起变。最下面一行告诉你：现在该查资产反应表的哪一行。',
       ],
       hl: ['policyRate'], concept: ['realRate'] },
@@ -112,7 +112,7 @@ export const LESSON_INVESTOR = {
 
     // assets read 开阀 = 10 年期利率 − ▽ (L3), not 结账 = 政策利率 − ▼. Numbers: the AUS sim (lesson country), vals + derive (src/ui/lessons.js);
     // the slider starts at the same number (def = 开阀 2009Q1 on the slider's 0.25-point grid; tools/check_lesson_investor.mjs recomputes it).
-    { type: 'reveal', title: '第 4 步：吸力 = 开阀（10 年期 − ▽）',
+    { type: 'reveal', title: '第 4 步：资产看长端吸力（10 年期 − ▽，开阀）',
       panel: { id: 'realRate', def: 0.025 },
       vals: [
         { key: 'y10', get: 'at:2009Q1:rates.gov10y', fmt: 'pct', from: '2008Q4', until: '2009Q1' },
@@ -122,7 +122,7 @@ export const LESSON_INVESTOR = {
       derive: [{ key: 'open09', a: 'y10', b: 'e09', fmt: 'chg1' }],
       text: [
         '**结论：资产看开阀：10 年期利率 − ▽。它一动，国债、黄金、股票估值一起动，方向相同。**',
-        '第 3 课的规矩：开阀看 ▽，结账看 ▼。国债、黄金、股票的泉眼都在很远的将来，所以看长期的那一头：10 年期利率减 ▽（大家心里的涨价速度）。开阀大，存在湖里划算，越远的泉眼越不值钱；开阀为负，远处的池子就抢手。',
+        '第 3 课的吸力是短端 ▶ − ▽；资产的泉眼远，看长端吸力：10 年期 − ▽。第 3 课的规矩：开阀看 ▽，结账看 ▼。国债、黄金、股票的泉眼都在很远的将来，所以看长期的那一头：10 年期利率减 ▽（大家心里的涨价速度）。开阀大，存在湖里划算，越远的泉眼越不值钱；开阀为负，远处的池子就抢手。',
         '模型里的澳洲，2009 年第一季度：10 年期 {y10}，▽ {e09}，开阀 = {open09}。同一季政策利率 − ▼ 只有 {real09}：那是存钱的人到手的（结账），资产不看它。',
         '拖动滑块，横轴就是开阀。图里的公式是**玩具**：只用来看方向和谁更敏感，不是预测。',
       ] },

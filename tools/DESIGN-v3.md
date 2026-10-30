@@ -13,7 +13,7 @@ Mnemonic, shown in the UI: **短周期看河，长周期看地下水，资产看
 - **湖 (stored):**
   - The cash pool carries the 吸力泵, and the asset pools sit beside it.
   - 票息 / 分红 / 租金 are 泉眼, PHYSICALLY wired from the 分水堰.
-- **吸力 = the real rate:** one knob held by the central bank, with two arrows: 存湖划不划算 / 抽水贵不贵.
+- **吸力 = ▶ − ▽ (开阀):** one knob held by the central bank, with two arrows: 存湖划不划算 / 抽水贵不贵. 到手实际利率 = ▶ − ▼ (结账) is a different number: savers, ⑦, 政策灯.
 - **Roles = who turns which valve.** Tapping a role highlights its valves; takeover keeps working.
 - **Expectations get no separate part:** they sit inside 吸力 and 怕. Say so once, in the 吸力 card.
 
@@ -45,7 +45,7 @@ Mnemonic, shown in the UI: **短周期看河，长周期看地下水，资产看
 | B2 岔路 / 缩水 | 地下水位跌破 吸程线（抽不上来） |
 | 资产缓冲池 / 资产池 | 湖（现金湖 + 资产池） |
 | 现金 tank | 现金湖（带 吸力泵） |
-| 政策利率 / 实际利率 | 吸力旋钮（央行的一个旋钮：实际利率） |
+| 政策利率 / 实际利率 | 吸力旋钮（▶ − ▽，开阀）；到手实际利率 ▶ − ▼（结账） |
 | QE / QT | 央行泵：只往湖里灌 / 从湖里抽回 |
 | 注入（财政） | 政府深井泵：一半新抽，一半从湖里挪 |
 | 票息 / 分红 / 租金 | 泉眼（从分水堰接过来） |
@@ -101,10 +101,10 @@ Mnemonic, shown in the UI: **短周期看河，长周期看地下水，资产看
   - ① the table falls step by step, and the house pool gets most of the water;
   - ② the table nears the line, and the knob nears zero;
   - B1 = the water went into the river (overflow);
-  - B2 = the lake collapsed, the hole remains, the table is below the line;
+  - B2 = 3 conditions together for 3 quarters (house prices falling, debt high, credit shrinking after cuts); cleared by 推得动. The table is below the line; 负资产 alone ≠ B2;
   - ⑤ only private recharge, the river dries;
   - ⑥ the government deep pump feeds the river, and the central bank pump feeds the lake only;
-  - ⑦ the river grows faster than 吸力, and the gov hole stops deepening;
+  - ⑦ nominal growth beats the 10y rate (g − r > 0), and the gov hole stops deepening; 到手实际利率 ▶ − ▼ < 0 helps;
   - ⑧ the table is back above the line.
 
 ## World + FX (A3)
