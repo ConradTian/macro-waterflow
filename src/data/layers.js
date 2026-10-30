@@ -47,6 +47,8 @@ export const LAYERS = [
     extras: [] },
 ];
 export const LAYER_IDS = LAYERS.map(l => l.id);
+// short place names of the layers, for the diagram's 「还有 n 层没显示（…）」 hint (src/ui/flow.js syncLayerHint)
+export const LAYER_SHORT = { 'L-water': '河', 'L-channel': '河道', 'L-short': '吸力', 'L-long': '地下', 'L-gov': '政府', 'L-border': '国境', 'L-assets': '湖' };
 
 // v3 PART-ID CONTRACT Rule 3 (tools/DESIGN-v3.md): role -> the valves / parts it turns. src/ui/flow.js highlightRole(role) glows these
 // (data-valve / data-lk / chip data-pipe / data-node ids; 'pools' = every asset pool) and dims the other valves. A5 role cards use the same keys.

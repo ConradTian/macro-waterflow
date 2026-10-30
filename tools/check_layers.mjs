@@ -77,6 +77,10 @@ const BUDGET = `(()=>{
   const netEl = bar.querySelector('.fb-detail .fb-net'), sg = /▼/.test(netEl.textContent) ? -1 : 1;
   return JSON.stringify({ sum: side('.fb-grp.pump') - side('.fb-grp.drain'), net: sg * Math.abs(val(netEl)), text: bar.querySelector('.fb-eq').innerText.replace(/\\s+/g, ' ') });
 })()`;
+// 「还有 n 层没显示（…）」 hint (flow.js syncLayerHint): the one on screen (desktop: in the toolbar row; phone: under the place switch)
+const HINT = `(()=>{ const h = [...document.querySelectorAll('#diagram .flow-lhint')].find(n => !n.hidden && n.getClientRects().length > 0);
+  return JSON.stringify(h ? { on: true, n: +h.dataset.n, txt: h.textContent, oneLine: h.scrollHeight <= 34 && h.getBoundingClientRect().height <= 34 } : { on: false }); })()`;
+const hint = async () => JSON.parse(await ev(HINT));
 const budgetOk = async label => { const B = JSON.parse(await ev(BUDGET)); ok(Math.abs(B.net) > 1 && Math.abs(B.sum - B.net) <= 2, `${label}: 本季水量 terms on screen add up (${B.text} = ${B.net}; sum ${B.sum})`); return B; };
 
 try {
@@ -125,6 +129,16 @@ try {
       'L-short: house pool, collateral loop, policy-rate valve on; 历史正常区间 bands still off');
     if (lid === 'm4') { const B = await budgetOk('L-gov'); ok(!/其他/.test(B.text), 'L-gov: QE / 赤字 shown, no 其他 terms'); }
     if (lid === 'fx') ok(+(await ev(`getComputedStyle(document.querySelector('#btn-map')).opacity`)) > 0.95, 'L-border: 🌍 地图 button no longer dimmed');
+    if (lid === 'shk') {      // only L1 / L2 learned: the hint names the 5 hidden layers; a tap = 显示全部
+      const H = await hint();
+      ok(H.on && H.n === ALL.length - 2 && /还有 5 层没显示（吸力、地下、政府、国境…）/.test(H.txt) && H.oneLine, `L1/L2 learned: the hint 「${H.txt}」 (count ${H.n}), one line`);
+      await click('#diagram .flow-tools .flow-lhint');
+      ok(await layersAttr() === 'OFF' && await ev(`document.querySelector('#layers-toggle').getAttribute('aria-pressed')`) === 'true', 'tapping the hint = 显示全部: every layer shows');
+      ok(!(await hint()).on, 'all layers shown: no hint');
+      await click('#layers-toggle');
+      ok(await layersAttr() === upTo(1), 'toggle off again: back to L1 / L2');
+    }
+    if (lid === 'inv') ok(!(await hint()).on, 'all 7 layers learned: no hint');
   }
   ok(await ev(`JSON.stringify(JSON.parse(localStorage.getItem('mw.course')).done)`) === JSON.stringify(seq.map(s => s[0])), 'progress stored in localStorage mw.course');
   await go('?pause=1&t=60');
@@ -136,6 +150,7 @@ try {
   ok(await layersAttr() === 'L-water', 'progress cleared: L-water again');
   await lessonActive('m3');
   ok(await layersAttr() === upTo(3), 'mw:lesson-active m3 on a fresh viewer: up to L-long (' + await layersAttr() + ')');
+  ok(!(await hint()).on, 'during a lesson (mw:lesson-active m3): no 「还有 n 层没显示」 hint (the lesson owns the layers)');
   ok(await ev(`document.querySelectorAll('#simple .sp-dial').length`) === 2 || await ev(`document.body.dataset.layout`) === 'simple', 'm3: dials follow');
   await lessonActive('m5');
   ok(await layersAttr() === upTo(5), 'mw:lesson-active m5 (no layer of its own): up to L-border');
@@ -152,6 +167,7 @@ try {
   await go('?pause=1&lesson=m3&step=0&nozoom=1', 3500);     // step 0 = the water diagram (a curves step covers it, toggle included)
   ok(await ev(`document.body.classList.contains('lesson-on')`) && await layersAttr() === upTo(3), 'a ?lesson=m3 URL on a fresh viewer: up to L-long (' + await layersAttr() + ')');
   ok(await shown('#layers-toggle'), 'toggle available during a lesson');
+  ok(!(await hint()).on, 'lesson m3 (URL): no hint');
   D = JSON.parse(await ev(DANGLE));
   ok(!D.bad.length, 'lesson m3: no dangling pipes ' + D.bad.join(' | '));
   await click('#ls-card [data-act=exit]', 1500);
@@ -210,6 +226,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await go('?pause=1&t=60');
   ok(await layersAttr() === 'L-water', 'phone: fresh viewer L-water');
+  { const H = await hint(); ok(H.on && H.n === ALL.length - 1 && H.oneLine, `phone 390: the hint is one line under the place switch (「${H.txt}」)`); }
   ok(await ev(`document.documentElement.scrollWidth <= innerWidth`), 'phone: no horizontal scroll');
   ok(await ev(`(()=>{const b=document.querySelector('#layers-toggle').getBoundingClientRect(); return b.width > 0 && b.left >= 0 && b.right <= innerWidth && b.height >= 28})()`), 'phone: toggle on screen, tappable');
   D = JSON.parse(await ev(DANGLE));
