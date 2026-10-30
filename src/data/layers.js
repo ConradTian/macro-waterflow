@@ -64,9 +64,9 @@ export const ROLE_VALVES = {
 };
 
 // main-line lesson -> the layer it adds (null = adds none: 「八个视角」 shows all the layers before it)
-export const LESSON_LAYER = { m1: 'L-water', shk: 'L-channel', m2: 'L-short', m3: 'L-long', m4: 'L-gov', fx: 'L-border', m5: null, inv: 'L-assets' };
-// course order (L1..L8): a lesson without a layer shows the layers of the lessons before it
-export const LESSON_ORDER = ['m1', 'shk', 'm2', 'm3', 'm4', 'fx', 'm5', 'inv'];
+export const LESSON_LAYER = { m1: 'L-water', shk: 'L-channel', m2: 'L-short', m3: 'L-long', m4: 'L-gov', fx: 'L-border', m5: null, inv: 'L-assets', now: null };
+// course order (L1..L9): a lesson without a layer shows the layers of the lessons before it
+export const LESSON_ORDER = ['m1', 'shk', 'm2', 'm3', 'm4', 'fx', 'm5', 'inv', 'now'];
 
 /** index into LAYERS of the deepest layer a main-line lesson shows, or -1 for any other lesson (legacy, role, world ...). */
 export function lessonDepth(id) {
