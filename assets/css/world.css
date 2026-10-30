@@ -54,7 +54,6 @@
 .wm-svg text { fill: var(--text); font-size: var(--wm-fs); }
 .wm-box { cursor: pointer; outline: none; transition: opacity .2s; }
 .wm-box .wm-rect { fill: var(--surface); stroke: var(--muted); stroke-opacity: .6; stroke-width: 1.4; transition: stroke .15s, stroke-width .15s; }
-.wm-box .wm-water { fill: var(--c-credit); fill-opacity: .2; pointer-events: none; }
 .wm-box:hover .wm-rect { stroke: var(--accent); stroke-opacity: 1; }
 .wm-box:focus-visible .wm-rect { stroke: var(--accent); stroke-opacity: 1; stroke-width: 3; }
 .wm-box.sel .wm-rect { stroke: var(--accent); stroke-opacity: 1; stroke-width: 3.4; fill: color-mix(in srgb, var(--accent) 6%, var(--surface)); }

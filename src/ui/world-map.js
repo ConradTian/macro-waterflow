@@ -396,17 +396,13 @@ function chipsSvg(pipes, L) {
 /* ---------- boxes + pool ---------- */
 function boxSvg(b, L) {
   const r = readings(b.iso), sel = st.sel === b.iso, f = L.fs, col = CCY_COL[r.ccy] || CCY_COL.mixed;
-  const lvl = r.debt == null ? 0 : clamp(r.debt / 4.5, 0.06, 1);
-  const wy = b.y + b.h * (1 - lvl);
   const col2 = b.x + b.w / 2 + 2, col1 = b.x + 9;
   const gdp = r.gdp == null ? '' : `<text class="wm-g" x="${(b.x + b.w - 8).toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}" text-anchor="end">GDP ${fmtBn(r.gdp)}</text>`;
   const y1 = b.y + f * 1.3 + 22, y2 = y1 + f * 1.55 + 2;
   const cell = (x, y, k, v) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}"><tspan class="wm-k">${k} </tspan><tspan class="wm-v">${v}</tspan></text>`;
   const stage = r.stage?.mark ? esc(r.stage.mark) : '—';
   return `<g class="wm-box${sel ? ' sel' : ''}" data-iso="${b.iso}" tabindex="0" role="button" aria-pressed="${sel}" aria-label="${esc(nameOf(b.iso))}">
-    <clipPath id="wmc-${b.iso}"><rect x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="10"/></clipPath>
     <rect class="wm-rect" x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="10"/>
-    <rect class="wm-water" clip-path="url(#wmc-${b.iso})" x="${b.x.toFixed(1)}" y="${wy.toFixed(1)}" width="${b.w.toFixed(1)}" height="${(b.y + b.h - wy).toFixed(1)}" style="fill:${col};opacity:.13"/>
     <text class="wm-n" x="${col1.toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}">${esc(nameOf(b.iso))}</text>${gdp}
     ${layersSvg(b, L, r, col)}
   </g>`;
@@ -521,7 +517,7 @@ function cardHtml() {
     return `<div class="wm-hint"><b>点一个框，看它的情况</b>
       <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（通胀）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（洞深 / 洞浅 N 点 / 平常）。框下面是闸。</p>
       <p class="wm-def" data-def="gw">${esc(gwDef(SPAN_ALL()))}。洞越深，以后要还的越多。</p>
-      <p class="wm-more">框越大，GDP 越大。框里的水越高，债务（私人 + 政府）越多。</p>
+      <p class="wm-more">框越大，GDP 越大。</p>
       <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 湖连湖：外国人买美债，流进最大的湖<br><i class="wm-sw debt"></i> 棕管（地下·美元债）= 地下连地下：美国以外借的美元债（BIS）<br>管越宽，水量越大。</p>
       <p><b>箭头 = 水往哪流。</b>两国互相出口 = 两条并排的管，各靠右走；数字贴在出口国那一头。点一个框，只看它的管子。</p>
       <p class="wm-more"><i class="wm-sw sl"></i> 框下面的小闸 = 汇率：1 美元换多少本币，箭头 = 本币比一年前变强（↑）还是变弱（↓）。美国的闸是美元指数。点闸看「汇率」。</p>
