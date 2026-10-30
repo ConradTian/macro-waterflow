@@ -759,7 +759,7 @@ function dropPipes(keys, text) {
 function waterLine(before, after) {
   const dM = after.money.M - before.money.M, dI = after.iou.bankTotal - before.iou.bankTotal;
   const f = x => { const a = Math.abs(x); return (Math.abs(a - Math.round(a)) < 1e-6 ? a.toFixed(0) : a.toFixed(1)); };
-  if (Math.abs(dM) < 1e-6) return '总水量不变（水只是换了口袋）；欠条箱不变';
+  if (Math.abs(dM) < 1e-6) return '总水量不变（水只是换了口袋）；地下的洞（欠款）不变';
   if (dM > 0) return `泵入 +${f(dM)} → 总水量 +${f(dM)}；欠条箱 ${dI > 1e-6 ? '+' + f(dI) : '不变'}`;
   return `排出 −${f(dM)} → 总水量 −${f(dM)}；欠条箱 ${dI < -1e-6 ? '−' + f(dI) : '不变'}`;
 }
@@ -1166,7 +1166,7 @@ const n1 = x => (+x).toFixed(1);
 function blockHtml(name, snap) {
   if (name === 'households' && snap.town) {
     const T = snap.town;
-    return `<table class="tbl ls-res ls-ro"><tr><th>谁</th><th>存款</th><th>欠条</th><th>房子</th></tr>${T.households.map(h => `<tr><td>${esc(h.name)}</td><td>${n1(h.deposit)}</td><td>${n1(h.debt)}</td><td>${h.houses} 套</td></tr>`).join('')}` +
+    return `<table class="tbl ls-res ls-ro"><tr><th>谁</th><th>存款</th><th>欠款</th><th>房子</th></tr>${T.households.map(h => `<tr><td>${esc(h.name)}</td><td>${n1(h.deposit)}</td><td>${n1(h.debt)}</td><td>${h.houses} 套</td></tr>`).join('')}` +
       `<tr><td>${esc(T.shop.name)}</td><td>${n1(T.shop.deposit)}</td><td>${n1(T.shop.debt)}</td><td>—</td></tr></table><p class="ls-note">单位：万元。几户的存款加上小卖部和银行口袋，就是小镇总水量 ${n1(snap.money.M)}。</p>`;
   }
   if (name === 'budget') {
@@ -1205,7 +1205,7 @@ function blockHtml(name, snap) {
   if (name === 'valves') {
     const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
     return `<div class="ls-two"><div><h4>能拧的：阀门</h4><ul>${li(VALVES.map(v => v.label.replace(/^.*：/, '') + '（' + (v.label.split('：')[0]) + '）'))}</ul></div>` +
-      `<div><h4>只能看的：水位</h4><ul>${li(['房价（房产水位）', '股价（股票水位）', '国债价格', '金价', '物价（商品河道水位）', '失业率', '房贷利率（平均）'])}</ul></div></div>`;
+      `<div><h4>只能看的：水位</h4><ul>${li(['房价（房产水位）', '股价（股票水位）', '国债价格', '金价', '物价（断面水位）', '失业率', '房贷利率（平均）'])}</ul></div></div>`;
   }
   return '';
 }

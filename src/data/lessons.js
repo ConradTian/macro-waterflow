@@ -165,7 +165,7 @@ export const LESSONS = [
         action: { type: 'loan', who: '小王', amount: 50 }, button: '让小王借 50 万',
         answerHint: ['凭空多出来的。银行不是搬水，而是在小王的账户上直接记一笔新存款，同时记一张欠条：小王欠银行 50。', '所以水和欠条是**一起出现**的。这个泵叫放贷泵：贷款创造新水。'],
         relation: '这是整张图的起点。水不是白来的，每一份新水都对应一张欠条（图里的欠条箱）。',
-        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '地下的洞（欠款，万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
         hl: ['newLoans'], concept: ['M', 'newLoans'] },
 
       { type: 'action', title: '第 2 步：还本把水排走', show: ['repay'],
@@ -177,7 +177,7 @@ export const LESSONS = [
         action: { type: 'repay', who: '小王', amount: 10 }, button: '让小王还 10 万',
         answerHint: ['不在了。还本的那一刻，这 10 万存款和对应的欠条**一起消失**。', '银行不是把水收进口袋，而是把它销毁。排水口就是销毁水的地方。'],
         relation: '放贷泵造水，排水口毁水。一进一出：水位涨还是退，就看哪边更大。',
-        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }],
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '地下的洞（欠款，万元）', get: 'iou.bankTotal', fmt: 'n1' }],
         hl: ['principalRepay'], concept: ['principalRepay'] },
 
       { type: 'reveal', title: '第 3 步：水不是飘在空中的', show: ['household'], block: 'households',
@@ -480,12 +480,12 @@ export const LESSONS = [
         action: { type: 'loan', who: '小王', amount: 50 }, button: '让小王借 50 万',
         answerHint: ['凭空多出来的。银行不是搬水，而是在小王的账户上直接记一笔新存款，同时记一张欠条：小王欠银行 50。', '所以水和欠条是**一起出现**的。这叫**抽水**：把小王未来的收入先抽上来，今天就能花。'],
         relation: '这是整张图的起点。抽上来的水不是白来的：每一份都要用未来的收入还（图里的欠条箱）。',
-        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '地下的洞（欠款，万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
         townClaims: [
           { at: 'before', get: 'money.M', gte: 109.95, lte: 110.05, note: '小镇一开始一共 110 万元' },
           { at: 'before', get: 'town.households.0.deposit', gte: 9.95, lte: 10.05, note: '小王手上 10 万元' },
           { at: 'after', get: 'money.M', minus: 'before', gte: 49.95, lte: 50.05, note: '借 50 万：总水量 +50' },
-          { at: 'after', get: 'iou.bankTotal', minus: 'before', gte: 49.95, lte: 50.05, note: '欠条箱 +50' },
+          { at: 'after', get: 'iou.bankTotal', minus: 'before', gte: 49.95, lte: 50.05, note: '地下的洞（欠款）+50' },
         ],
         hl: ['newLoans'], concept: ['M', 'newLoans'] },
 
@@ -498,10 +498,10 @@ export const LESSONS = [
         action: { type: 'repay', who: '小王', amount: 10 }, button: '让小王还 10 万',
         answerHint: ['不在了。还本的那一刻，这 10 万存款和对应的欠条**一起消失**。', '银行不是把水收进口袋，而是把它还回去了。这叫**回灌**：抽上来的水，还回未来的收入里。'],
         relation: '抽水造水，回灌毁水。一进一出：河里的水涨还是退，就看哪边更大。',
-        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }],
+        metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '地下的洞（欠款，万元）', get: 'iou.bankTotal', fmt: 'n1' }],
         townClaims: [
           { at: 'after', get: 'money.M', minus: 'before', gte: -10.05, lte: -9.95, note: '还 10 万：总水量 −10' },
-          { at: 'after', get: 'iou.bankTotal', minus: 'before', gte: -10.05, lte: -9.95, note: '欠条 −10，和水一起消失' },
+          { at: 'after', get: 'iou.bankTotal', minus: 'before', gte: -10.05, lte: -9.95, note: '欠款 −10，和水一起消失' },
         ],
         hl: ['principalRepay'], concept: ['principalRepay'] },
 
@@ -559,8 +559,8 @@ export const LESSONS = [
           { key: 'sp', get: 'start:cycles.short.label', fmt: 'str' }, { key: 'lp', get: 'start:cycles.long.label', fmt: 'str' },
         ],
         claims: [
-          { get: 'start:lamp.flood', eq: 'green', note: '泛滥不扣分（灯绿）' },
-          { get: 'start:lamp.drought', eq: 'green', note: '干涸不扣分（灯绿）' },
+          { get: 'start:lamp.flood', eq: 'green', note: '河溢不扣分（灯绿）' },
+          { get: 'start:lamp.drought', eq: 'green', note: '河干不扣分（灯绿）' },
           { get: 'start:cycles.short.phase', eq: 'expand', note: '三问②：2015Q1 小周期在扩张' },
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the town, then the US in 2015Q1
@@ -873,7 +873,7 @@ export const LESSONS = [
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '大周期', get: 'cycles.long.label', fmt: 'str' }],
         claims: [
           { get: 'when:cycles.short.phase=ease', dateBetween: ['2007Q4', '2007Q4'], note: '2007Q4 小周期进「降息」' },
-          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' },
+          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期跌破吸程线（B2）' },
           { get: 'when:cycles.long.forkPending.have=1', dateBetween: ['2008Q1', '2008Q1'], dateBefore: 'when:cycles.long.fork=B2', note: '先「B2 待确认」，连续 3 季后才确认' },
           { get: 'when:cycles.short.handoff=no', dateBetween: ['2008Q3', '2008Q4'], note: '圆环判成「推不动」（B2 确认的那一季）' },
           { get: 'at:2008Q1:extra.houseYoY', lt: 0, note: '条件 1：房价比一年前在跌' },
@@ -1234,9 +1234,9 @@ export const LESSONS = [
         ],
         claims: [
           { get: 'start:lamps.lit', gte: 4, note: '四盏灯全亮（没有一盏是绿的）' },
-          { get: 'start:lamp.flood', ne: 'green', note: '泛滥亮' }, { get: 'start:macro.inflation', gt: 0.02, note: '通胀高过目标' },
-          { get: 'start:lamp.drought', eq: 'red', note: '干涸红' },
-          { get: 'start:lamp.burst', eq: 'red', note: '溃坝红' }, { get: 'start:cycles.long.fork', eq: 'B2', note: '大周期在 B2 岔路' },
+          { get: 'start:lamp.flood', ne: 'green', note: '河溢亮' }, { get: 'start:macro.inflation', gt: 0.02, note: '通胀高过目标' },
+          { get: 'start:lamp.drought', eq: 'red', note: '河干红' },
+          { get: 'start:lamp.burst', eq: 'red', note: '湖崩红' }, { get: 'start:cycles.long.fork', eq: 'B2', note: '大周期在 B2（跌破吸程线）' },
           { get: 'start:lamp.overdraft', ne: 'green', note: '透支亮' },
           { get: 'start:cycles.short.handoff', eq: 'no', note: '三问②：圆环判「推不动」' },
           { get: 'start:flows.newLoans', vs: { get: 'start:flows.principalRepay' }, lt: 0, note: '三问①：水被抽走（新贷款少于还本）' },
@@ -1246,7 +1246,7 @@ export const LESSONS = [
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US in 2008Q3 (雷曼那一季)
         ending: {
           q1: '水的问题还是河道的问题？水的问题：银行关抽水泵、家庭多存、投资者逃进现金湖，河里的水被抽走；河道（工厂、人）都还在。',
-          q2: '环上哪一步？小周期在「{sl}」，圆环判「推不动」；大周期在 {ll}，已经走上 B2 岔路，下一站 ⑤。',
+          q2: '环上哪一步？小周期在「{sl}」，圆环判「推不动」；大周期在 {ll}，地下水位已经跌破吸程线（B2），下一站 ⑤。',
           q3: '谁赢谁输、钱放哪？拿现金、国债和美元的人赢（外国人也逃进美元，澳元急跌）；背房贷的家庭、银行和股东输：股价一年跌了 {ey}。这一季，钱放现金、国债、美元。',
         },
         concept: ['B2', 'dsr', 'interestToTax'], next: 'inv' },
@@ -1491,7 +1491,7 @@ export const LESSONS = [
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }],
         claims: [{ get: 'dpp:bank.approval', lt: -0.1, note: '审批倍数下降' }, { get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' }, { get: 'end:extra.creditImpulse', lt: 0, note: '信贷脉冲转负' },
           { get: 'max:household.lvr', gt: R('bank_tighten_collateral', 'lvr'), note: 'LVR 超过收紧线' },
-          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' }],
+          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期跌破吸程线（B2）' }],
         hl: ['bankApproval', 'newLoans', 'principalRepay'], concept: ['creditImpulse', 'bankApproval'] },
 
       { type: 'predict', until: '2010Q4', title: '第 3 步：猜一猜',
@@ -1545,7 +1545,7 @@ export const LESSONS = [
           { text: '银行收紧审批：闸门关小', part: 'bank', hl: ['bankApproval'], term: 'bankApproval' },
           { text: '新贷款少于还本，信贷脉冲转负：流出的水比流进的多', pipe: ['newLoans', 'principalRepay'], part: 'iou', term: 'creditImpulse' },
           { text: '购房资金减少，房价再跌（圈倒着转回起点）；降息只改价格，打不开银行的闸门', pipe: 'toHousing', part: 'centralBank', hl: ['policyRate'], term: 'housePrice' },
-          { text: '圈倒着转到头：小周期「降息推不动」，大周期走上 B2 岔路，下一站 ⑤ 私人去杠杆（下一课讲这条连线）', part: 'cycle', term: 'B2' },
+          { text: '圈倒着转到头：小周期「降息推不动」，大周期跌破吸程线（B2），下一站 ⑤ 私人去杠杆（下一课讲这条连线）', part: 'cycle', term: 'B2' },
         ], next: '3b' },
     ],
   },
@@ -1553,7 +1553,7 @@ export const LESSONS = [
   /* =====================================================================================================================
    * 第 3.5 课「两个环怎么接上：降息推得动吗？」(id '3b', kind 'cycle'): the MAIN LINE of the course. Sits right after lesson 3.
    * The short cycle ends with one question (降息推得动吗？). Yes -> back to 扩张 (2001-03). No -> the long cycle takes over:
-   * ② 缓冲池满 -> B2 缩水 -> ⑤ 私人去杠杆 (2008-12). Steps carry `view:'waves'|'flow'` (left panel: curves | flow diagram) next to `tab`.
+   * ② 逼近吸程线（缓冲池满） -> B2 跌破吸程线 -> ⑤ 私人去杠杆 (2008-12). Steps carry `view:'waves'|'flow'` (left panel: curves | flow diagram) next to `tab`.
    * ===================================================================================================================== */
   {
     id: '3b', kind: 'cycle', label: '第 3.5 课',
@@ -1564,9 +1564,9 @@ export const LESSONS = [
     steps: [
       { type: 'intro', title: '先说结论', tab: 'cycle', view: 'flow',
         text: [
-          '**结论：小周期走完一圈，最后是一个问题：降息推得动吗？推得动，回到扩张；推不动，大周期接手：② 缓冲池满 → B2 缩水 → ⑤ 私人去杠杆。这是两个环之间唯一的连线，也是整门课的主线。**',
+          '**结论：小周期走完一圈，最后是一个问题：降息推得动吗？推得动，回到扩张；推不动，大周期接手：② 逼近吸程线（缓冲池满） → B2 跌破吸程线 → ⑤ 私人去杠杆。这是两个环之间唯一的连线，也是整门课的主线。**',
           '像一条河上的两道调度：小周期是每年的汛期调度（加息关水，降息放水），大周期是水库本身。汛期调度能处理溢出的水；可水库自己被抽干的时候，闸怎么开都没用，只能换水库的管理员来管。',
-          '下面分 10 步：① 最后一问 ② 缓冲池满 ③ 顶来了 ④ 猜一猜 ⑤ 又到顶 ⑥ B2 岔路 ⑦ 推不动 ⑧ 看曲线 ⑨ 为什么 ⑩ 串起来。',
+          '下面分 10 步：① 最后一问 ② 逼近吸程线（缓冲池满） ③ 顶来了 ④ 猜一猜 ⑤ 又到顶 ⑥ B2（跌破吸程线） ⑦ 推不动 ⑧ 看曲线 ⑨ 为什么 ⑩ 串起来。',
           '时间：2000Q1 → 2012Q4（真实季度）。每一步看两个地方：「周期」页的圆环，和左边切到「曲线」的走势图。',
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
@@ -1587,7 +1587,7 @@ export const LESSONS = [
 
       { type: 'reveal', until: '2000Q3', title: '第 2 步：缓冲池满，水有两条出路', view: 'flow', tab: 'cycle',
         text: [
-          '**② 缓冲池满**的意思：资产池里装的，已经是借来的水。池子再往里灌，多出来的水只有两条出路。',
+          '**② 逼近吸程线（缓冲池满）**的意思：资产池里装的，已经是借来的水。池子再往里灌，多出来的水只有两条出路。',
           '**一条是溢出成物价（B1）**：水漫进商品河道，物价涨。这条路小周期自己能管：加息关水，再降息放水。',
           '**另一条是缩水（B2）**：资产价格掉下来，水没了，可欠条还在。这条路小周期管不了，要交给大周期。',
           '2000 年大周期还在 ①，央行已经在加息，小周期在「收紧（加息）」；{d1} 物价也冒了头，圆环上标出「接 物价过热」（B1 苗头）。',
@@ -1602,7 +1602,7 @@ export const LESSONS = [
 
       { type: 'watch', until: '2001Q4', title: '第 3 步：2000–01，顶来了，央行降息', view: 'waves', tab: 'cycle',
         text: [
-          '先是物价冒头，央行加息。{d2}，大周期走到 ② 缓冲池满。加到头，央行掉头降息：{e0}，圆环从「收紧」转到「降息（推得动吗？）」。信贷先缩了，可房价还在涨。',
+          '先是物价冒头，央行加息。{d2}，大周期走到 ② 逼近吸程线（缓冲池满）。加到头，央行掉头降息：{e0}，圆环从「收紧」转到「降息（推得动吗？）」。信贷先缩了，可房价还在涨。',
           '央行从 {pm} 一路降息到 {pe}。看曲线：季度图上，真实 GDP 掉到了趋势线下面，这就是小周期的坑。',
           '房价还在涨，大周期没有转到 B2：银行的抵押品好好的，闸门没关。',
         ],
@@ -1670,7 +1670,7 @@ export const LESSONS = [
         glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
         text: [
           '央行开始降息：政策利率从 {p0} 降到 {p1}。可信贷没有回来。',
-          '{pd} 起三件事同时成立：房价比一年前在跌（{hy}）；债务堆高了（DSR 比起点高 {ds}）；降了息，信贷脉冲还是负的（{ci}）。先是「B2 待确认」；连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2 缩水**。',
+          '{pd} 起三件事同时成立：房价比一年前在跌（{hy}）；债务堆高了（DSR 比起点高 {ds}）；降了息，信贷脉冲还是负的（{ci}）。先是「B2 待确认」；连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2 跌破吸程线**。',
           '这就是第 3 课的圈：房价↓ → 抵押品变差 → 银行把闸门关小（审批倍数 {ap}）→ 新贷款↓。降息只改价格，打不开银行的闸门。',
         ],
         vals: [
@@ -1681,7 +1681,7 @@ export const LESSONS = [
         ],
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'x2' }, { label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }],
         claims: [
-          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期走上 B2 岔路' },
+          { get: 'when:cycles.long.fork=B2', dateBetween: ['2007Q3', '2008Q4'], note: '大周期跌破吸程线（B2）' },
           { get: 'when:cycles.long.forkPending.have=1', dateBetween: ['2007Q3', '2008Q2'], dateBefore: 'when:cycles.long.fork=B2', note: '先「B2 待确认」，再确认 B2' },
           { get: 'when:cycles.long.fork=B2', from: '2000Q1', until: '2012Q4', dateBetween: ['2007Q3', '2008Q4'], note: '2000Q1 之后第一次 B2 就在这里：2000–03 年间没有 B2' },
           { get: 'end:extra.houseYoY', lt: 0, note: '条件 1：房价比一年前在跌' },
@@ -1770,7 +1770,7 @@ export const LESSONS = [
         text: ['这一课只有一条线：小周期 → 降息推不动 → B2 → 大周期 ⑤。点任何一环，图里对应的地方会亮。'],
         links: [
           { text: '小周期一圈：扩张 → 过热（物价或资产）→ 收紧（央行加息，里面可能带衰退）→ 降息；最后一步是一个问题：降息推得动吗？', part: 'cycle', hl: ['policyRate'], term: 'shortCycle' },
-          { text: '② 缓冲池满：资产池里是借来的水，多出来的只有两条路：溢出成物价（B1，小周期自己处理），或缩水（B2，交给大周期）', part: ['pool', 'poolHousing'], hl: ['assetReservoir'], term: 'B2' },
+          { text: '② 逼近吸程线（缓冲池满）：资产池里是借来的水，多出来的只有两条路：溢出成物价（B1，小周期自己处理），或缩水（B2，交给大周期）', part: ['pool', 'poolHousing'], hl: ['assetReservoir'], term: 'B2' },
           { text: '推得动（2001–03）：银行的闸门开着，降息把信贷带回来，回到扩张，大周期一格没动', pipe: 'newLoans', part: 'bank', hl: ['policyRate'], term: 'creditImpulse' },
           { text: '推不动（2008–12）：房价↓、债高、降了息信贷还在缩 → B2 → ⑤ 私人去杠杆 → ⑥ 政府接手（第 4 课）。曲线上就是又深又长的坑', pipe: 'collateral', part: 'cycle', hl: ['bankApproval'], term: 'longCycle' },
         ], next: 4 },
@@ -1804,7 +1804,7 @@ export const LESSONS = [
           '闸门不在价格上，在两头的资产负债表上：银行要先修复资本，家庭和企业债还没还完，想借的借不到，能借的不想借。',
           '这叫资产负债表衰退。水不是不够便宜，而是私人这头的水龙头堵住了，排水口还在不停地抽水。',
         ],
-        relation: '第 3 课的 B2 圈走到了头：小周期「降息推不动」，大周期走上 B2 岔路，进入 ⑤（降息失灵，私人去杠杆）。两个环怎么接上的，见第 3.5 课。',
+        relation: '第 3 课的 B2 圈走到了头：小周期「降息推不动」，大周期跌破吸程线（B2），进入 ⑤（降息失灵，私人去杠杆）。两个环怎么接上的，见第 3.5 课。',
         metrics: [{ label: '新贷款（十亿美元/季）', get: 'flows.newLoans', fmt: 'num' }, { label: '还本（十亿美元/季）', get: 'flows.principalRepay', fmt: 'num' }, { label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '失业率', get: 'macro.unemployment', fmt: 'pct' }],
         claims: [{ get: 'end:flows.newLoans', vs: { get: 'end:flows.principalRepay' }, lt: 0, note: '新贷款少于还本' }, { get: 'end:rates.policy', lt: 0.005, note: '利率接近 0' }, { get: 'max:macro.unemployment', gt: 0.08, note: '失业率高' }],
         hl: ['newLoans', 'principalRepay', 'policyRate'], concept: ['creditImpulse', 'policyRate'] },
@@ -1896,7 +1896,7 @@ export const LESSONS = [
 
       { type: 'reveal', from: '2008Q3', until: '2014Q4', title: '第 6 步：大周期盘走到哪了', tab: 'cycle',
         text: [
-          '这六年，大周期盘的指针一格一格往前走：② 缓冲池满 → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手；之后才到 ⑦ 金融压制、增长化债。',
+          '这六年，大周期盘的指针一格一格往前走：② 逼近吸程线（缓冲池满） → ⑤ 降息失灵、私人去杠杆 → ⑥ 政府接手；之后才到 ⑦ 金融压制、增长化债。',
           '（切到「周期」页，看盘面和下面的趋势带。）',
         ],
         question: '政府和央行把水补回去之后，大周期盘上哪一格会亮起来？',
@@ -2336,7 +2336,7 @@ export const LESSONS = [
           { text: '银行放贷造水，同时记下欠条；还本排水，水和欠条一起消失（第 1 课）', pipe: ['newLoans', 'principalRepay'], part: 'iou', term: 'newLoans' },
           { text: '房价涨 → 抵押品变好 → 银行放宽 → 更多贷款买房 → 房价再涨：圈自己喂自己（第 2 课）', pipe: ['collateral', 'toHousing'], part: 'poolHousing', term: 'lvr' },
           { text: '央行加息的水管很长：存量房贷分批重定价，约两年后房价才转跌（第 2 课）', pipe: 'interestPaid', part: 'centralBank', hl: ['policyRate'], term: 'mortgageEff' },
-          { text: '圈倒着转（大周期的 B2 岔路）：房价↓ → 银行收紧 → 新贷款↓；降息打不开银行的闸门（第 3 课）', part: 'bank', hl: ['bankApproval'], term: 'creditImpulse' },
+          { text: '圈倒着转（大周期的 B2（跌破吸程线））：房价↓ → 银行收紧 → 新贷款↓；降息打不开银行的闸门（第 3 课）', part: 'bank', hl: ['bankApproval'], term: 'creditImpulse' },
           { text: '主线：小周期 → 降息推不动 → B2 → 大周期 ⑤。降息推得动，信贷回来，回到扩张；推不动，大周期接手。这是两个环之间唯一的连线（第 3 课）', part: 'cycle', hl: ['policyRate', 'newLoans'], term: 'B2' },
           { text: '私人去杠杆（⑤）：政府赤字和央行 QE 两个泵接手补水（⑥，第 4 课）', pipe: ['fiscalInjection', 'qe'], part: 'government', term: 'fiscalInjection' },
           { text: '需求冲过产能，溢出成物价（大周期的 B1 岔路，小周期里是「过热·物价」）；产能只有 Capex 能拓宽，且有滞后；央行加息降温（选学：Capex 与产能）', pipe: ['toConsumption', 'toCapex'], part: 'channel', hl: ['cpi', 'capacity'], term: 'B1' },
@@ -2526,7 +2526,7 @@ export const LESSONS = [
           '这就是「换设置、换故事」：同一台机器，美国掉进了 ⑤，澳洲没有。',
         ],
         claims: [
-          { get: 'qcount:cycles.long.fork=B2', lt: 0.5, note: '2008–2010 年没有 B2 岔路' },
+          { get: 'qcount:cycles.long.fork=B2', lt: 0.5, note: '2008–2010 年没有 B2（跌破吸程线）' },
           { get: 'max:cycles.long.stage', lt: 5, note: '长周期没到 ⑤' },
           { get: 'real:dd:houseIndex', gt: -0.1, note: '真实房价回撤 < 10%' },
           { get: 'world:countries.USA.houseReal@2006>2012', lt: -0.2, note: '美国房价 2006–2012 年跌超两成' },
