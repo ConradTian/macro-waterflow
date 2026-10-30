@@ -138,3 +138,12 @@ Mnemonic, shown in the UI: **短周期看河，长周期看地下水，资产看
 - **A5 Text sweep:** src/data/concepts.js, src/data/role-cards.js, src/data/role-lessons.js, src/data/causal.js (labels only), src/ui/headline.js, src/data/blind-cards.js + tools/build_blind_data.py (reveal text only), src/ui/real-mode.js (labels), src/ui/concepts.js, tools/check_concept_why.mjs, tools/check_headline.mjs.
 - **Nobody touches** src/engine/*, src/data/country-params.js or src/app.js. If you need app.js, tell the orchestrator.
 - **Fallback:** a part not ready keeps its OLD working version (old map, old pools), behind a flag if needed. Never ship broken.
+
+## Parked: 吸力尺 on the main diagram (wait for the user's explicit go after the 专题：预期 lesson)
+- The 吸力 knob is replaced by the vertical ruler: ▶ policy rate, ▽ inflationExp, ▼ measured inflation, a shaded band ▶ − ▽, the 调度线 and the rope. The v3.1 redraw keeps a `// RULER SLOT` group for it beside the central bank / cash lake.
+- A thin line runs from the river's CPI on the 测流断面 to ▼, so 河 → ▼ → 央行 → ▶ reads as one loop.
+- When the band changes, existing parts flash in engine-lag order: pump, cash lake, asset pools, river, groundwater.
+- A mini ruler sits by the border gate: the rate gap + ▽汇. Only pegged currencies get a rope (CNY on the map).
+- The 4 physical rules go in the legend card only.
+- On phone, show ▶, ▽ and the band; ▼ and the rope appear on tap.
+- No stories, no toy and no pool-▽ on the main diagram.
