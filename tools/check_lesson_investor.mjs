@@ -54,7 +54,29 @@ const intro = textOf(steps[0]), mN = intro.match(/下面分 (\d+) 步：([^\n]*)
 check(steps[0].type === 'intro' && mN && +mN[1] === steps.length - 1, `intro '下面分 N 步' = ${steps.length - 1}`);
 if (mN) check(mN[2].replace(/。$/, '').split('→').length === +mN[1], 'intro outline lists N items');
 const pSteps = steps.filter(s => s.panel);
-check(pSteps.length === 7 && PANEL_IDS.length === 7, '7 panel steps, 7 panel ids');
+// course v3: one question, at most 6 steps (intro included), the lake zoom is one of them
+check(steps.length <= 6 && pSteps.length === steps.length - 1 && PANEL_IDS.length === 8 && PANEL_IDS.includes('lake'), `v3: ${steps.length} steps (≤ 6), ${pSteps.length} panel steps, ${PANEL_IDS.length} panel ids incl. lake`);
+check(L.question === '钱放哪？' && /钱放哪/.test(textOf(steps[0])) && /债 → 股 → 房/.test(textOf(steps[0])), 'v3: question 钱放哪？ and the 2009 order 债 → 股 → 房 in the intro');
+check(pSteps.some(s => s.panel.id === 'lake'), 'v3: the lake zoom is a step');
+check(!/资产缓冲池|商品河道|欠条箱|资本管|商品价格管/.test(allText), 'v3: no old glossary words in the lesson');
+// the read-only sub-indices: the engine's equity constants, three styles, run on the AUS sim, no feedback into the engine
+{
+  const eco = readFileSync(join(ROOT, 'src/engine/economy.js'), 'utf8'), sub = readFileSync(join(ROOT, 'src/data/sub-index.js'), 'utf8');
+  const cst = src => Object.fromEntries([...src.matchAll(/\b(EARN_EMA|ERP0|ERP_RP|ERP_BAD|PE_FLOOR_DEN|PE_REV|PE_MOM|PE_STEP|PE_LO|PE_HI) = ([\d.]+)/g)].map(m => [m[1], +m[2]]));
+  const a = cst(eco), b = cst(sub);
+  check(Object.keys(a).length === 10 && Object.keys(a).every(k => a[k] === b[k]), 'sub-index constants = the engine equity constants ' + JSON.stringify(b));
+  check(!/from '\.\.\/engine|import\s/.test(sub), 'sub-index imports nothing (read-only, no feedback into the engine)');
+  const { createSim } = await import('../src/engine/sim.js');
+  const { subIndices } = await import('../src/data/sub-index.js');
+  const sim = createSim({ data: AUS_Q, mode: 'history', country: 'AUS' });
+  while (!sim.done) sim.step();
+  const H = sim.history(), eq0 = H.map(s => s.assets.equity.price);
+  const S = Object.fromEntries(subIndices(H).map(s => [s.k, s]));
+  check(['stable', 'growth', 'cyclical'].every(k => S[k] && S[k].series.length === H.length && S[k].series.every(p => isFinite(p.price) && p.price > 0)), `sub-indices: 3 finite series over ${H.length} quarters`);
+  const vol = k => { const p = S[k].series.map(x => x.price), r = p.slice(1).map((v, i) => Math.log(v / p[i])), m = r.reduce((x, y) => x + y, 0) / r.length; return Math.sqrt(r.reduce((x, y) => x + (y - m) ** 2, 0) / r.length); };
+  check(vol('growth') > vol('stable') && vol('cyclical') > vol('stable'), `sub-indices: narrow / river-flow pools jump more (vol growth ${vol('growth').toFixed(3)}, cyclical ${vol('cyclical').toFixed(3)} > stable ${vol('stable').toFixed(3)})`);
+  check(H.map(s => s.assets.equity.price).every((v, i) => v === eq0[i]), 'sub-indices leave the engine equity pool untouched');
+}
 for (const s of pSteps) check(PANEL_IDS.includes(s.panel.id), `panel id '${s.panel.id}' exists`);
 check(new Set(pSteps.map(s => s.panel.id)).size === pSteps.length, 'each panel used once');
 steps.forEach((s, i) => { if (i > 0) check(s.title && s.title.startsWith(`第 ${i} 步`), `step ${i} title numbered`); });
@@ -67,7 +89,8 @@ steps.forEach((s, i) => { if (i > 0) check(s.title && s.title.startsWith(`第 ${
 }
 for (const s of steps) for (const c of [].concat(s.concept || [])) check(!!CONCEPTS[c], `concept '${c}' exists`);
 for (const d of [L.startDate, L.endDate, ...steps.map(s => s.until).filter(Boolean)]) check(AUS_Q.dates.includes(d), `date ${d} in ${L.country} data`);
-for (const [name, src] of [['lesson', allText], ['lab', labSrc], ['css', readFileSync(join(ROOT, 'assets/css/investor-lab.css'), 'utf8')]])
+for (const [name, src] of [['lesson', allText], ['lab', labSrc], ['css', readFileSync(join(ROOT, 'assets/css/investor-lab.css'), 'utf8')],
+  ['lake', readFileSync(join(ROOT, 'src/ui/asset-lake.js'), 'utf8')], ['lake css', readFileSync(join(ROOT, 'assets/css/asset-lake.css'), 'utf8')], ['sub-index', readFileSync(join(ROOT, 'src/data/sub-index.js'), 'utf8')]])
   check(!/同比|环比/.test(src), `no 同比/环比 in ${name}`);
 const BY = Object.fromEntries(BLIND.cards.map(c => [c.id, c]));
 const revealed = new Set();
@@ -223,7 +246,8 @@ async function browser() {
       check(P.assetTable?.clicked && /还没有用数据逐格验证/.test(P.assetTable.text), `${label}: asset table row tap + caveat`);
       check(P.realRate?.slid === '+3.00%' && /玩具公式/.test(P.realRate.text), `${label}: real-rate slider moves (${P.realRate?.slid})`);
       check(P.realRate?.reattached, `${label}: same spec re-attaches the live panel to a new host (state kept)`);
-      check(['223 倍', '46 倍', '−37%', '+47%', '100 分位', '3 分位'].every(t => P.priced?.text.includes(t)) && P.priced.extra === 12, `${label}: priced shows the card numbers, extra card adds dots`);
+      check(['223 倍', '46 倍', '−37%', '+47%', '100 分位', '3 分位'].every(t => P.priced?.text.includes(t)) && P.priced.extra >= 8, `${label}: priced shows the card numbers (panel kept, not in the v3 lesson)`);
+      check(['分水堰', '现金', '国债', '股票', '房子', '黄金', '中间那根细管', '窄池子跳得多', 'QE'].every(t => P.lake?.text.includes(t)), `${label}: lake shows the pools, the weir, the middle pipe and the rules`);
       check(/亮了 1 个信号/.test(P.timeline?.yr || '') && P.timeline.svgs >= 2, `${label}: timeline scrub to 2005 = 1 signal`);
       check(['−29.6%', '−37.0%', '−30.9%', '0.66 美元', '−24%'].every(t => P.fx?.text.includes(t)), `${label}: fx shows the AUD falls and the insurance cost`);
       const links = P.blind?.links || [];

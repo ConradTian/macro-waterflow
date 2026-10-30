@@ -54,19 +54,23 @@ export const JPN_SIGNALS = [
 // the toy formulas of the real-rate panel (shown on screen next to the chart)
 export const TOY = { r0: 0.01, bondYears: 10, goldYears: 20, erp: 0.05, growth: 0.015, rMin: -0.02, rMax: 0.05 };
 
+// Course v3 (tools/DESIGN-v3.md): one question 「钱放哪？」, one new piece (the 湖 zoom, panel 'lake'), one example (2009: 债 → 股 → 房),
+// at most 6 steps, the 三问 ending. The panels priced / timeline / fx stay in investor-lab.js (demo page, 旧版课程 at /v2/) but this
+// lesson no longer uses them.
 export const LESSON_INVESTOR = {
   id: 'inv', kind: 'capstone', label: '第 8 课',
   title: '投资者',
-  oneLine: '把整门课收成一套动作：五个表定位置 → 查资产反应表 → 看贵不贵 → 等三个信号 → 配好四种货币 → 去历史盲测里练。',
+  question: '钱放哪？',
+  oneLine: '钱放哪？先定位置，再看湖：水从哪根管子落进湖，哪个池子先涨。2009 年的顺序：债 → 股 → 房。',
   country: 'AUS',              // the learner is in Australia: the gauges read the AUS sim (its 汇率 gauge moves; the US one is the ruler itself)
   rulesOn: 'all',
   startDate: '2007Q4', endDate: '2009Q1', mode: 'history', available: true,
   steps: [
-    { type: 'intro', title: '先说结论',
+    { type: 'intro', title: '钱放哪？',
       text: [
-        '**投资者只做三件事：看位置、查表、等信号。**',
-        '你不用猜明天下不下雨。你要知道的是：水库现在在哪个水位，闸门往哪边开，然后决定把水存在哪个池子里。',
-        '下面分 7 步：五个表 → 资产反应表 → 实际利率 → 贵不贵 → 三个信号 → 四种货币 → 盲测练习。',
+        '**钱放哪？结论：看水从哪根管子落进湖。落在哪个池子，哪个池子先涨。**',
+        '2009 年，钱先进国债，再进股票，最后才进房子：债 → 股 → 房。这一课看为什么是这个顺序。',
+        '下面分 5 步：五个表定位置 → 查资产反应表 → 看湖 → 吸力 → 盲测练习。',
       ],
       concept: ['longCycle', 'realRate'] },
 
@@ -74,97 +78,48 @@ export const LESSON_INVESTOR = {
       panel: { id: 'gauges' },
       text: [
         '**结论：先定位，再动手。五个表各回答一个问题。**',
-        '小周期走到哪一步？大周期在哪一站？水的价格（实际利率）是正是负？池子满不满（估值）？本币在涨还是在跌？',
+        '小周期走到哪一步？大周期在哪一站？吸力（实际利率）是正是负？池子满不满（估值）？本币在涨还是在跌？',
         '按 ▶ 播放：澳洲从 2007Q4 走到 2009Q1，看五个表一起变。最下面一行告诉你：现在该查资产反应表的哪一行。',
       ],
       hl: ['policyRate'], concept: ['realRate'] },
 
     { type: 'reveal', title: '第 2 步：资产反应表',
-      panel: { id: 'assetTable' },
+      panel: { id: 'assetTable', select: 'cut' },
       text: [
-        '**结论：每个位置都有固定的赢家和输家。点一行，看谁亮。**',
-        '「资产」页的五个池子（现金、长期国债、股票、房产、黄金）放在同一张表里，再加上本币。点表头，看每个池子的泉水从哪来。',
+        '**结论：降息那一行，国债最先涨，股票跟上，房子滞后：债 → 股 → 房。**',
+        '点「④→① 降息捷径」那一行，看谁亮。点表头，看每个池子的泉眼从哪来。',
         '这张表是按历史事例整理的，**还没有用数据逐格验证**。把它当地图用，不要当定律。',
       ] },
 
-    { type: 'reveal', title: '第 3 步：实际利率 = 水的价格',
+    { type: 'reveal', title: '第 3 步：看湖',
+      panel: { id: 'lake' },
+      text: [
+        '**结论：水从哪根管子落进湖，哪个池子就先涨。**',
+        '先看图：现金湖带着吸力泵，旁边是国债、股票、房子，黄金在一边。利息、分红、租金是泉眼，从分水堰接过来。',
+        '2009 年的美国：央行泵（QE）只往湖里灌，落在国债池，国债先涨；吸力低了，中间那根细管往右漂，股票跟上；银行抽水恢复得最慢，房子最后。',
+        '点「股票」：左边看吸力（稳股、成长股），右边看水量（周期股）。窄池子跳得多。',
+      ] },
+
+    { type: 'reveal', title: '第 4 步：吸力 = 实际利率',
       panel: { id: 'realRate', def: -0.01 },
       text: [
-        '**结论：实际利率一动，国债、黄金、股票估值一起动，方向相同。**',
-        '实际利率 = 政策利率 − 通胀，就是「把水存着不动」的回报。存水回报高，越远的池子越不值钱；存水回报为负，远处的池子就抢手。',
+        '**结论：吸力一动，国债、黄金、股票估值一起动，方向相同。**',
+        '吸力就是央行手里的那一个旋钮：实际利率 = 政策利率 − 通胀。吸力大，存在湖里划算，越远的泉眼越不值钱；吸力为负，远处的池子就抢手。',
         '拖动滑块。图里的公式是**玩具**：只用来看方向和谁更敏感，不是预测。',
       ] },
 
-    { type: 'reveal', title: '第 4 步：贵不贵',
-      panel: { id: 'priced', cards: ['JPN-1989', 'JPN-2012'], extra: 'JPN-2008' },
-      text: [
-        '**结论：位置告诉你方向，贵不贵告诉你价格里已经装了多少水。**',
-        '日本 1989：股价是股息的 223 倍，在自己的历史里排 100 分位（最高）。下一年股票（换成澳元、扣掉通胀）−37%。',
-        '日本 2012：股价是股息的 46 倍，只排 3 分位。下一年 +47%。',
-        '便宜不等于马上涨：2008 年日本也在 ⑥、估值 0 分位，下一年还跌了 18%。什么时候动，看下一步的信号。',
-      ],
-      claims: [
-        { shown: '223 倍', src: 'blind', card: 'JPN-1989', path: 'view.levels.equityVal', fmt: 'x0' },
-        { shown: '100 分位', src: 'blind', card: 'JPN-1989', path: 'view.pct.equityVal', fmt: 'pctile' },
-        { shown: '−37%', src: 'blind', card: 'JPN-1989', path: 'reveal.ret1.equity', fmt: 'spct0' },
-        { shown: '46 倍', src: 'blind', card: 'JPN-2012', path: 'view.levels.equityVal', fmt: 'x0' },
-        { shown: '3 分位', src: 'blind', card: 'JPN-2012', path: 'view.pct.equityVal', fmt: 'pctile' },
-        { shown: '+47%', src: 'blind', card: 'JPN-2012', path: 'reveal.ret1.equity', fmt: 'spct0' },
-        { shown: '⑥', src: 'blind', card: 'JPN-2008', path: 'view.call.long', fmt: 'raw' },
-        { shown: '0 分位', src: 'blind', card: 'JPN-2008', path: 'view.pct.equityVal', fmt: 'pctile' },
-        { shown: '18%', src: 'blind', card: 'JPN-2008', path: 'reveal.ret1.equity', fmt: 'apct0', note: '跌了 18%' },
-      ] },
-
-    { type: 'reveal', title: '第 5 步：市场先走，亮三个信号再动',
-      panel: { id: 'timeline', year: 2013 },
-      text: [
-        '**结论：股价在官方确认之前好几年就开始走。只亮一个信号不算数，至少亮三个再动。**',
-        '日本走出 B2 的顺序：私人信贷/GDP 2005 年见底 → 实际房价 2009 年见底 → 名义增长 > 长端利率 2013 年 → 通胀确认 2022 年。',
-        '股价（1989 = 100）2012 年见底，只剩 30；2020 年回到 73。2003–07 年是个假起点：只亮了一个信号，股价涨上去又跌回来。',
-        '等到 2022 年通胀确认，股价已经是 2012 年低点的 2.6 倍（季度数据）。等官方确认，大部分涨幅已经兑现。拖时间轴，数每一年亮了几个信号。',
-      ],
-      claims: [
-        { shown: '2005', src: 'jst', what: 'creditTrough' },
-        { shown: '2009', src: 'jst', what: 'houseTrough' },
-        { shown: '2013', src: 'jst', what: 'grRun' },
-        { shown: '2022', src: 'jpnq', what: 'cpiConfirm' },
-        { shown: '2012', src: 'jst', what: 'equityTroughYear' },
-        { shown: '30', src: 'jst', what: 'equityAt', year: 2012 },
-        { shown: '73', src: 'jst', what: 'equityAt', year: 2020 },
-        { shown: '2003–07', src: 'jst', what: 'falseStart' },
-        { shown: '2.6 倍', src: 'jpnq', what: 'equityMultiple' },
-      ] },
-
-    { type: 'reveal', title: '第 6 步：你的四种货币',
-      panel: { id: 'fx', from: '2007Q1', until: '2010Q4', base: '2008Q2' },
-      text: [
-        '**结论：对澳洲人，美元和日元是危机保险。出事时澳元跌，手里的外币能换回更多澳元。**',
-        '2008 年按季度平均：1 澳元从 2008Q2 的 0.94 美元跌到 2009Q1 的 0.66 美元，跌了 30%。常说的「约 35%」是按每天的最高到最低算的，这里只有季度平均。对日元跌得更多，37%；人民币当时跟着美元走，31%。',
-        '保险要在火灾前买：站在 2008 年底才换美元，2009 年澳元反弹，这份美元（换回澳元、扣掉通胀）亏了 24%。',
-        '你的四种货币：澳元（工资、房子、账单都在这里）、美元和日元（危机保险）、人民币（2008 年跟着美元走）。',
-      ],
-      claims: [
-        { shown: '0.94 美元', src: 'fx', what: 'audUsd', at: '2008Q2', fmt: 'n2' },
-        { shown: '0.66 美元', src: 'fx', what: 'audUsd', at: '2009Q1', fmt: 'n2' },
-        { shown: '30%', src: 'fx', what: 'fall', pair: 'USD', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
-        { shown: '约 35%', src: 'spec', note: '用户 spec：「The AUD fell about 35% against the USD in 2008」；repo 只有季度平均，没有日数据' },
-        { shown: '37%', src: 'fx', what: 'fall', pair: 'JPY', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
-        { shown: '31%', src: 'fx', what: 'fall', pair: 'CNY', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
-        { shown: '24%', src: 'blind', card: 'AUS-2008', path: 'reveal.ret1.fxUSD', fmt: 'apct0', note: '亏了 24%' },
-      ] },
-
-    { type: 'reveal', title: '第 7 步：去历史盲测里练',
+    { type: 'reveal', title: '第 5 步：去历史盲测里练',
       panel: { id: 'blind', cards: ['USA-2006', 'USA-2009', 'AUS-2015'] },
       text: [
-        '**结论：先用三张练习卡把前六步走一遍，再进历史盲测玩整副牌。**',
-        '每张卡只给你那一年年底能看到的数据。按顺序做：定位置 → 查表 → 看贵不贵 → 数信号 → 配货币。三张卡正好是三种：危机前夜、转折点、平常年份。',
+        '**结论：先用三张练习卡把前四步走一遍，再进历史盲测玩整副牌。**',
+        '每张卡只给你那一年年底能看到的数据。按顺序做：定位置 → 查表 → 看湖 → 看吸力。三张卡正好是三种：危机前夜、转折点、平常年份。',
         '这三张没有在这一课里出现过，不会剧透。盲测页面目前没有专门的教学模式，三张就是普通卡，直接打开。盲测卡问的，正是下面这三问。',
       ],
       // the fixed 三问 ending (tools/COURSE-V3.md), answered for this lesson's example: Australia 2007Q4 → 2009Q1
       ending: {
         q1: '水的问题还是河道的问题？水的问题，而且是外面的水：全世界一慌，钱先逃回美元；澳洲自己的河道没坏。',
         q2: '环上哪一步？澳洲小周期在「降息」，大周期没有走上 B2：中国的刺激加上澳联储很快降息，接住了。',
-        q3: '谁赢谁输、钱放哪？手里有美元、日元的澳洲人赢：澳元对美元跌了 30%；只有澳元资产的人输。钱放哪：平时就配一份外币当保险，火灾前买。',
+        q3: '谁赢谁输、钱放哪？手里有美元、日元的澳洲人赢：澳元对美元跌了 30%；只有澳元资产的人输。钱放哪：降息时按 债 → 股 → 房 的顺序看，平时配一份外币当保险。',
       },
       claims: [
         { shown: '30%', src: 'fx', what: 'fall', pair: 'USD', from: '2008Q2', until: '2009Q1', fmt: 'apct0' },
