@@ -41,7 +41,7 @@ import { CONCEPTS } from '../data/concepts.js';
 import { countryInfo, currentCountry, countryData, fmtBn } from './country-info.js';
 import { createSim } from '../engine/sim.js';
 import { US_Q } from '../data/us-quarterly.js';
-import { LAYERS, LAYER_IDS, LAYER_OF, ROLE_VALVES } from '../data/layers.js';
+import { LAYERS, LAYER_IDS, LAYER_OF, ROLE_VALVES, LAYER_SHORT } from '../data/layers.js';
 import { layerShown } from './progress.js';
 import { computeFxReactor, reactorSvg, reactorHtml, usdIndexAt, usdHtml, reactorLine, wireFxReactor, ensureFxReactorCss, installFxCardHook, openForcesIn } from './fx-reactor.js';
 
@@ -133,12 +133,14 @@ const PIPES = [
   // fiscal: the deep-well pump (the NEW water N) from the groundwater band up the right edge into the government, then two branches:
   // orders -> firm (govPurchases), transfers / tax cuts / relief -> household (transfers)
   { k: 'fiscalInjection', part: 'government',  cls: 'fiscal',  kind: 'pump',  label: '注入', term: 'fiscalInjection', pts: [[SHAFT_X, 404], [SHAFT_X, GOV.y + GOV.h]], chip: [374, 352, 'end'], from: 'government', to: 'firm', maxW: 6 },
-  { k: 'govPurchases',    part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '订单', term: 'govPurchases',    pts: [[296, GOV.y + GOV.h], [296, FIRM.y]], chip: [296, 53, 'middle'], from: 'government', to: 'firm' },
-  { k: 'transfers',       part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '转移', term: 'transfers',       pts: [[GOV.x, 30], [255, 30], [255, HH.y]], chip: [255, 109, 'middle'], from: 'government', to: 'household', maxW: 6 },
+  { k: 'govPurchases',    part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '订单', term: 'govPurchases',    pts: [[310, GOV.y + GOV.h], [310, FIRM.y]], chip: [306, 53, 'start'], from: 'government', to: 'firm' },
+  // 转移: down from the government BEHIND the firm box (a strip cover in the top layer), then left into the household's top: it no longer
+  // crosses Capex or the ring's top leg in the open (v3.1 polish)
+  { k: 'transfers',       part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '转移', term: 'transfers',       pts: [[290, GOV.y + GOV.h], [290, 128], [250, 128], [250, HH.y]], chip: [270, 128, 'middle'], from: 'government', to: 'household', maxW: 6 },
   { k: 'taxes',           part: 'government',  cls: 'cash',    kind: 'pipe',  label: '税',                                 pts: [[WEIR.x + WEIR.w, 176], [368, 176], [368, GOV.y + GOV.h]], chip: [364, 142, 'end'], from: 'channel', to: 'government', maxW: 6 },
   // 抽水: out of the groundwater band, up through the bank's pump, into the household (an L over the lane)
   { k: 'newLoans',        part: 'bank',        cls: 'credit',  kind: 'pump',  label: '抽水',   term: 'newLoans',        pts: [[316, 404], [316, 203], [252, 203], [252, HH.y + HH.h]], chip: [324, 274, 'start'], from: 'bank', to: 'household' },
-  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '利息',     term: 'interestPaid',    pts: [[334, WEIR.y + WEIR.h], [334, BANK.y]], chip: [338, 210, 'start'], from: 'household', to: 'bank' },
+  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '利息',     term: 'interestPaid',    pts: [[334, WEIR.y + WEIR.h], [334, BANK.y]], chip: [321, 210, 'start'], from: 'household', to: 'bank' },
   // 回灌: from the household down beside the bank into the groundwater band
   { k: 'principalRepay',  part: 'repay',       cls: 'repay',   kind: 'drain', label: '回灌',     term: 'principalRepay',  pts: [[242, HH.y + HH.h], [242, 214], [300, 214], [300, 386]], chip: [292, 352, 'end'], from: 'household', to: 'repay', maxW: 7 },
   { k: 'toBond',          part: 'pool poolBond',    cls: 'bond',    kind: 'buy', label: '国债', term: 'assetReservoir',   pts: [[142, HH.y + HH.h], [142, TANK_Y]], chip: [133.5, 270, 'middle'], from: 'household', to: 'poolBond', pctOnly: true },
@@ -150,8 +152,8 @@ const PIPES = [
   { k: 'toConsumption',   part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '新水消费',                           pts: [[76, HH.y], [76, CH_Y + CH_H]], chip: [70, 141, 'end'], from: 'household', to: 'channel' },
   // the 分水堰 mouths: 工资 back to the spenders (the ring's bottom leg), 利润 back up to the firm
   { k: 'wages',           part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '工资',                               pts: [[WEIR.x, RB], [HH.x + HH.w, RB]], chip: [279, RB, 'middle'], from: 'channel', to: 'household' },
-  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[312, WEIR.y], [312, FIRM.y + FIRM.h]], chip: [306, 128, 'end'], from: 'channel', to: 'firm' },
-  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[FIRM.x, 72], [CH_X0 + CH_W, 72]],                    chip: [255, 72, 'middle'], from: 'firm', to: 'channel' },
+  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[312, WEIR.y], [312, FIRM.y + FIRM.h]], chip: [312, 158, 'middle'], from: 'channel', to: 'firm' },
+  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[FIRM.x, 72], [CH_X0 + CH_W, 72]],                    chip: [249, 72, 'middle'], from: 'firm', to: 'channel' },
   { k: 'spillToGoods',    part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '溢出',                               pts: [[36, 300], [26, 300], [26, HH.y + HH.h]], chip: [26, 290, 'middle'], from: 'cash', to: 'channel', minor: true, nochip: true, maxW: 4 },
   // A2: the 4 outlets on top of the 测流断面 = GDP by use (goods are used up; the water goes round the ring). Chip = % of GDP only, the
   // name is drawn over it. out: width by share of GDP; signed: a negative value (net imports) reverses the arrow.
@@ -167,7 +169,7 @@ const PIPES = [
   { k: 'qt',              part: 'centralBank', cls: 'repay', kind: 'drain', label: 'QT',  pts: [[52, PB], [52, 332]], chip: [52, 330, 'middle'], from: 'centralBank', to: 'centralBank', minor: true },
   { k: 'govSurplusDrain', part: 'government',  cls: 'repay', kind: 'drain', label: '盈余', pts: [[362, 362], [362, 372]], chip: [362, 368, 'middle'], from: 'government', to: 'government', minor: true },
   // collateral feedback: housing level -> bank approval (dashed loop, not a money flow)
-  { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[258, 300], [284, 300], [284, BANK.y + BANK.h]], chip: [256, 306, 'middle'], from: 'poolHousing', to: 'bank' },
+  { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[262, 300], [286, 300], [286, BANK.y + BANK.h]], chip: [286, 280, 'middle'], from: 'poolHousing', to: 'bank' },
   // valuation feedback: share prices -> Capex (Tobin's q, engine cp.capexValFree; dashed, not a money flow): up from the stock pool, behind
   // the household, into the 测流断面 (capacity). Live only where the engine runs it (the sandbox / free mode); grey in history, 真实 mode and the town (setValCapex)
   { k: 'valCapex', part: 'poolEquity', cls: 'fb', kind: 'fb', label: '股价', term: 'capex', pts: [[200, TANK_Y], [200, CH_Y + CH_H]], chip: [196, 209, 'middle'], from: 'poolEquity', to: 'capex' },
@@ -476,23 +478,114 @@ const lk = (n, id) => { n.setAttribute('data-lk', id); return n; };
 
 // phone outside a lesson: one place at a time (the 河 / 湖 / 地下 switch); iPad / desktop / a lesson: the whole picture
 const placeMode = () => isPhone() && !document.body.classList.contains('lesson-on');
+// Phone place view (v3.1 polish): the drawing box fills the height between the place switch and the card; the place is scaled up
+// (at most PLACE_ZOOM x the full-width size) and cropped to the box, so it is genuinely larger. Drag sideways to see the rest
+// (R.panX per place; the knob moves with the crop so it stays on screen). The y range grows around the place when the box is taller.
+const PLACE_ZOOM = 1.45;
+function placeBox(R) {
+  const P = PLACES[R.place], cw = R.svg.clientWidth || 390, ch = R.svg.clientHeight || 0;
+  if (!(ch > 40)) return P;
+  const s = Math.min(ch / P[3], PLACE_ZOOM * cw / VB_W);           // px per viewBox unit
+  const w = Math.min(VB_W, cw / s), h = ch / s;
+  let y0 = P[1] + P[3] / 2 - h / 2;
+  y0 = clamp(y0, Math.min(P[1], 0), Math.max(P[1], VB_H - h));
+  if (h >= P[3]) y0 = clamp(y0, P[1] + P[3] - h, P[1]);              // the whole place stays inside
+  const px = R.panX[R.place] ?? 0;
+  const x0 = clamp(px, 0, VB_W - w);
+  return [+x0.toFixed(1), +y0.toFixed(1), +w.toFixed(1), +h.toFixed(1)];
+}
 function syncView(R) {
   const ph = isPhone(), pm = placeMode();
-  const vb = pm ? PLACES[R.place] : (!ph && R.hasBorder ? [0, -BD_H, VB_W, VB_H + BD_H] : [0, 0, VB_W, VB_H]);
-  R.svg.setAttribute('viewBox', vb.join(' '));
   R.wrap.classList.toggle('phone', ph);
   R.wrap.classList.toggle('placed', pm);
   if (pm) R.wrap.dataset.place = R.place; else delete R.wrap.dataset.place;
+  const vb = pm ? placeBox(R) : (!ph && R.hasBorder ? [0, -BD_H, VB_W, VB_H + BD_H] : [0, 0, VB_W, VB_H]);
+  R.vb = vb;
+  R.svg.setAttribute('viewBox', vb.join(' '));
+  R.wrap.classList.toggle('pan-l', pm && vb[0] > 0.5);
+  R.wrap.classList.toggle('pan-r', pm && vb[0] + vb[2] < VB_W - 0.5);
   R.placesEl.querySelectorAll('[data-place]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.place === R.place)));
-  // RULER SLOT: the 吸力 knob stays on screen in every place (moved into the top-left corner of 河 / 地下)
-  const dy = pm ? { river: 6 - SLOT.y, lake: 0, ground: 290 - SLOT.y }[R.place] : 0;
-  if (R.v3 && R.v3.slot) { if (dy) R.v3.slot.setAttribute('transform', `translate(0 ${dy})`); else R.v3.slot.removeAttribute('transform'); }
+  // RULER SLOT: the 吸力 knob stays on screen in every place (moved to the left edge of the crop; in 河 / 地下 to its top-left corner)
+  let tx = 0, dy = 0;
+  if (pm) {
+    tx = vb[0];
+    const top = R.place === 'lake' ? clamp(SLOT.y, vb[1] + 4, vb[1] + vb[3] - 112) : vb[1] + 6;
+    dy = +(top - SLOT.y).toFixed(1);
+  }
+  if (R.v3 && R.v3.slot) {
+    if (tx || dy) R.v3.slot.setAttribute('transform', `translate(${tx} ${dy})`); else R.v3.slot.removeAttribute('transform');
+    R.v3.slot.classList.toggle('moved', !!(tx || dy));
+  }
   syncNxGate(R);
   fillPlaceCard(R);
+  fitDesk(R);
+}
+// phone: drag the place sideways (pointer events on the svg; a drag never becomes a tap on a chip / valve)
+function wirePan(R) {
+  const svg = R.svg;
+  svg.addEventListener('pointerdown', e => {
+    if (!placeMode() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    R.pan = { x: e.clientX, y: e.clientY, ox: R.vb ? R.vb[0] : 0, moved: false };
+  });
+  svg.addEventListener('pointermove', e => {
+    const p = R.pan;
+    if (!p || !R.vb) return;
+    const dx = e.clientX - p.x;
+    if (!p.moved && (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(e.clientY - p.y))) return;
+    p.moved = true;
+    R.panX[R.place] = clamp(p.ox - dx * R.vb[2] / (svg.clientWidth || 390), 0, VB_W - R.vb[2]);
+    syncView(R);
+  });
+  const end = () => { if (R.pan && R.pan.moved) R.panJust = Date.now(); R.pan = null; };
+  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  svg.addEventListener('click', e => { if (R.panJust && Date.now() - R.panJust < 400) { e.stopPropagation(); e.preventDefault(); R.panJust = 0; } }, true);
+}
+// desktop / iPad: the diagram column hugs the drawing. Height available to the svg = the grid row minus #diagram's padding and the
+// other in-flow children of .flow-wrap (toolbar row, budget bar, the real-mode strip); the column = that height x the viewBox aspect.
+// app.css reads --flow-col (grid column) and --flow-svg-h (svg max-height). Phones: removed (the phone layout is its own).
+function fitDesk(R) {
+  const root = document.documentElement, host = R.wrap.parentNode, main = host && host.parentNode;
+  if (!host || !main || isPhone() || !R.vb) { root.style.removeProperty('--flow-col'); root.style.removeProperty('--flow-svg-h'); return; }
+  const cs = getComputedStyle(host), ws = getComputedStyle(R.wrap), n = v => parseFloat(v) || 0;
+  let H = main.clientHeight - n(cs.paddingTop) - n(cs.paddingBottom) - n(ws.paddingTop) - n(ws.paddingBottom);
+  for (const c of R.wrap.children) {
+    if (c === R.svg) continue;
+    const s = getComputedStyle(c);
+    if (s.position === 'absolute' || s.display === 'none') continue;
+    H -= c.offsetHeight + n(s.marginTop) + n(s.marginBottom);
+  }
+  H = Math.floor(H);
+  if (!(H > 120)) return;
+  const col = Math.ceil(H * R.vb[2] / R.vb[3] + n(cs.paddingLeft) + n(cs.paddingRight) + n(cs.borderLeftWidth) + n(cs.borderRightWidth));
+  if (Math.abs((R.fitCol || 0) - col) > 1 || Math.abs((R.fitH || 0) - H) > 1) {
+    R.fitCol = col; R.fitH = H;
+    root.style.setProperty('--flow-col', col + 'px');
+    root.style.setProperty('--flow-svg-h', H + 'px');
+  }
+}
+// Discoverability (user report: 真实 mode at 2015Q1 showed only L1/L2, the lake looked unbuilt): while body.layers-on hides layers
+// outside a lesson, a one-line hint names them; tapping it = 「显示全部」 (clicks app.js's #layers-toggle). The lesson owns its layers: no hint.
+function syncLayerHint(R) {
+  const b = document.body, on = b.classList.contains('layers-on');
+  const shown = new Set((b.dataset.layers || '').split(' ').filter(Boolean));
+  const off = on ? LAYER_IDS.filter(l => !shown.has(l)) : [];
+  const lesson = b.classList.contains('lesson-on') || R.lessonId != null || b.classList.contains('parts-on');
+  const show = off.length > 0 && !lesson;
+  const names = off.map(l => LAYER_SHORT[l] || l);
+  const txt = show ? `还有 ${off.length} 层没显示（${names.slice(0, 4).join('、')}${names.length > 4 ? '…' : ''}）：点「显示全部」` : '';
+  R.wrap.querySelectorAll('.flow-lhint').forEach(h => {
+    h.hidden = !show;
+    if (h.textContent !== txt) h.textContent = txt;
+    h.dataset.n = String(show ? off.length : 0);
+    h.title = show ? '这些层还没学到，先藏着。点一下：显示整张图（' + names.join('、') + '）' : '';
+  });
+  R.tools.classList.toggle('has-hint', show);
 }
 function fillPlaceCard(R) {
-  const h = (placeMode() && R.cards && R.cards[R.place]) || '';
-  if (R.placeCard._h !== h) { R.placeCard._h = h; R.placeCard.innerHTML = h; }
+  const c = (placeMode() && R.cards && R.cards[R.place]) || null;
+  const h = c ? `<div class="fpc-s">${c.s}${c.l ? ' <button type="button" class="fpc-more" aria-expanded="false">更多</button>' : ''}</div>` +
+    (c.l ? `<div class="fpc-l" hidden>${c.l}</div>` : '') : '';
+  if (R.placeCard._h !== h) { R.placeCard._h = h; R.placeCard.innerHTML = h; R.placeCard.classList.remove('open'); }
 }
 
 function build(host) {
@@ -504,16 +597,38 @@ function build(host) {
   const places = document.createElement('div');
   places.className = 'flow-places'; places.setAttribute('role', 'group'); places.setAttribute('aria-label', '一次看一处：河 / 湖 / 地下');
   places.innerHTML = Object.keys(PLACES).map(k => `<button type="button" data-place="${k}" aria-pressed="${k === 'river'}">${PLACE_NAMES[k]}</button>`).join('') +
-    '<span class="fpl-hint">一次看一处</span>';
+    '<span class="fpl-hint">左右拖动看全</span>';
   wrap.appendChild(places);
+  // desktop / iPad toolbar row above the drawing: the mnemonic + 「说明」 (the caption lines drop down from it). Its right end is kept
+  // empty for the 📈 曲线 / 显示全部 buttons (app.js puts them in #diagram; app.css places them over this row), so they cover nothing.
+  const tools = document.createElement('div');
+  tools.className = 'flow-tools';
+  tools.innerHTML = `<button type="button" class="flow-lhint" hidden></button><span class="ft-mn" title="${MNEMONIC}">${MNEMONIC}</span><button type="button" class="ft-more" aria-expanded="false">说明</button>`;
+  wrap.appendChild(tools);
+  // phone: the same 「还有 n 层没显示」 hint as a slim row under the place switch
+  const phHint = document.createElement('button'); phHint.type = 'button'; phHint.className = 'flow-lhint ph'; phHint.hidden = true;
+  wrap.appendChild(phHint);
   const svg = el('svg', { class: 'flow-svg', viewBox: `0 0 ${VB_W} ${VB_H}`, preserveAspectRatio: 'xMidYMid meet',
     role: 'img', 'aria-label': '宏观水流示意图：河（我花的 = 你赚的的环）、湖（现金湖和资产池）、地下水（未来的收入）；泵造水、排水口消水、管道搬水、阀门可拧' }, document.createElement('div'));
   wrap.appendChild(svg);
   const card = document.createElement('div'); card.className = 'flow-place-card'; card.setAttribute('aria-live', 'polite');
   wrap.appendChild(card);
-  const R = { svg, wrap, pipes: {}, pools: {}, place: 'river', placesEl: places, placeCard: card };
+  const R = { svg, wrap, pipes: {}, pools: {}, place: 'river', placesEl: places, placeCard: card, tools, panX: {} };
   R.syncVB = () => syncView(R);
   try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', R.syncVB) : PH_MQ.addListener(R.syncVB)); } catch (e) { /* ignore */ }
+  {   // keep the phone crop / the desktop column fitted when sizes change (panel grip, card 「更多」, window, budget bar wrapping)
+    const later = () => { cancelAnimationFrame(R.roF); R.roF = requestAnimationFrame(() => syncView(R)); };
+    if (typeof ResizeObserver === 'function') { R.ro = new ResizeObserver(later); R.ro.observe(svg); R.ro.observe(wrap); }
+    window.addEventListener('resize', later);
+  }
+  wirePan(R);
+  {   // 「还有 n 层没显示」: follows body.layers-on / data-layers (app.js syncLayers) and the lesson state
+    R.lessonId = null;
+    const sync = () => syncLayerHint(R);
+    try { new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class', 'data-layers'] }); } catch (e) { /* ignore */ }
+    document.addEventListener('mw:lesson-active', e => { R.lessonId = e.detail && e.detail.id != null ? String(e.detail.id) : null; sync(); });
+    setTimeout(sync, 0);
+  }
 
   /* ---- back layer: the ground, the ring, nodes, tanks, water ---- */
   const back = el('g', {}, svg);
@@ -621,6 +736,7 @@ function build(host) {
   // covers: the pipes that pass a box go BEHIND it (抽水 / 回灌 through the bank, 股价 → Capex behind the household)
   node(top, BANK.x, BANK.y, BANK.w, BANK.h, 'cover', 'bank').setAttribute('data-lk', 'bankTitle');   // the bank box comes with L-water (as its title)
   node(top, HH.x, HH.y, HH.w, HH.h, 'cover', 'household');
+  part(el('rect', { class: 'cover-strip', x: 285, y: FIRM.y + 1.5, width: 10, height: FIRM.h - 3 }, top), 'firm');   // 转移 runs down behind the firm
   // pumps and drains on their pipes
   for (const d of PUMP_ICONS) R.pipes[d.k].icon = pumpIcon(top, d, R.pipes[d.k].def);
   for (const d of DRAIN_ICONS) R.pipes[d.k].icon = drainIcon(top, d, R.pipes[d.k].def);
@@ -811,12 +927,14 @@ function buildV3(R, top, wrap) {
     txt(l, 362, 250, '湖里挪½', 'cap fs-t', 'middle');
     el('title', {}, l).textContent = '一半从湖里挪过来：存款人买国债';
   }
-  // mnemonic + the fiscal-split caption + the 股价 → Capex note under the diagram (desktop); the phone place cards carry them
+  // mnemonic + the fiscal-split caption + the 股价 → Capex note: behind 「说明」 in the toolbar row (desktop / iPad), a panel that drops
+  // down over the top of the drawing (no layout shift); the phone place cards carry them
   const cap = document.createElement('div');
-  cap.className = 'flow-v3cap';
+  cap.className = 'flow-v3cap'; cap.id = 'flow-v3cap';
   cap.innerHTML = `<span class="v3-mn">${MNEMONIC}</span><span class="v3-fs" data-layer="L-gov">深井泵：${FISCAL_SPLIT_TXT}</span>` +
     `<span class="v3-vc" data-layer="L-assets" hidden>股价 → Capex · 关：${VALCAPEX_SHUT}</span>`;
-  wrap.insertBefore(cap, R.placeCard);
+  R.tools.appendChild(cap);
+  R.tools.querySelector('.ft-more').setAttribute('aria-controls', 'flow-v3cap');
   V.vc = cap.querySelector('.v3-vc');
 }
 
@@ -872,13 +990,17 @@ function applyV3(R, snap) {
   // 股价 → Capex: the visible caption while it is shut (desktop line under the diagram; phone: the 湖 card and a tap on the chip)
   const shut = valCapexState(snap) !== 'on';
   if (V.vc) V.vc.hidden = !shut;
-  // phone place cards (one per place; layer-tagged spans follow the progressive diagram)
+  if (R.tools) R.tools.classList.toggle('vc-shut', shut);
+  // phone place cards (one per place; layer-tagged spans follow the progressive diagram): s = 1–2 lines, l = the rest behind 「更多」
   const hole = R.iouGdp ? R.iouGdp.textContent : '';
   R.cards = {
-    river: `<b>河 · 现在的收入</b>一个环：<b>我花的 = 你赚的</b>。家庭花钱 → 测流断面（宽 = 产能，水位 = 物价，流量 = GDP）→ 企业收到 → 分水堰分成 工资 / 利润 / 利息 / 税，工资回到家庭。`,
-    lake: `<b>湖 · 存着的钱</b>现金湖 + 资产池（国债、黄金、股票、房产）。<span data-layer="L-short">吸力（央行的旋钮 = 实际利率${ok ? ' ' + pctTxt(rr) : ''}）：存湖划不划算、抽水贵不贵。</span>` +
-      (shut ? `<span class="fpc-vc" data-layer="L-assets">股价 → Capex · 关：${VALCAPEX_SHUT}</span>` : ''),
-    ground: `<b>地下 · 未来的收入</b>抽水（放贷）把未来的收入抽上来，回灌（还本）还回去。<span data-layer="L-long">${esc(hole)}。${esc(stat)}。</span>`,
+    river: { s: `<b>河 · 现在的收入</b>一个环：<b>我花的 = 你赚的</b>。`,
+      l: `家庭花钱 → 测流断面（宽 = 产能，水位 = 物价，流量 = GDP）→ 企业收到 → 分水堰分成 工资 / 利润 / 利息 / 税，工资回到家庭。` },
+    lake: { s: `<b>湖 · 存着的钱</b>现金湖 + 资产池。<span class="fpc-in" data-layer="L-short">吸力${ok ? ' ' + pctTxt(rr) : ''}：存湖划不划算。</span>`,
+      l: `资产池 = 国债、黄金、股票、房产。<span data-layer="L-short">吸力（央行的旋钮 = 实际利率${ok ? ' ' + pctTxt(rr) : ''}）：存湖划不划算、抽水贵不贵。</span>` +
+        (shut ? `<span class="fpc-vc" data-layer="L-assets">股价 → Capex · 关：${VALCAPEX_SHUT}</span>` : '') },
+    ground: { s: `<b>地下 · 未来的收入</b>抽水 = 借未来的收入，回灌 = 还本。<span class="fpc-in" data-layer="L-long">${esc(hole)}。</span>`,
+      l: `抽水（放贷）把未来的收入抽上来，回灌（还本）还回去。<span data-layer="L-long">${esc(stat)}。</span>` },
   };
   fillPlaceCard(R);
 }
@@ -1737,6 +1859,21 @@ function wireEvents(host, R) {
     // phone: the 河 / 湖 / 地下 place switch
     const pl = tg && tg.closest('.flow-places [data-place]');
     if (pl) { e.preventDefault(); R.place = pl.dataset.place; R.cpop.hidden = true; closeValvePopover(); syncView(R); return; }
+    // 「还有 n 层没显示」 hint = the 「显示全部」 button (app.js owns the toggle and the stored state)
+    if (tg && tg.closest('.flow-lhint')) { e.preventDefault(); const t = document.getElementById('layers-toggle'); if (t) t.click(); return; }
+    // phone place card: 「更多」 opens the rest of the card (the drawing gives up the height it needs)
+    const fm = tg && tg.closest('.flow-place-card .fpc-more');
+    if (fm) {
+      e.preventDefault();
+      const on = !R.placeCard.classList.contains('open'), l = R.placeCard.querySelector('.fpc-l');
+      R.placeCard.classList.toggle('open', on); if (l) l.hidden = !on;
+      fm.textContent = on ? '收起' : '更多'; fm.setAttribute('aria-expanded', String(on));
+      return;
+    }
+    // desktop toolbar: 「说明」 drops the caption lines down over the drawing; a tap anywhere else closes them
+    const ftm = tg && tg.closest('.flow-tools .ft-more');
+    if (ftm) { e.preventDefault(); const on = !R.tools.classList.contains('open'); R.tools.classList.toggle('open', on); ftm.setAttribute('aria-expanded', String(on)); return; }
+    if (R.tools.classList.contains('open') && !(tg && tg.closest('.flow-v3cap'))) { R.tools.classList.remove('open'); R.tools.querySelector('.ft-more').setAttribute('aria-expanded', 'false'); }
     // FX reactor (desktop band): tap a pipe = the reactor popover with the five forces; tap outside / ✕ closes it
     const fxp = R.bd && R.bd.fxPop;
     if (fxp && tg) {
@@ -1802,7 +1939,7 @@ function wireEvents(host, R) {
   });
   host.addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.valve[data-valve]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); R.cpop.hidden = true; }
+    if (e.key === 'Escape') { closeValvePopover(); R.legend.hidden = true; closeBudget(); R.cpop.hidden = true; R.tools.classList.remove('open'); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-bd="pill"]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape' && R.bd) { R.bd.pop.hidden = true; R.bd.fxPop.hidden = true; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.flow-svg [data-fxr-pipe]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }

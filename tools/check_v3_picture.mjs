@@ -10,6 +10,10 @@
 //     no horizontal scroll; the panel grip is still there
 //  5. the valCapex caption (「历史模式里关着：…」) is visible in history mode (desktop line; phone: the 湖 card and a tap on the chip)
 //  6. no JS errors
+//  v3.1 polish: the 曲线 / 显示全部 buttons cover no diagram box or label (1024, 1440; they sit in the toolbar row above the drawing);
+//     the drawing is >= 90% of its column at 1440; the caption lines wait behind 「说明」; phone: the selected place's drawing is
+//     >= 55% of the height between the place switch and the panel grip, the card is 1–2 lines + 「更多」; the item-3 chips
+//     (利息 / 抵押品 / 转移 / 利润 / 订单) overlap no box, label or chip, and 利息 is off the deep-pump shaft
 // --shots writes tools/shots/v31/*.png: US 2008Q4 and 2015Q1 at 390x844 (each place), 1024x768, 1440x900, and the real mode at 1024x768.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -69,6 +73,32 @@ const GEO = `(()=>{
 })()`;
 const SNAP = `(()=>{ const s = window.__mw.snap(), L = s.cycles && s.cycles.long; const iou = s.iou && s.iou.bankTotal != null ? s.iou.bankTotal : ((s.debt && s.debt.household) || 0) + ((s.debt && s.debt.firm) || 0);
   return JSON.stringify({ date: s.date, fork: L ? L.fork : null, stage: L ? L.stage : null, debt: iou / s.macro.gdpNominal }); })()`;
+// v3.1 polish probes (screen px). BOXES = every visible diagram box (nodes, tanks, the 测流断面 frame, weir, ruler slot) and label (svg text).
+const VIS = `const vis = n => { if (!n) return false; for (let x = n; x && x.tagName !== 'svg'; x = x.parentNode) { const s = getComputedStyle(x); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; } const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const R = n => n.getBoundingClientRect(); const hit = (a, b, t = 0.5) => a.left < b.right - t && b.left < a.right - t && a.top < b.bottom - t && b.top < a.bottom - t;`;
+const TOGGLES = `(()=>{ ${VIS}
+  const svg = document.querySelector('#diagram .flow-svg');
+  const btns = [...document.querySelectorAll('#diagram > .view-toggle, #diagram > .layers-toggle')].filter(b => !b.hidden && b.getClientRects().length);
+  const boxes = [...svg.querySelectorAll('rect.node, rect.frame, .weir-box, .ruler-box, text, g.chip > rect.bg, .valve')].filter(vis);
+  const bad = [];
+  for (const b of btns) for (const n of boxes) if (hit(R(b), R(n))) bad.push(b.id + ' x ' + (n.getAttribute('data-node') || n.textContent.trim().slice(0, 12) || n.getAttribute('class')));
+  return JSON.stringify({ n: btns.length, names: btns.map(b => b.id), bad: bad.slice(0, 8) });
+})()`;
+const WIDTH = `(()=>{ const svg = document.querySelector('#diagram .flow-svg'), col = document.querySelector('#diagram'), vb = svg.viewBox.baseVal, m = svg.getScreenCTM();
+  return JSON.stringify({ drawn: m.a * vb.width, col: col.getBoundingClientRect().width }); })()`;
+const CHIPS = `(()=>{ ${VIS}
+  const svg = document.querySelector('#diagram .flow-svg'), q = s => svg.querySelector(s);
+  const others = [...svg.querySelectorAll('rect.node, rect.frame, .weir-box, .ruler-box, text:not(.chip text), g.chip > rect.bg')].filter(vis);
+  const bad = [];
+  for (const k of ['interestPaid', 'collateral', 'transfers', 'profits', 'govPurchases']) {
+    const c = q('g.chip[data-pipe="' + k + '"]'); if (!vis(c)) { bad.push(k + ' chip not shown'); continue; }
+    const bg = c.querySelector('rect.bg'), r = R(bg);
+    for (const n of others) if (n !== bg && !c.contains(n) && hit(r, R(n), 1)) bad.push(k + ' x ' + (n.getAttribute('data-node') || (n.closest('g.chip') && n.closest('g.chip').dataset.pipe + ' chip') || n.textContent.trim().slice(0, 10) || n.getAttribute('class')));
+  }
+  const shaft = q('[data-pipe="fiscalInjection"] path.bed');
+  if (shaft && hit(R(q('g.chip[data-pipe="interestPaid"] rect.bg')), R(shaft), 1)) bad.push('interestPaid x the deep-pump shaft');
+  return JSON.stringify({ bad });
+})()`;
 const inBox = (p, b, pad = 3) => p[0] >= b.x - pad && p[0] <= b.x + b.w + pad && p[1] >= b.y - pad && p[1] <= b.y + b.h + pad;
 
 try {
@@ -97,7 +127,15 @@ try {
       ok(G.rb && G.rb.w >= 26 && G.rb.h >= 110, `RULER SLOT reserved box ${G.rb && G.rb.w}x${G.rb && G.rb.h} (viewBox units)`);
       ok(G.db && G.db.in, 'the 吸力 knob sits inside the RULER SLOT box');
       ok(G.rb && G.cash && Math.abs(G.rb.x + G.rb.w - G.cash.x) < 10 && G.rb.y <= G.cash.y + 5 && G.rb.y + G.rb.h >= G.cash.b - 5, 'the slot stands beside the cash lake / central bank, as tall as the lake row');
-      ok(await ev(`(()=>{const t=document.querySelector('.flow-v3cap .v3-vc'); return !!t && t.getClientRects().length > 0 && /历史模式里关着：模型的股价比真实早两年见顶，接上会更不稳；沙盒里是开的/.test(t.textContent)})()`), 'history mode: the valCapex caption line is visible');
+      // v3.1 polish: the caption lines sit behind 「说明」 in the toolbar row (a drop-down over the drawing)
+      ok(await ev(`(()=>{const t=document.querySelector('.flow-v3cap .v3-vc'); return !!t && !t.hidden && t.getClientRects().length === 0})()`), 'history mode: the valCapex caption waits behind 「说明」 (not taking height)');
+      await ev(`document.querySelector('.flow-tools .ft-more').click()`); await sleep(250);
+      ok(await ev(`(()=>{const t=document.querySelector('.flow-v3cap .v3-vc'); return !!t && t.getClientRects().length > 0 && /历史模式里关着：模型的股价比真实早两年见顶，接上会更不稳；沙盒里是开的/.test(t.textContent)})()`), 'history mode: 「说明」 shows the valCapex caption line');
+      await ev(`document.querySelector('.flow-tools .ft-more').click()`); await sleep(200);
+      const C = JSON.parse(await ev(CHIPS));
+      ok(!C.bad.length, `item-3 chips (利息 / 抵押品 / 转移 / 利润 / 订单) overlap no box, label or other chip; 利息 is off the shaft${C.bad.length ? ': ' + C.bad.join(' | ') : ''}`);
+      const B = JSON.parse(await ev(TOGGLES));
+      ok(B.n >= 1 && !B.bad.length, `1024x768: the toggle buttons (${B.names.join(', ')}) cover no diagram box or label${B.bad.length ? ': ' + B.bad.join(' | ') : ''}`);
       ok(await ev(`(()=>{const c=document.querySelector('.flow-svg g.chip[data-pipe="valCapex"]'); return !!c && /股价·关/.test(c.textContent) && c.classList.contains('shut')})()`), 'history mode: the valCapex chip reads 股价·关 (grey)');
       await shot('desk-1024-2008Q4');
     }
@@ -110,6 +148,10 @@ try {
   await go('?pause=1&layers=all&debug=1&t=55');
   let G = JSON.parse(await ev(GEO));
   ok(G.rpx && G.rpx[0] >= 38 && G.rpx[1] >= 150, `1440x900: RULER SLOT on screen ${G.rpx && G.rpx.map(v => v.toFixed(0)).join('x')} px (room for a ~40x160 gauge)`);
+  { const B = JSON.parse(await ev(TOGGLES));
+    ok(B.n >= 1 && !B.bad.length, `1440x900: the toggle buttons (${B.names.join(', ')}) cover no diagram box or label${B.bad.length ? ': ' + B.bad.join(' | ') : ''}`);
+    const W = JSON.parse(await ev(WIDTH));
+    ok(W.drawn >= 0.9 * W.col, `1440x900: the drawing is ${W.drawn.toFixed(0)} px wide in a ${W.col.toFixed(0)} px column (${(100 * W.drawn / W.col).toFixed(0)}% >= 90%)`); }
   await shot('desk-1440-2008Q4');
   await go('?pause=1&layers=all&debug=1&t=80'); await shot('desk-1440-2015Q1');
 
@@ -126,7 +168,9 @@ try {
     await go(`?pause=1&layers=all&debug=1&t=${T[date]}`);
     const sw = JSON.parse(await ev(`JSON.stringify([...document.querySelectorAll('.flow-places [data-place]')].map(b => [b.dataset.place, b.textContent.trim(), b.getAttribute('aria-pressed')]))`));
     ok(sw.length === 3 && sw.map(x => x[1]).join(' ') === '河 湖 地下' && sw[0][2] === 'true', `${date} phone: place switch 河 / 湖 / 地下, default 河 (${JSON.stringify(sw)})`);
-    for (const [place, sel] of [['river', 'rect.frame[data-part~="channel"]'], ['lake', 'rect[data-node="poolEquity"]'], ['ground', '[data-lk="groundwater"] .gw-band']]) {
+    // (v3.1 polish: each place is scaled up and cropped, drag sideways for the rest; the ground band is wider than the crop, so its
+    //  own drawing = the 地下的洞 line)
+    for (const [place, sel] of [['river', 'rect.frame[data-part~="channel"]'], ['lake', 'rect[data-node="poolEquity"]'], ['ground', '[data-lk="groundwater"] .gw-hole']]) {
       await ev(`document.querySelector('.flow-places [data-place="${place}"]').click()`); await sleep(500);
       const r = JSON.parse(await ev(`(()=>{
         const svg = document.querySelector('#diagram .flow-svg'), s = svg.getBoundingClientRect(), w = document.querySelector('.flow-wrap');
@@ -134,8 +178,13 @@ try {
         const knob = svg.querySelector('[data-ruler-slot] .sk-dial');
         const rr = n => { const r = n.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
         return JSON.stringify({ place: w.dataset.place, main: vis(svg.querySelector(${JSON.stringify(sel)})), knob: vis(knob), kr: rr(knob), svg: rr(svg), vb: svg.getAttribute('viewBox'),
-          pressed: document.querySelector('.flow-places [data-place="${place}"]').getAttribute('aria-pressed'), card: (document.querySelector('.flow-place-card') || {}).textContent || '', hs: document.documentElement.scrollWidth <= innerWidth });
+          pressed: document.querySelector('.flow-places [data-place="${place}"]').getAttribute('aria-pressed'), card: (document.querySelector('.flow-place-card') || {}).textContent || '', hs: document.documentElement.scrollWidth <= innerWidth,
+          drawnH: (() => { const m = svg.getScreenCTM(), vb = svg.viewBox.baseVal; return m.d * vb.height; })(),
+          room: document.querySelector('#panel-grip').getBoundingClientRect().top - document.querySelector('.flow-places').getBoundingClientRect().bottom,
+          cardH: Math.round(document.querySelector('.flow-place-card').getBoundingClientRect().height), more: !!document.querySelector('.flow-place-card .fpc-more') });
       })()`));
+      ok(r.drawnH >= 0.55 * r.room, `${date} phone ${place}: the drawing is ${r.drawnH.toFixed(0)} px tall, ${(100 * r.drawnH / r.room).toFixed(0)}% of the ${r.room.toFixed(0)} px between the place switch and the panel grip (>= 55%)`);
+      ok(r.cardH <= 60 && r.more, `${date} phone ${place}: the card is short (${r.cardH} px, 1–2 lines) with 「更多」`);
       ok(r.place === place && r.pressed === 'true', `${date} phone ${place}: switched (${r.place}, viewBox ${r.vb})`);
       ok(r.main, `${date} phone ${place}: the place's own drawing is on screen`);
       ok(r.knob, `${date} phone ${place}: the 吸力 knob stays visible (${r.kr} in svg ${r.svg})`);

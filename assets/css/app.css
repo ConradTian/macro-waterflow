@@ -113,12 +113,14 @@ body[data-layout="simple"]:not(.lesson-on) .tabbar { display: none; }
   /* the row is the screen below the top bar: a tall diagram must not push the panel's bottom bar (tabs / 更多) off screen.
      210px = time bar + progress + 总目标 + 本季看点 (~140) + the water budget bar under the diagram + padding */
   .main { grid-template-rows: minmax(0, 1fr); }
-  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - 210px); }
+  .flow-wrap > .flow-svg { flex: none; max-height: var(--flow-svg-h, calc(100dvh - 210px)); }
   .tab-content { padding: 16px 24px; }
   .timebar { padding-left: 24px; padding-right: 24px; }
   .banner { padding-left: 24px; }
   /* the diagram scales with its column: cap the column so a desktop does not blow it up ~2x; lighter bold at that size */
-  .main { grid-template-columns: minmax(400px, min(46%, 620px)) 1fr; }
+  /* v3.1 polish: and no wider than the drawing at the height it gets (flow.js fitDesk writes --flow-col / --flow-svg-h), so the
+     drawing fills its column instead of floating in white */
+  .main { grid-template-columns: minmax(400px, min(46%, 620px, var(--flow-col, 620px))) 1fr; }
   .flow-svg .chip text { font-weight: 500; }
   .flow-svg .ttl { font-weight: 600; }
   .flow-svg .sub.num { font-weight: 500; }
@@ -198,6 +200,7 @@ button.term:hover { text-decoration-style: solid; }
 .flow-svg .cap.vl { fill: var(--accent); font-weight: 600; }
 .flow-svg .node { fill: var(--surface); stroke: var(--border); stroke-width: 1.2; }
 .flow-svg .node.soft { fill: var(--surface-2); }
+.flow-svg .cover-strip { fill: var(--surface); stroke: none; pointer-events: none; }   /* 转移 passes behind the firm box (v3.1 polish) */
 .flow-svg .node.tank { fill: var(--surface-2); stroke: var(--muted); stroke-opacity: .55; }
 .flow-svg .frame { fill: none; stroke: var(--border); stroke-dasharray: 3 3; }
 .flow-svg .water { fill: var(--water); }
@@ -788,12 +791,44 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
 .flow-svg .v3-suction.neg .sk-dial { stroke: var(--c-drain); }
 .flow-svg .sk-a { fill: var(--muted); font-size: 7.4px; }
 .flow-svg .sk-a.sk-b { fill: var(--text); font-weight: 700; }
-.flow-svg .sub.cbr { font-size: 9.3px; }
+.flow-svg .sub.cbr { font-size: 8.3px; letter-spacing: -.1px; }   /* v3.1 polish: 「政策利率 0.51%」 fits the 央行 box */
 /* 政府深井泵 */
 .flow-svg .fs-new { stroke: var(--c-pump); stroke-width: 1.4; fill: none; }
 .flow-svg .fs-lake { stroke: var(--c-pipe); stroke-width: 1.4; stroke-dasharray: 2.5 2; fill: none; }
 .flow-svg .fs-t { fill: var(--muted); font-size: 7px; }
-.flow-v3cap { flex: none; display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 2px 10px 3px; font-size: 11.5px; color: var(--muted); }
+/* v3.1 polish: the toolbar row above the drawing (desktop / iPad). Left: the mnemonic + 「说明」 (the caption lines drop down from it,
+   over the drawing, no layout shift). Right ~190px: kept empty for the 📈 曲线 / 显示全部 buttons (positioned below), so they cover nothing. */
+.flow-tools { display: none; }
+@media (min-width: 768px) {
+  .flow-tools { flex: none; position: relative; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 192px 4px 2px;
+    font-size: 12px; color: var(--muted); }
+  .flow-tools .ft-mn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
+  .flow-tools .ft-more { flex: none; min-height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .flow-tools .ft-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .flow-tools .ft-more[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .flow-tools.vc-shut .ft-more::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 5px; border-radius: 50%; background: var(--muted); vertical-align: middle; }
+  .flow-tools > .flow-v3cap { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 22; flex-direction: column; gap: 4px;
+    padding: 8px 12px 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
+    font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+  .flow-tools.open > .flow-v3cap { display: flex; }
+  /* the two app.js buttons sit over the right end of the toolbar row (they used to sit over the 政府 box and the border label) */
+  #diagram > .view-toggle { top: 8px; right: 8px; min-height: 32px; }
+  #diagram > .layers-toggle { top: 10px; right: 8px; }
+  #diagram > .view-toggle:not([hidden]) ~ .layers-toggle { top: 10px; right: 92px; }
+}
+/* 「还有 n 层没显示（…）：点「显示全部」」 (flow.js syncLayerHint): desktop = in the toolbar row in place of the mnemonic; phone = a slim
+   row under the place switch. One line, ellipsis. Tap = 显示全部. */
+.flow-lhint { display: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; cursor: pointer;
+  border: 1px dashed var(--accent); border-radius: 14px; background: var(--surface); color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; }
+.flow-lhint[hidden] { display: none !important; }
+@media (min-width: 768px) {
+  .flow-tools > .flow-lhint { display: block; flex: 0 1 auto; min-height: 28px; padding: 0 10px; }
+  .flow-tools.has-hint > .ft-mn { display: none; }
+}
+@media (max-width: 767.98px) {
+  .flow-wrap > .flow-lhint.ph { display: block; flex: none; margin: 1px 8px 3px; min-height: 26px; padding: 0 10px; font-size: 12px; }
+}
 .flow-v3cap .v3-mn { color: var(--text); font-weight: 600; }
 .flow-v3cap .v3-vc[hidden] { display: none; }
 .flow-legend .fl-mn { color: var(--text); }
@@ -811,12 +846,24 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
   .flow-places button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
   .flow-places button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .flow-places .fpl-hint { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-  .flow-wrap.placed > .flow-svg { flex: 0 1 auto; }
-  .flow-wrap.placed > .flow-place-card { display: block; flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 4px 12px 6px; font-size: 13px; line-height: 1.5;
+  /* v3.1 polish: the drawing takes all the height between the switch and the card (flow.js placeBox scales the place up and crops it
+     to this box; drag sideways for the rest, a soft fade marks the side that continues); the card is 1–2 lines + 「更多」 */
+  .flow-wrap.placed > .flow-svg { flex: 1 1 0; min-height: 0; height: auto; touch-action: pan-y; }
+  .flow-wrap.placed.pan-r > .flow-svg { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); mask-image: linear-gradient(to right, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); }
+  .flow-wrap.placed.pan-l > .flow-svg { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); mask-image: linear-gradient(to left, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); }
+  .flow-wrap.placed.pan-l.pan-r > .flow-svg { -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, .3), #000 26px, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); mask-image: linear-gradient(to right, rgba(0, 0, 0, .3), #000 26px, #000 calc(100% - 26px), rgba(0, 0, 0, .3)); }
+  .flow-wrap.placed > .flow-place-card { display: block; flex: none; max-height: 45%; min-height: 0; overflow-y: auto; padding: 4px 12px 5px; font-size: 12.5px; line-height: 1.45;
     color: var(--muted); border-top: 1px dashed var(--border); }
   .flow-place-card b { color: var(--text); }
-  .flow-place-card > b:first-child { display: block; font-size: 13.5px; }
+  .flow-place-card .fpc-s > b:first-child { margin-right: 6px; font-size: 13px; }
   .flow-place-card span { display: block; }
+  .flow-place-card .fpc-s span { display: inline; }
+  .flow-place-card .fpc-l[hidden] { display: none; }
+  .flow-place-card .fpc-more { min-height: 26px; padding: 0 4px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .flow-svg .v3-suction.moved .ruler-box { display: none; }
+  /* panel raised to 75% (panel grip): the drawing keeps what little height is left; the card and the layer hint step aside */
+  body[data-panel="max"]:not(.lesson-on) .flow-wrap.placed > .flow-place-card,
+  body[data-panel="max"]:not(.lesson-on) .flow-wrap > .flow-lhint.ph { display: none !important; }
   .flow-place-card .fpc-vc { margin-top: 3px; color: var(--text); font-size: 12.5px; }
   .flow-place-card:empty { display: none !important; }
   body.lesson-on .flow-places, body.lesson-on .flow-place-card { display: none !important; }
@@ -828,6 +875,10 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
   #diagram:has(> .flow-wrap.placed) > .layers-toggle { top: 6px; right: 6px; }
   #diagram:has(> .flow-wrap.placed) > .view-toggle:not([hidden]) ~ .layers-toggle { top: 6px; right: 96px; }
   #diagram:has(> .flow-wrap.placed) .flow-places button { min-width: 44px; padding: 0 10px; }
+  /* 真实 mode: its tag strip (real-mode.css, 18px) pushes the place row down; the two buttons follow it so they never sit on the tag */
+  body.rm-real #diagram:has(> .flow-wrap.placed) > .view-toggle { top: 22px; }
+  body.rm-real #diagram:has(> .flow-wrap.placed) > .layers-toggle,
+  body.rm-real #diagram:has(> .flow-wrap.placed) > .view-toggle:not([hidden]) ~ .layers-toggle { top: 23px; }
   #diagram:has(> .view-toggle:not([hidden])) .fpl-hint { display: none; }
   /* the ground place: the lake row above the band is only context */
   .flow-wrap[data-place="ground"] .flow-svg [data-part~="pool"], .flow-wrap[data-place="ground"] .flow-svg [data-part~="springs"],
@@ -864,8 +915,14 @@ body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
 .layers-toggle[aria-pressed="true"] i::after { transform: translateX(10px); background: #fff; }
 .layers-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .layers-toggle[hidden], #diagram.wv-on > .layers-toggle, #diagram.ls-pnl-on > .layers-toggle { display: none; }
-#diagram > .view-toggle:not([hidden]) ~ .layers-toggle { top: 50px; }
+@media (max-width: 767.98px) { #diagram > .view-toggle:not([hidden]) ~ .layers-toggle { top: 50px; } }   /* desktop: both in the toolbar row (v3.1 section) */
 .layers-toggle[aria-pressed="true"] { opacity: .92; }
+/* v3.1 polish (discoverability): a labelled pill, not a small switch. Off = accent outline (a tap shows the whole picture);
+   on = filled accent with a ✓. The switch knob (<i>) is no longer drawn. */
+.layers-toggle { min-height: 30px; padding: 0 12px; border: 1.5px solid var(--accent); color: var(--accent); font-size: 12.5px; font-weight: 700; }
+.layers-toggle i { display: none; }
+.layers-toggle[aria-pressed="true"] { background: var(--accent); color: #fff; opacity: 1; }
+.layers-toggle[aria-pressed="true"]::before { content: "✓"; margin-right: 1px; }
 
 /* =====================================================================================================================
    WIDE DESKTOPS. (1) Above 2000px the whole app is capped and centred, so an ultrawide does not scatter it.
@@ -885,7 +942,7 @@ body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
     --app-w: min(100vw, 2000px);
     --top-h: 104px;                       /* time bar 46 + progress row 24 + the shared 总目标 / 本季看点 row 32 + border */
     /* diagram column: the drawing's width at full height (viewBox 390×502 with the border band, + 8px padding each side + border) */
-    --dcol: clamp(480px, calc((100dvh - var(--top-h) - 20px) * 0.777 + 17px), 900px);
+    --dcol: clamp(480px, var(--flow-col, calc((100dvh - var(--top-h) - 56px) * 0.777 + 17px)), 900px);   /* flow.js fitDesk measures it */
     --fb-h: 64px;                         /* the 本季水量 card in the right column */
     --fb-gap: 12px;
   }
@@ -908,7 +965,7 @@ body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
   /* the two columns */
   .main { grid-template-columns: var(--dcol) minmax(0, 1fr); }
   /* at the 900px cap (very tall ultrawides) the box would be taller than the drawing: size it to the drawing so it is not centred in white */
-  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - var(--top-h) - 20px); height: min(calc(100dvh - var(--top-h) - 20px), calc((var(--dcol) - 17px) * 1.287)); }
+  .flow-wrap > .flow-svg, body.rm-real #diagram .flow-wrap > .flow-svg { flex: none; height: auto; max-height: var(--flow-svg-h, calc(100dvh - var(--top-h) - 56px)); }
 
   /* 本季水量: a card at the top of the right column (positioned from #diagram, which is position: relative) */
   .flow-budget { position: absolute; z-index: 5; top: var(--fb-gap); left: calc(100% + 24px); width: calc(var(--app-w) - var(--dcol) - 48px);
