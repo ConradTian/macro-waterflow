@@ -126,7 +126,7 @@ export const EDGES = [
   ['unemployment', 'income', -1, '立刻', { why: '没工资' }],
   ['unemployment', 'transfers', +1, '立刻', { w: 0.3, why: '救济自动增加' }],
   ['unemployment', 'badLoans', +1, '1–2 季', { w: 0.7 }],
-  ['capacity', 'outputGap', -1, '立刻', { w: 0.6, why: '河道变宽，水位相对变低' }],
+  ['capacity', 'outputGap', -1, '立刻', { w: 0.6, why: '断面变宽，水位相对变低' }],
   ['capex', 'goodsChannel', +1, '立刻', { why: '先是需求' }],
   ['capex', 'newLoans', +1, '立刻', { w: 0.6, why: '企业借钱扩产' }],
   ['capex', 'capacity', +1, '2–3 年', { why: '建成才是产能' }],

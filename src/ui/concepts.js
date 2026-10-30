@@ -1,5 +1,5 @@
 // Concept cards: bottom sheet (phone) / side card (wide). CONTRACT §5.
-import { CONCEPTS, KEYWORDS, makeCtx as mkCtx } from '../data/concepts.js';
+import { CONCEPTS, KEYWORDS, MNEMONIC, makeCtx as mkCtx } from '../data/concepts.js';
 import { showConcept, clearConcept, flashConcept, unflashConcept, conceptNote } from './links.js';   // diagram highlight while a card is open
 import { currentSim } from './flow.js';       // the sim that is on screen (US or town), for 'N quarters ago' lookups
 import { chainHtml, highlightTargets, pushBadges, playScript, checkPlan, cachedCheck, runCheckAsync, stepStatus, chipName } from './causal-view.js';   // 传导链 block (pure)
@@ -326,7 +326,8 @@ function draw(keep) {
     `<details class="cc-more"${(moreOpen == null ? !isPhoneNow() : moreOpen) ? ' open' : ''}><summary>更多：受谁影响 · 公式 · 合理性</summary>` +
     links('受谁影响（来自）', c.from, 'from') + links('影响谁（流向）', c.to, 'to') +
     `<div class="cc-row"><span class="cc-k">公式</span><pre class="cc-formula">${esc(L(c.formula))}</pre></div>` +
-    `<div class="cc-row"><span class="cc-k">合理性（谁做什么 → 什么流动 → 什么变化）</span>${logicHtml(L(c.logic))}</div></details>`;
+    `<div class="cc-row"><span class="cc-k">合理性（谁做什么 → 什么流动 → 什么变化）</span>${logicHtml(L(c.logic))}</div></details>` +
+    `<p class="cc-mn" style="margin:10px 0 0;font-size:12px;color:#5b6b7a">口诀：${esc(MNEMONIC)}</p>`;
   try { if (gaugeMod && gaugeMod.wireGauges) gaugeMod.wireGauges(r.querySelector('.cc-body')); } catch (e) { /* ignore */ }
   r.hidden = false;
   r.classList.add('open');

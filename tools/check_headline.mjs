@@ -52,12 +52,12 @@ ok(us.dist[1] + us.dist[2] > 0, 'US: some quarters have 1-2 items');
 // first and second in the list; no B1/B2 as short-cycle names
 {
   const at = d => us.examples.byDate[d] || [];
-  ok(at('2008Q3')[0]?.startsWith('大周期走上 B2 岔路'), `2008Q3: B2 fork headline first (${at('2008Q3')[0]})`);
+  ok(at('2008Q3')[0]?.startsWith('地下水位跌破吸程线'), `2008Q3: B2 fork headline first (${at('2008Q3')[0]})`);
   ok(at('2008Q3')[1]?.startsWith('降息推不动 → 交给大周期'), `2008Q3: 推不动 headline second (${at('2008Q3')[1]})`);
   ok(at('2007Q4').some(x => x.startsWith('小周期 收紧→降息')), `2007Q4: the first Fed cut moves the short dial to 降息 (${at('2007Q4').join(' | ')})`);
   ok(at('2022Q2').some(x => x.startsWith('小周期 过热·物价→收紧')), `2022Q2: the first hike moves the short dial to 收紧 (${at('2022Q2').join(' | ')})`);
   const all = Object.values(us.examples.byDate).flat();
-  ok(all.filter(x => x.startsWith('大周期走上 B2 岔路')).length === 1, 'B2 fork headline fires exactly once in US history');
+  ok(all.filter(x => x.startsWith('地下水位跌破吸程线')).length === 1, 'B2 fork headline fires exactly once in US history');
   ok(all.filter(x => x.startsWith('降息推不动')).length === 1, '推不动 headline fires exactly once in US history');
   ok(!all.some(x => /小周期[^[]*B[12]/.test(x)), 'no B1/B2 in short-cycle headline texts');
   ok(all.some(x => /小周期 [^→]*→过热·(物价|资产)/.test(x) || /小周期 过热·(物价|资产)→/.test(x)), 'short-cycle moves use KEY_LABEL (过热·物价 / 过热·资产)');

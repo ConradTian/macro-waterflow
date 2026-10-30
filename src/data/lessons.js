@@ -399,8 +399,8 @@ export const LESSONS = [
    * ===================================================================================================================== */
   {
     id: 'm1', kind: 'main', label: '第 1 课',
-    title: '水从哪来、到哪去',
-    oneLine: '银行放贷造水，还本把水销毁；水在经济里转圈，从四个出口运出真实的东西（GDP）。总目标：河里一直有水，不泛滥，也不干涸。',
+    title: '钱从哪来、到哪去？',
+    oneLine: '钱是水。银行放贷 = 从未来的收入里抽水，还本 = 回灌；水在河的环上转：我花的 = 你赚的，卖家收到的水过分水堰分成工资、利润、利息、税，工资又回到花钱的人手里。',
     scenario: 'town', delays: false,   // steps 1-2 in the 万元 town (one action at a time), step 3 zooms to the US
     rulesOn: 'all', pace: 1600,
     mode: 'history', available: true,
@@ -408,21 +408,21 @@ export const LESSONS = [
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：银行放贷造出新水，还本把水销毁；水在经济里转圈，最后从四个出口运出真实的东西，这就是 GDP。总目标：让河里一直有足够的水，不泛滥，也不干涸。**',
-          '前两步先在一个只有 5 户人家、1 家银行的小镇里看（钱用「万元」），一次只做一件事；第 3 步把同一张图放大到全美国。',
-          '下面分 5 步：银行放贷造水 → 还本销毁 → 水转圈 → 四个出口 = GDP → 总目标。',
+          '**结论：钱是水。银行放贷 = 抽水（从未来的收入里抽上来），还本 = 回灌（还回去）。抽上来的水在河的环上转：我花的 = 你赚的；卖家收到的水过分水堰，分成工资、利润、利息、税，工资又回到花钱的人手里。总目标：河里一直有够用的水，不溢，也不干。**',
+          '前两步在一个只有 5 户人家、1 家银行的小镇里看（钱用「万元」），一次只做一件事；第 3 步把同一张图放大到全美国。',
+          '下面分 5 步：抽水 → 回灌 → 河的环 → 分水堰 → 总目标。',
         ],
         hl: ['newLoans'], concept: ['M'] },
 
-      { type: 'action', title: '第 1 步：银行放贷造水',
+      { type: 'action', title: '第 1 步：抽水：银行放贷造水',
         text: [
           '小镇里现在一共有 **110 万元**的水（所有人的存款加起来）。',
           '小王想买房，手上只有 10 万元。他去镇银行，借了 **50 万元**。',
         ],
         question: '银行借给小王的 50 万，是从别人的存款里搬来的，还是凭空多出来的？',
         action: { type: 'loan', who: '小王', amount: 50 }, button: '让小王借 50 万',
-        answerHint: ['凭空多出来的。银行不是搬水，而是在小王的账户上直接记一笔新存款，同时记一张欠条：小王欠银行 50。', '所以水和欠条是**一起出现**的。这个泵叫放贷泵：贷款创造新水。'],
-        relation: '这是整张图的起点。水不是白来的，每一份新水都对应一张欠条（图里的欠条箱）。',
+        answerHint: ['凭空多出来的。银行不是搬水，而是在小王的账户上直接记一笔新存款，同时记一张欠条：小王欠银行 50。', '所以水和欠条是**一起出现**的。这叫**抽水**：把小王未来的收入先抽上来，今天就能花。'],
+        relation: '这是整张图的起点。抽上来的水不是白来的：每一份都要用未来的收入还（图里的欠条箱）。',
         metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }, { label: '小王的存款', get: 'town.households.0.deposit', fmt: 'n1' }],
         townClaims: [
           { at: 'before', get: 'money.M', gte: 109.95, lte: 110.05, note: '小镇一开始一共 110 万元' },
@@ -432,15 +432,15 @@ export const LESSONS = [
         ],
         hl: ['newLoans'], concept: ['M', 'newLoans'] },
 
-      { type: 'action', title: '第 2 步：还本把水销毁', show: ['repay'],
+      { type: 'action', title: '第 2 步：回灌：还本把水销毁', show: ['repay'],
         text: [
           '几个月后，小王把其中 **10 万元**还给了银行。',
-          '看图：左边多了一个排水口。',
+          '看图：左边多了一个口，水从这里流回去。',
         ],
         question: '小王还的这 10 万，银行拿去干什么了？水还留在小镇里吗？',
         action: { type: 'repay', who: '小王', amount: 10 }, button: '让小王还 10 万',
-        answerHint: ['不在了。还本的那一刻，这 10 万存款和对应的欠条**一起消失**。', '银行不是把水收进口袋，而是把它销毁。排水口就是销毁水的地方。'],
-        relation: '放贷泵造水，排水口毁水。一进一出：河里的水涨还是退，就看哪边更大。',
+        answerHint: ['不在了。还本的那一刻，这 10 万存款和对应的欠条**一起消失**。', '银行不是把水收进口袋，而是把它还回去了。这叫**回灌**：抽上来的水，还回未来的收入里。'],
+        relation: '抽水造水，回灌毁水。一进一出：河里的水涨还是退，就看哪边更大。',
         metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '欠条箱（万元）', get: 'iou.bankTotal', fmt: 'n1' }],
         townClaims: [
           { at: 'after', get: 'money.M', minus: 'before', gte: -10.05, lte: -9.95, note: '还 10 万：总水量 −10' },
@@ -448,51 +448,55 @@ export const LESSONS = [
         ],
         hl: ['principalRepay'], concept: ['principalRepay'] },
 
-      { type: 'zoom', title: '第 3 步：水转圈（放大到美国）', date: '2015Q1', showAll: true,
-        mark: ['loop'], glow: { pipes: ['toConsumption', 'wages', 'profits'] },
+      { type: 'zoom', title: '第 3 步：河的环：我花的 = 你赚的（放大到美国）', date: '2015Q1', showAll: true,
+        mark: ['loop'], glow: { pipes: ['toConsumption', 'wages', 'profits', 'newLoans', 'principalRepay'] },
         text: [
-          '**同一张图，放大到全美国（2015 年第一季度）。** 5 户人家变成上亿个家庭，万元变成十亿美元；泵、排水口、水管都还是那些。',
-          '看中间那个亮起来的圈：**家庭花钱 → 钱成了企业的收入 → 企业付工资、留利润 → 钱回到家庭 → 再花一次。**',
-          '水不会被花掉，它转圈。这一季，企业付给家庭的工资相当于 GDP 的 {w}（按一年算），企业留下的利润 {p}。',
+          '**同一张图，放大到全美国（2015 年第一季度）。** 5 户人家变成上亿个家庭，万元变成十亿美元；抽水口、回灌口、水管都还是那些。',
+          '看中间那个亮起来的环：**家庭花钱 → 成了企业的收入 → 企业付工资 → 回到家庭 → 再花一次。我花的 = 你赚的。** 水不会被花掉，它转圈。',
+          '花出去的水买走了货，从四个出口运出去：家庭消费 {c}，企业投资 {i}，政府购买 {g}，净出口 {nx}（负数：买外国的比卖给外国的多）。四个加起来就是 **GDP**：一年运出多少真实的东西。',
+          '**真实例子：2005 年的房贷抽水。** 那一年美国每季平均抽水（新贷款）{nl5}，回灌（还本）只有 {rp5}（十亿美元/季）。多抽的水先流到买房的人手里，再在环上转：卖房的、盖房的、装修的，都赚到了。',
         ],
-        vals: [{ key: 'w', get: 'start:gdp.flows.wages', fmt: 'pct0' }, { key: 'p', get: 'start:gdp.flows.profits', fmt: 'pct0' }],
-        claims: [
-          { get: 'start:gdp.flows.wages', gt: 0.5, lt: 0.8, note: '工资是收入循环的大头（GDP 的一半以上）' },
-          { get: 'start:gdp.flows.profits', gt: 0.05, lt: 0.25, note: '利润是小头' },
+        vals: [
+          { key: 'c', get: 'start:out.C', fmt: 'pct0' }, { key: 'i', get: 'start:out.I', fmt: 'pct0' }, { key: 'g', get: 'start:out.G', fmt: 'pct0' }, { key: 'nx', get: 'start:out.NX', fmt: 'pct' },
+          { key: 'nl5', get: 'avg:flows.newLoans', fmt: 'num', from: '2005Q1', until: '2005Q4' }, { key: 'rp5', get: 'avg:flows.principalRepay', fmt: 'num', from: '2005Q1', until: '2005Q4' },
         ],
-        relation: '放贷泵和排水口决定河里有多少水；收入循环决定这些水转得多快。前两步造出来的新水，就在这个圈里一圈圈转。',
-        concept: ['income'] },
-
-      { type: 'reveal', title: '第 4 步：四个出口 = GDP',
-        mark: ['outlets'], glow: { pipes: ['outC', 'outI', 'outG', 'outNX'] },
-        text: [
-          '河道走到尽头，有四个出口：**家庭消费、企业投资、政府购买、净出口**（河道下面亮起来的那一排）。',
-        ],
-        question: '钱转圈不会用掉，那什么被用掉了？四个出口拿走的又是什么？',
-        answerHint: [
-          '用掉的是**货**：吃的、住的、机器、道路。四个出口拿走的货加起来，就是 GDP：一年运出多少真实的东西。',
-          '2015Q1：家庭消费 {c}，企业投资 {i}，政府购买 {g}，净出口 {nx}（负数：买外国的货比卖给外国的多）。四个加起来是 100%。',
-          '企业投资这个出口特别：拿走的是机器和厂房，它们会**变成更宽的河道**，以后能运出更多货。',
-        ],
-        relation: '钱是水，转圈；货是船上的东西，到了出口就卸下来用掉。GDP 量的是卸下来的货，不是河里的水。',
-        vals: [{ key: 'c', get: 'start:out.C', fmt: 'pct0' }, { key: 'i', get: 'start:out.I', fmt: 'pct0' }, { key: 'g', get: 'start:out.G', fmt: 'pct0' }, { key: 'nx', get: 'start:out.NX', fmt: 'pct' }],
         claims: [
           { get: 'start:out.C', gt: 0.6, note: '家庭消费是最大的出口' },
           { get: 'start:out.I', gt: 0.1, note: '企业投资' },
           { get: 'start:out.G', gt: 0.08, note: '政府购买' },
           { get: 'start:out.NX', lt: 0, note: '净出口为负（买外国的多）' },
+          { get: 'avg:flows.newLoans', from: '2005Q1', until: '2005Q4', vs: { get: 'avg:flows.principalRepay', from: '2005Q1', until: '2005Q4' }, gt: 0, note: '2005 年抽水多过回灌' },
         ],
-        hl: ['goodsChannel', 'capex'], concept: ['goodsChannel', 'capex', 'govPurchases'] },
+        relation: '抽水和回灌决定河里有多少水；河的环决定这些水转得多快。',
+        hl: ['newLoans', 'principalRepay', 'goodsChannel'], concept: ['income', 'goodsChannel'] },
+
+      { type: 'reveal', title: '第 4 步：分水堰：卖家收到的水分成几股',
+        mark: ['outlets'], glow: { parts: ['weir'], pipes: ['wages', 'profits'] },
+        text: [
+          '企业卖货收到的水，不是一整股留下。看环上亮起来的那道**分水堰**：水在这里分成几个口。',
+        ],
+        question: '企业收到的钱，分成了哪几股？哪一股最大？',
+        answerHint: [
+          '分成 **工资、利润、利息、税** 几个口。2015Q1：工资相当于 GDP 的 {w}（按一年算），利润 {p}。工资是大头。',
+          '工资口的水回到家庭，家庭再花：环就接上了。利息口流给放贷的人，税口流给政府（第 5 课）。',
+        ],
+        relation: '分水堰是环上的「分账处」：谁拿多少，决定下一圈谁有水花。后面每一课都会回来看它。',
+        vals: [{ key: 'w', get: 'start:gdp.flows.wages', fmt: 'pct0' }, { key: 'p', get: 'start:gdp.flows.profits', fmt: 'pct0' }],
+        claims: [
+          { get: 'start:gdp.flows.wages', gt: 0.5, lt: 0.8, note: '工资是分水堰的大头（GDP 的一半以上）' },
+          { get: 'start:gdp.flows.profits', gt: 0.05, lt: 0.25, note: '利润是小头' },
+        ],
+        concept: ['income'] },
 
       { type: 'reveal', title: '第 5 步：总目标', mark: ['objective'],
         text: [
           '**总目标：长期运出最多的真实东西给人用。** 看屏幕顶上亮起来的「总目标」条：那个数是每人真实消费（1995 年第一季度 = 100），一季一季累计得越多越好。',
-          '总目标有四个扣分项：**泛滥、干涸、溃坝、透支**。第 5 课会把这四盏灯点出来；这一课先讲前两个，正好是一条河的两种坏天气：',
-          '**泛滥**：水太多，漫出河岸，物价涨得太快。现在通胀 {pi}，央行的目标是 2%：不扣分。',
-          '**干涸**：水太少，河道闲着，人和工厂没活干。现在失业率 {u}：也不扣分。',
-          '另外两个，**溃坝**（借来的水冲垮堤坝：金融危机）和**透支**（借得太多，利息吃掉收入），第 4、5 课再讲。',
+          '总目标有四个扣分项：**河溢、河干、湖崩、地下太低**。第 5 课会把这四盏灯点出来；这一课先讲前两个，正好是一条河的两种坏天气：',
+          '**河溢**：水太多，漫出河岸，物价涨得太快。现在物价比一年前涨 {pi}，央行的目标是 2%：不扣分。',
+          '**河干**：水太少，河闲着，人和工厂没活干。现在失业率 {u}：也不扣分。',
+          '另外两个，**湖崩**（借来的水灌大的资产湖垮掉：金融危机）和**地下太低**（抽得太多，利息吃掉收入），第 4、5 课再讲。',
         ],
-        relation: '后面几课都在问同一个问题：什么力量让河道泛滥或干涸？谁能把它拉回来？下一课先分清：出事的时候，是水变了，还是河道变了。',
+        relation: '后面几课都在问同一个问题：什么力量让河溢或河干？谁能把它拉回来？下一课先分清：出事的时候，是水变了，还是河道（测流断面）变了。',
         vals: [
           { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' },
           { key: 'sp', get: 'start:cycles.short.label', fmt: 'str' }, { key: 'lp', get: 'start:cycles.long.label', fmt: 'str' },
@@ -504,7 +508,7 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the town, then the US in 2015Q1
         ending: {
-          q1: '水的问题还是河道的问题？这一课只有水：放贷造水、还本毁水，水转圈，从四个出口运出货。2015Q1 水和河道正好配得上：泛滥、干涸都不扣分。',
+          q1: '水的问题还是河道的问题？这一课只有水：抽水造水、回灌毁水，水在环上转，从四个出口运出货。2015Q1 水和河道正好配得上：河溢、河干都不扣分。',
           q2: '环上哪一步？还没讲环（第 3 课起）。先记一个位置：2015Q1 小周期在「{sp}」，大周期在「{lp}」。',
           q3: '谁赢谁输、钱放哪？这一季还不分输赢：水够、河道也够，大家都有活干。只记一条：新水先流到借钱的人手里（小王的 50 万先去买房）。钱放哪，第 8 课讲。',
         },
@@ -514,16 +518,16 @@ export const LESSONS = [
 
   {
     id: 'm2', kind: 'main', label: '第 3 课',
-    title: '一个会自己转的圈',
-    oneLine: '房价涨 → 抵押品值钱 → 银行放水 → 更多人借钱买房 → 房价再涨。央行加息能刹住它，可要等大约两年。',
+    title: '央行怎么让河涨落？',
+    oneLine: '央行手里只有一个旋钮：吸力（实际利率）。拧大：存湖更划算、抽水更贵，河落；拧小，河涨。可房子这个圈（房价涨 → 抵押品值钱 → 银行多抽水 → 房价再涨）会顶着旋钮转，所以加息要等大约两年才见效。',
     rulesOn: 'all',
     startDate: '1997Q1', endDate: '2008Q1', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：房价涨 → 抵押品值钱 → 银行放水 → 更多人借钱买房 → 房价再涨。这个圈自己会转。央行加息能刹住它，但要等大约两年才见效。**',
-          '像一座水库：下游水位越高，上游越敢放水，下游水位就更高。关小总闸以后，水还要流过很长的管子，下游过一阵才感觉到。',
-          '下面分 3 步：抵押品回路 → 央行加息 → 为什么两年才见效。',
+          '**结论：央行让河涨落，靠一个旋钮：吸力（实际利率）。它有两支箭头：存湖划不划算、抽水贵不贵。拧大吸力，水回湖里、少抽水，河落；拧小，河涨。可房子这个圈会顶着旋钮转，加息要等大约两年才见效。**',
+          '人对未来的预期没有单独的零件：它就藏在吸力里（觉得还会加息，抽水就更犹豫）。',
+          '下面分 3 步：抵押品回路 → 拧大吸力 → 为什么两年才见效。',
           '时间：1997Q1 → 2008Q1（真实季度）。',
         ],
         hl: ['bankApproval', 'newLoans', 'assetReservoir'], concept: ['lvr'] },
@@ -531,9 +535,9 @@ export const LESSONS = [
       { type: 'watch', until: '2001Q2', title: '第 1 步：抵押品回路',
         glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
         text: [
-          '看图左边那根虚线「抵押品」：它从房产水池连回银行。',
-          `银行每季看两样东西：房价比一年前涨了多少、坏账多不多。房价涨得快（> ${p1(R('bank_loosen', 'hp'))}），手里的抵押品就值钱；坏账又少（< ${p1(R('bank_loosen', 'bad'))}），银行就放宽审批：审批倍数从 {a0} 开到 {a1}，新贷款（蓝管）跟着变粗。`,
-          `家庭看到房价比一年前涨了 ${p1(R('hh_chase', 'up'))} 以上，也会想「还会涨」，借得更多。两边一起把水抽进房产：这 4 年房价涨了 {hc}。`,
+          '先看图：左边那根虚线「抵押品」，从房子池连回银行的抽水泵。',
+          `银行每季看两样东西：房价比一年前涨了多少、坏账多不多。房价涨得快（> ${p1(R('bank_loosen', 'hp'))}），手里的抵押品就值钱；坏账又少（< ${p1(R('bank_loosen', 'bad'))}），银行就放宽审批：审批倍数从 {a0} 开到 {a1}，抽水管（新贷款，蓝管）跟着变粗。`,
+          `家庭看到房价比一年前涨了 ${p1(R('hh_chase', 'up'))} 以上，也会想「还会涨」，借得更多。两边一起把水抽进房子池：这 4 年房价涨了 {hc}。`,
           '圈在转，代价也在攒：家庭还本付息占收入的比例（DSR）从 {d0} 升到 {d1}。',
         ],
         vals: [
@@ -553,10 +557,10 @@ export const LESSONS = [
         ],
         hl: ['bankApproval', 'newLoans', 'assetReservoir'], concept: ['lvr', 'bankApproval', 'dsr'] },
 
-      { type: 'watch', from: '2004Q2', until: '2006Q2', title: '第 2 步：央行加息',
+      { type: 'watch', from: '2004Q2', until: '2006Q2', title: '第 2 步：拧大吸力：央行加息', glow: { parts: ['suction', 'centralBank'] },
         text: [
-          '跳到 2004 年年中。通胀抬头，央行连续加息，把总闸一格一格拧紧。',
-          '先变的是**新贷款**的利率。可大部分家庭背的是旧房贷，要等到重定价那天，利率才跟着上去。',
+          '**真实例子：2004–06 年加息。** 跳到 2004 年年中。物价抬头，央行连续加息，把吸力旋钮一格一格拧大：存湖更划算，抽水更贵。',
+          '先变贵的是**新抽的水**（新贷款）。可大部分家庭背的是旧房贷，要等到重定价那天，利率才跟着上去。',
           '看这两年：政策利率涨了 {pol}，家庭实付的平均房贷利率却几乎没动（变化 {eff}）；房价还涨了 {hc}。',
         ],
         vals: [{ key: 'pol', get: 'dpp:rates.policy', fmt: 'pp' }, { key: 'eff', get: 'dpp:rates.mortgageEff', fmt: 'pp' }, { key: 'hc', get: 'chg:assets.housing.price', fmt: 'chg' }],
@@ -583,7 +587,7 @@ export const LESSONS = [
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢攒起来的。等 DSR 升到够高、房价比一年前转弱，银行才收闸。',
           '从 2004 年年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价 {fall}（从高点算最大回撤 {dd}）。头半年只跌了 {h6}，之后一季比一季跌得多：是慢慢滑下去，不是一夜暴跌。',
-          '加息像在长长的水管里加了一道阻力，水要过一阵才到下游。下一课：圈倒着转的时候，降息还推得动吗？',
+          '拧大吸力像在长长的水管里加了一道阻力，水要过一阵才到下游。下一课：圈倒着转的时候，把吸力拧小（降息）还推得动吗？',
         ],
         claims: [
           { get: 'argmax:assets.housing.price', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' },
@@ -594,7 +598,7 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US housing loop 1997–2008
         ending: {
-          q1: '水的问题还是河道的问题？水的问题：借来的水灌进房产水库（房价涨 → 抵押品值钱 → 银行放水 → 房价再涨），河道没变。',
+          q1: '水的问题还是河道的问题？水的问题：抽上来的水灌进房子池（房价涨 → 抵押品值钱 → 银行多抽水 → 房价再涨），河道没变。',
           q2: '环上哪一步？小周期：{tt} 进「收紧（加息）」，{va} 认出这是「资产过热」的顶，到 2008Q1 已经是「{sl}」。',
           q3: '谁赢谁输、钱放哪？早买房、早借钱的人赢；在顶部（{pk} 前后）借钱接盘的人输。加息一年多、房价还在涨的时候，别再加码房子（判断）。',
         },
@@ -604,15 +608,15 @@ export const LESSONS = [
 
   {
     id: 'm3', kind: 'main', label: '第 4 课',
-    title: '两个环怎么接上',
-    oneLine: '降息之后，信贷回不回来？2001 年回来了（推得动），2008 年没回来（推不动）。差别在于泡沫里的资产是不是借钱买的。推不动，就交给大周期：B2 → ⑤。',
+    title: '为什么有时降息也没用？',
+    oneLine: '每抽一次水，地下水位就降一点。水位还在吸程线上面，把吸力拧小（降息）就抽得上来（B1，推得动）；跌破吸程线，降息也抽不上来（B2）。美国 2008 跌破了，澳洲 2008 没有。',
     rulesOn: 'all',
     startDate: '2000Q1', endDate: '2009Q2', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论', tab: 'cycle', view: 'flow',
         text: [
-          '**结论：小周期的最后一步是一个问题：降息推得动吗？2001 年推得动，信贷回来了；2008 年推不动。差别在于：泡沫里的资产是不是借钱买的。推不动，就交给大周期：B2 缩水 → ⑤ 私人去杠杆。**',
-          '像一条河上的两道调度：小周期是每年的汛期调度（加息关水，降息放水），大周期是水库本身。水库自己被抽干的时候，闸怎么开都没用。',
+          '**结论：抽水抽的是未来的收入（地下水）。每一轮小周期多抽一点、少回灌一点，地下水位就一年年往下掉。水位还在吸程线上面，降息就抽得上来（推得动）；地下水位跌破吸程线，降息也抽不上来：这就是 B2。**',
+          '像井里的泵：小周期是每年开泵、关泵；大周期是地下水位本身。水位跌到泵够不着的深度，开关怎么拧都没用。',
           '下面分 4 步：2001 和 2008 并排看 → 差别在哪 → 负资产不等于 B2 → 推不动之后。',
           '每一步看两个地方：「周期」页的两个圆环，和左边切到「曲线」的走势图。',
         ],
@@ -649,17 +653,19 @@ export const LESSONS = [
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
 
-      { type: 'reveal', title: '第 2 步：差别在哪：是不是借钱买的', view: 'flow', tab: 'cycle',
-        glow: { parts: ['bank', 'poolHousing', 'household'], pipes: ['collateral'] },
+      { type: 'reveal', title: '第 2 步：差别在哪：地下水位和吸程线', view: 'flow', tab: 'cycle',
+        glow: { parts: ['groundwater', 'liftLine', 'bank', 'poolHousing'], pipes: ['collateral'] },
         text: [
-          '降息只改**价格**；银行放不放贷，看的是**抵押品**（第 3 课那根虚线）。两次降息，差别就在抵押品上。',
+          '先看图：家庭和银行下面亮起一条**地下水**带。上面那条线是**地下水位**：欠的越多，水位越低。下面那条虚线是**吸程线**：水位跌到线下，泵就够不着了。',
+          '降息只把吸力拧小，改的是抽水的**价格**；泵抽不抽得上来，看的是地下水位和**抵押品**（第 3 课那根虚线）。',
+          '**真实例子：美国 2008 vs 澳洲 2008。** 两国同一年降息，美国的地下水位跌破了吸程线（B2），澳洲没有（第 3 步的表）。先看美国自己 2001 和 2008 差在哪。',
         ],
         question: '同样降息，为什么 2001 年信贷回来了，2008 年没回来？',
         answerHint: [
           '**2001 年**：泡沫在股票，买股票的多半是自己的钱，跌了亏的是投资人自己。银行手里的抵押品（房子）没动：房价比一年前还在涨（{h1}），审批倍数开在 {a1}。降息一来，水龙头和闸门都开着，信贷就回来了。',
-          '**2008 年**：泡沫在房子，房子是借钱买的。房价掉了（{h2}），抵押品缩水，第 3 课那个圈倒着转：银行把审批倍数关到 {a2}。降息打开了水龙头，闸门却关着，水进不来。',
+          '**2008 年**：泡沫在房子，房子是借钱买的，地下水位早已一路往下掉。房价掉了（{h2}），抵押品缩水，第 3 课那个圈倒着转：银行把审批倍数关到 {a2}。吸力拧小了，泵却够不着水：**地下水位跌破吸程线，抽不上来**。',
         ],
-        relation: '降息推不推得动，看银行的闸门开不开；闸门开不开，看抵押品。这就是 B2：房价在跌、债高、降了息信贷还在缩。',
+        relation: '降息推不推得动，看地下水位在不在吸程线上面。图上的读数只来自 B2 的证据：偿债（DSR）比起点高多少、三年里私人债务/GDP 涨了多少、房价、降了息信贷还在缩；负资产和银行受伤是加分项。B2 = 地下水位跌破吸程线：抽不上来。',
         vals: [
           { key: 'h1', get: 'at:2001Q4:extra.houseYoY', fmt: 'pct', from: '2000Q1', until: '2012Q4' }, { key: 'a1', get: 'at:2001Q4:bank.approval', fmt: 'x2', from: '2000Q1', until: '2012Q4' },
           { key: 'h2', get: 'at:2008Q4:extra.houseYoY', fmt: 'pct', from: '2000Q1', until: '2012Q4' }, { key: 'a2', get: 'at:2008Q4:bank.approval', fmt: 'x2', from: '2000Q1', until: '2012Q4' },
@@ -681,19 +687,19 @@ export const LESSONS = [
         ],
         question: '这四次，哪几次走上了 B2？差在哪？',
         answerHint: [
-          '**美国 2008、日本 1990 走上了 B2。** 借钱买的资产大跌，负资产很多，坏账吃掉银行的资本，银行只能收紧，降息也推不动。',
+          '**美国 2008、日本 1990 走上了 B2：地下水位跌破吸程线，抽不上来。** 借钱买的资产大跌，负资产很多，坏账吃掉银行的资本，银行只能收紧，降息也推不动。',
           '**英国 1990 年代初没有。** 负资产很多，但银行伤得不重；英国央行 1990 年底开始降息，1992 年退出欧洲汇率机制后降得更快；英国房贷多是浮动利率，房贷利率跟着降，推得动。**澳洲 2008 也没有。** 房价只小跌，负资产少，银行没伤；澳洲央行降息很快传到房贷，推得动。',
         ],
         relation: '负资产是 B2 的燃料，不是 B2 本身：负资产要多、并且伤到银行，降息才会推不动。',
         hl: ['bankApproval', 'newLoans', 'policyRate'], concept: ['B2', 'lvr', 'badLoans'] },
 
-      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 4 步：推不动 → B2 → ⑤', view: 'flow', tab: 'cycle',
-        glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
+      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 4 步：推不动之后：B2 → ⑤', view: 'flow', tab: 'cycle',
+        glow: { parts: ['groundwater', 'liftLine', 'bank'], pipes: ['principalRepay', 'newLoans'] },
         text: [
           '回到 2007 年，把推不动的那一次慢慢放一遍。',
-          '{e2}，央行第一次降息，小周期走到「降息（推得动吗？）」。{pd} 起三件事同时成立：房价比一年前在跌、债务堆高了、降了息信贷还在缩，大周期先标「B2 待确认」。连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2 缩水**，圆环判成「推不动」。',
-          '银行把闸门关小（审批倍数 {ap}）：新贷款只有 {nl}，还本还有 {rep}（十亿美元/季），排水口在净抽水。',
-          '{s5}，大周期盘进 **⑤ 私人去杠杆**：私人不借了，只顾还债。下一课：谁来补水？',
+          '{e2}，央行第一次降息，小周期走到「降息（推得动吗？）」。{pd} 起三件事同时成立：房价比一年前在跌、债务堆高了、降了息信贷还在缩，大周期先标「B2 待确认」。连续 3 季都成立，{fk}，大周期在 ② 之后的岔路口确认走上 **B2：地下水位跌破吸程线，抽不上来**，圆环判成「推不动」。',
+          '银行把抽水泵关小（审批倍数 {ap}）：抽水（新贷款）只有 {nl}，回灌（还本）还有 {rep}（十亿美元/季）：回灌多过抽水，河里的水在变少。',
+          '{s5}，大周期盘进 **⑤ 私人去杠杆**：私人只回灌、不抽水，河在变干。下一课：私人抽不动了，谁来抽？',
         ],
         vals: [
           { key: 'e2', get: 'when:cycles.short.phase=ease', fmt: 'str' }, { key: 'fk', get: 'when:cycles.long.fork=B2', fmt: 'str' },
@@ -704,7 +710,7 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: 2007Q3 → 2009Q2, the round that could not be pushed
         ending: {
-          q1: '水的问题还是河道的问题？水的问题：抵押品缩水，银行关闸，还本多过放贷，水被毁掉；河道（工厂、人）还在。',
+          q1: '水的问题还是河道的问题？水的问题：地下水位跌破吸程线，银行关泵，回灌多过抽水，水被毁掉；河道（工厂、人）还在。',
           q2: '环上哪一步？小周期走到「降息（推得动吗？）」，推不动；大周期走上 B2，{s5} 进 ⑤ 私人去杠杆。',
           q3: '谁赢谁输、钱放哪？拿长期国债和现金的人赢：这两年国债价格 {bc}；借钱买房的家庭和放贷的银行输：房价 {hc}。B2 里钱放国债和现金，不放房子。',
         },
@@ -729,23 +735,24 @@ export const LESSONS = [
 
   {
     id: 'm4', kind: 'main', label: '第 5 课',
-    title: '政府接手和实际利率',
-    oneLine: '私人不借了，政府和央行接手补水（⑥）；再把利率压在通胀下面，债务不用还也会一年年变轻（⑦）；私人和政府的账都修好，才走出这一圈（⑧）。',
+    title: '私人抽不动了，谁来抽？',
+    oneLine: '私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。再把吸力拧到负（实际利率 < 0），河长得比债快，政府的坑不再变深（⑦）。',
     rulesOn: 'all', pace: 800,
     startDate: '2008Q3', endDate: '2025Q4', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：私人不借了，只有政府和央行能补水（⑥）。补完水，央行把利率压在通胀下面：实际利率为负，债务不用还，也会一年年变轻（⑦）。私人和政府的账都修好了，才算走出这一圈（⑧）。**',
-          '**实际利率 = 政策利率 − 通胀。** 图上央行框里「政策利率」旁边的「实际」就是它：扣掉涨价以后，借钱真正的价格。它才是真正的总闸。',
-          '下面分 5 步：⑥ 政府补水 → QE 把水引到资产池 → 实际利率为负，债务变轻（⑦）→ 化债四个出口，谁被砍 → ⑧ 出圈。',
+          '**结论：私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。补完水，把吸力拧到负（实际利率 < 0）：河长得比债快，债不用还也一年年变轻（⑦）。私人和政府的账都修好了，才算走出这一圈（⑧）。**',
+          '吸力旋钮的读数就是**实际利率 = 政策利率 − 物价比一年前涨多少**：扣掉涨价以后，抽水真正的价格。',
+          '下面分 5 步：⑥ 政府深井泵补水 → QE 只灌湖 → 吸力为负，债务变轻（⑦）→ 化债四个出口，谁被砍 → ⑧ 出圈。',
           '时间：2008Q3 → 2025Q4（真实季度）。',
         ],
         hl: ['fiscalInjection', 'qe', 'realRate'], concept: ['fiscalInjection', 'qe', 'realRate'] },
 
-      { type: 'reveal', until: '2009Q4', title: '第 1 步：⑥ 政府补水',
+      { type: 'reveal', until: '2009Q4', title: '第 1 步：⑥ 政府深井泵补水',
         text: [
-          '私人退潮：新贷款少于还本，央行把利率降到接近 0 也没用（上一课）。这时政府出手：花得比收得多，赤字一年相当于 GDP 的 {def}。其中一部分是**新水**（财政注入，紫管）。',
+          '**真实例子：2009–14 年。** 私人退潮：抽水少于回灌，央行把利率降到接近 0 也抽不上来（上一课）。这时政府开**深井泵**：花得比收得多，赤字一年相当于 GDP 的 {def}。',
+          '看图：深井泵出来两股水。假设一半由银行和央行买国债（新抽的水），一半由存款人买（从湖里挪过来）。',
           '新水分两路流出去：**订单**流向企业（采购、修路），**转移支付**流向家庭（失业金、退税、补贴）。',
         ],
         question: '政府补水，代价是什么？',
@@ -753,7 +760,7 @@ export const LESSONS = [
           '代价是政府的债：补的水来自赤字，政府债务/GDP 从 {d0} 升到 {d1}。失业越高，失业金越多，这一部分是自动加码的。',
           '补水接住了往下掉的经济；{s6}，大周期盘进入 **⑥ 政府接手**。',
         ],
-        relation: '政府是第二个泵（第 1 课：泵造水）。私人那个泵缩小了，这个泵变大。',
+        relation: '政府是第二台泵，抽得更深（用全国未来的税）。私人那台泵抽不上来，这台泵接上。',
         vals: [
           { key: 'def', get: 'avg:gov.deficit/macro.gdpNominal', fmt: 'pct0' },
           { key: 'd0', get: 'start:gov.debtGdp', fmt: 'pct0' }, { key: 'd1', get: 'end:gov.debtGdp', fmt: 'pct0' },
@@ -769,29 +776,29 @@ export const LESSONS = [
           { get: 'dpp:gov.debtGdp', gt: 0.02, note: '政府债务/GDP 上升' },
           { get: 'when:cycles.long.stage=6', until: '2010Q4', dateBetween: ['2010Q1', '2010Q4'], note: '大周期进 ⑥' },
         ],
-        glow: { pipes: ['govPurchases', 'transfers'], parts: ['government'] },
+        glow: { pipes: ['govPurchases', 'transfers', 'fiscalInjection'], parts: ['government', 'deepPump'] },
         hl: ['fiscalInjection'], concept: ['fiscalInjection', 'govPurchases', 'transfers'] },
 
-      { type: 'reveal', until: '2010Q4', title: '第 2 步：QE 把水引到资产池',
+      { type: 'reveal', until: '2010Q4', title: '第 2 步：QE 只灌湖，不进河',
         text: [
-          `利率已经贴地（≤ ${p1(R('cb_qe', 'floorRate'))}），失业还高（> ${p1(R('cb_qe', 'uOn'))}），通胀也不高。降息这个旋钮拧到头了，央行改拧第二个：**QE**。`,
+          `利率已经贴地（≤ ${p1(R('cb_qe', 'floorRate'))}），失业还高（> ${p1(R('cb_qe', 'uOn'))}），通胀也不高。吸力旋钮拧到头了，央行改开自己的泵：**QE**。`,
           `央行直接买长期国债，规模每年约 GDP 的 ${p0(R('cb_qe', 'sizeGdp'))}。看图：QE 的管亮了，总水量往上走。`,
         ],
         question: '央行买的是长期国债，为什么房价、股价也会被托起来？',
         answerHint: [
-          '央行付的是新水：卖债的人账户里多了存款。这些水要找地方去，大部分流进了资产池。',
-          '所以 QE 先托起的是**资产价格**（国债最先，然后股票、房产），不是商品河道：国债价格 {bc}，股价 {ec}。',
+          '央行的泵只往湖里灌：卖债的人账户里多了存款，这些水留在湖里找地方去，流进了资产池。',
+          '所以 QE 先托起的是**湖**（国债最先，然后股票、房子），不是河：国债价格 {bc}，股价 {ec}。',
         ],
-        relation: '三个泵里，QE 是央行的。它不经过银行的闸门，所以银行不放贷的时候也能补水。',
+        relation: '三台泵：银行的抽水泵进河，政府的深井泵进河，央行的泵只进湖。QE 不经过银行，所以银行不抽水的时候也能托住湖。',
         vals: [{ key: 'bc', get: 'chg:assets.bond.price', fmt: 'chg' }, { key: 'ec', get: 'chg:assets.equity.price', fmt: 'chg' }],
         metrics: [{ label: 'QE（十亿美元/季）', get: 'flows.qe', fmt: 'num' }, { label: '总水量 M', get: 'money.M', fmt: 'tn' }, { label: '国债价格指数', get: 'assets.bond.price', fmt: 'idx' }, { label: '股价指数', get: 'assets.equity.price', fmt: 'idx' }],
         claims: [{ get: 'sum:flows.qe', gt: 100, note: 'QE 在买' }, { get: 'dpp:money.M', gt: 0, note: '总水量上升' }, { get: 'chg:assets.bond.price', gt: 0, note: '国债价格上升' }, { get: 'chg:assets.equity.price', gt: 0, note: '股价上升' }],
         glow: { pipes: ['qe'], parts: ['centralBank', 'pool'] },
         hl: ['qe', 'assetReservoir'], concept: ['qe', 'assetReservoir'] },
 
-      { type: 'predict', from: '2013Q1', until: '2017Q1', title: '第 3 步：实际利率为负，债务自己变轻（⑦）', tab: 'cycle',
+      { type: 'predict', from: '2013Q1', until: '2017Q1', title: '第 3 步：吸力为负，债务自己变轻（⑦）', tab: 'cycle',
         glow: { parts: ['centralBank', 'government'] },
-        q: '跳到 2013Q1：政策利率 {pol}，通胀 {pi}，实际利率 {rr}，是负的。政府没有还债，每年还在借（赤字），债务本身还在涨。到 2017Q1，政府债务占 GDP 的比例会？',
+        q: '跳到 2013Q1：政策利率 {pol}，物价比一年前涨 {pi}，吸力（实际利率）{rr}，是负的。政府没有还债，每年还在借（赤字），债务本身还在涨。到 2017Q1，政府债务占 GDP 的比例会？',
         options: [
           { t: '更高：债还在涨', ok: false, when: [{ get: 'dpp:gov.debtGdp', gt: 0.01 }] },
           { t: '差不多', ok: false, when: [{ get: 'dpp:gov.debtGdp', gte: -0.01, lte: 0.01 }] },
@@ -860,7 +867,7 @@ export const LESSONS = [
           '**还没有，大周期还停在 {l}。** 四个条件已经满足：DSR 比起点低 {e0}，坏账率 {e1}，实际利率 {e2}，政府利息/税收 {e4}。',
           '只差一条：政府债务/GDP 三年里又升了 {e3}（要求不超过 1 个点）。2020 年疫情和 2023–25 年的赤字，又灌了一轮水：2019 年底到 2021 年底，政府债务/GDP 升了 {c20}。',
         ],
-        relation: '⑥ 补的水要靠 ⑦ 慢慢化掉；一边化一边又灌，就出不了圈。下一课出国境：汇率这道闸，被什么推着走。',
+        relation: '⑥ 补的水要靠 ⑦ 慢慢化掉；一边化一边又灌（2021–23 年疫情后又开了一轮深井泵），就出不了圈。下一课出国境：水过闸，被什么推着走。',
         vals: [
           { key: 'l', get: 'start:cycles.long.label', fmt: 'str' },
           { key: 'e0', get: 'start:cycles.long.evidence.0.value', fmt: 'ppa' }, { key: 'e1', get: 'start:cycles.long.evidence.1.value', fmt: 'pct' },
@@ -884,7 +891,7 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US 2008–2025, ⑥ → ⑦, still in ⑦
         ending: {
-          q1: '水的问题还是河道的问题？水的问题：私人停水，政府和央行补水（⑥），再用负的实际利率慢慢化债（⑦）；河道没坏。',
+          q1: '水的问题还是河道的问题？水的问题：私人抽不上来，政府深井泵补河、央行泵灌湖（⑥），再用负的吸力慢慢化债（⑦）；河道没坏。',
           q2: '环上哪一步？⑥ → ⑦；2025 年底还停在 {l}：出圈只差「政府债务/GDP 不再升」这一条。',
           q3: '谁赢谁输、钱放哪？欠债的人（政府）赢，存钱的人输：实际利率为负，存款每年实际亏一点。⑦ 里少放现金和长期国债，多放股票和实物（判断）。',
         },
@@ -894,24 +901,24 @@ export const LESSONS = [
 
   {
     id: 'm5', kind: 'main', label: '第 7 课',
-    title: '同一个季度，八个视角',
-    oneLine: '停在 2008Q3（雷曼倒闭那一季），依次打开 8 张角色卡：每个角色看到什么、想要什么、做了什么。每个人都做了对自己合理的事，加起来，四盏扣分灯全亮。',
+    title: '同一季，每个人拧哪个阀？',
+    oneLine: '停在 2008Q3（雷曼倒闭那一季）：每个角色 = 他手里的阀。央行拧吸力和 QE 泵，银行拧抽水泵，家庭拧存多少、借多少，企业拧 Capex，政府拧深井泵，投资者挪湖里的水，外国人过闸。每个人拧得都合理，加起来四盏扣分灯全亮。',
     rulesOn: 'all',
     startDate: '2008Q3', endDate: '2008Q3', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：同一个季度，八个角色看的是同一条河，却各自只盯着自己那一段。每个人都做了对自己合理的事；加在一起，总目标的四盏扣分灯全亮了。**',
-          '我们停在 2008Q3（雷曼兄弟倒闭那一季），时间不走。每一步打开一张角色卡：想要什么 / 盯着什么 / 能拧什么 / 常犯的错；再看它这一季看到了什么、做了什么。',
+          '**结论：每个角色 = 他手里的阀。同一季，八个角色看的是同一条河，却各自只拧自己那几个阀。每个人都拧得合理；加在一起，总目标的四盏扣分灯全亮了。**',
+          '我们停在 2008Q3（雷曼兄弟倒闭那一季），时间不走。每一步打开一张角色卡，图上亮起他的阀：他盯着什么、拧了哪个阀、拧完的冲突。',
           '下面分 8 步：央行 → 银行 → 家庭 → 企业 → 政府 → 投资者 → 外国人 → 整个经济。',
         ],
         concept: ['longCycle'] },
 
-      { type: 'reveal', title: '第 1 步：央行', roleCard: 'centralBank', glow: { parts: ['centralBank'] },
+      { type: 'reveal', title: '第 1 步：央行', roleCard: 'centralBank', glow: { parts: ['centralBank', 'suction'], pipes: ['qe'] },
         text: [
-          '**看到**：通胀 {pi}，失业率 {u}（模型里比真实的 {ur} 偏高），信贷在缩。',
-          '**做了**：照真实联储路径继续降息：政策利率从上一季的 {p0} 降到 {p1}。实际利率（政策利率 − 通胀）已经是 {rr}。',
-          '**冲突**：降息只改水的价格。下一张卡的银行把闸门关着，便宜的水也流不进去：这就是「降息推不动」。',
+          '**阀**：吸力旋钮（政策利率）+ QE 泵。**盯着**：断面水位（物价比一年前涨 {pi}）和河空了多少（失业率 {u}，模型里比真实的 {ur} 偏高），信贷在缩。',
+          '**拧了**：照真实联储路径把吸力拧小：政策利率从上一季的 {p0} 降到 {p1}。吸力（实际利率）已经是 {rr}。',
+          '**冲突**：拧小吸力只改抽水的价格。下一张卡的银行把抽水泵关着，便宜的水也抽不上来：这就是「降息推不动」。',
         ],
         vals: [
           { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'ur', get: 'real:start:unemployment', fmt: 'pct' },
@@ -926,10 +933,11 @@ export const LESSONS = [
         ],
         hl: ['policyRate', 'realRate'], concept: ['policyRate', 'realRate'] },
 
-      { type: 'reveal', title: '第 2 步：银行', roleCard: 'bank', glow: { parts: ['bank'], pipes: ['collateral', 'newLoans'] },
+      { type: 'reveal', title: '第 2 步：银行', roleCard: 'bank', glow: { parts: ['bank', 'groundwater'], pipes: ['collateral', 'newLoans'] },
         text: [
+          '**阀**：抽水泵（审批倍数 + 首付线 LVR）。**盯着**：地下水位和房子池。',
           `**看到**：房价比一年前 {hy}，坏账率 {bad}（规则线 ${p1(R('bank_tighten_losses', 'bad'))}）。抵押品在缩水，坏账在涨。`,
-          '**做了**：触发「坏账多 → 收紧审批」：审批倍数从 {a0} 关到 {a1}。新贷款只有 {nl}，还本有 {rep}（十亿美元/季）：放出去的水比收回来的少。',
+          '**拧了**：触发「坏账多 → 收紧审批」：审批倍数从 {a0} 关到 {a1}。抽水（新贷款）只有 {nl}，回灌（还本）有 {rep}（十亿美元/季）：抽上来的比回灌的少。',
           '**冲突**：对一家银行，少借是自保；所有银行一起收，整条河就被抽干（角色卡上的常犯的错：萧条时一起收）。',
         ],
         vals: [
@@ -946,11 +954,12 @@ export const LESSONS = [
         ledgerAt: [{ player: 'bank', ruleId: 'bank_tighten_losses' }],
         hl: ['bankApproval', 'newLoans'], concept: ['bankApproval', 'badLoans', 'lvr'] },
 
-      { type: 'reveal', title: '第 3 步：家庭', roleCard: 'household', glow: { parts: ['household'], pipes: ['principalRepay'] },
+      { type: 'reveal', title: '第 3 步：家庭', roleCard: 'household', glow: { parts: ['household'], pipes: ['principalRepay', 'wages'] },
         text: [
+          '**阀**：存多少（储蓄率）+ 借多少（借款需求）。**盯着**：工资口和自己欠的坑。',
           '**看到**：工作在丢（失业率 {u}），房价在跌，每月还本付息占收入的 {dsr}。',
-          '**做了**：触发「债务悬压」：房价从高点跌了一截，房子撑不住房贷了，于是少借、多存。借款需求打了折（×{bm}），储蓄率多存 {sa}。',
-          '**冲突**：一家人省钱是对的；大家一起省，商店的生意就少了，别人的工资也少了。你花的钱，就是别人的收入（第 1 课的收入循环）。',
+          '**拧了**：触发「债务悬压」：房价从高点跌了一截，房子撑不住房贷了，于是借款阀关小（×{bm}），储蓄阀开大（多存 {sa}）。',
+          '**冲突**：一家人省钱是对的；大家一起省，商店的生意就少了，别人的工资也少了。我花的 = 你赚的（第 1 课河的环）。',
         ],
         vals: [
           { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'dsr', get: 'start:household.dsr', fmt: 'pct' },
@@ -967,8 +976,8 @@ export const LESSONS = [
 
       { type: 'reveal', title: '第 4 步：企业', roleCard: 'firm', glow: { parts: ['firm', 'capex'], pipes: ['toCapex', 'outI'] },
         text: [
-          '**看到**：订单不够：需求比产能少 {gap}。',
-          '**做了**：削减 Capex：房价一转头（2006 年下半年）就开始削，一年后削到规则的下限（×{cm}），这一季还停在那里。企业投资这个出口（第 1 课）只占 GDP 的 {oi}。',
+          '**阀**：Capex（把断面拓宽）。**盯着**：订单和吸力。**看到**：订单不够：需求比产能少 {gap}。',
+          '**拧了**：把 Capex 阀关小：房价一转头（2006 年下半年）就开始削，一年后削到规则的下限（×{cm}），这一季还停在那里。企业投资这个出口（第 1 课）只占 GDP 的 {oi}。',
           '**冲突**：角色卡上的错是「繁荣时一起扩产」；萧条时正好反过来，大家一起停投：今天的订单更少，几年后河道也窄了。',
         ],
         vals: [{ key: 'gap', get: 'start:macro.demandPressure', fmt: 'apct1' }, { key: 'cm', get: 'start:extra.capexMult', fmt: 'n2' }, { key: 'oi', get: 'start:out.I', fmt: 'pct0' }],
@@ -982,10 +991,11 @@ export const LESSONS = [
         ledgerAt: [{ player: 'firm', ruleId: 'firm_capex_cut', date: '2007Q3' }],
         hl: ['capex', 'capacity'], concept: ['capex', 'outputGap'] },
 
-      { type: 'reveal', title: '第 5 步：政府', roleCard: 'government', glow: { parts: ['government'], pipes: ['fiscalInjection'] },
+      { type: 'reveal', title: '第 5 步：政府', roleCard: 'government', glow: { parts: ['government', 'deepPump'], pipes: ['fiscalInjection', 'taxes'] },
         text: [
+          '**阀**：深井泵（财政注入）+ 分水堰上的税口。**盯着**：失业和自己的坑。',
           '**看到**：失业率 {u}，工作在丢；政府付的利息占税收的 {it}。',
-          '**做了**：历史模式里，政府照**真实的美国赤字**走（外生数据，和央行照真实利率走一样）。这一季真实赤字是 GDP 的 {r1}，比上一季的 {r0} 小一点：2008 年春的退税支票发完了。模型里的赤字（再加上失业带来的自动加码）是 GDP 的 {def}。',
+          '**拧了**：历史模式里，政府照**真实的美国赤字**走（外生数据，和央行照真实利率走一样）。这一季真实赤字是 GDP 的 {r1}，比上一季的 {r0} 小一点：2008 年春的退税支票发完了。模型里的赤字（再加上失业带来的自动加码）是 GDP 的 {def}。',
           '**接下来**：美国随后大幅加码：10 月 TARP 救银行，2009 年 2 月 ARRA 刺激法案。到 2009Q2，真实赤字到了 GDP 的 {r9}，债务一路往上走（第 5 课的 ⑥ 补水）。',
           '**冲突**：角色卡上的「刺激收太早」，真实例子是**日本 1997**：经济刚有起色，就把消费税从 3% 提到 5%，随后掉回衰退。美国这一季赤字小一点，只是退税发完了；下一季就反过来加码，没有犯这个错。',
         ],
@@ -1006,8 +1016,9 @@ export const LESSONS = [
 
       { type: 'reveal', title: '第 6 步：投资者', roleCard: 'investor', glow: { parts: ['cash', 'poolBond'], pipes: ['toCash', 'toBond'] },
         text: [
+          '**阀**：湖里的水放哪个池（现金湖、国债、股票、房子）。',
           '**看到**：股价一年跌了 {ey}，风险溢价 {rp}，信贷在缩。',
-          '**做了**：触发「避险」：新增的钱里 {c} 留在现金；进金融资产的那一小份里，{b} 买了国债（飞向安全）。',
+          '**拧了**：触发「避险」：新增的钱里 {c} 留在现金湖；进金融资产的那一小份里，{b} 买了国债（飞向安全）。',
           '**冲突**：对自己是保命；大家一起逃，房价、股价跌得更深，银行的抵押品更不值钱（常犯的错：追涨杀跌，放大波动）。',
         ],
         vals: [
@@ -1024,10 +1035,11 @@ export const LESSONS = [
         ledgerAt: [{ player: 'investor', ruleId: 'inv_riskoff' }],
         hl: ['assetReservoir'], concept: ['riskPremium', 'bondAsset', 'cashAsset'] },
 
-      { type: 'reveal', title: '第 7 步：外国人', roleCard: 'foreign', glow: { pipes: ['foreignBonds', 'imports', 'exports'] },
+      { type: 'reveal', title: '第 7 步：外国人', roleCard: 'foreign', glow: { parts: ['gate'], pipes: ['foreignBonds', 'imports', 'exports'] },
         text: [
+          '**阀**：闸（水过境换颜色，闸价 = 汇率）。',
           '**看到**：美国政府的赤字已经是 GDP 的 {def}，通胀 {pi}。',
-          `**做了**：两件事。一，触发「要求更高的期限溢价」：借钱给美国政府，要多收 ${(R('foreign_funding', 'add') * 100).toFixed(1)} 个点，长期国债利率被抬到 {g10}。二，照样在买：这一季外国人买了 {fb}（十亿美元）美国国债。`,
+          `**拧了**：两件事。一，触发「要求更高的期限溢价」：借钱给美国政府，要多收 ${(R('foreign_funding', 'add') * 100).toFixed(1)} 个点，长期国债利率被抬到 {g10}。二，照样在买：这一季外国人买了 {fb}（十亿美元）美国国债。`,
           '**冲突**：外国人要的是收益和安全。世界一慌，钱反而先往美元里逃；可要是哪天不再信美国，就会一起撤（常犯的错）。',
         ],
         vals: [
@@ -1083,9 +1095,9 @@ export const LESSONS = [
 
       { type: 'reveal', title: '第 8 步：整个经济', roleCard: 'economy', mark: ['objective'],
         text: [
-          '**四盏扣分灯全亮**（看屏幕顶上的总目标条）：',
-          '**泛滥** {lf}：通胀 {pi}，高过 2% 的目标。**干涸** {ld}：失业率 {u}，远高于正常。**溃坝** {lb}：大周期走上了 B2 岔路，借来的水把堤坝冲开了。**透支** {lo}：家庭偿债和政府利息都太重。',
-          '七个角色，每一个都做了对自己合理的事：央行降息，银行自保，家庭省钱，企业停投，政府退税发完、赤字小了一点，投资者逃向现金和国债，外国人要更高的利息。加在一起，整条河既在干涸、又在溃坝。',
+          '**阀**：没有阀，只看结果：每人真实消费 + 四盏扣分灯。**四盏全亮**（看屏幕顶上的总目标条）：',
+          '**河溢** {lf}：物价比一年前涨 {pi}，高过 2% 的目标。**河干** {ld}：失业率 {u}，远高于正常。**湖崩** {lb}：地下水位跌破吸程线（B2），借来的水灌大的湖垮了。**地下太低** {lo}：家庭偿债和政府利息都太重。',
+          '七个角色，每一个都把自己的阀拧得合理：央行拧小吸力，银行关抽水泵，家庭多存少借，企业关 Capex，政府深井泵小了一点（退税发完），投资者把水挪进现金湖和国债，外国人在闸上要更高的利息。加在一起，河在变干，湖也在崩。',
           '这就是为什么要有「整个经济」这张卡：只有站在整条河上看，才看得见每个角色各自看不见的东西。',
         ],
         vals: [
@@ -1108,7 +1120,7 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US in 2008Q3 (雷曼那一季)
         ending: {
-          q1: '水的问题还是河道的问题？水的问题：银行收闸、家庭省钱、投资者逃进现金，水被抽走；河道（工厂、人）都还在。',
+          q1: '水的问题还是河道的问题？水的问题：银行关抽水泵、家庭多存、投资者逃进现金湖，河里的水被抽走；河道（工厂、人）都还在。',
           q2: '环上哪一步？小周期在「{sl}」，圆环判「推不动」；大周期在 {ll}，已经走上 B2 岔路，下一站 ⑤。',
           q3: '谁赢谁输、钱放哪？拿现金、国债和美元的人赢（外国人也逃进美元，澳元急跌）；背房贷的家庭、银行和股东输：股价一年跌了 {ey}。这一季，钱放现金、国债、美元。',
         },

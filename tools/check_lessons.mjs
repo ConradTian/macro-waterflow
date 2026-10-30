@@ -66,7 +66,9 @@ const warn = (c, m) => { if (!c) { warns++; console.log('  WARN:', m); } };
 
 const flowSrc = readFileSync(new URL('../src/ui/flow.js', import.meta.url), 'utf8');
 const PIPES = [...flowSrc.matchAll(/\{ k: '(\w+)',\s+part:/g)].map(m => m[1]);
-const PARTS = ['bank', 'pool', 'repay', 'household', 'firm', 'channel', 'cash', 'centralBank', 'government', 'capex', 'interest', 'poolHousing', 'poolEquity', 'poolBond', 'poolGold', 'iou', 'springs', 'valves', 'budget', 'ledger', 'cycle', 'assets', 'takeover'];
+const PARTS = ['bank', 'pool', 'repay', 'household', 'firm', 'channel', 'cash', 'centralBank', 'government', 'capex', 'interest', 'poolHousing', 'poolEquity', 'poolBond', 'poolGold', 'iou', 'springs', 'valves', 'budget', 'ledger', 'cycle', 'assets', 'takeover',
+  // DESIGN v3 PART-ID CONTRACT Rule 2: the new picture pieces (drawn by src/ui/flow.js; a missing one simply does not glow)
+  'weir', 'ring', 'groundwater', 'liftLine', 'suction', 'deepPump', 'springWire', 'gate'];
 const FLOW_TERMS = ['realRate', 'policyRate', 'bankApproval', 'newLoans', 'interestPaid', 'principalRepay', 'assetReservoir', 'goodsChannel', 'cpi', 'capacity', 'capex', 'qe', 'fiscalInjection', ...BORDER_TERMS];
 const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
