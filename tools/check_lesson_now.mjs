@@ -64,7 +64,7 @@ ok(LESSON_ORDER.indexOf('now') === LESSON_ORDER.length - 1 && LESSON_ORDER.lengt
     'src/ui/lessons.js: one marked block registers the panel module; the lesson is no longer a 专题 (no TOPIC_LESSONS.push)');
   ok((ui.match(/(\/\/|\/\*) C3 now/g) || []).length === 3 && /isNowPanel\(spec\) \? 'now'/.test(ui) && /kind === 'now'\) return m\.mountNowPanel/.test(ui) && /pnl\.kind === 'now'\) m\.unmountNowPanel/.test(ui),
     'src/ui/lessons.js: the three tagged dispatch lines (panelKind, mountPanel, dropPanel)');
-  ok(/TOPIC_LESSONS = \[LESSON_EXP\]/.test(ui), 'src/ui/lessons.js: TOPIC_LESSONS = [LESSON_EXP] line unchanged (check_lesson_exp reads it)');
+  ok(/TOPIC_LESSONS = \[LESSON_EXP, LESSON_AI_AU\]/.test(ui) && !/LESSON_NOW\]/.test(ui), 'src/ui/lessons.js: TOPIC_LESSONS = [LESSON_EXP, LESSON_AI_AU] (check_lesson_exp reads it; now is not a 专题)');
 }
 
 /* ---------- 2. wording ---------- */

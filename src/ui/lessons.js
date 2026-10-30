@@ -46,7 +46,9 @@ import { replayTown, lessonPositions, tapEffects, applyOne, applyAll, runTry, fm
 // 专题 lessons: outside the 9-lesson main line (not in COURSE / LESSON_ORDER, not counted); menu group 「专题」 after the 4 parts.
 // 「专题：预期」 (src/data/lesson-exp.js) mounts the exp-* panels of src/ui/exp-gauge.js.
 import { LESSON_EXP } from '../data/lesson-exp.js';
-export const TOPIC_LESSONS = [LESSON_EXP];
+// 「专题：AI 抗冲击（澳洲家庭）」 (src/data/lesson-ai-au.js) mounts the ai-* card panels of src/ui/ai-au-panel.js.
+import { LESSON_AI_AU } from '../data/lesson-ai-au.js';
+export const TOPIC_LESSONS = [LESSON_EXP, LESSON_AI_AU];
 
 const P = new URLSearchParams(location.search);
 const KEY = 'mw.lessons.v1';
@@ -455,10 +457,14 @@ const PANEL_MODS = {
 PANEL_MODS.now = () => import('./now-panel.js').then(m => { m.ensureNowCss(); return m; });
 const isNowPanel = spec => /^now-/.test(spec.id);
 // --- end lesson now (C3) ---
+// --- lesson ai-au --- 「专题：AI 抗冲击（澳洲家庭）」: panels 'ai-*' = src/ui/ai-au-panel.js, in the lesson card (the diagram keeps the step's glow).
+PANEL_MODS.aiau = () => import('./ai-au-panel.js').then(m => { m.ensureAiCss(); return m; });
+const isAiPanel = spec => /^ai-/.test(spec.id);
+// --- end lesson ai-au ---
 const panelLib = {};                                        // kind -> loaded module
-const CARD_PANELS = { inv: ['assetTable'] };                // these panels go in the lesson card: their step needs the diagram (pool flashes)
+const CARD_PANELS = { inv: ['assetTable'], aiau: ['ai-k', 'ai-alloc'] };   // these panels go in the lesson card: their step needs the diagram (pool flashes / glow; aiau = lesson ai-au)
 // the module of a panel: by its id first (a lesson may mix kinds: 汇率 = reactor + fx-lab, m5 = one reactor drill), then by the lesson's kind
-const panelKind = (L, spec) => (isNowPanel(spec) ? 'now' /* C3 now */ : spec.id === 'fx-reactor' ? 'fxr' : /^exp-/.test(spec.id) ? 'exp' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
+const panelKind = (L, spec) => (isNowPanel(spec) ? 'now' /* C3 now */ : isAiPanel(spec) ? 'aiau' /* ai-au */ : spec.id === 'fx-reactor' ? 'fxr' : /^exp-/.test(spec.id) ? 'exp' : /^shk-/.test(spec.id) ? 'shocks' : /^fx-/.test(spec.id) ? 'fx'
   : L.kind === 'fx' ? 'fx' : L.kind === 'shocks' ? 'shocks' : 'inv');
 export const panelWhere = (L, spec) => ((CARD_PANELS[panelKind(L, spec)] || []).includes(spec.id) ? 'card' : 'diagram');
 let pnl = null;                                             // the mounted panel: { kind, where, key, host }
@@ -492,6 +498,7 @@ function mountPanel(kind, host, spec) {
     if (kind === 'fxr') return mountReactor(m, host, spec);
     if (kind === 'exp') return m.mountExpPanel(host, spec);
     if (kind === 'now') return m.mountNowPanel(host, spec);   // C3 now
+    if (kind === 'aiau') return m.mountAiPanel(host, spec);   // ai-au
     return m.mountInvestorPanel(host, spec);
   } catch (e) { console.error(e); return null; }
 }
@@ -504,6 +511,7 @@ function dropPanel() {
     else if (pnl.kind === 'fxr') m.unmountFxReactor();
     else if (pnl.kind === 'exp') m.unmountExpPanel();
     else if (pnl.kind === 'now') m.unmountNowPanel();   // C3 now
+    else if (pnl.kind === 'aiau') m.unmountAiPanel();   // ai-au
     else m.unmountInvestorPanel();
   } catch (e) { console.error(e); }
   if (pnl.where === 'diagram') { pnl.host.remove(); document.getElementById('diagram')?.classList.remove('ls-pnl-on'); }

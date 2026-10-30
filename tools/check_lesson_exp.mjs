@@ -76,7 +76,7 @@ ok(!LESSONS.some(l => l.id === 'exp'), 'not in LESSONS (main data list)');
 ok(![...COURSE.main, ...COURSE.legacy, ...COURSE.parts.flatMap(p => p.ids)].map(String).includes('exp'), 'not in COURSE (the 9 lessons / 旧版)');
 ok(!LESSON_ORDER.includes('exp'), 'not in LESSON_ORDER (no layer, not counted)');
 ok(COURSE.main.length === 9, 'main line 9 lessons (L9 now = 现在在哪), exp not among them');
-{ const ui = src('src/ui/lessons.js'); ok(/TOPIC_LESSONS = \[LESSON_EXP\]/.test(ui) && /\.\.\.TOPIC_LESSONS\]/.test(ui) && !/TOPIC_LESSONS\.push\(/.test(ui), 'registered in src/ui/lessons.js (TOPIC_LESSONS = [LESSON_EXP], the only 专题; lookup)'); }
+{ const ui = src('src/ui/lessons.js'); ok(/TOPIC_LESSONS = \[LESSON_EXP, LESSON_AI_AU\]/.test(ui) && /\.\.\.TOPIC_LESSONS\]/.test(ui) && !/TOPIC_LESSONS\.push\(/.test(ui), 'registered in src/ui/lessons.js (TOPIC_LESSONS = [LESSON_EXP, LESSON_AI_AU]: 预期 first, then the AI 专题 (tools/check_lesson_ai_au.mjs); lookup)'); }
 const last = steps[steps.length - 1];
 ok(last.ending && ['水的问题还是河道的问题？', '环上哪一步？', '谁赢谁输、钱放哪？'].every((q, k) => String(last.ending['q' + (k + 1)]).startsWith(q)), 'last step: the 三问 ending');
 ok(arr(last.text).join('').includes('预期看▽'), 'last step: 口诀 「预期看▽」');

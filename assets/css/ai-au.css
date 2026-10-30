@@ -1,0 +1,39 @@
+/* 「专题：AI 抗冲击（澳洲家庭）」 card panels (src/ui/ai-au-panel.js). Tokens only (app.css), light theme. Loaded on demand by ensureAiCss().
+   Phone first: everything fits the lesson card at 320px; the table never scrolls sideways. */
+.aiau { font-size: 13px; margin: 8px 0 4px; padding: 8px 9px 9px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); max-width: 100%; box-sizing: border-box; overflow: hidden; }
+.aiau-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 6px; }
+.aiau-h b { font-size: 14px; }
+.aiau-h small { color: var(--muted); font-size: 11.5px; }
+.aiau-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.aiau-risk { margin: 6px 0 0; padding: 5px 8px; border-radius: 8px; background: var(--surface-2); font-size: 12.5px; }
+
+/* K */
+.aiau svg.aiau-k { width: 100%; height: auto; display: block; max-width: 420px; }
+.aiau-k line { stroke-width: 5; stroke-linecap: round; }
+.aiau-k .k-stem { stroke: var(--muted); }
+.aiau-k .k-up { stroke: var(--c-pump); }
+.aiau-k .k-down { stroke: var(--c-drain); }
+.aiau-k text { font-size: 11px; fill: var(--text); }
+.aiau-k .k-t { font-weight: 700; font-size: 12px; }
+.aiau-k .k-tu { fill: var(--c-pump); }
+.aiau-k .k-td { fill: var(--c-drain); }
+.aiau-k .k-s { fill: var(--muted); }
+
+/* buttons */
+.aiau-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; margin: 4px 0 6px; }
+.aiau-row > span { font-size: 12px; color: var(--muted); }
+.aiau-row > small { font-size: 11px; color: var(--muted); flex-basis: 100%; }
+.aiau-b { font: inherit; font-size: 12.5px; min-height: 32px; padding: 4px 10px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.aiau-b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* table */
+.aiau-t { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.aiau-t th, .aiau-t td { padding: 4px 4px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+.aiau-t thead th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-align: right; }
+.aiau-t tbody th { text-align: left; font-weight: 500; font-size: 12px; width: 52%; }
+.aiau-t td { text-align: right; font-weight: 700; }
+.aiau-t td small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+.aiau-t td.aiau-old { color: var(--muted); font-weight: 500; }
+.aiau-t td.aiau-up { color: var(--c-pump); }
+.aiau-t td.aiau-dn { color: var(--c-drain); }
+.aiau-t .aiau-sum th, .aiau-t .aiau-sum td { border-bottom: 0; }
