@@ -1,5 +1,10 @@
 // 专题 lesson 「专题：预期」 (?lesson=exp; user-approved design 2026-10-30). NOT part of the 8-lesson main line: not in COURSE / LESSON_ORDER,
 // no layer, not counted in the menu's 「8 课」. Registered by src/ui/lessons.js (TOPIC_LESSONS) and listed in the menu under 「专题」.
+// Slimmed 2026-10-30 (user-approved): the BASIC part (the ruler ▶ / ▼ / ▽, the band, 开阀 / 结账, the five places, the loop) moved into
+// lesson L3 (m2, src/data/lessons.js), which mounts the same exp-* panels by id. This 专题 keeps only the advanced part, 7 steps:
+//   0 intro (先学完第 3 课; recap ruler)  1 the rope toy  2 沃尔克 / 日本  3 资产池没有绳  4 汇率上的绳  5 四条规律  6 三问
+// Step index = the `?lesson=exp&step=N` link target: L6 (src/data/lesson-fx.js lessonLink) points at 4 「汇率上的绳」.
+// EXP_FIVE / EXP_HIST stay here (used by the L3 panels and by the 四条规律 / 三问 numbers).
 // Idea: expectations need no new part. They are the LOWER end of 吸力 on one vertical gauge (src/ui/exp-gauge.js):
 //   ▶ = nominal policy rate (rates.policy)   ▽ (hollow) = 大家心里的涨价速度 (macro.inflationExp = S.piE)   ▼ (filled) = 物价比一年前 (macro.inflation)
 //   吸力 = ▶ − ▽ (band: blue = 存湖划算 / 抽水贵, red = the opposite)   调度线 = the target (cp.piTarget); ▽ hangs from it on a rope:
@@ -29,7 +34,7 @@ export const EXP_STORY = {
 // the US model replay the history panels scrub through
 export const EXP_HIST = { from: '2020Q1', until: '2023Q4' };
 
-// step 5a 「吸力一变，哪里跟着动」: each place lights at the first quarter, at or after the band turns blue (▶ − ▽ > 0), where its change vs a
+// panel exp-five 「吸力一变，哪里跟着动」 (now in L3): each place lights at the first quarter, at or after the band turns blue (▶ − ▽ > 0), where its change vs a
 // year ago crosses the threshold. The ORDER is computed from the engine replay (exp-gauge.js fiveTurns), never typed here.
 export const EXP_FIVE = {
   from: '2021Q1', until: '2024Q4',
@@ -41,7 +46,7 @@ export const EXP_FIVE = {
   ],
 };
 
-// step 6 toy: the ▼ paths (push = the 河溢 / oil part added to ▽ in the engine's price equation, per quarter, from..until) and the ropes
+// step 1 toy (panel exp-rope): the ▼ paths (push = the 河溢 / oil part added to ▽ in the engine's price equation, per quarter, from..until) and the ropes
 export const EXP_TOY = {
   quarters: 64,
   paths: [
@@ -56,7 +61,7 @@ export const EXP_TOY = {
   ],
 };
 
-// step 9 toy: an asset pool with no rope. price = 泉眼 ÷ max(floor, 吸力 + 怕 − 涨速); 涨速 chases b × (price vs a year ago) at speed a.
+// step 3 toy (panel exp-pool): an asset pool with no rope. price = 泉眼 ÷ max(floor, 吸力 + 怕 − 涨速); 涨速 chases b × (price vs a year ago) at speed a.
 export const EXP_POOL = { quarters: 24, suction: 0.03, fear: 0.03, jumpAt: 4, jump: 0.05, b: 0.1, a: 0.5, floor: 0.025, ceil: 0.15 };
 
 const Q = d => `${d.slice(0, 4)} 年第${'一二三四'[+d[5] - 1]}季度`;
@@ -67,146 +72,33 @@ const at = (d, path, key, fmt = 'pct') => ({ key, get: `at:${d}:${path}`, fmt, .
 export const LESSON_EXP = {
   id: 'exp', kind: 'topic', label: '专题', badge: '预',
   title: '专题：预期',
-  question: '同样 5% 的利率，为什么感觉不一样？',
-  oneLine: '预期不是新零件，是吸力的下面那一头：吸力 = ▶ − ▽。开阀看 ▽，结账看 ▼；▽ 慢慢追 ▼；只有绳拴得住 ▽。不在 8 课主线里，随时可看。',
+  question: '▽ 什么时候拴得住，拴不住会怎样？',
+  oneLine: '先学完第 3 课。进阶：只有绳拴得住 ▽；绳松了，涨价拖很多年；资产池和浮动汇率没有绳，会冲过头。不在 8 课主线里，随时可看。',
   rulesOn: 'all',
   startDate: '2023Q4', endDate: '2023Q4', mode: 'history', available: true,
   steps: [
-    { type: 'intro', title: '问题：同样 5%，为什么感觉不一样？', panel: { id: 'exp-ruler', stage: 1 },
-      text: [
-        '**同样 5% 的利率，1980 年和 2023 年感觉完全不一样，为什么？结论：5% 要看跟谁比。预期不用新零件，它就是吸力的下面那一头。**',
-        '竖着的这把尺叫**吸力尺**。▶ 是政策利率，央行手里唯一拧得动的数。两边都假设拧在 5%。',
-        '下面分 12 步：▼ → ▽ → 吸力 → 开阀和结账 → 五处跟着动 → 绕一圈 → 绳子 → 两段历史 → 资产池没有绳 → 汇率上的绳 → 四条规律 → 三问。',
-      ],
-      nums: [{ t: '5%', f: D => D.story.hookRate, fmt: 'pct0' }],
-      concept: ['realRate'] },
-
-    { type: 'reveal', title: '第 1 步：加上 ▼：量出来的涨价', panel: { id: 'exp-ruler', stage: 2 },
-      vals: [{ key: 'cpi23', get: 'real:avg:cpiYoY', fmt: 'pct', from: '2022Q4', until: '2023Q4' }],
-      text: [
-        '**结论：▶ 减掉 ▼，才是存钱的人真正到手的。**',
-        '实心 **▼** = 量出来的物价比一年前（实测的画实心，水文的老规矩）。',
-        '1980 年 ▼ 约 13.5%（全年平均）：存 5%，一年后钱能买的东西少了 8 个多点。2023 年 ▼ 约 {cpi23}（全年平均）：存 5% 还多出一点。',
-        '可是借钱、开厂、买房的人，看的不是去年涨了多少，而是**以后**涨多快。这个数还不在尺子上。',
-      ],
-      nums: [
-        { t: '13.5%', f: D => D.story.cpi1980, fmt: 'pct1' }, { t: '5%', f: D => D.story.hookRate, fmt: 'pct0' },
-        { t: '8 个多点', f: D => D.story.cpi1980 - D.story.hookRate, fmt: 'more8' },
-      ],
-      facts: [{ f: D => D.real.avg('cpiYoY', '2023Q1', '2023Q4') < D.story.hookRate, note: '2023 年 ▼（全年平均）低于 5%：存 5% 还多出一点' }],
-      concept: ['cpi'] },
-
-    { type: 'reveal', title: '第 2 步：加上 ▽：心里的涨价速度', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], date: '2022Q1', mich: true },
-      vals: [
-        at('2021Q1', 'macro.inflation', 'm21'), { key: 'mMax', get: 'max:macro.inflation', fmt: 'pct', ...W },
-        at('2021Q1', 'macro.inflationExp', 'e21'), { key: 'eMax', get: 'max:macro.inflationExp', fmt: 'pct', ...W },
-        { key: 'cpiMax', get: 'real:max:cpiYoY', fmt: 'pct', ...W },
-      ],
-      text: [
-        '**结论：空心 ▽ = 大家心里的涨价速度，写进工资和合同的那个数。▼ 冲上去的时候，▽ 几乎不动。**',
-        '图上是模型里的美国，2020–2023 年。拖动下面的滑块，看每一季。',
-        '▼ 从 {m21}（2021 年第一季度）冲到 {mMax}；同一段时间 ▽ 只从 {e21} 挪到 {eMax}。',
-        '▽ 被一根绳拴在**调度线**（目标 2%）上，所以跟得慢。',
-        '淡虚线是真实的家庭调查（密歇根大学，问未来一年）：它也比 ▼ 涨得少，最高约 5.3%；真实的物价比一年前最高 {cpiMax}。',
-      ],
-      nums: [
-        { t: '2%', f: D => D.cp('USA').piTarget, fmt: 'pct0' },
-        { t: '5.3%', f: D => D.mich.max('2020Q1', '2023Q4'), fmt: 'pct1' },
-      ],
-      facts: [
-        { f: D => D.mich.max('2020Q1', '2023Q4') < D.real.max('cpiYoY', '2020Q1', '2023Q4'), note: '家庭调查的最高值低于真实 ▼ 的最高值' },
-        { f: D => { const h = D.hist(); const dm = Math.max(...h.map(r => r.m)) - h.find(r => r.date === '2021Q1').m, de = Math.max(...h.map(r => r.e)) - h.find(r => r.date === '2021Q1').e; return de < dm / 3; }, note: '▽ 的涨幅不到 ▼ 涨幅的三分之一（几乎不动）' },
-      ],
-      concept: ['inflationExp'] },
-
-    { type: 'reveal', title: '第 3 步：吸力 = ▶ − ▽', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], band: 'open', date: '2021Q4', chips: ['2021Q4', '2023Q4'] },
-      vals: [
-        at('2021Q4', 'rates.policy', 'p21'), at('2021Q4', 'macro.inflationExp', 'e21'),
-        at('2023Q4', 'rates.policy', 'p23'), at('2023Q4', 'macro.inflationExp', 'e23'),
-      ],
-      derive: [{ key: 'o21', a: 'p21', b: 'e21', fmt: 'chg1' }, { key: 'o23', a: 'p23', b: 'e23', fmt: 'chg1' }],
-      text: [
-        '**结论：吸力 = ▶ − ▽，画成一条色带。蓝 = 存湖划算、抽水贵；红 = 反过来：存湖不划算、抽水（借钱）便宜。**',
-        '2021 年第四季度：▶ {p21}，▽ {e21}，吸力 {o21}，红的，借钱划算。2023 年第四季度：▶ {p23}，▽ {e23}，吸力 {o23}，蓝的。',
-        '这就是央行那个旋钮的两根箭头：存湖划不划算、抽水贵不贵。',
-        '回到开头的问题。按家庭调查（全年平均），1980 年 ▽ 约 9%：5% 减掉它是负的，红带，借钱划算；2023 年 ▽ 约 4%：5% 减掉它是正的，蓝带。**同样 5%，色带方向相反。**',
-      ],
-      nums: [
-        { t: '9%', f: D => D.mich.avg('1980Q1', '1980Q4'), fmt: 'pct0' }, { t: '4%', f: D => D.mich.avg('2023Q1', '2023Q4'), fmt: 'pct0' },
-        { t: '5%', f: D => D.story.hookRate, fmt: 'pct0' },
-      ],
-      facts: [
-        { f: D => D.row('2021Q4').p - D.row('2021Q4').e < 0 && D.row('2023Q4').p - D.row('2023Q4').e > 0, note: '2021Q4 红，2023Q4 蓝（引擎）' },
-        { f: D => D.hist().filter(r => r.date.startsWith('2021')).every(r => r.p < r.e), note: '2021 年每一季都是红的' },
-        { f: D => D.mich.avg('1980Q1', '1980Q4') > D.story.hookRate && D.mich.avg('2023Q1', '2023Q4') < D.story.hookRate, note: '1980 年 ▽ > 5%（红），2023 年 ▽ < 5%（蓝）' },
-      ],
-      concept: ['realRate'] },
-
-    { type: 'reveal', title: '第 4 步：开阀看 ▽，结账看 ▼', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], band: 'split', date: '2022Q4' },
+    { type: 'intro', title: '问题：▽ 什么时候拴得住？', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], band: 'split', date: '2022Q4' },
       vals: [
         at('2022Q4', 'rates.policy', 'p22'), at('2022Q4', 'macro.inflation', 'm22'), at('2022Q4', 'macro.inflationExp', 'e22'),
         at('2022Q4', 'rates.realPolicy', 'real22', 'chg1'),
       ],
       derive: [{ key: 'open22', a: 'p22', b: 'e22', fmt: 'chg1' }, { key: 'sur22', a: 'm22', b: 'e22', fmt: 'pp' }],
       text: [
-        '**结论：借钱、投资、给资产定价，看 ▶ − ▽（开阀）；存钱的人到手多少、⑦ 和政策灯，看 ▶ − ▼（到手实际利率）。**',
-        '2022 年第四季度（模型）：▶ {p22}，▼ {m22}，▽ {e22}。',
-        '开阀：▶ − ▽ = {open22}，已经蓝了，借钱开始变贵。结账：▶ − ▼ = {real22}，存钱的人还在亏。',
-        '中间差的那一截 ▼ − ▽ = {sur22}，叫**意外**：合同按 ▽ 写，物价按 ▼ 涨。意外让钱从存钱的人那里，悄悄挪到欠债的人那里。',
+        '**先学完第 3 课。**吸力尺（▶ ▼ ▽）、色带、开阀和结账、五处跟着动、绕一圈，都在第 3 课里。这个专题只讲进阶。',
+        '**结论：只有绳拴得住 ▽。绳松了，涨价拖很多年；资产池和浮动汇率没有绳，会冲过头。**',
+        '先复习一眼尺子（模型里的美国，2022 年第四季度）：开阀 ▶ − ▽ = {open22}，色带已经蓝了；结账 ▶ − ▼ = {real22}，存钱的人还在亏；中间那截意外 ▼ − ▽ = {sur22}。',
+        '下面分 6 步：绳子 → 两段历史 → 资产池没有绳 → 汇率上的绳 → 四条规律 → 三问。',
       ],
-      facts: [
-        { f: D => /S\.mortNew - S0\.piE/.test(D.eco) && /S\.firmEff - S0\.piE/.test(D.eco) && /S\.real10y = S\.gov10y - S\.piE/.test(D.eco), note: '引擎：借钱、企业投资、长债实际利率都减 ▽（piE）' },
-        { f: D => /realP: S\.policy - piY/.test(D.eco) && /realPolicy: S\.policy - infl/.test(D.eco), note: '引擎：⑦ / 政策灯（realP）和到手实际利率（realPolicy）都减 ▼' },
-        { f: D => { const r = D.row('2022Q4'); return r.p - r.e > 0 && r.p - r.m < 0 && r.m > r.e; }, note: '2022Q4：开阀蓝、到手红、有意外' },
-      ],
-      concept: ['realRate', 'lampPolicy'] },
+      facts: [{ f: D => { const r = D.row('2022Q4'); return r.p - r.e > 0 && r.p - r.m < 0 && r.m > r.e; }, note: '2022Q4：开阀蓝、到手红、有意外' }],
+      concept: ['inflationExp', 'realRate'] },
 
-    { type: 'reveal', title: '第 5 步：吸力一变，哪里跟着动', panel: { id: 'exp-five', date: '2023Q2' },
-      vals: [
-        { key: 'gdMax', get: 'max:gov.debtGdp', fmt: 'pct', from: '2021Q2', until: '2023Q3' },
-        { key: 'gdMin', get: 'min:gov.debtGdp', fmt: 'pct', from: '2021Q2', until: '2023Q3' },
-      ],
-      text: [
-        '**结论：色带转蓝、变宽以后，五处依次跟着动：先是窄的池子和湖，再是银行泵，最后才轮到河。**',
-        '图上是模型里的美国 2021–2024 年，色带在 2022 年第四季度转蓝。每处「动了」= 比一年前变化超过它下面写的门槛；顺序是模型自己跑出来的。',
-        '模型里的顺序：现金湖、资产池（2023 年第二季度） → 银行泵（2023 年第四季度） → 河断面（2024 年第一季度）。色带转蓝以后，河要等 5 个季度才动。',
-        '**地下的洞：**▼ 比 ▽ 高的那几年，政府欠的钱占 GDP 从 {gdMax} 降到 {gdMin}，没还一分钱，是意外让债变轻了。**⑦ 化债就靠这个意外。**',
-      ],
-      nums: [
-        { t: '2022 年第四季度', f: D => D.five().blue, fmt: 'q' },
-        { t: '现金湖、资产池（2023 年第二季度） → 银行泵（2023 年第四季度） → 河断面（2024 年第一季度）', f: D => D.five().orderText, fmt: 'str' },
-        { t: '5 个季度', f: D => D.five().lag.river, fmt: 'nq' },
-      ],
-      facts: [
-        { f: D => D.hist5().filter(r => r.date >= '2021Q2' && r.date <= '2023Q3').every(r => r.m > r.e), note: '2021Q2–2023Q3 每季 ▼ > ▽（意外为正）' },
-        { f: D => D.five().places.every(p => p.turn && p.turn >= D.five().blue), note: '每处都在色带转蓝之后才动' },
-      ],
-      concept: ['realRate', 'B1'] },
-
-    { type: 'reveal', title: '第 6 步：绕一圈回来 = 短周期', panel: { id: 'exp-loop', date: '2022Q2' },
-      text: [
-        '**结论：▼ → 央行（看 ▼，慢半拍）→ ▶ → 吸力（▶ − ▽）→ 五处 → 河 → ▼。绕一圈，就是一个短周期。▽ 拴在绳上，追着 ▼ 走。**',
-        '拖动滑块看这一圈怎么转（模型里的美国）：2021 年河溢，▼ 上去；2022 年第二季度央行开始加息；2022 年第四季度色带转蓝；2023 年五处依次动，▼ 往下走；2024 年第四季度 ▶ 开始往下拧。',
-        '**绳紧：▽ 不跟涨，▶ 加一点就有吸力；绳松：▽ 跟着涨，▶ 要加很多（沃尔克）。**',
-      ],
-      nums: [
-        { t: '2022 年第二季度', f: D => D.loop().firstHike, fmt: 'q' },
-        { t: '2022 年第四季度', f: D => D.five().blue, fmt: 'q' },
-        { t: '2024 年第四季度', f: D => D.loop().firstCut, fmt: 'q' },
-      ],
-      facts: [
-        { f: D => { const h = D.hist5(); const a = h.find(r => r.date === '2021Q1').m, b = h.find(r => r.date === '2021Q4').m; return b > a + 0.02; }, note: '2021 年 ▼ 上去（2021Q4 比 2021Q1 高 2 个点以上）' },
-        { f: D => { const h = D.hist5().filter(r => r.date.startsWith('2023')); return h.every((r, k) => !k || r.m <= h[k - 1].m + 1e-9 || r.date === '2023Q4'); }, note: '2023 年 ▼ 往下走' },
-        { f: D => D.five().places.filter(p => p.turn && p.turn.startsWith('2023')).length >= 2, note: '2023 年有几处依次动' },
-      ],
-      concept: ['shortCycle'] },
-
-    { type: 'reveal', title: '第 7 步：绳子：只有绳拴得住 ▽', panel: { id: 'exp-rope', path: 'heat', rope: 'USA' },
+    { type: 'reveal', title: '第 1 步：绳子：只有绳拴得住 ▽', panel: { id: 'exp-rope', path: 'heat', rope: 'USA' },
       text: [
         '**结论：▽ 慢慢追 ▼，往下追只用一半的劲；只有绳把它往调度线拉。热得太久，绳会被磨松。**',
         '玩具用的是模型里 ▽ 的同一条规则、同一组数：▽ 每季追上 ▼ 和它差距的 8%；▼ 比一年前超过 3.0%（美国）后，绳开始变松。绳的粗细 = 每季往调度线拉回的力：美国 3.6%，澳洲 10%，约 3 倍。',
         '选一条 ▼ 的路，再选一根绳，看 ▽。**绳拴住 → 一次河溢（B1），小周期就过去；绳松了 → 拖成 ⑦ + B1。**',
         '玩具里 ▽ 也会把 ▼ 往上带（模型里同样的式子：这一季的涨价 = 一半上一季 + 一半（▽ + 河溢的推力））。绳一松，▽ 推 ▼、▼ 再推 ▽：工资和物价互相追，越追越高。',
+        '**绳紧：▽ 不跟涨，▶ 加一点就有吸力；绳松：▽ 跟着涨，▶ 要加很多。**下一步就是绳松了的样子（沃尔克）。',
       ],
       nums: [
         { t: '8%', f: D => D.rule('USA', 'speed'), fmt: 'pct0' },
@@ -223,7 +115,7 @@ export const LESSON_EXP = {
       ],
       concept: ['inflationExp'] },
 
-    { type: 'reveal', title: '第 8 步：两段历史：沃尔克和日本', panel: { id: 'exp-story' },
+    { type: 'reveal', title: '第 2 步：两段历史：沃尔克和日本', panel: { id: 'exp-story' },
       text: [
         '**故事读法，不是模型回放。**数字是大致的历史数。',
         '**沃尔克（美国 1979–1983）：**▽ 到了约 10%（1980 年初，家庭调查）。▶ 要拉到 15–20%，色带才蓝、才把 ▽ 拖回来；到 1983 年 ▽ 回到约 3%。代价是河干：失业率冲到接近 11%（1982 年底）。',
@@ -245,7 +137,7 @@ export const LESSON_EXP = {
       ],
       concept: ['B2'] },
 
-    { type: 'reveal', title: '第 9 步：资产池没有绳', panel: { id: 'exp-pool' },
+    { type: 'reveal', title: '第 3 步：资产池没有绳', panel: { id: 'exp-pool' },
       text: [
         '**结论：资产池也有自己的 ▽：最近涨了多少，就以为还会涨多少。它没有绳，所以两头都会冲过头。**',
         '价格 ≈ 泉眼 ÷（吸力 + 怕 − 涨速）。涨速越爬越高，分母就往 0 挤，价格冲过头；涨速一停，分母弹回来，价格大跌，还会跌过头（明斯基）。',
@@ -256,7 +148,7 @@ export const LESSON_EXP = {
       ],
       concept: ['equityAsset'] },
 
-    { type: 'reveal', title: '第 10 步：汇率上的绳', panel: { id: 'exp-gate', story: 'aud' },
+    { type: 'reveal', title: '第 4 步：汇率上的绳', panel: { id: 'exp-gate', story: 'aud' },
       text: [
         '**结论：闸上也有一把吸力尺。▶差 = 两边的利率差；▽汇 = 大家心里以为汇率会变多少。真正推资本的是：利差 − 预期贬值。**',
         '钉住汇率 = **有绳**：▽汇 被拴在官方价上，绳的粗细 = 外汇储备 + 信誉。绳一断，▽汇 一下子跳过去，货币就崩。',
@@ -280,7 +172,7 @@ export const LESSON_EXP = {
       ],
       concept: ['fx'] },
 
-    { type: 'reveal', title: '第 11 步：背后只有四条规律', panel: { id: 'exp-laws' },
+    { type: 'reveal', title: '第 5 步：背后只有四条规律', panel: { id: 'exp-laws' },
       text: [
         '**结论：整张图背后只有四条水文规律：水量平衡、按势差流动、一阶滞后、带延迟的反馈。只有一件事水不会做：预判。**',
         '表在图上。最后一行是唯一不像水的地方：放水公告一出，水不会提前动，人会。这一课的 ▽ 只记得过去，所以没有模拟央行喊话。',
@@ -293,7 +185,7 @@ export const LESSON_EXP = {
       facts: [{ f: D => D.fxSpec.from === 1973 && D.fxSpec.to === 2020, note: 'R² 的样本：1973–2020（FX_SPEC，和第 6 课同一组数）' }],
       concept: ['fx', 'realRate'] },
 
-    { type: 'reveal', title: '第 12 步：三问', panel: { id: 'exp-sum', date: '2022Q4' },
+    { type: 'reveal', title: '第 6 步：三问', panel: { id: 'exp-sum', date: '2022Q4' },
       vals: [at('2022Q4', 'rates.realPolicy', 'real22', 'chg1')],
       text: [
         '**结论：预期不是新零件，是吸力的下面那一头。三条规则：开阀看 ▽，结账看 ▼；▽ 慢慢追 ▼；只有绳拴得住 ▽。**',

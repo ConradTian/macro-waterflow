@@ -8,7 +8,7 @@
 import { currentSim } from './flow.js';
 import { flash, clearFlash } from './links.js';
 import { LONG_LABEL } from '../engine/regimes.js';
-import { ASSET_COLS, ASSET_ROWS, JPN_JST, JPN_SIGNALS, TOY } from '../data/lesson-investor.js';
+import { ASSET_COLS, ASSET_ROWS, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../data/lesson-investor.js';
 import { lakeHtml, lakeAct, ensureLakeCss } from './asset-lake.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -280,13 +280,13 @@ function rrChart(m) {
     return `<path class="ln ${S.cls}" d="${pathOf(pts)}"/>`;
   }).join('') + endLabels(RR_SERIES.map(S => ({ name: S.short || S.name, y: yc(toy[S.k](TOY.rMax)) })), W - pad.r + 6);
   const dots = RR_SERIES.map(S => `<circle class="dot ${S.cls}" cx="${xs(r)}" cy="${yc(toy[S.k](r))}" r="5"/>`).join('');
-  const snap = snapOf(m), now = snap?.rates?.realPolicy;
+  const snap = snapOf(m), now = nowRate(snap);   // 开阀 = 10 年期 − ▽ (lesson-investor.js TOY)
   const nowMark = ok(now) && now >= TOY.rMin && now <= TOY.rMax
     ? `<line class="nowl" x1="${xs(now)}" x2="${xs(now)}" y1="${pad.t}" y2="${H - pad.b}"/><text class="ax" x="${xs(now) - 4}" y="${H - pad.b - 6}" text-anchor="end">现在 ${esc(snap.date || '')}</text>` : '';
-  return `<svg class="ivl-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="实际利率与三种资产（玩具公式，实际利率 1% 时 = 100）">
+  return `<svg class="ivl-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(TOY.rateName)}与三种资产（玩具公式，开阀 1% 时 = 100）">
     <line class="zr" x1="${xs(0)}" x2="${xs(0)}" y1="${pad.t}" y2="${H - pad.b}"/>${grid}${xt}${nowMark}
     <line class="cross" x1="${xs(r)}" x2="${xs(r)}" y1="${pad.t}" y2="${H - pad.b}"/>${lines}${dots}
-    <text class="ax" x="${(pad.l + W - pad.r) / 2}" y="${H - 4}" text-anchor="middle">实际利率</text>
+    <text class="ax" x="${(pad.l + W - pad.r) / 2}" y="${H - 4}" text-anchor="middle">${esc(TOY.rateShort)}</text>
     <rect class="hit" x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" data-x0="${pad.l}" data-x1="${W - pad.r}"/></svg>`;
 }
 function rrRead(m) {
@@ -296,17 +296,18 @@ function rrRead(m) {
     row(RR_SERIES[0], toy.bond(r)) + row(RR_SERIES[1], toy.gold(r)) + row(RR_SERIES[2], toy.equity(r), `市盈率 ${pe.toFixed(0)} 倍`) + '</table>';
 }
 function rrHtml(m) {
-  const snap = snapOf(m), now = snap?.rates?.realPolicy;
+  const snap = snapOf(m), now = nowRate(snap);
   const nowBtn = ok(now) ? `<button type="button" class="ivl-chip" data-act="now">跳到现在：${esc(snap.date || '')} ${pct(now)}</button>` : '';
-  return `<div class="ivl-head"><b>实际利率 = 水的价格</b><span class="ivl-toy">玩具公式</span></div>
-    <div class="ivl-ctl"><label for="ivl-rr">实际利率 <b class="ivl-val">${pct(m.st.r, 2)}</b></label>
+  return `<div class="ivl-head"><b>吸力 = 水的价格：${esc(TOY.rateName)}</b><span class="ivl-toy">玩具公式</span></div>
+    <div class="ivl-ctl"><label for="ivl-rr">开阀 <b class="ivl-val">${pct(m.st.r, 2)}</b></label>
       <input id="ivl-rr" type="range" data-in="r" min="${TOY.rMin}" max="${TOY.rMax}" step="0.0025" value="${m.st.r}">
       <div class="ivl-range"><span>${MINUS}2%</span><span>${nowBtn}</span><span>+5%</span></div></div>
     <div class="ivl-chart" data-chart="rr">${rrChart(m)}</div><div class="ivl-read">${rrRead(m)}</div>
-    <details class="ivl-f"><summary>三个玩具公式（实际利率 1% 时都 = 100）</summary><ul>
-      <li><b>长期国债</b>：10 年后还你 100，今天值 100 ÷ (1 + 实际利率)<sup>10</sup>。</li>
-      <li><b>黄金</b>：没有泉水，像一张更远的债：÷ (1 + 实际利率)<sup>20</sup>。</li>
-      <li><b>股票市盈率</b> = 1 ÷ (实际利率 + 风险溢价 5% − 实际增长 1.5%)。</li></ul>
+    <details class="ivl-f"><summary>三个玩具公式（${esc(TOY.rateName)}；开阀 1% 时都 = 100）</summary><ul>
+      <li><b>长期国债</b>：10 年后还你 100，今天值 100 ÷ (1 + 开阀)<sup>10</sup>。</li>
+      <li><b>黄金</b>：没有泉水，像一张更远的债：÷ (1 + 开阀)<sup>20</sup>。</li>
+      <li><b>股票市盈率</b> = 1 ÷ (开阀 + 风险溢价 5% − 实际增长 1.5%)。</li></ul>
+      <p>开阀 = 10 年期利率减 ▽（心里的涨价速度），不是政策利率减 ▼：那是存钱的人到手的（结账）。模型里的国债、黄金、股票也是这样算的。</p>
       <p>系数是随手定的，只为看方向和谁更敏感：离得越远（没有泉水、或泉水在很远的将来）的池子，对水价越敏感。真实市场还有通胀预期、信心、风险溢价在变。</p></details>`;
 }
 function rrSet(m, r) {
@@ -337,7 +338,7 @@ const realRate = {
   draw(m) { const c = m.root.querySelector('[data-chart="rr"]'); if (c) c.innerHTML = rrChart(m); },
   update(m) { m.root.innerHTML = rrHtml(m); },
   input(m, k, t) { if (k === 'r') rrSet(m, +t.value); },
-  act(m, act) { if (act === 'now') { const n = snapOf(m)?.rates?.realPolicy; if (ok(n)) rrSet(m, n); } },
+  act(m, act) { if (act === 'now') { const n = nowRate(snapOf(m)); if (ok(n)) rrSet(m, n); } },
 };
 
 /* =====================================================================================================
