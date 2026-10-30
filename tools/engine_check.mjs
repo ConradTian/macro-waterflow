@@ -1,6 +1,7 @@
 // node tools/engine_check.mjs [--verbose] [--country ISO] [--score]   Engine self-test + yearly table.
 //   --country USA (default): the full US suite (fixture, real US_Q, 17 calibration targets, experiments, lessons, valves, cycles, town).
 //   --country AUS (...)    : generic checks on src/data/countries/<iso>-quarterly.js + that country's target table (COUNTRY_TARGETS).
+//   --country GBR          : same; the GBR table's hard rows are also asserts (a miss counts as a failure; 2022+ rows are soft).
 //   --score                : scorecard only.
 import { createSim } from '../src/engine/sim.js';
 import { VALVES } from '../src/engine/valves.js';
@@ -619,7 +620,88 @@ function scorecardAUS(data, hist) {
   }
   return rows;
 }
-const COUNTRY_TARGETS = { AUS: scorecardAUS };
+// GBR (2026-10-30). Same protocol. Fit window 1995-2021: rows on 2022+ are 保留样本 (held out) and are printed as soft, never counted.
+// ⑤ / B2 in 2008-10 is NOT a target either way: the row reports what the unchanged dial rules say on the model (tools/gbr_real_dial.mjs
+// gives the same rules on the real UK data).
+function scorecardGBR(data, hist) {
+  const S = data.series, D = data.dates, idx = d => D.indexOf(d);
+  const sl = (arr, a, b) => arr.slice(idx(a), idx(b) + 1);
+  const rows = [];
+  const add = (name, val, target, ok, soft = false) => rows.push({ name, val, target, ok, soft });
+  const maxDD = arr => { let pk = -Infinity, dd = 0; for (const x of arr) { pk = Math.max(pk, x); dd = Math.min(dd, x / pk - 1); } return dd; };
+  const avg = a => a.reduce((p, q) => p + q, 0) / a.length;
+  const at = (arr, a, b, v) => D[idx(a) + sl(arr, a, b).indexOf(v)];
+  console.log('\n=== GBR CALIBRATION SCORECARD (real GBR_Q, history mode, no real outcomes fed in; 2022+ = 保留样本) ===');
+  const H = hist.map(s => s.assets.housing.price), HR = S.houseIndex;
+  const up = H[idx('2007Q4')] / H[0] - 1, upR = HR[idx('2007Q4')] / HR[0] - 1;
+  add('G1a house 1995->2007 rises', `${(up * 100).toFixed(0)}% (real ${(upR * 100).toFixed(0)}%)`, '>= +150%', up >= 1.5);
+  const dd08 = maxDD(sl(H, '2007Q1', '2009Q4')), dd08R = maxDD(sl(HR, '2007Q1', '2009Q4'));
+  add('G1b 2008 house fall (max dd 2007-09)', `${(dd08 * 100).toFixed(1)}% (real ${(dd08R * 100).toFixed(1)}%)`, '-25%..-8%', dd08 >= -0.25 && dd08 <= -0.08);
+  const r21 = H[idx('2021Q4')] / HR[idx('2021Q4')] - 1;
+  add('G1c end-2021 house vs real', `${H[idx('2021Q4')].toFixed(0)} vs ${HR[idx('2021Q4')].toFixed(0)}`, 'within +-40%', Math.abs(r21) <= 0.4);
+  const U = hist.map(s => s.macro.unemployment), UR = S.unemployment;
+  const u09 = Math.max(...sl(U, '2008Q1', '2010Q4')), u09R = Math.max(...sl(UR, '2008Q1', '2010Q4'));
+  add('G2a unemployment peak 2008-10', `${(u09 * 100).toFixed(1)}% ${at(U, '2008Q1', '2010Q4', u09)} (real ${(u09R * 100).toFixed(1)}% ${at(UR, '2008Q1', '2010Q4', u09R)})`, '6.5..9.5%', u09 >= 0.065 && u09 <= 0.095);
+  const u07 = U[idx('2007Q4')];
+  add('G2b unemployment before the bust (2007Q4)', `${(u07 * 100).toFixed(1)}% (real ${(UR[idx('2007Q4')] * 100).toFixed(1)}%)`, '<= 6.5%', u07 <= 0.065);
+  const u20 = Math.max(...sl(U, '2020Q1', '2021Q4'));
+  add('G2c 2020 lockdown u peak (furlough)', `${(u20 * 100).toFixed(1)}% (real ${(Math.max(...sl(UR, '2020Q1', '2021Q4')) * 100).toFixed(1)}%)`, '<= 7.5%', u20 <= 0.075);
+  const u913 = avg(sl(U, '2009Q1', '2013Q4'));
+  add('G2d unemployment avg 2009-13 (plateau)', `${(u913 * 100).toFixed(1)}% (real ${(avg(sl(UR, '2009Q1', '2013Q4')) * 100).toFixed(1)}%)`, '6.5..9%', u913 >= 0.065 && u913 <= 0.09, true);
+  const P = hist.map(s => s.macro.inflation);
+  const piAvg = avg(sl(P, '1998Q1', '2012Q4'));
+  add('G3a CPI avg 1998-2012', `${(piAvg * 100).toFixed(1)}% (real ${(avg(sl(S.cpiYoY, '1998Q1', '2012Q4')) * 100).toFixed(1)}%)`, '<= 3.5%', piAvg <= 0.035);
+  const pi22 = Math.max(...sl(P, '2021Q1', '2023Q4')), pi22R = Math.max(...sl(S.cpiYoY, '2021Q1', '2023Q4'));
+  add('G3b CPI peak 2021-23 [保留样本]', `${(pi22 * 100).toFixed(1)}% ${at(P, '2021Q1', '2023Q4', pi22)} (real ${(pi22R * 100).toFixed(1)}% ${at(S.cpiYoY, '2021Q1', '2023Q4', pi22R)})`, 'display only', true, true);
+  const hd = hist.map(s => s.debt.household / s.macro.gdpNominal);
+  add('G4a hh debt/GDP 2007 above start', `${(hd[idx('2007Q4')] * 100).toFixed(0)}% (start ${(hd[0] * 100).toFixed(0)}%, real ${(S.hhDebtGdp[idx('2007Q4')] * 100).toFixed(0)}%)`, '>= start + 20pp', hd[idx('2007Q4')] >= hd[0] + 0.2);
+  const gd = hist.map(s => s.gov.debtGdp), gdMax = Math.max(...sl(gd, '1995Q1', '2021Q4'));
+  add('G4b gov debt/GDP max 1995-2021', `${(gdMax * 100).toFixed(0)}% (real max ${(Math.max(...sl(S.govDebtGdp, '1995Q1', '2021Q4')) * 100).toFixed(0)}%)`, '<= 115%', gdMax <= 1.15, true);
+  add('G4c gov debt/GDP 2007', `${(gd[idx('2007Q4')] * 100).toFixed(0)}% (real ${(S.govDebtGdp[idx('2007Q4')] * 100).toFixed(0)}%)`, '<= 55%', gd[idx('2007Q4')] <= 0.55, true);
+  const DS = hist.map(s => s.household.dsr);
+  add('G5a DSR 1999Q1->2008Q3 rises (BIS +4.2pp)', `${((DS[idx('2008Q3')] - DS[idx('1999Q1')]) * 100).toFixed(1)}pp`, '>= +1pp', DS[idx('2008Q3')] - DS[idx('1999Q1')] >= 0.01);
+  const dDs = DS[idx('2023Q4')] - DS[idx('2022Q2')];
+  add('G5b DSR 2022Q2->2023Q4 [保留样本]', `${(dDs * 100).toFixed(1)}pp (real ${((S.hhDsr[idx('2023Q4')] - S.hhDsr[idx('2022Q2')]) * 100).toFixed(1)}pp)`, 'display only', true, true);
+  const E = hist.map(s => s.assets.equity.price), ch = (a, b) => E[idx(b)] / E[idx(a)] - 1;
+  const chR = S.equityIndex[idx('2009Q1')] / S.equityIndex[idx('2007Q4')] - 1;
+  let mq = 0; for (let t = 1; t < E.length; t++) mq = Math.max(mq, Math.abs(E[t] / E[t - 1] - 1));
+  add('G6a equity 2007Q4->2009Q1', `${(ch('2007Q4', '2009Q1') * 100).toFixed(0)}% (real ${(chR * 100).toFixed(0)}%)`, '-55%..-25%', ch('2007Q4', '2009Q1') >= -0.55 && ch('2007Q4', '2009Q1') <= -0.25);
+  add('G6b max single-quarter equity move', (mq * 100).toFixed(0) + '%', '<= 25%', mq <= 0.25);
+  const er = E[idx('2021Q4')] / S.equityIndex[idx('2021Q4')] - 1;
+  add('G6c end-2021 equity vs real', `${E[idx('2021Q4')].toFixed(0)} vs ${S.equityIndex[idx('2021Q4')].toFixed(0)}`, 'within +-60%', Math.abs(er) <= 0.6);
+  // long cycle: sensible stages. Before the bust the dial stays in ①/② (no ⑤-⑧ and no B2 before 2008); the stage never jumps backwards
+  // except ⑧ -> ①; ⑤ / B2 in 2008-10 is reported, never required or forbidden
+  const L = hist.map(s => s.cycles.long);
+  const early = L.slice(0, idx('2008Q1')).filter(x => x.stage > 2 || x.fork === 'B2').length;
+  add('G7a long cycle in ①/② through 2007', early ? `${early} quarters outside` : 'yes', '①/② only', early === 0);
+  let back = 0; for (let t = 1; t < L.length; t++) if (L[t].stage < L[t - 1].stage && !(L[t - 1].stage === 8 && L[t].stage === 1)) back++;
+  add('G7b stages move forward (or ⑧->①)', `${back} backward moves`, '0', back === 0);
+  const five = L.findIndex(x => x.stage === 5), b2 = L.findIndex(x => x.fork === 'B2');
+  const seq = []; L.forEach((x, i) => { const k = x.stage + (x.fork || ''); if (!i || k !== L[i - 1].stage + (L[i - 1].fork || '')) seq.push(`${D[i]}:${k}`); });
+  add('G7c ⑤ / B2 (dial rules, not a target)', `⑤ ${five >= 0 ? D[five] : 'never'} / B2 ${b2 >= 0 ? D[b2] : 'never'}`, 'report only', true, true);
+  console.log('  long-cycle stages:', seq.join(' '));
+  const pr = S.policyRate;
+  const tay = (() => { const sim = createSim({ data, mode: 'history', country: COUNTRY }); sim.setRuleEnabled('cb_real_path', false); while (!sim.done) sim.step(); return sim.history().map(s => s.rates.policy); })();
+  const xs = pr.map((x, i) => [x, tay[i]]).filter(([x], i) => x != null && i <= idx('2021Q4')), mx = a => a.reduce((p, q) => p + q, 0) / a.length;
+  const ma = mx(xs.map(q => q[0])), mb = mx(xs.map(q => q[1]));
+  const corr = xs.reduce((p, [a, b]) => p + (a - ma) * (b - mb), 0) / Math.sqrt(xs.reduce((p, [a]) => p + (a - ma) ** 2, 0) * xs.reduce((p, [, b]) => p + (b - mb) ** 2, 0));
+  add('G8 Taylor path vs Bank Rate 1995-2021 (corr)', corr.toFixed(2), '>= 0.6', corr >= 0.6, true);
+  console.log('check'.padEnd(44) + 'value'.padEnd(44) + 'target'.padEnd(18) + 'result');
+  for (const r of rows) console.log(r.name.padEnd(44) + String(r.val).padEnd(44) + String(r.target).padEnd(18) + (r.ok ? 'PASS' : 'FAIL') + (r.soft ? ' (soft)' : ''));
+  const hard = rows.filter(r => !r.soft);
+  console.log(`  ${hard.filter(r => r.ok).length}/${hard.length} pass (soft rows not counted)`);
+  for (const r of hard) assert(r.ok, `GBR target ${r.name}: ${r.val} (target ${r.target})`);
+  console.log('\nmodel/real    house        unemp%      infl%       DSR%        hhDebt/GDP%   govDebt%   policy%  10y%');
+  const g = (a, t, k = 100, d = 1) => (!a || a[t] == null ? ' - ' : (a[t] * k).toFixed(d));
+  for (let t = 0; t < hist.length; t += 8) {
+    const s = hist[t];
+    console.log(D[t].padEnd(10) + `${H[t].toFixed(0)}/${g(HR, t, 1, 0)}`.padEnd(13) + `${(U[t] * 100).toFixed(1)}/${g(UR, t)}`.padEnd(12) +
+      `${(P[t] * 100).toFixed(1)}/${g(S.cpiYoY, t)}`.padEnd(12) + `${(DS[t] * 100).toFixed(1)}/${g(S.hhDsr, t)}`.padEnd(12) +
+      `${(hd[t] * 100).toFixed(0)}/${g(S.hhDebtGdp, t, 100, 0)}`.padEnd(14) + `${(gd[t] * 100).toFixed(0)}/${g(S.govDebtGdp, t, 100, 0)}`.padEnd(11) + `${(s.rates.policy * 100).toFixed(1)}`.padEnd(9) + `${(s.rates.gov10y * 100).toFixed(1)}`);
+  }
+  return rows;
+}
+const COUNTRY_TARGETS = { AUS: scorecardAUS, GBR: scorecardGBR };
 
 if (COUNTRY !== 'USA') {
   // ---- any other country: generic engine checks on its data + its target table

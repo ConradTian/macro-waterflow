@@ -67,6 +67,8 @@ const USA_BASE = {
   //   firmSpread (0)     share of the risk premium (above 4.5%) that reaches firms' funding cost (credit spread)
   //   savRp (0)          precautionary saving per 1pp of risk premium above 4.5%
   //   shockLayoff (0)    unemployment per unit of the lockdown shock (US: temporary layoffs, no job-retention scheme)
+  //   furlough (0)       工资补贴 (job-retention scheme, GBR CJRS): share of the lockdown's forced demand collapse that is not labour slack
+  //                      either (slackVsCapEff already takes the lost CAPACITY out); 0/absent = off, USA/AUS bit for bit unchanged
   //   transferMpc (1), xsDrain (0.5)   share of transfers spent at once; the rest is excess saving spent later at xsDrain/yr
   //   adPullFull (off)   adPull closes the gap to NORMAL capacity Ystar: a lockdown / supply-chain capacity loss shows up in prices
   //   capLossDecay (0.93) share of the lockdown capacity loss still missing one quarter later (supply chains heal slowly)
@@ -217,7 +219,64 @@ const AUS = {
   },
 };
 
-export const COUNTRY_PARAMS = { USA, AUS };
+// United Kingdom (2026-10-30, GBR round 1): same engine. Built on USA_BASE plus the USA recalibration's general mechanisms (oil reaches
+// the CPI at once and expectations look through it, slow-healing lockdown capacity, Capex block, transfers partly saved, level wealth
+// effect), WITHOUT the real fiscal path (no quarterly UK deficit series in the data yet: the fiscal rules run). Then a random local search
+// on the GBR targets only (tools/engine_check.mjs --country GBR; fit window 1995-2021, 2022+ = 保留样本, displayed, never fitted).
+// Starting values come from the data file (gbr-quarterly.js t=0: BIS hh debt 58% / private credit 110% / gen. gov debt 42.5% of GDP,
+// BoE SVR 8.3%, Bank Rate 6.46%, ONS unemployment 8.9%, 10y gilt 8.7%); the seed below repeats them for the fallback only.
+// Known misses (reported, not hidden): the 2010-13 unemployment plateau (model ~4.7%, real ~8%: no UK austerity / bank-repair
+// mechanism), model gov debt runs ahead of the real one before 2008 (~65% vs 41%: the rule government fills a demand hole).
+// The numbers carry 3-4 digits on purpose (search output).
+const GBR = {
+  ...USA_BASE,
+  iso: 'GBR', name: '英国', ccy: 'GBP', ccyUnit: '十亿英镑', cbName: '英国央行',
+  // general mechanisms shared with the USA recalibration (same values)
+  oilDirect: true, adPullFull: true, oilLookThrough: 1, capLossDecay: 0.98,
+  capGain: 0.2035, capexRate: 0.1468, capexPress: 0.1068, savU: 0.5088, gapSlope: 0.1903, adPull: 0.4756,
+  transferMpc: 0.3939, xsDrain: 0.5, firmSpread: 0.3519,
+  // ---- the 2020 lockdown (工资补贴 / furlough). Real GDP 2020Q2 was -21.7% vs a year earlier; read with the US x4 amplifier the shock is
+  // ~0.67 and the demand factor (1 - 1.5 x shock) reaches zero: unemployment ~40% and then NaN. The Coronavirus Job Retention Scheme
+  // (up to ~9m jobs furloughed; ILO unemployment peaked at 5.2%) kept workers attached, so: no amplifier (the yoy number already is the
+  // quarter's depth), the lost capacity is not labour slack (slackVsCapEff), 80% of the forced demand collapse is not slack either
+  // (furlough), and only a small layoff term.
+  shockMult: 1, slackVsCapEff: true, furlough: 0.8, shockLayoff: 0.05,
+  cycleDebtGdp4q: true,       // BIS debt/GDP (4-quarter GDP): the 2020Q2 GDP collapse does not fake a debt/GDP jump
+  // ---- macro anchors. 2% target: CPI target since Dec 2003 (RPIX 2.5% before; the 2% anchor is used throughout)
+  piTarget: 0.02, gT: 0.025, gBase: 0.05138,   // UK nominal GDP grew ~5%/yr 1995-2007, ~4% after; trend real growth ~2.5% pre-2008
+  // NAIRU: ~7% in the mid-1990s (u 8.9% in 1995Q1), ~5% by the 2000s (BoE/OBR), ~4.2% by 2019 (BoE MPR estimates 4-4.5%)
+  uStar: 0.05, uStarPath: [['1995Q1', 0.02], ['2003Q1', 0], ['2019Q1', -0.008]],
+  okun: 0.5062,
+  // ---- households and housing. About half or more of the stock repriced with Bank Rate before 2008 (SVR / trackers / 2-year fixes);
+  // the engine's "fixed" leg is priced off the 10y, so UK 2-5 year fixes count mostly as the floating leg: mortFixed 0.22.
+  // BoE IADB: SVR - Bank Rate averages 2.7pp 1995-2025; the stock effective rate (CFMHSDE) sits ~1.5-2.5pp over Bank Rate
+  // (2007Q4 5.95% vs 5.67%; 2012Q4 3.38% vs 0.5%) and took ~3 years to follow the 2022-23 hikes (2.0% -> 3.9%).
+  mortFixed: 0.2168, mortVarSpread: 0.015, mortReprice: 0.2214,
+  lvr0: 0.4146,               // starting LVR in the engine's units (the US 0.38 scale of the LVR rules; UK 1995 had post-1990 negative equity)
+  rateSens: 0.6, wealthLevel: 0.06265,
+  // ---- government (UK primary outlays / taxes in the engine's federal-style units; the real fiscal path is off)
+  spendGdp: 0.192, taxGdp: 0.18,
+  // ---- equities: the OECD UK share price index is price-only with a high payout (FTSE yield ~3-4%): EPS lags aggregate profit
+  mktCapGdp: 1.103, eqDilution: 0.045, termPrem0: -0.0001561,   // gilt term premium ~0 (pension / LDI demand for long gilts)
+  seed: { gdp0: 838, hhDebtGdp: 0.58, privateCreditGdp: 1.095, govDebtGdp: 0.425, mortgageRate: 0.083, policyRate: 0.0646,
+    cpiYoY: 0.024, unemployment: 0.0887, gov10y: 0.0866 },
+  rules: {
+    firm_capex_up: { max: 1.1451 }, firm_capex_cut: { min: 0.93 }, firm_oil_passthrough: { k: 0.0299 },
+    inv_momentum: { hpMom: 0.35 },
+    inv_valuation: { revert: 0.0584, apprElast: 0.6955, rateElast: 0.5567 },   // 1995-2007: credit availability + falling rates (UK +236%)
+    hh_chase: { up: 0.04586 },
+    hh_overhang: { save: 0.047, decay: 0.9162, lvr0: 0.4815 },
+    hh_deleverage: { u: 0.1151, dsr: 0.04387 },   // UK DSR rose ~4pp 1999-2008 (BIS 9.1% -> 13.3%) without a household deleveraging wave
+    hh_infl_deanchor: { pi: 0.0304 },
+    bank_loosen: { max: 1.446 },                  // the 1995-2007 credit expansion (hh debt/GDP 58% -> 95%, BIS)
+    inv_riskoff: { ci: -0.009216 },
+    hh_forced_sales: { u: 0.08071 },              // u was 8.9% in 1995: forced sales do not start at the US 7%
+    gov_stimulus: { gain: 1 },
+    bank_tighten_collateral: { lvr: 0.4904 },
+  },
+};
+
+export const COUNTRY_PARAMS = { USA, AUS, GBR };
 // the town (万元 teaching economy) runs on the first US calibration: its lessons and valve lags are written on those numbers
 export const TOWN_PARAMS = USA_BASE;
 

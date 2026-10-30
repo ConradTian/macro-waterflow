@@ -7,7 +7,7 @@
 // The USA entry reproduces the old hard-coded texts exactly (十亿美元, 1.2 亿户, 联储), so the US view is unchanged.
 // tank = the water-diagram tank scales: cash tank full at M/GDP = tank.cash, IOU box full at (household + firm debt)/GDP = tank.iou.
 //   Measured on the model's own full run (history and free mode) with the country's engine parameters, plus ~10% head room.
-//   USA 1.4 / 2.4 are the original constants. AUS: M/GDP peaks at 1.74 in history, so 1.9. The other countries are provisional guesses
+//   USA 1.4 / 2.4 are the original constants. AUS: M/GDP peaks at 1.74 in history, so 1.9. GBR: measured (see its entry). The others are provisional guesses
 //   (their engine calibration is not done yet): re-measure with tools/check_country_ui.mjs when COUNTRY_READY flips.
 
 export const COUNTRY_INFO = {
@@ -26,8 +26,8 @@ export const COUNTRY_INFO = {
   GBR: {
     name: '英国', ccy: 'GBP', ccyName: '英镑', unitBn: '十亿英镑', cbName: '英国央行', cbAlias: [],
     households: '约 2800 万户', realData: '英国官方与国际机构数据（BoE、ONS、BIS、OECD）',
-    mortNote: '英国房贷多是 2–5 年期固定后重定价，φ 居中，冲击比美国快、比澳洲慢。',
-    tank: { cash: 2.0, iou: 2.8 },
+    mortNote: '英国房贷多是 2–5 年期固定后重定价，φ 居中：冲击比美国 30 年固定快，比澳洲浮动慢。',
+    tank: { cash: 2.2, iou: 1.7 },   // measured 2026-10-30 on COUNTRY_PARAMS.GBR: M/GDP peaks 1.96 (history), debt/GDP 1.53
   },
   JPN: {
     name: '日本', ccy: 'JPY', ccyName: '日元', unitBn: '十亿日元', cbName: '日本央行', cbAlias: [],

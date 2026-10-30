@@ -21,7 +21,8 @@ const ALLOWED = [
   /(本币\s*\/\s*)美元/g,                        // gauge label: 本币 / 美元（变大 = 本币变弱）
   /1 美元 = [\d.]+ 本币/g, /每 1 美元换多少本币/g, /一美元能换多少本币/g,          // the 汇率 card
   /美国\s*\d{4}\s*[–-]?\s*\d*年?第?一?季?(?:进入 B2)?/g, /（美国 [\d–、 ]+）/g, /美国 \d{4}Q\d 进入/g, /美国 \d{4} 年第一季进入 B2/g,       // dated US history examples in a cycle card
-  /美国 30 年固定/g,                             // the comparison in the 房贷利率 card (澳洲 vs 美国 30 年固定)
+  /美国 30 年固定/g,                             // the comparison in the 房贷利率 card (澳洲 / 英国 vs 美国 30 年固定)
+  /，和美国相同/g,                               // the long-wave 「现在」 line (world.js longStage, GBR): a deliberate comparison with the US stage
   /美国国债/g, /美元占[^。；\n]*/g,               // 储备货币 card: about the world's reserve currency
 ];
 const scrub = t => ALLOWED.reduce((s, re) => s.replace(re, ''), t);
