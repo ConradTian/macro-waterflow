@@ -165,7 +165,7 @@ const TURN = {
   borrowMult: (c, d) => ({ v: d > 0 ? 1.4 : 0.7, text: d > 0 ? '借款意愿 ×1.4' : '借款意愿 ×0.7' }),
   saveAdj: (c, d) => ({ v: d > 0 ? 0.04 : -0.03, text: d > 0 ? '储蓄率 +4pp' : `储蓄率 ${MINUS}3pp` }),
   capexMult: (c, d) => ({ v: d > 0 ? 1.3 : 0.7, text: d > 0 ? 'Capex ×1.3' : 'Capex ×0.7' }),
-  fiscalInjection: (c, d) => ({ v: d > 0 ? 0.05 : -0.03, text: d > 0 ? '财政注入 +5% GDP' : `财政注入 ${MINUS}3% GDP` }),
+  fiscalInjection: (c, d) => ({ v: d > 0 ? 0.05 : -0.03, text: d > 0 ? '深井泵（财政注入）+5% GDP' : `深井泵（财政注入）${MINUS}3% GDP` }),
 };
 
 export const checkKey = p => [p.valveId, p.vdir, p.t, p.scenario, p.mode, p.country || 'USA'].join('|');

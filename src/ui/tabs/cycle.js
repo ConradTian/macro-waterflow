@@ -105,16 +105,16 @@ export function longDial(L) {
     `<text x="${f1(n2.x + 26)}" y="${f1(n1.y - 13)}" class="cy-fk-t">B1 溢出（通胀）</text><text x="${f1(n2.x + 26)}" y="${f1(n1.y)}" class="cy-fk-s">交给小周期，回 ①</text></g>` +
     `<g class="cy-fk cy-fk2${b2On ? ' on' : b2Pend ? ' pend' : ''}"><line x1="${f1(n2.x)}" y1="${f1(by1)}" x2="${f1(n5.x)}" y2="${f1(by2)}" class="cy-fk-l"/>` +
     arrowDir(n5.x, by2 - 8, 0, 1, 'cy-fk-a') +
-    `<text x="${f1(n2.x + 9)}" y="${f1(midY - 3)}" class="cy-fk-t">B2 缩水（通缩）</text><text x="${f1(n2.x + 9)}" y="${f1(midY + 10)}" class="cy-fk-s">降息推不动 → ⑤</text></g>`;
+    `<text x="${f1(n2.x + 9)}" y="${f1(midY - 3)}" class="cy-fk-t">B2 跌破吸程线</text><text x="${f1(n2.x + 9)}" y="${f1(midY + 10)}" class="cy-fk-s">降息推不动 → ⑤</text></g>`;
   const cur = nodes[L.stage];
   const over = L.b1Overlay ? `<g class="cy-b1badge"><circle cx="${f1(cur.x + 15)}" cy="${f1(cur.y - 15)}" r="9"/><text x="${f1(cur.x + 15)}" y="${f1(cur.y - 12)}" text-anchor="middle">B1</text></g>` : '';
-  const c3 = L.b1Overlay ? '叠着 B1 溢出' : L.fork ? `岔路：${L.fork === 'B2' ? 'B2 缩水' : 'B1 溢出'}` : b2Pend ? `B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季` : '';
+  const c3 = L.b1Overlay ? '叠着 B1 溢出' : L.fork ? (L.fork === 'B2' ? 'B2：跌破吸程线' : '岔路：B1 溢出') : b2Pend ? `B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季` : '';
   const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${LONG_MARK[L.stage]} ${esc(LONG_NAME[L.stage].split('·')[0])}</text>` +
     `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">${L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : '慢变量·以年计'}</text>` +
     (c3 ? `<text x="${cx}" y="${cy + 28}" text-anchor="middle" class="cy-c3${L.b1Overlay ? ' b1' : ''}">${esc(c3)}</text>` : '');
   return dialSvg({ id: 'L', nodes, edges, cur: L.stage, between: L.between, centre, under, over,
     progress: { from: L.stage, to: nxt, frac: L.progress ? L.progress.have / L.progress.need : 0 },
-    aria: `大周期，当前 ${L.label}${L.between ? `，在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : ''}${L.fork ? `，岔路 ${L.fork}` : b2Pend ? '，B2 待确认' : ''}${L.b1Overlay ? '，叠着 B1 溢出' : ''}` });
+    aria: `大周期，当前 ${L.label}${L.between ? `，在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : ''}${L.fork ? (L.fork === 'B2' ? '，地下水位跌破吸程线（B2）' : `，岔路 ${L.fork}`) : b2Pend ? '，B2 待确认' : ''}${L.b1Overlay ? '，叠着 B1 溢出' : ''}` });
 }
 
 export function shortDial(S) {
@@ -176,12 +176,12 @@ function forkBlock(L, ctx) {
   const c3 = fe.filter(e => !c1.includes(e) && !c2.includes(e));
   const parts = [['房价比一年前在跌', c1], ['债务够重（DSR 或 私人债务/GDP）', c2], ['降了息、信贷还在缩', c3]].filter(([, it]) => it.length);
   const nOk = parts.filter(([, it]) => reqMet(it)).length;
-  const o = { kind: 'long', ctx, mark: 'B2 岔路', src: 'fork' };
+  const o = { kind: 'long', ctx, mark: 'B2 跌破吸程线', src: 'fork' };
   // confirmation: b2N quarters in a row (pips), then B2 holds until the stage moves or easing restarts credit (推得动)
   const pend = L.forkPending, need = pend ? pend.need : 3;
   const state = L.fork === 'B2' ? '<span class="cy-pt">已确认：B2</span>'
     : pend ? `<span class="cy-fkpend">待确认</span>${pips(pend.have, pend.need)}` : `<span class="cy-pt">现在成立 ${nOk}/${parts.length}</span>`;
-  return `<div class="cy-fkb"><div class="cy-evh cy-fkh">B2 岔路：${parts.length === 3 ? '三条' : '这几条'}同时成立、连续 ${need} 季才算${state}</div>` +
+  return `<div class="cy-fkb"><div class="cy-evh cy-fkh">地下水位跌破吸程线（B2）：${parts.length === 3 ? '三条' : '这几条'}同时成立、连续 ${need} 季才算${state}</div>` +
     `<p class="cy-fkn">成立 = 降息推不动：小周期降了息，信贷还是缩 → 大周期走 B2 → ⑤。降息推得动（回到扩张）就解除。（没成立时，超额的债多半溢出成通胀，走 B1，交给小周期。）</p>` +
     parts.map(([nm, it], i) => `<div class="cy-fkc ${reqMet(it) ? 'ok' : 'no'}"><b>${i + 1}. ${nm}</b> ${reqMet(it) ? '✔' : '✖'}</div>${evidenceList(it, o)}`).join('') +
     bonusBlock(L.forkExtra) + `</div>`;
@@ -320,7 +320,7 @@ function trailSvg(hist, t, total, dates, mode) {
   // the long cycle's fork turning B2 (first quarter of each B2 run): marker on top of the band
   hist.slice(0, t + 1).forEach((h, i) => {
     if (h.cycles.long.fork === 'B2' && (i === 0 || hist[i - 1].cycles.long.fork !== 'B2' || hist[i - 1].cycles.long.stage !== h.cycles.long.stage))
-      g += `<path d="M${f1(X(i) - 4)} ${top - 9} L${f1(X(i) + 4)} ${top - 9} L${f1(X(i))} ${top - 1} Z" class="cy-fkmark"/><text x="${f1(X(i))}" y="${top - 12}" text-anchor="middle" class="cy-fkmt">B2 岔路</text>`;
+      g += `<path d="M${f1(X(i) - 4)} ${top - 9} L${f1(X(i) + 4)} ${top - 9} L${f1(X(i))} ${top - 1} Z" class="cy-fkmark"/><text x="${f1(X(i))}" y="${top - 12}" text-anchor="middle" class="cy-fkmt">B2</text>`;
   });
   let line = '';
   sm.forEach((v, i) => { line += `${i ? 'L' : 'M'}${f1(X(i))} ${f1(Y(v))}`; });
@@ -342,7 +342,7 @@ function legend() {
   return `<div class="cy-legend">
     <div class="cy-lgrow"><b>大周期</b>${LONG_ORDER.map(s => `<span class="cy-lg"><i class="cy-sw cy-s${s}"></i>${LONG_MARK[s]}${LONG_NODE[s]}</span>`).join('')}</div>
     <div class="cy-lgrow"><b>小周期</b>${sw('p-expand', '扩张')}${sw('p-hotP', '物价过热（波峰）')}${sw('p-hotA', '资产过热（波峰）')}${sw('p-tight', '收紧（加息 / 衰退，斜纹·波谷）', 'hatch')}${sw('p-ease', '降息（点纹）', 'dots')}${sw('p-no', '推不动 → 交给大周期（橙斜纹）')}</div>
-    <div class="cy-lgrow cy-lgfork"><span class="cy-lg"><i class="cy-fkmk"></i>大周期走上 B2 岔路（带上方的 ▼）：降了息信贷还在缩，之后接 ⑤ 私人去杠杆</span></div>
+    <div class="cy-lgrow cy-lgfork"><span class="cy-lg"><i class="cy-fkmk"></i>B2 = 地下水位跌破吸程线（带上方的 ▼）：降了息信贷还在缩，之后接 ⑤ 私人去杠杆</span></div>
   </div>`;
 }
 
@@ -355,7 +355,7 @@ function detailHtml(hist, q, t) {
   const ls = segments(hist, x => x.cycles.long.stage, t).find(s => q >= s.from && q <= s.to);
   const ss = segments(hist, shortKeyOf, t).find(s => q >= s.from && q <= s.to);
   const L = h.cycles.long, S = h.cycles.short;
-  const fk = L.fork ? `，岔路 <b>${L.fork === 'B2' ? 'B2 缩水' : 'B1 溢出'}</b>` : L.b1Overlay ? '，叠着 <b>B1 溢出</b>' : L.forkPending ? '，B2 待确认' : '';
+  const fk = L.fork ? (L.fork === 'B2' ? '，<b>B2 跌破吸程线</b>' : '，岔路 <b>B1 溢出</b>') : L.b1Overlay ? '，叠着 <b>B1 溢出</b>' : L.forkPending ? '，B2 待确认' : '';
   const no = S.handoff === 'no' ? '，<b>降息推不动 → 交给大周期</b>' : '';
   return `<b>${esc(h.date)}</b>　大周期 <b>${esc(L.label)}</b>${fk}（${esc(rangeText(hist, ls))}）；小周期 <b>${esc(S.label)}</b>${no}（${esc(rangeText(hist, ss))}）`;
 }
@@ -410,7 +410,7 @@ function lead(s) {
   const L = c.long, S = c.short;
   const lt = L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : `${esc(L.label)}`;
   const ln = nextText('long', L, headLong).text, sn = nextText('short', S, headShort).text;
-  const fk = L.fork === 'B2' ? ' · 岔路 B2 缩水' : L.fork === 'B1' ? ' · 岔路 B1 溢出（交给小周期）' : L.b1Overlay ? ' · 叠着 B1 溢出'
+  const fk = L.fork === 'B2' ? ' · B2 跌破吸程线' : L.fork === 'B1' ? ' · 岔路 B1 溢出（交给小周期）' : L.b1Overlay ? ' · 叠着 B1 溢出'
     : L.forkPending ? ` · B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季` : '';
   return `<div class="cy-lead1"><b>大周期</b> ${lt}${fk}（${esc(yr(L.since.date))} 起）<span class="cy-lnext">${esc(ln)}</span></div>` +
     `<div class="cy-lead1"><b>小周期</b> ${esc(S.label)}${S.between ? `（在 ${KEY_LABEL[S.between[0]]} 与 ${KEY_LABEL[S.between[1]]} 之间）` : ''}` +

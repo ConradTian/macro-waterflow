@@ -9,7 +9,7 @@ import { ROLE_ORDER, ROLE_NAME, isRoleLearned, roleHasLesson, requestRoleLesson 
 let rate = null;        // user's pending policy rate (decimal)
 let cardsOpen = false;  // the 所有角色卡 fold (the tab is redrawn every quarter)
 const OPEN = ['centralBank'];
-const NOT_VISIBLE = ['银行内部的资本比率与坏账率', '家庭 DSR / LVR 的真实分布', '资产缓冲池的水位（房价与资产估值是否偏离）', '企业 Capex 管道与实际产能', '外部冲击（油价、海外需求）将来会不会来'];
+const NOT_VISIBLE = ['银行内部的资本比率与坏账率', '家庭 DSR / LVR 的真实分布', '湖里资产池的水位（房价与资产估值是否偏离）', '企业 Capex 与实际断面宽度（产能）', '外部冲击（油价、海外需求）将来会不会来'];
 
 const peaks = (arr, fn) => {
   const v = arr.map(fn).filter(x => x != null && isFinite(x));
@@ -87,7 +87,7 @@ export function render(container, ctx) {
           <div><small>${term('creditImpulse', '信贷脉冲')}</small><b>${pct(s.lights.credit.value)}</b></div></div>
         <h4>你看不到（所以央行总是慢半拍）</h4>
         <ul class="tk-hid">${NOT_VISIBLE.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div class="tk-box"><h4>你的决策：${term('policyRate', '政策利率')}</h4>
+      <div class="tk-box"><h4>你的决策：吸力旋钮（${term('policyRate', '政策利率')}）</h4>
         <div class="tk-step"><button type="button" id="tk-m" aria-label="降 0.25 个百分点">−0.25</button>
           <output id="tk-v">${(rate * 100).toFixed(2)}%</output><button type="button" id="tk-p" aria-label="升 0.25 个百分点">+0.25</button></div>
         <input type="range" id="tk-r" min="0" max="10" step="0.25" value="${(rate * 100).toFixed(2)}" aria-label="政策利率 0 到 10%">
@@ -99,7 +99,7 @@ export function render(container, ctx) {
       <h3 class="pn-h">峰值 / 谷值差异</h3>${table(ctx)}${dataNoteHtml(ctx)}`;
   } else {
     main = `<div class="tk-box"><p>结论：接管 = 暂停某个角色的自动规则，由你来下决定，其余角色仍按规则运行；然后和“真实历史”“模型基准”对比。</p>
-      <p class="pn-sub">粗版本先开放央行：你只能看到央行看得到的信息，并设定政策利率。</p>
+      <p class="pn-sub">粗版本先开放央行：你只能看到央行看得到的信息，并拧吸力旋钮（设定政策利率）。</p>
       <button type="button" class="tk-go" id="tk-take">接管央行（从 ${esc(s.date)} 起）</button></div>`;
   }
   container.innerHTML = `<section class="pn-tab pn-takeover">

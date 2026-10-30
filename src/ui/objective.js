@@ -3,8 +3,8 @@
 //   renderObjective(el, ctx)        paints the strip; ctx = { sim, snap, openTerm, setTab }
 // Score = 每人真实消费: cumulative (household consumption / price level / population) since the first quarter, first quarter = 100.
 //   Population = World Bank annual (src/data/world.js), put at mid-year, linear in between, last year held flat.
-// Lamps (green / yellow / red; the engine's own colours): 泛滥 |inflation - target|, 干涸 unemployment - u*, 溃坝 long cycle B2 or ⑤ / bad loans,
-//   透支 the worse of the DSR lamp and the 利息/税收 gauge. Reads snapshots only; it never touches the economy.
+// Lamps (green / yellow / red; the engine's own colours): 河溢 |inflation - target|, 河干 unemployment - u*, 湖崩 long cycle B2 or ⑤ / bad loans,
+//   地下太低 the worse of the DSR lamp and the 利息/税收 gauge. Reads snapshots only; it never touches the economy.
 // Progressive diagram: the strip is part of L-water, the 4 lamps carry data-layer="L-gov" (hidden by app.css until that layer is shown).
 // Tapping the text opens the 整个经济 role card in a drop-down under the strip (roleCardHtml('economy') of concepts.js, with the live lamp reasons below it;
 // the 4 lines of tools/AB-CONTRACT.md inline if that module is missing); tapping a lamp shows its reason.
@@ -68,6 +68,17 @@ export function scoreAt(sim, snap, iso) {
 }
 
 /* ------------------------------------------------------------------ the four lamps */
+// each lamp carries its cycle term next to the picture name (河溢·B1 …), so the learner links the strip to the 周期 dials.
+// cyc = the short tag on the lamp; map = the tap card's first line 「name = map」; note = one sentence under it.
+export const LAMP_CYCLE = {
+  flood: { cyc: 'B1', map: 'B1 溢出（通胀）', note: '通胀偏离目标；高了就是 B1 河溢，物价漫过河岸。' },
+  drought: { cyc: '衰退', map: '衰退', note: '失业高于正常：小周期的衰退，河里水少。' },
+  // 湖崩 measures B2, not "assets fell": it turns red only when B2 is confirmed (fork 'B2') or the long stage is ⑤
+  burst: { cyc: 'B2', map: '大周期 B2 已确认，不只是资产跌：房价在跌 + 债还高 + 降了息信贷还在缩，连续 3 季才算（负资产 ≠ B2）。光是资产跌，这盏灯不会红。',
+    note: '红 = B2 已确认（地下水位跌破吸程线）或大周期在 ⑤。' },
+  overdraft: { cyc: '透支', map: '透支（债太重）', note: 'DSR / 利息负担太重：债太重，透支了未来的收入。' },
+};
+const cycOf = id => LAMP_CYCLE[id] || { cyc: '', map: '', note: '' };
 function bandLevel(bands, v) {
   const b = (bands || []).find(x => v >= x.lo && v < x.hi);
   return b ? b.level : 'green';
@@ -75,13 +86,13 @@ function bandLevel(bands, v) {
 export function lampsAt(snap, iso) {
   const cp = countryParams(iso), m = snap.macro || {};
   const out = [];
-  // 泛滥: inflation away from the target (either direction)
+  // 河溢 (flood): inflation away from the target (either direction)
   if (num(m.inflation)) {
     const d = Math.abs(m.inflation - cp.piTarget);
     const level = d < 0.01 ? 'green' : d <= 0.025 ? 'yellow' : 'red';
     out.push({ id: 'flood', name: '河溢', level, reason: `通胀 ${pc(m.inflation)}，目标 ${pc(cp.piTarget, 1).replace('.0', '')}，偏离 ${pp(d)}（<1pp 绿，1–2.5pp 黄，>2.5pp 红）。水涌出河岸：价格涨得太快或跌太多。` });
   }
-  // 干涸: unemployment above its normal rate
+  // 河干 (drought): unemployment above its normal rate
   if (num(m.unemployment)) {
     const us = uStarFor(cp, snap.t), d = m.unemployment - us;
     const level = d < 0.01 ? 'green' : d <= 0.03 ? 'yellow' : 'red';
@@ -90,23 +101,23 @@ export function lampsAt(snap, iso) {
     const GAP_NOTE = [[44, 53, '2006–08 模型失业率偏高（6–9%），真实约 4.5–5%'], [58, 75, '2009–13 模型失业率回落太快，真实更高（约 9–10%，2013 年还有 7–8%）'],
       [116, 123, '2024–25 模型失业率升到约 7%（增长几乎停住），真实约 4%']];
     const gn = iso === 'USA' ? GAP_NOTE.find(([a, b]) => snap.t >= a && snap.t <= b) : null, gap = !!gn;
-    out.push({ id: 'drought', name: '河干', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河道闲着：人和工厂没活干。` +
+    out.push({ id: 'drought', name: '河干', level, gap, reason: `失业率 ${pc(m.unemployment)}，正常水平 ${pc(us)}，高出 ${d < 0 ? '−' : ''}${pp(Math.abs(d))}（<1pp 绿，1–3pp 黄，>3pp 红）。河里水少：人和工厂没活干。` +
       (gap ? `【模型偏差：${gn[2]}】` : '') });
   }
-  // 溃坝: long cycle on the B2 fork or in ⑤; amber when bad loans are above their band
+  // 湖崩 (burst): long cycle on the B2 fork or in ⑤; amber when bad loans are above their band
   {
     const L = snap.cycles?.long, bad = snap.bank?.badLoanRate;
     const badLv = num(bad) ? bandLevel(GAUGES.badLoans?.bands, bad) : 'green';
     const stage5 = L && (L.stage === 5 || /^⑤/.test(String(L.label || '')));
     let level = 'green', reason;
-    if (L && L.fork === 'B2') { level = 'red'; reason = '大周期走上了 B2 岔路（降息推不动，债务压垮）。堤坝要垮。'; }
-    else if (stage5) { level = 'red'; reason = '大周期在 ⑤ 降息失灵·私人去杠杆。堤坝已经垮了。'; }
-    else if (L && L.forkPending) { level = 'yellow'; reason = `B2 待确认（${L.forkPending.have}/${L.forkPending.need} 季）：房价在跌、债务高、降了息信贷还在缩，再连续几季就是 B2。堤坝出现裂缝。`; }
-    else if (badLv !== 'green') { level = 'yellow'; reason = `银行坏账率 ${pc(bad)}，超过正常区间（2%）。堤坝出现裂缝。`; }
-    else reason = `大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，没走 B2，坏账率${num(bad) ? ' ' + pc(bad) : ''}在正常区间。堤坝稳。`;
+    if (L && L.fork === 'B2') { level = 'red'; reason = 'B2 已确认：地下水位跌破吸程线。房价在跌、债还高、降了息信贷还在缩，连续够季数了，降息也抽不上来。湖崩了，洞还在。'; }
+    else if (stage5) { level = 'red'; reason = '大周期在 ⑤ 降息失灵·私人去杠杆：地下水位还在吸程线下面，只剩回灌。湖已经崩了。'; }
+    else if (L && L.forkPending) { level = 'yellow'; reason = `还不是 B2：B2 待确认（${L.forkPending.have}/${L.forkPending.need} 季）：房价在跌、债务高、降了息信贷还在缩，再连续几季就是 B2（地下水位跌破吸程线）。湖岸出现裂缝。`; }
+    else if (badLv !== 'green') { level = 'yellow'; reason = `还不是 B2：银行坏账率 ${pc(bad)}，超过正常区间（2%）。湖岸出现裂缝。`; }
+    else reason = `大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，地下水位没跌破吸程线（B2），坏账率${num(bad) ? ' ' + pc(bad) : ''}在正常区间。湖稳。`;
     out.push({ id: 'burst', name: '湖崩', level, reason });
   }
-  // 透支: the worse of the DSR lamp and the 利息/税收 gauge
+  // 地下太低 (overdraft): the worse of the DSR lamp and the 利息/税收 gauge
   {
     const ds = snap.lights?.debtService, i2t = snap.gov?.interestToTax;
     const a = ds?.level || 'green', b = num(i2t) ? bandLevel(GAUGES.interestToTax?.bands, i2t) : 'green';
@@ -115,28 +126,28 @@ export function lampsAt(snap, iso) {
     if (ds) parts.push(`家庭还本付息/收入 ${pc(ds.value)}（偿债灯${LV[a]}）`);
     if (num(i2t)) parts.push(`政府利息/税收 ${pc(i2t)}（${LV[b]}：<15% 绿，15–25% 黄，>25% 红）`);
     const note90s = iso === 'USA' && snap.t < 24 && b !== 'green' ? '1990 年代初美国利息负担确实偏高，后来靠增长和财政盈余化解。' : '';
-    out.push({ id: 'overdraft', name: '地下太低', level, reason: parts.join('；') + '。借来的水太多，利息吃掉收入。' + note90s });
+    out.push({ id: 'overdraft', name: '地下太低', level, reason: parts.join('；') + '。从地下抽上来的水太多（欠得多），利息吃掉收入。' + note90s });
   }
   return out;
 }
 
-// 真实 mode (app.js passes realSnap): the 溃坝 lamp reads the long-cycle dial run on REAL data (src/data/real/real-snapshot.js):
+// 真实 mode (app.js passes realSnap): the 湖崩 lamp reads the long-cycle dial run on REAL data (src/data/real/real-snapshot.js):
 // red = B2 confirmed (fork 'B2', b2N quarters in a row) or ⑤; yellow = the B2 evidence holds (real.b2Now) but is not confirmed yet; else green.
 function realBurstLamp(rs) {
   const L = rs.cycles?.long, bad = rs.bank?.badLoanRate, b2Now = !!rs.real?.b2Now;
   const stage5 = L && (L.stage === 5 || /^⑤/.test(String(L.label || '')));
   const badTxt = num(bad) ? `（银行坏账率 ${pc(bad)}）` : '';
   let level = 'green', reason;
-  if (L && L.fork === 'B2') { level = 'red'; reason = `真实数据：B2 已确认，大周期走上了 B2 岔路（降息推不动，债务压垮）${badTxt}。堤坝要垮。`; }
-  else if (stage5) { level = 'red'; reason = `真实数据：大周期在 ⑤ 降息失灵·私人去杠杆${badTxt}。堤坝已经垮了。`; }
+  if (L && L.fork === 'B2') { level = 'red'; reason = `真实数据：B2 已确认：地下水位跌破吸程线。房价在跌、债还高、降了息信贷还在缩，连续够季数了，降息也抽不上来${badTxt}。湖崩了，洞还在。`; }
+  else if (stage5) { level = 'red'; reason = `真实数据：大周期在 ⑤ 降息失灵·私人去杠杆：地下水位还在吸程线下面，只剩回灌${badTxt}。湖已经崩了。`; }
   else if (b2Now || (L && L.forkPending)) {
     level = 'yellow';
-    reason = `真实数据：B2 的证据这一季成立${L && L.forkPending ? `（${L.forkPending.have}/${L.forkPending.need} 季）` : ''}，还没连续够季数，没确认${badTxt}。堤坝出现裂缝。`;
-  } else reason = `真实数据：大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，B2 没成立${badTxt}。堤坝稳。`;
+    reason = `真实数据：还不是 B2：B2 的证据这一季成立${L && L.forkPending ? `（${L.forkPending.have}/${L.forkPending.need} 季）` : ''}，还没连续够季数，没确认${badTxt}。湖岸出现裂缝。`;
+  } else reason = `真实数据：大周期${L ? ' ' + String(L.label || '').split(' ')[0] : ''}，B2 没成立：地下水位还在吸程线上面${badTxt}。湖稳。`;
   return { id: 'burst', name: '湖崩', level, reason, real: true };
 }
 
-// 真实 mode: the score and 泛滥 / 干涸 / 透支 are still the model's (marked est = 模型估算); after the model's last quarter (realSnap.t is past
+// 真实 mode: the score and 河溢 / 河干 / 地下太低 are still the model's (marked est = 模型估算); after the model's last quarter (realSnap.t is past
 // the model snapshot's t) they have no value (none: 「—」, a grey lamp)
 export const EST_NOTE = '真实模式下这一项仍是模型算的';
 export function objectiveState(sim, snap, iso, realSnap) {
@@ -154,7 +165,7 @@ export function objectiveState(sim, snap, iso, realSnap) {
 /* ------------------------------------------------------------------ the 整个经济 card, inline fallback (tools/AB-CONTRACT.md A1) */
 export const ECONOMY_CARD = [
   ['想要什么', '长期运出最多的真实东西给人用（累计真实消费）'],
-  ['盯着什么', '四个扣分项：河溢（通胀偏离目标）、河干（失业、产能闲置）、湖崩（金融危机 / B2）、地下太低（债务/收入过高）'],
+  ['盯着什么', '四个扣分项：河溢·B1（通胀偏离目标）、河干·衰退（失业、产能闲置）、湖崩·B2（金融危机，地下水位跌破吸程线）、地下太低·透支（债务/收入过高）'],
   ['能拧什么', '不直接拧：央行、政府、银行、家庭、企业、投资者、外国人各拧自己的阀门，合起来的结果就是这个分数'],
   ['常犯的错', '每个角色只顾自己的目标，加在一起就让某个扣分项爆掉：繁荣时一起借，萧条时一起省'],
 ];
@@ -175,8 +186,9 @@ export function renderObjective(el, ctx) {
   last.state = st;
   const pp1 = st.perPerson ? '每人' : '';
   const yoy = st.yoy == null ? '' : `<span class="ob-yoy ${st.yoy < 0 ? 'neg' : 'pos'}" title="这一季的${pp1}真实消费比一年前${sgn(st.yoy)}"><span class="ob-yl">比一年前 </span>${st.yoy < 0 ? '▼' : '▲'}${pc(Math.abs(st.yoy))}</span>`;
-  const lamps = st.lamps.map(l => `<button type="button" class="ob-lamp${l.est ? ' v-est' : ''}" data-lamp="${l.id}" data-level="${l.level}"${l.gap ? ' data-gap="1"' : ''}${l.real ? ' data-real="1"' : ''} aria-expanded="${pop && pop.id === l.id}" ` +
-    `title="${esc(l.name)}：${LV[l.level]}。${esc(l.reason)}" aria-label="${esc(l.name)}${LV[l.level]}灯${l.est ? '（模型估算）' : ''}，点开看原因"><i class="ob-dot" aria-hidden="true"></i><span>${l.name}</span></button>`).join('');
+  const lamps = st.lamps.map(l => { const c = cycOf(l.id);
+    return `<button type="button" class="ob-lamp${l.est ? ' v-est' : ''}" data-lamp="${l.id}" data-level="${l.level}"${l.gap ? ' data-gap="1"' : ''}${l.real ? ' data-real="1"' : ''} aria-expanded="${pop && pop.id === l.id}" ` +
+    `title="${esc(l.name)} = ${esc(c.map)}：${LV[l.level]}。${esc(l.reason)}" aria-label="${esc(l.name)}（${esc(c.map)}）${LV[l.level]}灯${l.est ? '（模型估算）' : ''}，点开看原因"><i class="ob-dot" aria-hidden="true"></i><span class="ob-ln">${l.name}</span>${c.cyc ? `<small class="ob-lc">·${esc(c.cyc)}</small>` : ''}</button>`; }).join('');
   // headline = this quarter's level (first quarter = 100): a beginner reads 134 as "比起点多 34%". The cumulative total (the area under the curve,
   // which is what the goal maximises) goes in the tooltip and the card.
   const score = st.level == null ? '—' : fmtScore(st.level);
@@ -196,11 +208,15 @@ function popHtml(st) {
   if (pop.kind === 'lamp') {
     const l = st.lamps.find(x => x.id === pop.id);
     if (!l) return '<div class="ob-pop" hidden></div>';
-    return `<div class="ob-pop" role="status"><div class="ob-pop-h"><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><b>${l.name} · ${LV[l.level]}</b></div>` +
+    const c = cycOf(l.id);
+    // first line always states the mapping: 「黄灯 湖崩·B2 = 大周期 B2 已确认，不只是资产跌：…」
+    return `<div class="ob-pop" role="status"><div class="ob-pop-h"><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><span class="ob-lvl">${LV[l.level]}灯</span>` +
+      `<b class="ob-map">${l.name}${c.cyc ? '·' + esc(c.cyc) : ''}${c.map ? ` = ${esc(c.map)}` : ''}</b></div>` +
+      (c.note ? `<p class="ob-mapn">${esc(c.note)}</p>` : '') +
       `<p>${esc(l.reason)}</p><button type="button" class="ob-link" data-act="card">整个经济卡片 ›</button></div>`;
   }
   const rows = pop.html || ECONOMY_CARD.map(([k, v]) => `<div class="ob-row"><b>${k}</b><span>${esc(v)}</span></div>`).join('');
-  const ls = st.lamps.map(l => `<li><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><b>${l.name}</b> ${LV[l.level]}　<span class="muted">${esc(l.reason)}</span></li>`).join('');
+  const ls = st.lamps.map(l => `<li><i class="ob-dot" data-level="${l.level}" aria-hidden="true"></i><b>${l.name}</b><small class="ob-lc">·${esc(cycOf(l.id).cyc)}</small> ${LV[l.level]}　<span class="muted">${esc(l.reason)}</span></li>`).join('');
   const estP = st.est ? `<p class="ob-note ob-estnote">${EST_NOTE}：条上的数和河溢、河干、地下太低三盏灯是模型的估算（灰色）；只有湖崩灯读真实数据。${st.gone ? '这一季在模型的范围之后，所以是「—」。' : ''}</p>` : '';
   const note = st.level == null ? estP : estP + `<p class="muted ob-note">条上的数 = 这一季的${st.perPerson ? '每人' : ''}真实消费（家庭消费 ÷ 物价 ÷ 人口），第一季 = 100，现在 ${Math.round(st.level)}。总目标看的是它长期累计的量：衰退少掉的那几季，以后补不回来。累计到现在：${fmtScore(st.score)}。</p>`;
   return `<div class="ob-pop ob-card" role="dialog" aria-label="整个经济"><div class="ob-pop-h">${pop.html ? '' : '<b>整个经济</b>'}<button type="button" class="ob-x" data-act="close" aria-label="关闭">×</button></div>` +
