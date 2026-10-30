@@ -35,14 +35,23 @@ const read = () => ev(`(()=>{const o=document.querySelector('#objective'); if(!o
     date: document.querySelector('#date').textContent, over: !!o.querySelector('.ob-bar') && o.querySelector('.ob-bar').scrollWidth > o.querySelector('.ob-bar').clientWidth + 1 } })()`);
 const num = s => +String(s).replace(/,/g, '');
 
-// ---- US history t=52 (2008Q1: B2 pending 1/3 -> 溃坝 amber; since 2026-10-30 B2 needs 3 quarters in a row, confirmed 2008Q3 -> red)
+// ---- US history t=52 (2008Q1: B2 pending 1/3 -> 湖崩 amber; since 2026-10-30 B2 needs 3 quarters in a row, confirmed 2008Q3 -> red)
 await go('?pause=1&t=52');
 let r = await read();
 ok(r && !r.hidden && r.before, 'strip visible and sits above the 本季看点 strip');
-ok(r.lamps.length === 4 && r.lamps.join(' ') === '河溢:green 河干:red 湖崩:yellow 地下太低:yellow', 'US 2008Q1 lamps ' + r.lamps.join(' '));
+ok(r.lamps.length === 4 && r.lamps.join(' ') === '河溢·B1:green 河干·衰退:red 湖崩·B2:yellow 地下太低·透支:yellow', 'US 2008Q1 lamps (picture name · cycle term) ' + r.lamps.join(' '));
+// each lamp's tap card states its cycle term on the first line (「黄灯 湖崩·B2 = 大周期 B2 已确认，不只是资产跌：…」)
+for (const [id, re] of [['flood', /^河溢·B1 = B1/], ['drought', /^河干·衰退 = 衰退/], ['burst', /^湖崩·B2 = 大周期 B2 已确认/], ['overdraft', /^地下太低·透支 = 透支/]]) {
+  await ev(`document.querySelector('[data-lamp="${id}"]').click()`); await sleep(150);
+  const h = await ev(`(document.querySelector('.ob-pop .ob-pop-h .ob-map')||{}).textContent||''`);
+  ok(re.test(h.trim()), `tap ${id} lamp -> card's first line names its cycle term: ${h.trim().slice(0, 40)}`);
+  // 湖崩 measures B2, not a plain asset fall: the card says so
+  if (id === 'burst') ok(h.includes('不只是资产跌'), 'tap 湖崩 lamp -> card says 「不只是资产跌」 (湖崩 = B2 confirmed, not any asset fall)');
+  await ev(`document.querySelector('[data-lamp="${id}"]').click()`); await sleep(100);
+}
 ok(/每人真实消费/.test(r.text) && num(r.n) > 80 && num(r.n) < 200, 'score text (level, first quarter = 100) ' + r.text);
 await ev(`document.querySelector('[data-lamp="burst"]').click()`); await sleep(150);
-ok(/B2 待确认/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), 'tap 溃坝 lamp -> reason mentions B2 (pending)');
+ok(/还不是 B2：B2 待确认/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), 'tap 湖崩 lamp (yellow) -> reason 「还不是 B2：B2 待确认」');
 await ev(`document.querySelector('.ob-main').click()`); await sleep(500);
 ok(await ev(`!!document.querySelector('#objective .rc-economy')`), 'tap strip -> 整个经济 role card (roleCardHtml)');
 ok(/河溢/.test(await ev(`document.querySelector('#objective .ob-pop').textContent`)), 'card lists the penalty items');
@@ -60,17 +69,17 @@ await ev(`document.querySelector('#btn-step').click()`); await sleep(500);
 ok(num((await read()).n) === s52, 'step forward returns to the same score');
 
 // ---- B2 confirmed, ⑤ and later
-await go('?pause=1&t=54'); r = await read(); ok(/湖崩:red/.test(r.lamps.join(' ')), '2008Q3 (B2 confirmed) 溃坝 red: ' + r.lamps.join(' '));
+await go('?pause=1&t=54'); r = await read(); ok(/湖崩·B2:red/.test(r.lamps.join(' ')), '2008Q3 (B2 confirmed) 湖崩 red: ' + r.lamps.join(' '));
 await ev(`document.querySelector('[data-lamp="burst"]').click()`); await sleep(150);
-ok(/B2 岔路/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), '2008Q3: tap 溃坝 lamp -> reason names the B2 fork');
-await go('?pause=1&t=56'); r = await read(); ok(/湖崩:red/.test(r.lamps.join(' ')), '2009Q1 (stage ⑤) 溃坝 red');
+ok(/B2 已确认：地下水位跌破吸程线/.test(await ev(`(document.querySelector('.ob-pop')||{}).textContent||''`)), '2008Q3: tap 湖崩 lamp -> red reason 「B2 已确认：地下水位跌破吸程线」');
+await go('?pause=1&t=56'); r = await read(); ok(/湖崩·B2:red/.test(r.lamps.join(' ')), '2009Q1 (stage ⑤) 湖崩 red');
 await go('?pause=1&t=110'); r = await read(); ok(!r.hidden && r.lamps.length === 4, '2022Q3 ' + r.lamps.join(' ') + ' score ' + r.n);
 
 // ---- free mode, AUS, town, lesson
 await go('free/?pause=1&t=10'); r = await read(); ok(!r.hidden && r.lamps.length === 4 && num(r.n) > 80 && num(r.n) < 200, 'free mode: ' + r.text);
 await go('?pause=1&t=52&country=AUS'); r = await read(); ok(!r.hidden && r.lamps.length === 4 && /每人真实消费/.test(r.text), 'AUS: ' + r.lamps.join(' ') + ' score ' + r.n);
 await ev(`document.querySelector('[data-lamp="flood"]').click()`); await sleep(150);
-ok(/目标 2\.5%/.test(await ev(`document.querySelector('.ob-pop').textContent`)), 'AUS 泛滥 reason uses the 2.5% target');
+ok(/目标 2\.5%/.test(await ev(`document.querySelector('.ob-pop').textContent`)), 'AUS 河溢 reason uses the 2.5% target');
 await go('?pause=1&scenario=town'); r = await read(); ok(r && r.hidden, 'town: strip hidden');
 await go('?lesson=0&step=0&pause=1', 2800); r = await read(); console.log('  lesson 0 strip hidden =', r && r.hidden);
 

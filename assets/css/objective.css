@@ -19,6 +19,15 @@
 .ob-lamp[data-level="red"] .ob-dot, .ob-dot[data-level="red"] { background: var(--lamp-red); }
 .ob-lamp[data-level="green"] .ob-dot, .ob-dot[data-level="green"] { background: var(--lamp-green); }
 .ob-lamp[data-level="red"] span { font-weight: 700; }
+/* the cycle term next to the picture name (河溢·B1, 河干·衰退, 湖崩·B2, 地下太低·透支): lighter and smaller */
+.ob-lc { font-size: .85em; font-weight: 400; color: var(--muted); }
+.ob-lamp .ob-lc { margin-left: -2px; }
+.ob-mapn { color: var(--muted); }
+/* lamp card: the mapping line can wrap (湖崩·B2), so dot + level sit at its top */
+.ob-pop-h:has(.ob-map) { align-items: flex-start; }
+.ob-pop-h:has(.ob-map) .ob-dot { margin-top: 5px; }
+.ob-pop-h .ob-lvl { flex: none; font-size: 12px; line-height: 20px; color: var(--muted); }
+.ob-pop-h .ob-map { line-height: 20px; }
 /* a lamp lit by a known model gap (US 2023–25): dashed ring + a small 偏差 tag, the reason says why */
 .ob-lamp[data-gap] .ob-dot { outline: 1.5px dashed var(--muted); outline-offset: 1.5px; }
 .ob-lamp[data-gap]::after { content: '模型偏差'; font-size: 9px; color: var(--muted); align-self: flex-start; }
@@ -43,11 +52,11 @@
 body.parts-on .objective { display: none; }
 
 @media (min-width: 768px) {
-  .ob-bar { padding-left: 24px; padding-right: 24px; gap: 10px; }
+  .ob-bar { padding-left: 24px; padding-right: 24px; gap: 6px; }
   .ob-main { font-size: 13px; }
   .ob-long { display: inline; }
   .ob-short { display: none; }
-  .ob-lamp { font-size: 12.5px; gap: 4px; padding: 0 8px; }
+  .ob-lamp { font-size: 12.5px; gap: 4px; padding: 0 5px; }
   .ob-pop { padding-left: 24px; padding-right: 24px; max-width: 720px; border-right: 1px solid var(--border); }
 }
 @media (max-width: 420px) {
@@ -56,4 +65,8 @@ body.parts-on .objective { display: none; }
   .ob-main { font-size: 12px; gap: 4px; }
   .ob-short, .ob-yl { display: none; }              /* phone: "每人真实消费 5,366 ▼1.5%" (the full wording is in the tap card) */
   .ob-lamp { padding: 0 4px; font-size: 11px; gap: 2px; }
+}
+/* phone / narrow: no room for the cycle term on the strip (the score would be clipped); the tap card's first line says 「湖崩 = 大周期 B2」 */
+@media (max-width: 539px) {
+  .ob-lamp .ob-lc { display: none; }
 }

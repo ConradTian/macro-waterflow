@@ -7,7 +7,7 @@
 //   bands?: [{lo,hi,level}] | (snap)=>bands   green/yellow/red colour bands (absolute numbers in the gauge's units); absent = neutral gauge
 //   pair?(snap, sim?) -> { a:{label,v}, b:{label,v}, fmt:'pct'|'bn'|'num', verdict, zoom? } | null     "A vs B" comparison under the gauge
 // }
-// NO_GAUGE lists the concepts that have no number to gauge (cycle stages / forks).
+// NO_GAUGE lists the concepts that have no number to gauge (cycle stages / forks, v3 picture places).
 // Detection/teaching layer only: nothing here feeds back into the economy.
 
 const ok = v => typeof v === 'number' && isFinite(v);
@@ -59,7 +59,7 @@ export const GAUGES = {
     get: s => s.rates?.realPolicy, fmt: 'pct', label: '', bands: lamp('policy'),
     pair: s => {
       const a = { label: '政策利率', v: s.rates?.policy }, b = { label: '通胀', v: s.macro?.inflation };
-      return both(a, b) ? { a, b, fmt: 'pct', verdict: a.v >= b.v ? '利率跑赢通胀：实际利率为正，偏紧' : '通胀跑赢利率：实际利率为负，偏松' } : null;
+      return both(a, b) ? { a, b, fmt: 'pct', verdict: a.v >= b.v ? '利率跑赢通胀：吸力（实际利率）为正，偏紧' : '通胀跑赢利率：吸力（实际利率）为负，偏松' } : null;
     },
   },
   mortgageEff: { get: s => s.rates?.mortgageEff, fmt: 'pct', label: '' },
@@ -78,13 +78,13 @@ export const GAUGES = {
   M: { get: perGdp(s => s.money?.M), fmt: 'pct', label: '占 GDP' },
   newLoans: {
     get: perGdpQ(s => s.flows?.newLoans), fmt: 'pct', label: '占 GDP',
-    pair: s => { const a = { label: '新贷款', v: s.flows?.newLoans }, b = { label: '还本', v: s.flows?.principalRepay }; return both(a, b) ? bn(a, b, a.v >= b.v ? '借得比还得多：水在变多' : '还得比借得多：水在变少') : null; },
+    pair: s => { const a = { label: '抽水（放贷）', v: s.flows?.newLoans }, b = { label: '回灌（还本）', v: s.flows?.principalRepay }; return both(a, b) ? bn(a, b, a.v >= b.v ? '抽的比回灌的多：水在变多' : '回灌的比抽的多：水在变少') : null; },
   },
   principalRepay: { get: perGdpQ(s => s.flows?.principalRepay), fmt: 'pct', label: '占 GDP' },
   interestPaid: { get: perGdpQ(s => s.flows?.interestPaid), fmt: 'pct', label: '占 GDP' },
   creditImpulse: {
     get: s => s.lights?.credit?.value, fmt: 'pct', label: '占 GDP', bands: lamp('credit'),
-    pair: s => { const a = { label: '新贷款', v: s.flows?.newLoans }, b = { label: '还本', v: s.flows?.principalRepay }; return both(a, b) ? bn(a, b, a.v >= b.v ? '借得比还得多：脉冲为正' : '还得比借得多：脉冲为负') : null; },
+    pair: s => { const a = { label: '抽水（放贷）', v: s.flows?.newLoans }, b = { label: '回灌（还本）', v: s.flows?.principalRepay }; return both(a, b) ? bn(a, b, a.v >= b.v ? '抽的比回灌的多：脉冲为正' : '回灌的比抽的多：脉冲为负') : null; },
   },
   assetReservoir: { get: perGdpQ(s => (s.flows?.toHousing || 0) + (s.flows?.toFinancial || 0)), fmt: 'pct', label: '占 GDP' },
   goodsChannel: { get: perGdpQ(s => s.flows?.spillToGoods), fmt: 'pct', label: '占 GDP' },
@@ -94,7 +94,7 @@ export const GAUGES = {
       const g = s.gov || {}, T = s.flows?.taxes;
       const X = ok(g.spendingGross) ? g.spendingGross / 4 : (ok(T) && ok(g.deficit) ? T + g.deficit / 4 : null);
       const a = { label: '政府总支出', v: X }, b = { label: '税收', v: T };
-      return both(a, b) ? bn(a, b, a.v >= b.v ? '花得比收得多：赤字，有新水注入' : '收得比花得多：盈余，水被抽走') : null;
+      return both(a, b) ? bn(a, b, a.v >= b.v ? '花得比收得多：赤字，政府深井泵在抽水' : '收得比花得多：盈余，水被回灌') : null;
     },
   },
   govPurchases: { get: perGdpQ(s => s.flows?.govPurchases), fmt: 'pct', label: '占 GDP' },
@@ -121,7 +121,7 @@ export const GAUGES = {
     get: s => s.macro?.outputGap, fmt: 'pct', label: '', bands: BAND_GAP,
     pair: s => {
       const a = { label: '需求（实际产出）', v: s.macro?.realOutput }, b = { label: '产能', v: s.macro?.capacity };
-      return both(a, b) ? bn(a, b, a.v > b.v ? '需求超过产能：水位漫过堤顶' : '需求低于产能：河道没装满', { zoom: true }) : null;
+      return both(a, b) ? bn(a, b, a.v > b.v ? '需求超过产能：水漫过断面（河溢）' : '需求低于产能：断面没装满', { zoom: true }) : null;
     },
   },
   cpi: {
@@ -184,4 +184,7 @@ export const GAUGES = {
 };
 
 // concepts with nothing numeric to put on a gauge
-export const NO_GAUGE = ['ringStage', 'B1', 'B2', 'longCycle', 'shortCycle'];
+export const NO_GAUGE = ['ringStage', 'B1', 'B2', 'longCycle', 'shortCycle',
+  // v3 picture places (DESIGN-v3), not variables: their numbers live on their own concepts' gauges
+  // (吸力 = realRate, 地下水 = pvtDebtGdp, 深井泵 = fiscalInjection, 闸 = fx; the 分水堰 just splits the river into its pipes)
+  'suction', 'weir', 'groundwater', 'deepPump', 'gate'];

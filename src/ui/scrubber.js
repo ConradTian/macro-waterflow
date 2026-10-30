@@ -31,7 +31,7 @@ export function computeStageMarks(createSim, real, mode, country) {
       if (!L) return;
       if (prev != null && L.stage !== prev) out.push({ t, mark: GLYPH[L.stage] || String(L.stage), text: `大周期进入 ${L.label || L.stage}`, kind: 'stage' });
       prev = L.stage;
-      if (!forkSeen && L.fork === 'B2') { forkSeen = true; out.push({ t, mark: 'B2', text: '大周期走上 B2 岔路（债务在收缩，不是推高物价）', kind: 'b2' }); }
+      if (!forkSeen && L.fork === 'B2') { forkSeen = true; out.push({ t, mark: 'B2', text: '地下水位跌破吸程线（B2）：债务在收缩，不是推高物价', kind: 'b2' }); }
     };
     look(s.snapshot(), 0);
     while (!s.done) { s.step(); look(s.snapshot(), s.t); }

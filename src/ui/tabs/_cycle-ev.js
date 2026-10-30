@@ -22,11 +22,11 @@ const reqLabel = e => `${shortName(e.name)} ${e.dir === '>=' ? '≥' : '≤'} ${
 /* ---------- where to look: row term -> short Chinese place name in the diagram ---------- */
 // keyed by the target specs of src/ui/links.js (conceptSpecs(term) lists the diagram elements a concept card belongs to)
 const PLACE = {
-  'n:iou': '欠条箱', 'n:bank': '银行', 'v:approval': '银行', 't:policyRate': '央行利率', 'n:cb': '央行利率',
+  'n:iou': '地下的洞（欠款）', 'n:bank': '银行', 'v:approval': '银行', 't:policyRate': '央行的吸力旋钮', 'n:cb': '央行的吸力旋钮',
   'n:gov': '政府', 'n:govGross': '政府', 'n:household': '家庭', 'n:firm': '企业',
-  'n:channel': '商品河道', 't:cpi': '商品河道', 't:unemployment': '商品河道',
+  'n:channel': '河（测流断面）', 't:cpi': '河（测流断面）', 't:unemployment': '河（测流断面）',
   'n:poolHousing': '房产池', 'n:poolEquity': '股票池', 'n:poolBond': '国债池', 'n:poolGold': '黄金池',
-  'p:newLoans': '放贷·还本管道', 'p:principalRepay': '还本管道', 'p:qe': 'QE 管道', 'p:taxes': '税收管道', 'p:fiscalInjection': '财政注入管道',
+  'p:newLoans': '抽水（放贷）', 'p:principalRepay': '回灌（还本）', 'p:qe': '央行泵（QE）', 'p:taxes': '分水堰的税口', 'p:fiscalInjection': '政府深井泵',
 };
 export function placeOf(term) {
   if (!term) return '';
