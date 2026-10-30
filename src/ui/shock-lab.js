@@ -1,4 +1,4 @@
-// Shock lesson panels (L2 「水的问题，还是河道的问题」, src/data/lesson-shocks.js). Contract: tools/D-CONTRACT.md, section 「冲击」.
+// Shock lesson panels (L2 「是水的问题还是河道的问题？」, src/data/lesson-shocks.js). Contract: tools/D-CONTRACT.md, section 「冲击」.
 //   mountShockPanel(host, spec)  spec = step.panel = { id, ...options }; appends one div.skp[data-panel=id] to `host`. Returns it, or null for an
 //                                unknown id. One panel at a time: mounting again unmounts the previous one first.
 //   unmountShockPanel()          removes it (listeners, ResizeObserver). Safe to call twice.
@@ -101,7 +101,7 @@ const PANEL = {};
 /* ---------- 0. the rule: four corners + six parts ---------- */
 PANEL['shk-rule'] = (root) => {
   const ex = { ru: ['b1', 'covid'], ld: ['gfc', 'gd', 'volcker'], lu: ['oil73', 'oil79', 'ukr'], rd: ['net', 'wto'] };
-  root.innerHTML = head('流量和水位：同向 = 水，反向 = 河道', '横轴 = 流量（GDP 比旧趋势多还是少），竖轴 = 水位（通胀变高还是变低）。点一个角，看例子。') +
+  root.innerHTML = head('流量和断面水位：同向 = 水，反向 = 河道', '横轴 = 流量（GDP 比旧趋势多还是少），竖轴 = 断面水位（通胀变高还是变低）。点一个角，看例子。') +
     `<div class="skp-chart" data-c="rule"></div>` +
     `<div class="skp-ex" data-o="ex"></div>` +
     `<h5 class="skp-h5">一次冲击可能打中的六样</h5><div class="skp-parts">${SHOCK_PARTS.map(p => `<div><i class="skp-sw" style="background:${PART_COL[p.k]}"></i><b>${esc(p.name)}</b><small>${esc(p.sub)}</small></div>`).join('')}</div>` +
@@ -258,7 +258,7 @@ PANEL['shk-lines'] = (root, spec) => {
   const SEG = [[1956, 1973], [1973, 1990], [1990, 2022]];
   const build = () => {
     const isJ = st.iso === 'JPN';
-    root.innerHTML = head('直线 = 河道宽度，波浪 = 水', isJ
+    root.innerHTML = head('直线 = 断面宽度，波浪 = 水', isJ
       ? '日本实际 GDP（1956 年 = 100，对数刻度）。虚线 = 每一段的平均增速：<b>直线一次次变平 = 河道永久变窄</b>。'
       : '美国实际 GDP 离那条长直线多远（%）。直线放平成 0：<b>波浪 = 水</b>。疫情的坑两年就填回去；2008 年的坑没填回去。') +
       `<div class="skp-seg" role="group" aria-label="国家"><button type="button" data-iso="JPN" aria-pressed="${isJ}">日本：永久</button><button type="button" data-iso="USA" aria-pressed="${!isJ}">美国：临时</button></div>` +
@@ -297,7 +297,7 @@ PANEL['shk-lines'] = (root, spec) => {
       svg.setAttribute('aria-label', '美国实际 GDP 离长直线的距离，1990 年起');
       for (const t of niceTicks(lo - 2, hi + 3, 5)) { svgEl('line', { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), class: t === 0 ? 'skp-axis' : 'skp-grid' }, svg); txt(svg, m.l - 5, Y(t) + 4, (t > 0 ? '+' : '') + t + '%', 'skp-ax', 'end'); }
       for (const y of [1990, 2000, 2010, 2020]) txt(svg, X(y), H - 8, String(y), 'skp-ax', 'middle');
-      txt(svg, W - m.r, Y(0) - 5, '长直线 = 河道宽度的趋势', 'skp-tlab', 'end');
+      txt(svg, W - m.r, Y(0) - 5, '长直线 = 断面宽度的趋势', 'skp-tlab', 'end');
       svgEl('path', { d: xs.map((y, i) => (i ? 'L' : 'M') + X(y).toFixed(1) + ',' + Y(v[i]).toFixed(1)).join(''), class: 'skp-gdp' }, svg);
       const mark = (y, id, lab, dy) => { const i = xs.indexOf(y); if (i < 0) return; const g = svgEl('g', { class: 'skp-mk', 'data-ev': id }, svg); svgEl('circle', { cx: X(y), cy: Y(v[i]), r: 5, class: 'skp-mkdot', style: `fill:${KIND[cardById(id).kind].col}` }, g); txt(g, X(y), Y(v[i]) + dy, lab, 'skp-elab', 'middle'); on(g, 'click', () => showCard(root, root.querySelector('[data-o="card"]'), id)); };
       mark(2009, 'gfc', '2008：坑没填回去', 18);

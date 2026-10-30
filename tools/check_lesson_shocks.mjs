@@ -1,14 +1,17 @@
 // node tools/check_lesson_shocks.mjs [--no-browser] [--shots]
 //   (the browser part starts its own static server on 8331 (BASE=http://127.0.0.1:PORT/ overrides) and headless Edge on CDP port 9531; both are stopped at the end)
-// Checks the lesson L2 「水的问题，还是河道的问题」 (src/data/lesson-shocks.js), its data (src/data/shock-events.js) and panels (src/ui/shock-lab.js):
-//  1. data      every trajectory point of shock-events.js recomputed here from the raw files (JST csv in ../dalio_432, read only; data_src/shocks
+// Checks the lesson L2 「是水的问题还是河道的问题？」 (src/data/lesson-shocks.js), its data (src/data/shock-events.js) and panels (src/ui/shock-lab.js):
+//  1. data      every trajectory point of shock-events.js recomputed here from the raw files (JST csv in ../dalio_432, read only; from a worktree
+//               under <repo>/.claude/worktrees/<name> the main checkout's sibling dalio_432 is found too, or set JST_CSV=<path>; data_src/shocks
 //               FRED + IMF WEO): x (GDP vs the old trend path), dy (inflation vs the base year), growth, inflation, unemployment; years >= 2022 flagged hold
-//  2. shape     id shk, kind shocks, intro outline = the step titles, every step opens with the conclusion, panel ids exist, the Capex step runs the sim
-//               (reveal 2020Q4 -> 2023Q4 with vals / claims / hl), the last step carries the 三问 ending and hands over to m2; every card is complete
+//  2. shape     v3 rules (tools/DESIGN-v3.md): id shk, the question as the title, <= 6 steps incl. the intro, intro = conclusion first + 下面分 N 步 =
+//               the step titles; step 1 shows the 测流断面 on the diagram first (glow channel, question) and names 宽 = 产能, 水位 = 物价, 流量 = GDP
+//               in the answer; the example = 2021 (covid, 水多了) then 2022 (ukr, 河道变窄); the Capex step runs the sim (reveal 2020Q4 -> 2023Q4
+//               with vals / claims / hl); the last step carries the 三问 ending and hands over to m2; every card is complete
 //  3. numbers   every number typed in a step (title, text, question, answerHint, relation, ending) or a card (one, data, policy, ring) is listed in
 //               nums and recomputes from the raw data to exactly the typed string; every facts claim holds
-//  4. words     no 同比/环比 anywhere; 判断 labels; every text that quotes 2022+ data says 保留样本
-//  5. engine    the Capex step on the real sim (src/ui/lessons-town.js, the same code check_lessons and the UI run): placeholders fill, claims hold;
+//  4. words     no 同比/环比 anywhere; glossary words (no 河道宽度 / 资产水库 / 欠条箱 / 国境线); 判断 labels; 2022+ data says 保留样本
+//  5. engine    the Capex step (step 4) on the real sim (src/ui/lessons-town.js, the same code check_lessons and the UI run): placeholders fill, claims hold;
 //               the typed lag (6 quarters) = the engine's Capex -> capacity lag in history mode (src/engine/economy.js)
 //  6. browser   headless Edge: every panel mounts / unmounts in tools/shock-lab-demo.html with no JS errors at iPad 1180x820 and phone 390x844;
 //               charts drawn, no sideways overflow, chart text >= 11px, tapping an event opens its card, hold points hollow, lesson walk.
@@ -33,7 +36,10 @@ const SKL = await imp('src/ui/shock-lab.js');
 /* ---------- raw data ---------- */
 const readCsv = p => { const [h, ...rows] = readFileSync(p, 'utf8').trim().split(/\r?\n/); const cols = h.split(','); return rows.map(l => { const v = l.split(','); return Object.fromEntries(cols.map((c, i) => [c, v[i]])); }); };
 const num = s => (s === '' || s == null ? NaN : +s);
-const JST = readCsv(resolve(ROOT, '../dalio_432/data/jst_panel.csv'));
+// the JST panel lives in the sibling repo dalio_432 (read only); from <repo>/.claude/worktrees/<name> look beside the main checkout too
+const JST_PATH = [process.env.JST_CSV, resolve(ROOT, '../dalio_432/data/jst_panel.csv'), resolve(ROOT, '../../../../dalio_432/data/jst_panel.csv')].filter(Boolean).find(p => existsSync(p));
+if (!JST_PATH) { console.log('FAIL: jst_panel.csv not found (../dalio_432/data/jst_panel.csv; set JST_CSV=<path>)'); process.exit(1); }
+const JST = readCsv(JST_PATH);
 const jstRow = (iso, y) => JST.find(r => r.iso === iso && +r.year === y);
 const fred = id => readCsv(resolve(ROOT, 'data_src/shocks/fred', id + '.csv')).map(r => [r.observation_date.slice(0, 7), num(r[id])]);
 const FRED = { GDPC1: fred('GDPC1'), CPIAUCSL: fred('CPIAUCSL'), CPIAUCNS: fred('CPIAUCNS'), UNRATE: fred('UNRATE') };
@@ -116,8 +122,8 @@ for (const [id, y, c] of [['oil73', 1975, 'lu'], ['oil79', 1980, 'lu'], ['gfc', 
 /* ---------- 2. shape ---------- */
 section('2. lesson shape');
 const L = LESSON_SHOCKS, S = L.steps;
-ok(L.id === 'shk' && L.kind === 'shocks' && L.label === '第 2 课' && L.title === '水的问题，还是河道的问题' && L.oneLine && L.available === true && L.rulesOn === 'all', 'id shk, kind shocks, 第 2 课, title, oneLine, available, rulesOn all');
-ok(S.length === 9 && S[0].type === 'intro' && S.slice(1).every(s => s.type === 'reveal'), '9 steps: intro + 8 reveal');
+ok(L.id === 'shk' && L.kind === 'shocks' && L.label === '第 2 课' && L.title === '是水的问题还是河道的问题？' && L.oneLine && L.available === true && L.rulesOn === 'all', 'id shk, kind shocks, 第 2 课, title = the question, oneLine, available, rulesOn all');
+ok(S.length <= 6 && S.length === 6 && S[0].type === 'intro' && S.slice(1).every(s => s.type === 'reveal'), `v3: at most 6 steps incl. the intro (${S.length}: intro + ${S.length - 1} reveal)`);
 S.forEach((s, i) => {
   ok(s.title && Array.isArray(s.text) && s.text.length >= 2, `step ${i}: title/text`);
   if (i >= 1) ok(s.title.startsWith(`第 ${i} 步：`), `step ${i}: numbered title ${s.title}`);
@@ -132,16 +138,26 @@ S.forEach((s, i) => {
   ok(items.length === n, `intro outline lists ${items.length} items`);
   items.forEach((t, k) => { const tt = S[k + 1].title.replace(/^第 \d+ 步：/, ''); ok(tt.includes(t.slice(0, 2)) || t.includes(tt.slice(0, 2)), `outline item ${k + 1} "${t}" ~ "${tt}"`); });
 }
-ok(S.map(s => (s.panel ? s.panel.id + (s.panel.select ? ':' + s.panel.select : '') : '-')).join() === 'shk-rule,shk-quad:oil73,shk-quad:gfc,shk-quad:net,shk-quad:covid,-,shk-quad:ww2,shk-lines,shk-parts', 'panel per step');
-const CX = S[5];
-ok(!CX.panel && CX.from === '2020Q4' && CX.until === '2023Q4' && CX.vals && CX.claims && CX.claims.length >= 2 && ['capex', 'capacity'].every(h => CX.hl.includes(h)), 'step 5 (Capex): sim step 2020Q4 -> 2023Q4, vals, claims, hl capex/capacity');
+ok(S.map(s => (s.panel ? s.panel.id + (s.panel.select ? ':' + s.panel.select : '') : '-')).join() === 'shk-rule,-,shk-quad:covid,shk-quad:ukr,-,shk-lines', 'panel per step: intro = the four corners (four small 断面), the 断面 on the diagram, 2021 covid, 2022 ukr, Capex on the sim, 临时还是永久');
+// v3: one question, one new piece (shown first, then named), one example
+ok(S[0].text.join('').includes('是水的问题，还是河道的问题') && S[0].text[0].includes('测流断面'), 'intro: asks the one question, the conclusion names the 测流断面');
+const NEW = S[1], nameIt = (NEW.answerHint || []).join('');
+ok(!NEW.panel && NEW.glow && (NEW.glow.parts || []).includes('channel') && NEW.question && /断面/.test(NEW.text.slice(1).join('')), 'step 1: shows the 断面 on the diagram first (glow channel, no panel) and asks');
+ok(['断面宽度 = 产能', '断面水位 = 物价', '流量 = GDP'].every(t => nameIt.includes(t)), 'step 1: names it in the answer: 断面宽度 = 产能, 断面水位 = 物价, 流量 = GDP');
+ok(/水多了/.test(S[2].title) && S[2].title.includes('2021') && /河道变窄/.test(S[3].title) && S[3].title.includes('2022'), 'the example: 2021 水多了 (step 2) vs 2022 河道变窄 (step 3)');
+ok(S[2].text[0].includes('同一个方向') || S[2].text[0].includes('一起往上'), 'step 2: same direction = water');
+ok(S[3].text[0].includes('河道的问题') && S[3].text[0].includes('流量却不涨'), 'step 3: level up, flow flat = channel');
+const CX = S[4];
+ok(!CX.panel && CX.from === '2020Q4' && CX.until === '2023Q4' && CX.vals && CX.claims && CX.claims.length >= 2 && ['capex', 'capacity'].every(h => CX.hl.includes(h)), 'step 4 (Capex): sim step 2020Q4 -> 2023Q4, vals, claims, hl capex/capacity');
+ok(CX.text[0].includes('拓宽断面') && CX.text[0].includes('要等'), 'step 4: Capex widens the 断面, with a lag');
+ok(S.filter(s => s.vals || s.claims).length === 1, 'exactly one sim step');
+ok(S[5].text[0].includes('看穿') && S[5].text[0].includes('永久') && S[5].text.join('').includes('长直线 = 断面宽度的趋势') && S[5].text.join('').includes('波浪 = 水'), 'last step: temporary vs permanent (看穿), 三条线 link: straight line = 断面宽度, waves = water');
 const last = S[S.length - 1];
-ok(last.next === 'm2', 'last step hands over to m2 (一个会自己转的圈)');
+ok(last.next === 'm2', 'last step hands over to m2 (央行怎么让河涨落？)');
 ok(last.ending && ['q1', 'q2', 'q3'].every(k => typeof last.ending[k] === 'string' && last.ending[k].length > 10), 'ending { q1, q2, q3 }');
 ok(last.ending && last.ending.q1.startsWith('水的问题还是河道的问题？') && last.ending.q2.startsWith('环上哪一步？') && last.ending.q3.startsWith('谁赢谁输、钱放哪？'), 'ending asks the three fixed questions (tools/COURSE-V3.md)');
-ok(S[6].text[0].includes('⑦') && S[7].text[0].includes('看穿') && S[7].text[0].includes('斜率') && S[8].text[0].includes('哪两样'), 'the three takeaways (war -> ⑦; temporary vs permanent; which two parts)');
-ok(S[7].text.join('').includes('直线 = 河道宽度') && S[7].text.join('').includes('波浪 = 水'), '三条线 link: straight line = channel width, waves = water');
-ok(S[7].tab === 'cycle', 'step 7 opens the 周期 tab (三条线)');
+ok(last.ending && last.ending.q1.includes('2021') && last.ending.q1.includes('2022'), 'ending q1 answers for the example (2021 vs 2022)');
+ok(S.slice(0, -1).every(s => !s.ending && s.next == null), 'only the last step has the ending and the next');
 // cards
 const CIDS = SHOCK_CARDS.map(c => c.id);
 ok(new Set(CIDS).size === CIDS.length, `${CIDS.length} cards, unique`);
@@ -194,20 +210,21 @@ section('4. words');
 const strip = o => JSON.stringify(o, (k, v) => (typeof v === 'function' ? undefined : v));
 const code = ['src/ui/shock-lab.js', 'src/data/shock-events.js', 'src/data/lesson-shocks.js', 'assets/css/shock-lab.css', 'tools/shock-lab-demo.html'].map(p => readFileSync(resolve(ROOT, p), 'utf8')).join('\n');
 ok(!/同比|环比/.test(strip(L) + strip(SHOCK_CARDS) + code), 'no 同比/环比 anywhere (lesson, cards, panels, data)');
-ok(S[1].text.join('').includes('判断'), 'step 1: the oil price claim says 判断 (no oil data for 1973)');
-ok(S[8].text.join('').includes('判断') && code.includes('（判断）'), 'the part mappings are labelled 判断 (step 8 text and every card)');
+ok(!/河道宽度|资产水库|欠条箱|国境线/.test(strip(L) + strip(SHOCK_CARDS) + strip(SHOCK_PARTS) + strip(SHOCK_CORNERS) + readFileSync(resolve(ROOT, 'src/ui/shock-lab.js'), 'utf8')), 'glossary (tools/DESIGN-v3.md): no 河道宽度 / 资产水库 / 欠条箱 / 国境线 (断面宽度, 资产池, 地下水位, 闸)');
+ok(S[3].text.join('').includes('判断'), 'step 3: the oil price claim says 判断 (no oil price data)');
+ok(S[5].text.join('').includes('判断') && code.includes('（判断）'), 'the part mappings are labelled 判断 (last step text and every card)');
 for (const c of SHOCK_CARDS) if (c.data && /20(2[2-9])/.test(c.data.replace(/2014–2019/, ''))) ok(c.data.includes('保留样本'), `card ${c.id}: 2022+ data labelled 保留样本`);
-for (const [i, s] of S.entries()) { const t = s.text.join(''); if (/2022|2023/.test(t) && i !== 8) ok(t.includes('保留样本'), `step ${i}: 2022+ data labelled 保留样本`); }
+for (const [i, s] of S.entries()) { const t = s.text.join('') + (s.ending ? Object.values(s.ending).join('') : ''); if (/2022|2023/.test(t) && (s.nums || s.vals)) ok(t.includes('保留样本'), `step ${i}: 2022+ data labelled 保留样本`); }
 ok(/保留样本/.test(SHOCK_META.method), 'the quadrant method note says 保留样本');
 
 /* ---------- 5. engine: the Capex step on the real sim ---------- */
-section('5. engine: the Capex step (step 5) on the US sim');
+section('5. engine: the Capex step (step 4) on the US sim');
 {
   ok(lagM && +lagM[1] === 6, `economy.js: Capex -> capacity lag = ${lagM && lagM[1]} quarters in history mode (delays on), ${lagM && lagM[2]} in the town`);
   const { US_Q } = await imp('src/data/us-quarterly.js');
   const LT = await imp('src/ui/lessons-town.js');
-  const pos = LT.lessonPositions(L), win = pos[5];
-  ok(win.from === '2020Q4' && win.until === '2023Q4', `step 5 window ${win.from} -> ${win.until}`);
+  const pos = LT.lessonPositions(L), win = pos[4];
+  ok(win.from === '2020Q4' && win.until === '2023Q4', `step 4 window ${win.from} -> ${win.until}`);
   for (const d of [L.startDate, L.endDate, CX.from, CX.until]) ok(US_Q.dates.includes(d), `date ${d} in the US data`);
   const tbl = LT.buildTable(US_Q, L, CX, win), miss = [], filled = LT.fillStep(CX, tbl, miss);
   ok(miss.length === 0, 'all placeholders filled' + (miss.length ? ': ' + miss.join(' ') : ''));
@@ -320,9 +337,9 @@ async function browser() {
       const e1 = errors.length;
       await go('step=0');
       const walk = await ev(`(()=>{const out=[]; for (let i=0;i<window.__shk.LESSON_SHOCKS.steps.length;i++){ window.__shk.show(i); out.push(document.querySelectorAll('.skp').length + ':' + (document.querySelector('.skp')?.dataset.panel||'-')); } window.__shk.unmountShockPanel(); window.__shk.unmountShockPanel(); out.push(document.querySelectorAll('.skp').length); return out.join(',')})()`);
-      ok(walk === '1:shk-rule,1:shk-quad,1:shk-quad,1:shk-quad,1:shk-quad,0:-,1:shk-quad,1:shk-lines,1:shk-parts,0', `${dev} lesson walk: one panel at a time, step 5 none (sim), double unmount safe (${walk})`);
+      ok(walk === '1:shk-rule,0:-,1:shk-quad,1:shk-quad,0:-,1:shk-lines,0', `${dev} lesson walk: one panel at a time, steps 1 (the 断面 on the diagram) and 4 (sim) none, double unmount safe (${walk})`);
       ok(await ev(`window.__shk.mountShockPanel(document.getElementById('host'), { id: 'nope' }) === null && document.querySelectorAll('.skp').length === 0`), `${dev} unknown panel id -> null`);
-      await ev(`window.__shk.show(1)`);
+      await ev(`window.__shk.show(2)`);
       const w0 = await ev(`document.querySelector('.skp-chart svg').getAttribute('width')`);
       await ev(`document.getElementById('host').style.width='300px'`); await sleep(300);
       const w1 = await ev(`document.querySelector('.skp-chart svg').getAttribute('width')`);
