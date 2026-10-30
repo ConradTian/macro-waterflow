@@ -100,7 +100,7 @@ function subsHtml(k, snap, hist) {
     L = (SUBS[k]?.L || []).map(s => subTile(s)).join('');
     R = (SUBS[k]?.R || []).map(s => subTile(s)).join('') || '<li class="alk-sub empty"><small>没有：黄金不跟河的水量走。</small></li>';
   }
-  const note = k === 'equity' ? '<p class="alk-note">三个小池子是只读的分指数：用模型里股票的同一条公式，只改两个数（泉眼跟河水量的弹性、泉眼有多远），不回头影响模型。</p>' : '';
+  const note = k === 'equity' ? '<p class="alk-note">三个小池子是只读的分指数：用模型里股票的同一条公式，只改两个数（泉眼跟河水量的弹性、泉眼有多远），不回头影响模型。和美国真实行业数据（1995–2021）比：谁更敏感的顺序一致（稳股 < 成长股 < 周期股），但哪一年涨哪一年跌对不准（模型的股价本身和真实股市逐年只相关 0.24）。所以只看顺序，不看时点。</p>' : '';
   return `<section class="alk-open" aria-label="${esc(C.name)}的小池子"><h4>${esc(C.name)}：左边看吸力，右边看水量</h4>
     <div class="alk-cols"><div><p class="alk-side">← 看吸力（泉眼稳或远）</p><ul>${L}</ul></div>
     <div><p class="alk-side">看水量（河的流量）→</p><ul>${R}</ul></div></div>${note}</section>`;

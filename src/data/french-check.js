@@ -13,5 +13,5 @@ export const FRENCH_RESULT = {
   corr: { stable: 0.27, growth: 0.21, cyclical: 0.19, engineVsMarket: 0.24 },
   volModel: { stable: 0.126, growth: 0.196, cyclical: 0.242 },
   volReal: { stable: 0.135, growth: 0.185, cyclical: 0.209 },
-  note: 'Volatility order matches reality (cyclical > growth > stable in both). Correlations are low because the engine equity pool itself only tracks the real market at 0.24 on annual changes; the styles inherit that. No param changed.',
+  note: '谁更敏感的顺序和真实一致（稳股 < 成长股 < 周期股）；逐年相关低（0.19–0.27），因为模型自己的股价和真实股市逐年只相关 0.24，三个小池子都继承了它。所以它们只用来看敏感度的顺序，不用来看哪一年涨跌。参数未改。',
 };
