@@ -208,7 +208,7 @@ export function longStripSvg(hist, t, o = {}) {
     prev = f;
   }
   g += `<line x1="${f1(X(t))}" x2="${f1(X(t))}" y1="${top - 3}" y2="${bandB}" class="cy-now-l"/>`;
-  return `<svg viewBox="0 0 ${W} ${H}" class="wv-svg wvw-chart" role="img" aria-label="大周期色带，与上图同一条时间轴；竖线标出大周期在 ② 之后第一次走向 B2 缩水的地方">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="wv-svg wvw-chart" role="img" aria-label="大周期色带，与上图同一条时间轴；竖线标出大周期在 ② 之后第一次跌破吸程线（B2）的地方">${g}</svg>`;
 }
 
 /* legends */
@@ -221,7 +221,7 @@ export function shortLegendHtml(noPush = true) {
   return `<div class="wv-keys">${Object.keys(SHORT_LEGEND).map(sw).join('')}${noPush ? '<span class="wv-k"><i class="wv-sw np"></i>推不动 = 降息了，信贷仍不重启</span>' : ''}</div>`;
 }
 export function stageLegendHtml() {
-  return `<div class="wv-keys">${STAGE_ORDER.map(s => `<span class="wv-k"><i class="cy-sw cy-s${s}"></i>${STAGE_MARK[s]}${esc(stageName(s))}</span>`).join('')}<span class="wv-k"><i class="wv-sw b2"></i>B2 缩水分叉</span></div>`;
+  return `<div class="wv-keys">${STAGE_ORDER.map(s => `<span class="wv-k"><i class="cy-sw cy-s${s}"></i>${STAGE_MARK[s]}${esc(stageName(s))}</span>`).join('')}<span class="wv-k"><i class="wv-sw b2"></i>B2 跌破吸程线</span></div>`;
 }
 
 export function wavesHtml(ctx) {

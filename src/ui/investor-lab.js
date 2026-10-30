@@ -110,7 +110,7 @@ function follow(m, fn) {
 export function nowRow(snap) {
   const L = snap?.cycles?.long, S = snap?.cycles?.short;
   if (!L || !S) return { id: null, note: '没有周期读数' };
-  if (L.stage === 5 || L.fork === 'B2') return { id: 'b2', note: L.stage === 5 ? '' : '大周期走上了 B2 岔路' };
+  if (L.stage === 5 || L.fork === 'B2') return { id: 'b2', note: L.stage === 5 ? '' : '地下水位跌破了吸程线（B2）' };
   if (L.stage === 6) return { id: 'l6', note: '' };
   if (L.stage === 7) return { id: 'l7', note: L.b1Overlay ? '上面叠了 B1：也看 ③④ 那一行' : '' };
   if (S.phase === 'ease') return { id: 'cut', note: S.handoff === 'no' ? '推不动：小心滑向 ⑤' : '' };
@@ -159,7 +159,7 @@ function gaugesHtml(m, snap) {
     <p class="ivl-gv">${esc(S.label || '')}</p><p class="ivl-gm">${esc(S.handoff === 'no' ? '推不动：交给大周期' : SHORT_MEAN[S.phase] || '')}</p></section>`;
   // 2 long
   const dots = LONG_ALL.map(k => `<li class="${L.stage === k ? 'on' : ''}${k === 3 || k === 4 ? ' sc' : ''}" title="${k === 3 || k === 4 ? '③④ 是小周期的加息和偿债' : esc(LONG_LABEL[k] || '')}">${CIRC[k]}</li>`).join('');
-  const fork = L.fork ? `<span class="ivl-tag">${esc(L.fork)} 岔路</span>` : L.b1Overlay ? '<span class="ivl-tag">叠了 B1</span>' : '';
+  const fork = L.fork ? `<span class="ivl-tag">${L.fork === 'B2' ? 'B2 跌破吸程线' : esc(L.fork) + ' 溢出'}</span>` : L.b1Overlay ? '<span class="ivl-tag">叠了 B1</span>' : '';
   const g2 = `<section class="ivl-g"><h4>大周期位置</h4><ol class="ivl-ring" aria-label="大周期八站">${dots}</ol>
     <p class="ivl-gv">${esc(L.label || '')} ${fork}</p><p class="ivl-gm">③④ 灰色：那两站是小周期在跑</p></section>`;
   // 3 real rate
@@ -538,7 +538,7 @@ const fx = {
  * 7. blind: three practice cards, then the full 历史盲测 deck (/blind/ has no tutorial mode: plain links)
  * ===================================================================================================== */
 const PRACTICE = {
-  'USA-2006': '房价涨了很多年，利率已经抬高：缓冲池满了吗？',
+  'USA-2006': '房价涨了很多年，利率已经抬高：地下水位逼近吸程线了吗？',
   'USA-2009': '最坏的消息都出来了：信号亮了几个？',
   'AUS-2015': '看起来很平常的一年：房子和股票，贵不贵？',
 };

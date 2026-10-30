@@ -107,7 +107,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -552,7 +552,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -699,7 +699,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）（接 物价过热）"
      },
      "signals": [
@@ -845,7 +845,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧·衰退（接 物价过热）"
      },
      "signals": [
@@ -991,7 +991,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）（接 物价过热）"
      },
      "signals": [
@@ -1137,7 +1137,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -1283,7 +1283,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -1428,7 +1428,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -1573,7 +1573,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -2151,7 +2151,7 @@ export const BLIND = {
      "short": "hot",
      "shortKey": "hotP",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "过热·物价"
      },
      "signals": [
@@ -2300,7 +2300,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧·衰退（接 物价过热）"
      },
      "signals": [
@@ -2448,7 +2448,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -2595,7 +2595,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -2742,7 +2742,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推不动）"
      },
      "signals": [
@@ -3912,7 +3912,7 @@ export const BLIND = {
      "short": "hot",
      "shortKey": "hotP",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "过热·物价"
      },
      "signals": [
@@ -4060,7 +4060,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）（接 物价过热）"
      },
      "signals": [
@@ -4206,7 +4206,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）（接 物价过热）"
      },
      "signals": [
@@ -4352,7 +4352,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧·衰退"
      },
      "signals": [
@@ -4498,7 +4498,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -4644,7 +4644,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）（接 物价过热）"
      },
      "signals": [
@@ -4789,7 +4789,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）（接 物价过热）"
      },
      "signals": [
@@ -4933,7 +4933,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）（接 物价过热）"
      },
      "signals": [
@@ -5076,7 +5076,7 @@ export const BLIND = {
      "short": "expand",
      "shortKey": "expand",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "扩张"
      },
      "signals": [
@@ -5219,7 +5219,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）（接 资产过热）"
      },
      "signals": [
@@ -5369,7 +5369,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）（接 物价过热）"
      },
      "signals": [
@@ -5519,7 +5519,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）（接 物价过热）"
      },
      "signals": [
@@ -5669,7 +5669,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -5819,7 +5819,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -5969,7 +5969,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "收紧（加息）"
      },
      "signals": [
@@ -6117,7 +6117,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -6265,7 +6265,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推不动）"
      },
      "signals": [
@@ -6413,7 +6413,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -6561,7 +6561,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -6711,7 +6711,7 @@ export const BLIND = {
      "short": "expand",
      "shortKey": "expand",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "扩张"
      },
      "signals": [
@@ -6861,7 +6861,7 @@ export const BLIND = {
      "short": "expand",
      "shortKey": "expand",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "扩张"
      },
      "signals": [
@@ -7011,7 +7011,7 @@ export const BLIND = {
      "short": "hot",
      "shortKey": "hotA",
      "labels": {
-      "long": "② 缓冲池满",
+      "long": "② 逼近吸程线（缓冲池满）",
       "short": "过热·资产"
      },
      "signals": [

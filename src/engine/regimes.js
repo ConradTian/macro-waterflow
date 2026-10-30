@@ -49,7 +49,7 @@ export function computeLamps(v, cp = countryParams()) {
   return { credit, debtService, policy, valuation };
 }
 
-const STAGES = ['', '① 借钱扩张', '② 资产缓冲池装满', '③ 岔路口（B1/B2）', '④ 降息尝试重启信用',
+const STAGES = ['', '① 借钱扩张', '② 逼近吸程线（缓冲池满）', '③ 岔路口（B1/B2）', '④ 降息尝试重启信用',
   '⑤ 私人借不动、转向还债', '⑥ 政府接手、央行支持', '⑦ 化债 / 金融压制', '⑧ 偿债压力下降、资产负债表修复'];
 const NEXT = {
   1: '若房价比一年前 >5% 且信贷持续增长 → 进入 ②',
@@ -97,7 +97,7 @@ export function detectRing(v0, prevProbs) {
 //  - a stage advances only to the next one (or skips at most one ahead) when that target's streak >= N
 //  - on moving, all streaks restart (confirmation is measured AFTER arrival); no counter-clockwise moves
 //  - mixed evidence (target's streak > 0 but < N) is shown as `between`, the current stage does not change
-export const LONG_LABEL = { 1: '① 堆债', 2: '② 缓冲池满', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 金融压制·增长化债', 8: '⑧ 修复' };
+export const LONG_LABEL = { 1: '① 堆债', 2: '② 逼近吸程线（缓冲池满）', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 金融压制·增长化债', 8: '⑧ 修复' };
 export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 // Short cycle as the learner sees it (Dalio): 扩张 → 过热 → 收紧 → 降息（推得动吗？）. The top comes in two kinds:
 // 物价过热 (inflation high and running up) or 资产过热 (a borrowing-driven boom that breaks: credit shrinks, house prices turn, DSR stretched).
@@ -155,7 +155,7 @@ function cycleTexts(cyc) {
   if (TXT.has(cyc)) return TXT.get(cyc);
   const LT = ltOf(cyc.LT), ST = stx(cyc.ST);
   const LONG_NEXT = {
-    1: `私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)} 且房价/收入 ≥ 起点 ${LT.pi}x（连续 ${longN(2)} 季）→ ② 缓冲池满`,
+    1: `私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)} 且房价/收入 ≥ 起点 ${LT.pi}x（连续 ${longN(2)} 季）→ ② 逼近吸程线（缓冲池满）`,
     2: `私人债务/GDP 较三年高点回落 ≥ ${pp1(-LT.pvtDown)}，且坏账率 ≥ ${pc1(LT.bad)} 或政策利率 ≤ ${pc1(LT.zb)}（降息用尽）→ ⑤`,
     5: `政府债务/GDP 三年升 ≥ ${pp1(LT.govUp)} 或赤字 ≥ ${pc1(LT.deficit)} GDP，同时 QE ≥ ${pc1(LT.qe)} GDP 或政策利率 ≤ ${pc1(LT.zb2)} → ⑥`,
     6: `名义增长（近 4 季）高于 10 年国债利率（g−r ≥ ${pp1(LT.gr)}），且政府债务/GDP 比一年前不升（≤ ${pp1(LT.gov4)}），连续 ${longN(7)} 季 → ⑦；加分项：实际政策利率 ≤ ${pc1(LT.realP7)}`,
@@ -170,7 +170,7 @@ function cycleTexts(cyc) {
     tight: `${cutT}（推得动吗？）。失业率较低点升 ≥ ${pp1(ST.uRise)} 或信贷脉冲 ≤ ${pp1(ST.ciTight)} 时标「收紧·衰退」`,
     ease: `推得动：信贷脉冲回正且失业率不再上升（连续 ${SHORT_N.expand} 季），或央行重新加息 → 扩张；央行停止降息后，通胀 ≥ ${pc1(ST.infl)} 且比一年前高 ≥ ${pp1(ST.inflUp)} → 过热·物价；推不动：大周期走上 B2 → ⑤ 私人去杠杆`,
   };
-  const B2_TXT = `B2 岔路（三条同时成立，连续 ${b2N(LT)} 季才确认）：房价比一年前 ≤ ${pc1(LT.hpFall)}；DSR 比起点高 ≥ ${pp1(LT.dsrHi)} 或私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)}；央行已降息 ≥ ${pp1(LT.cut)}（或近零）但信贷脉冲仍 ≤ ${pp1(LT.ciNeg)}。降息推得动（小周期回到扩张）时解除`;
+  const B2_TXT = `B2 跌破吸程线（B2 岔路）：三条同时成立，连续 ${b2N(LT)} 季才确认。房价比一年前 ≤ ${pc1(LT.hpFall)}；DSR 比起点高 ≥ ${pp1(LT.dsrHi)} 或私人债务/GDP 三年升 ≥ ${pp1(LT.pvtUp)}；央行已降息 ≥ ${pp1(LT.cut)}（或近零）但信贷脉冲仍 ≤ ${pp1(LT.ciNeg)}。降息推得动（小周期回到扩张）时解除`;
   const o = { LONG_NEXT, SHORT_NEXT_TXT, B2_TXT };
   TXT.set(cyc, o);
   return o;
@@ -419,7 +419,7 @@ export function detectPauses(v, mem, t, events = [], cp = countryParams()) {
   // cycle dials: pause on a real long-stage change, on the long cycle taking the B2 fork, and on the short cycle reaching its top
   for (const e of events) {
     if (e.kind === 'long') fire('LONG_STAGE', `大周期进入 ${LONG_LABEL[e.to]}（此前：${LONG_LABEL[e.from]}）`, 0);
-    else if (e.kind === 'longFork') fire('LONG_FORK', '大周期走上 B2 岔路：房价在跌、债务高、降了息信贷还在缩（降息推不动，资产负债表衰退的入口）', 0);
+    else if (e.kind === 'longFork') fire('LONG_FORK', '大周期 B2：地下水位跌破吸程线（B2 岔路）。房价在跌、债务高、降了息信贷还在缩（降息推不动，资产负债表衰退的入口）', 0);
     else if (e.kind === 'top') fire('SHORT_TOP', `小周期到顶：${e.to === 'price' ? '物价过热（通胀高、还在升）' : '资产过热见顶（信贷先缩、房价转弱、偿债吃紧）'}`, 4);
   }
   return out;

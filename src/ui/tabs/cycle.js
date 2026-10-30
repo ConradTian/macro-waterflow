@@ -26,8 +26,8 @@ const LAMPS = [
 ];
 const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 const LONG_MARK = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' };
-const LONG_NAME = { 1: '堆债', 2: '缓冲池满', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '金融压制·增长化债', 8: '修复' };
-const LONG_NODE = { 1: '堆债', 2: '缓冲池满', 5: '私人去杠杆', 6: '政府接手', 7: '压制化债', 8: '修复' };
+const LONG_NAME = { 1: '堆债', 2: '逼近吸程线', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '金融压制·增长化债', 8: '修复' };
+const LONG_NODE = { 1: '堆债', 2: '逼近吸程线', 5: '私人去杠杆', 6: '政府接手', 7: '压制化债', 8: '修复' };
 // short names for the dial (cards and texts use KEY_LABEL). B1/B2 are NOT short-cycle names any more: they are the long cycle's fork after ②.
 const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息' };
 const SHORT_GLYPH = { expand: '扩', hot: '热', tight: '紧', ease: '降' };

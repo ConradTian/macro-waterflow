@@ -624,7 +624,7 @@ function realStageMarks() {
     if (!L || t > realLastT()) return;
     if (prev != null && L.stage !== prev) out.push({ t, mark: GL[L.stage] || String(L.stage), text: `真实数据：大周期进入 ${L.label || L.stage}`, kind: 'stage' });
     prev = L.stage;
-    if (!fork && L.fork === 'B2') { fork = true; out.push({ t, mark: 'B2', text: '真实数据：大周期走上 B2 岔路', kind: 'b2' }); }
+    if (!fork && L.fork === 'B2') { fork = true; out.push({ t, mark: 'B2', text: '真实数据：地下水位跌破吸程线（大周期 B2）', kind: 'b2' }); }
   });
   marksCache = { iso: COUNTRY, list: out };
   return out;

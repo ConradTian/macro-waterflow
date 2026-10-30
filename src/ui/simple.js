@@ -6,7 +6,7 @@
 // Reads snapshots only; it never touches the economy. The dials follow the diagram layers (body.layers-on / data-layers, app.js):
 // a dial whose layer is not learned yet is left out; with neither, a short note says where they come from.
 import { longDial, shortDial } from './tabs/cycle.js';
-import { headlineItems, nextStep } from './headline.js';
+import { headlineSplit, nextStep, hiddenRow } from './headline.js';   // items filtered by the layers on screen, like the strip
 import { flash, flashConcept } from './links.js';
 import { currentCountry, localizeText } from './country-info.js';
 import { layerShown } from './progress.js';      // progressive diagram: the SHORT dial comes with L-short, the LONG dial with L-long
@@ -55,15 +55,15 @@ function b2Html(L) {
 /* ---------- 本季看点 details (same items as the strip under the time bar) ---------- */
 function detailsHtml(sim, snap) {
   const prev = snap.t > 0 ? sim.snapshot('model', snap.t - 1) : null;
-  let items = [], nx = null;
-  try { items = headlineItems(snap, prev, sim); nx = nextStep(snap); } catch (e) { console.error(e); }
+  let items = [], nx = null, hidden = 0;
+  try { ({ items, hidden } = headlineSplit(snap, prev, sim)); nx = nextStep(snap); } catch (e) { console.error(e); }
   const iso = currentCountry(sim), loc = o => (o && iso !== 'USA' ? { ...o, text: localizeText(o.text, iso), where: localizeText(o.where, iso) } : o);
   items = items.map(loc); nx = loc(nx);
   last.items = items; last.next = nx;
   const row = (it, i, tag, cls = '') => `<li><button type="button" class="sp-item${cls}" data-act="item" data-i="${i}"><span class="hl-tag">${tag}</span>` +
     `<span class="hl-body"><b class="hl-t">${esc(it.text)}</b><small class="hl-w">看：${esc(it.where)}</small></span></button></li>`;
   const rows = !prev ? '<li class="sp-quiet"><span class="hl-tag">起点</span><span class="hl-body"><b class="hl-t">这是起点</b><small class="hl-w">还没有上一季可以比较</small></span></li>'
-    : (items.length ? items.map((it, i) => row(it, i, KIND_TAG[it.kind] || '看点')).join('')
+    : (items.length || hidden ? items.map((it, i) => row(it, i, KIND_TAG[it.kind] || '看点')).join('') + hiddenRow(hidden, 'sp-quiet')
       : '<li class="sp-quiet"><span class="hl-tag">平稳</span><span class="hl-body"><b class="hl-t">本季平稳：没有新信号</b><small class="hl-w">灯没变色、没有新规则触发——只需要看「水」是多了还是少了</small></span></li>') +
       (nx ? row(nx, 'next', '下一步', ' hl-next') : '');
   return `<section class="sp-hl" aria-label="本季看点"><h3 class="sp-h">本季看点 <small>${esc(snap.date)}</small></h3><ol class="sp-list">${rows}</ol></section>`;
