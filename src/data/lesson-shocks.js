@@ -1,14 +1,16 @@
-// Course v3 lesson L2 「水的问题，还是河道的问题」 (approved by the user 2026-10-29; tools/COURSE-V3.md): right after L1 水从哪来. It absorbs the old
-// optional lesson 「Capex 与产能」 (step 5 runs on the sim). Shape = the entries of LESSONS in src/data/lessons.js; the orchestrator registers it
-// (do not import lessons.js from here). Contract: tools/D-CONTRACT.md, section 「冲击」.
+// Course v3 lesson L2 「是水的问题还是河道的问题？」 (tools/DESIGN-v3.md course outline, rewritten 2026-10-30 to the v3 rules: one question,
+// one new piece = the 测流断面 (layer L-channel), one example = 2021 水多了 vs 2022 能源河道变窄, 6 steps incl. the intro, the 三问 ending).
+// Right after L1 钱从哪来. It absorbs the old optional lesson 「Capex 与产能」 (step 4 runs on the sim). Shape = the entries of LESSONS in
+// src/data/lessons.js; the orchestrator registers it (do not import lessons.js from here). Contract: tools/D-CONTRACT.md, section 「冲击」.
+// The panels shk-lines / shk-parts stay in src/ui/shock-lab.js (cards, demo page) but no step of the v3 lesson mounts them.
 //
 // Extra fields used here:
 //   kind:'shocks'               own checker (tools/check_lesson_shocks.mjs). Numbers are typed in the text, each backed by `nums`.
 //   step.panel { id, ... }      the runner calls mountShockPanel(host, step.panel) from src/ui/shock-lab.js on entry, unmountShockPanel() on leave
 //                               ids: shk-rule (the four corners + six parts), shk-quad (the event quadrant; group, select), shk-lines (三条线:
 //                               temporary vs permanent), shk-parts (the event x part table). Every panel opens an event card on tap.
-//   step 5 (Capex)              a normal sim step: reveal from 2020Q4 to 2023Q4 with vals / claims, as the cycle lessons (check_lessons format)
-//   last step `ending`          the fixed 三问 block { q1, q2, q3 } (one line each, answered for this lesson's example, COVID 2020–22)
+//   step 4 (Capex)              a normal sim step: reveal from 2020Q4 to 2023Q4 with vals / claims, as the cycle lessons (check_lessons format)
+//   last step `ending`          the fixed 三问 block { q1, q2, q3 } (one line each, answered for this lesson's example, 2021 vs 2022)
 // Never shown to the learner, only read by tools/check_lesson_shocks.mjs:
 //   step.nums / card.nums [{ t, f, fmt }]   every number typed in the text: f(D) recomputes it from the raw data; fmt(f(D)) must equal t.
 //                               Allowed without an entry: years, quarters (2020Q4), N 月, 第 N 步/课, 下面分 N 步, B1/B2, {placeholders}.
@@ -20,11 +22,11 @@
 
 /* ---------- the six parts an event can hit (columns of the shk-parts table; card rows) ---------- */
 export const SHOCK_PARTS = [
-  { k: 'width',  name: '河道宽度', sub: '产能：能运出多少东西' },
-  { k: 'water',  name: '水',       sub: '需求：泵和排水口' },
-  { k: 'pool',   name: '资产水库', sub: '房、股、债' },
-  { k: 'debt',   name: '债务',     sub: '欠条箱' },
-  { k: 'border', name: '国境线',   sub: '关税、贸易条件' },
+  { k: 'width',  name: '断面宽度', sub: '产能：一季最多能运出多少东西' },
+  { k: 'water',  name: '水',       sub: '需求：抽水和回灌' },
+  { k: 'pool',   name: '资产池',   sub: '湖边的房、股、债' },
+  { k: 'debt',   name: '债务',     sub: '地下水位：欠得越多越低' },
+  { k: 'border', name: '闸（国境）', sub: '关税、贸易条件' },
   { k: 'mood',   name: '预期和信心', sub: '大家以为会怎样' },
 ];
 
@@ -32,8 +34,8 @@ export const SHOCK_PARTS = [
 export const SHOCK_CORNERS = {
   ru: { name: '水多了', kind: 'water', note: '流量和水位一起往上：需求' },
   ld: { name: '水少了', kind: 'water', note: '一起往下：需求' },
-  lu: { name: '河道变窄', kind: 'channel', note: '流量往下、水位往上：供给' },
-  rd: { name: '河道变宽', kind: 'channel', note: '流量往上、水位往下：供给' },
+  lu: { name: '河道变窄', kind: 'channel', note: '流量往下、断面水位往上：供给（断面宽度变小）' },
+  rd: { name: '河道变宽', kind: 'channel', note: '流量往上、断面水位往下：供给（断面宽度变大）' },
 };
 export const SHOCK_GROUPS = { modern: '1964 年以后', war: '1915–1948：战争和大萧条' };
 
@@ -52,7 +54,7 @@ export const SHOCK_CARDS = [
       { t: '10.5', f: D => -D.us('pi', 1921), fmt: 'n1' }, { t: '11.7', f: D => D.us('u', 1921), fmt: 'n1' }] },
 
   { id: 'gd', name: '大萧条', when: '1929–1933', where: '美国', kind: 'water',
-    one: '水被毁掉：银行成批倒闭，存款（水）跟着消失；关税又把国境线收窄。GDP 和物价一起往左下 → 水的问题，B2。',
+    one: '水被毁掉：银行成批倒闭，存款（水）跟着消失；关税又把过境的闸收窄。GDP 和物价一起往左下 → 水的问题，B2。',
     hit: [{ k: 'water', s: -1, lab: '少', w: 3, t: '银行倒闭，存款消失' }, { k: 'pool', s: -1, lab: '缩', w: 3, t: '股市崩，房价跌' },
       { k: 'debt', s: 1, lab: '变重', w: 3, t: '物价跌，同样的债越来越难还' }, { k: 'border', s: -1, lab: '窄', w: 1, t: '1930 年加关税，各国报复' }, { k: 'mood', s: -1, lab: '怕了', w: 2, t: '挤兑：人人去银行取钱' }],
     policy: '美联储没救银行，还守着金本位；1933 年放弃金本位、建存款保险，才止住。', ring: 'B2 缩水 → ⑤ 私人去杠杆，那时没有 ⑥ 及时补水。',
@@ -114,14 +116,14 @@ export const SHOCK_CARDS = [
     nums: [{ t: '5.7', f: D => D.pt('net', 1999).x, fmt: 'n1' }, { t: '2.8', f: D => D.us('pi', 1995), fmt: 'n1' }, { t: '1.5', f: D => D.us('pi', 1998), fmt: 'n1' }, { t: '3.4', f: D => D.us('pi', 2000), fmt: 'n1' }] },
 
   { id: 'wto', name: '中国入世', when: '2001 起', where: '全世界', kind: 'channel',
-    one: '全世界的河道一下子变宽：中国的工厂接进来，东西变便宜，全球通胀低；省下的钱流进资产水库，把它灌满。',
+    one: '全世界的河道一下子变宽：中国的工厂接进来，东西变便宜，全球通胀低；省下的钱流进资产池，把它灌满。',
     hit: [{ k: 'width', s: 1, lab: '全球变宽', w: 3, t: '几亿人进了工厂' }, { k: 'border', s: 1, lab: '宽', w: 3, t: '关税降、订单涌进中国' },
       { k: 'pool', s: 1, lab: '灌满', w: 2, t: '中国的美元回流买美国国债，利率低' }, { k: 'debt', s: 1, lab: '加', w: 1, t: '利率低，债越堆越高' }],
     policy: '各国央行看到通胀低，利率可以长期偏低。', ring: '① 堆债 → ② 缓冲池满：低通胀让 2000 年代的债越堆越高。',
     data: null },
 
   { id: 'mining', name: '澳洲矿业繁荣', when: '2003–2011', where: '澳洲', kind: 'water',
-    one: '国境线上的好消息：铁矿石涨价（贸易条件变好），外面的钱流进澳洲 = 水多了；人手、港口跟不上，物价被推高。',
+    one: '闸外来的好消息：铁矿石涨价（贸易条件变好），外面的钱流进澳洲 = 水多了；人手、港口跟不上，物价被推高。',
     hit: [{ k: 'border', s: 1, lab: '贸易条件变好', w: 3, t: '铁矿石、煤卖得贵' }, { k: 'water', s: 1, lab: '多', w: 2, t: '矿业收入和投资' }, { k: 'width', s: 1, lab: '慢慢变宽', w: 1, t: '新矿山、新港口要好几年' }],
     policy: '澳联储 2007–2008 年加息；澳元变强也帮着降温（见汇率课）。', ring: '澳洲小周期 过热·物价。',
     data: '2008 年澳洲通胀 4.3%（2007 年 2.4%）。',
@@ -187,189 +189,128 @@ export const SHOCK_CARDS = [
     facts: [{ f: D => D.ev('chn').trend.join() === '2014,2019', note: '中国的旧趋势用 2014–2019 年' }] },
 ];
 
-/* ---------- the lesson ---------- */
-const STEP_OUTLINE = '下面分 8 步：河道变窄 → 水变少 → 河道变宽 → 两样一起来 → Capex 要等 → 战争 → 临时还是永久 → 打中哪两样。';
+/* ---------- the lesson (course v3, tools/DESIGN-v3.md: one question + one new piece + one real example, <= 6 steps, the 三问 ending) ----------
+ * question  是水的问题还是河道的问题？
+ * new piece the 测流断面 on the river (layer L-channel: the channel's 断面 inset, node 'section'; width = 产能, 水位 = 物价, 流量 = GDP)
+ *           + Capex widens it, with a lag
+ * example   2021 水多了 (US: flow and level up together) vs 2022 能源河道变窄 (US straight up, Germany flow flat / level up) */
+const STEP_OUTLINE = '下面分 5 步：测流断面 → 水多了：2021 → 河道变窄：2022 → 拓宽要等：Capex → 临时还是永久：该怎么办。';
 
 export const LESSON_SHOCKS = {
   id: 'shk', kind: 'shocks', label: '第 2 课',
-  title: '水的问题，还是河道的问题',
-  oneLine: '流量（GDP、就业）和水位（物价）同向走 = 水的问题（需求）；反向走 = 河道的问题（供给）。分清是哪样、临时还是永久，就知道央行该怎么办。',
+  title: '是水的问题还是河道的问题？',
+  oneLine: '看河上的测流断面：断面宽度 = 产能，断面水位 = 物价，流量 = GDP。流量和水位同向走 = 水的问题（需求）；反向走 = 河道的问题（供给）。只有企业投资（Capex）能拓宽断面，而且要等。',
   rulesOn: 'all',
   startDate: '2019Q1', endDate: '2023Q4', mode: 'history', available: true,
   steps: [
     { type: 'intro', title: '先说结论', panel: { id: 'shk-rule' },
       text: [
-        '**结论：流量（GDP、就业）和水位（物价）往同一个方向走，是水的问题（需求）；往相反方向走，是河道的问题（供给）。**',
-        '第 1 课看了水从哪来、到哪去。这一课问：出事的时候，是水变了，还是河道变了？药正好不同：水的问题，央行拧闸门就行；河道的问题，拧闸门只能二选一，要么保物价，要么保就业。',
-        '图里是一张四格图：往右 = GDP 比旧趋势多，往上 = 通胀变高。右上、左下 = 水多、水少；左上、右下 = 河道变窄、变宽。',
-        '每次冲击打中的往往不只一样。卡片上列六样：河道宽度、水、资产水库、债务、国境线、预期和信心。',
+        '**结论：出事的时候，看河上的测流断面。流量（GDP）和断面水位（物价）往同一个方向走 = 水的问题（水多了或少了：需求）；往相反方向走 = 河道的问题（断面宽度 = 产能变了：供给）。只有企业投资（Capex）能把断面拓宽，而且要等。**',
+        '先看图：四个格子里各画了一个小断面（把河横着切一刀看到的槽和水）。右上、左下：槽没变，水多了或少了；左上、右下：水没变，槽变窄或变宽。点一个角，看历史上哪些冲击落在那里。',
+        '第 1 课看了水从哪来、在河的环上怎么转。这一课只问一个问题：**是水的问题，还是河道的问题？** 两种病的药不同：水的问题，央行收水或放水就行；河道的问题，收水、放水都只能二选一：要么保物价，要么保就业。',
+        '例子只用一个：疫情之后的美国（再看一眼德国）。2021 年是水多了，2022 年是能源这一段河道变窄。',
         STEP_OUTLINE,
       ],
-      concept: ['capacity', 'cpi', 'unemployment'] },
+      hl: ['goodsChannel'], concept: ['goodsChannel'] },
 
-    { type: 'reveal', title: '第 1 步：河道变窄：石油 1973、1979', panel: { id: 'shk-quad', group: 'modern', select: 'oil73' },
+    { type: 'reveal', title: '第 1 步：测流断面：宽、水位、流量', glow: { parts: ['channel'] },
       text: [
-        '**结论：1973 年和 1979 年，物价往上冲、GDP 往下掉，方向相反 → 河道的问题：能源这段河道突然变窄。**',
-        '1973 年底石油禁运，油价翻了几倍（判断：本项目没有那时的油价数据）。能源是所有东西的河道：油贵了，运货、做货都贵，同样的钱运出的东西少了。',
-        '看图：1974 年通胀 11.0%（前一年 6.3%），1975 年 GDP 比旧趋势线低 8.9%，箭头指向左上。1979 年伊朗革命又来一次，1980 年通胀到 13.5%。',
-        '为什么这么重：河道变窄时，1964–1973 年多放的水（B1）还没退。窄河道 + 多余的水 = 严重滞胀。',
-        '央行的难处：收水能压物价，GDP 会掉得更多；放水能保就业，物价更高。1979 年起沃尔克选了收水（点「沃尔克收水」那条线）。',
+        '**结论：测流断面上有三样东西：断面宽度 = 产能，断面水位 = 物价，流量 = GDP。**',
+        '先看图：河中间亮起来的那一段，右边有个小框「断面」。它是把河横着切一刀看到的样子，就像水文站的测流断面：一个槽，里面有水。',
+      ],
+      question: '这个断面上能读出三样东西：槽有多宽、水有多高、每季流过多少水。它们各是经济里的什么？',
+      answerHint: [
+        '**断面宽度 = 产能**：一季最多能运出多少东西（工厂、机器、人手）。**断面水位 = 物价**：水越满，物价涨得越快。**流量 = GDP**：一季真正运出了多少东西。',
+        '水漫过河岸 = 河溢（物价涨太快）；水太浅、槽空着一大半 = 河干（工厂和人手闲着：失业）。这就是第 1 课总目标的两个扣分项。',
+      ],
+      relation: '于是出事时只看两样怎么一起动：水变了，水位和流量同向走；槽变了，两样反着走。下面两步，用 2021 和 2022 各看一次。',
+      hl: ['capacity', 'cpi'], concept: ['capacity', 'cpi', 'outputGap'] },
+
+    { type: 'reveal', title: '第 2 步：水多了：2021', panel: { id: 'shk-quad', group: 'modern', select: 'covid' },
+      text: [
+        '**结论：2021 年，流量和水位一起往上 → 水的问题：水多了。**',
+        '图里是一张四格图。往右 = 流量多了（GDP 比旧趋势线高），往上 = 水位高了（通胀比起点那年高）。亮着的「疫情」线是美国，从 2019 年那一点出发，一年一个点。',
+        '2020 年封城：箭头往左下，GDP 比旧趋势线低 4.4%，通胀从 1.8% 降到 1.3%。',
+        '2021 年：政府发钱、央行降息到零，水一下子灌回来。箭头猛地往右上：GDP 回到只比旧趋势线低 0.8%，通胀升到 4.7%。流量和水位同向 → 槽没怎么变，是水变多了，水面快漫过河岸。',
       ],
       nums: [
-        { t: '11.0', f: D => D.us('pi', 1974), fmt: 'n1' }, { t: '6.3', f: D => D.us('pi', 1973), fmt: 'n1' },
-        { t: '8.9', f: D => -D.pt('oil73', 1975).x, fmt: 'n1' }, { t: '13.5', f: D => D.us('pi', 1980), fmt: 'n1' },
+        { t: '4.4', f: D => -D.pt('covid', 2020).x, fmt: 'n1' }, { t: '1.8', f: D => D.us('pi', 2019), fmt: 'n1' }, { t: '1.3', f: D => D.us('pi', 2020), fmt: 'n1' },
+        { t: '0.8', f: D => -D.pt('covid', 2021).x, fmt: 'n1' }, { t: '4.7', f: D => D.us('pi', 2021), fmt: 'n1' },
       ],
       facts: [
-        { f: D => D.pt('oil73', 1975).x < 0 && D.pt('oil73', 1975).dy > 0 && D.pt('oil79', 1980).x < 0 && D.pt('oil79', 1980).dy > 0, note: '1973、1979 两次都落在左上格' },
-        { f: D => D.pt('oil73', 1974).x < 0 && D.pt('oil73', 1974).dy > 0, note: '1974 年这一段箭头指向左上' },
-        { f: D => D.pt('b1', 1973).x > 0 && D.pt('b1', 1973).dy > 0, note: '石油冲击之前（1973 年）还在右上：水多' },
+        { f: D => D.pt('covid', 2020).x < 0 && D.pt('covid', 2020).dy < 0, note: '2020 年在左下格' },
+        { f: D => D.pt('covid', 2021).x - D.pt('covid', 2020).x > 2 && D.pt('covid', 2021).dy - D.pt('covid', 2020).dy > 2, note: '2021 年那段猛地往右上（两个方向都 > 2）：同向' },
       ],
-      concept: ['capacity', 'cpi'] },
+      concept: ['fiscalInjection', 'cpi'] },
 
-    { type: 'reveal', title: '第 2 步：水变少：2008 和大萧条', panel: { id: 'shk-quad', group: 'modern', select: 'gfc' },
+    { type: 'reveal', title: '第 3 步：河道变窄：2022 石油', panel: { id: 'shk-quad', group: 'modern', select: 'ukr' },
       text: [
-        '**结论：2008 年，GDP 和物价一起往下 → 水的问题：水被毁掉了。**',
-        '房价一跌，抵押品缩水，银行收闸（后面几课细讲）；还本的排水口照样在抽，河里的水变少。河道还是那么宽，只是没水。',
-        '看图：2009 年 GDP 比旧趋势线低 8.2%，通胀 −0.3%（2007 年 2.9%），箭头指向左下。2008 年先往左上走了一小段：那年油价冲到顶，通胀 3.8%。',
-        '1929–1933 年是同一种病，更重：银行成批倒闭，存款跟着消失，1933 年 GDP 比旧趋势线低 37.7%（图上切到「1915–1948」那一组）。',
-        '水的问题，药是补水：降息、QE、政府花钱。药是对的，难的是够不够、快不快。',
+        '**结论：2022 年，水位还在往上冲，流量却不涨了 → 河道的问题：能源这一段断面被卡窄了。**',
+        '2022 年 2 月俄乌开战，油价、天然气价格猛涨（2022 年二季度油价到了这几年的最高点）。能源是所有东西都要经过的一段河道：它一贵，运货、做货都贵，同样多的水运出的东西变少了。',
+        '美国（疫情那条线）2022 年箭头几乎垂直往上：GDP 还是比旧趋势线低 0.7%，没动；通胀从 4.7% 升到全年 8.0%，6 月比一年前 9.1%。',
+        '亮着的是德国，离俄罗斯的气最近：通胀从 2021 年的 3.2% 跳到 2022 年的 8.7%，GDP 只比旧趋势线高 0.6%，也几乎垂直往上。到 2023 年落在左上格：流量比旧趋势少、水位还高，反着走 = 河道变窄。',
+        '2022 年起的点是保留样本（研究截止以后的数据），图上画成空心。',
       ],
       nums: [
-        { t: '8.2', f: D => -D.pt('gfc', 2009).x, fmt: 'n1' }, { t: '-0.3', f: D => D.us('pi', 2009), fmt: 'n1' }, { t: '2.9', f: D => D.us('pi', 2007), fmt: 'n1' },
-        { t: '3.8', f: D => D.us('pi', 2008), fmt: 'n1' }, { t: '37.7', f: D => -D.pt('gd', 1933).x, fmt: 'n1' },
+        { t: '0.7', f: D => -D.pt('covid', 2022).x, fmt: 'n1' }, { t: '4.7', f: D => D.us('pi', 2021), fmt: 'n1' }, { t: '8.0', f: D => D.us('pi', 2022), fmt: 'n1' },
+        { t: '9.1', f: D => D.cpiNsa('2022-06'), fmt: 'n1' },
+        { t: '3.2', f: D => D.weo('DEU', 'PCPIPCH', 2021), fmt: 'n1' }, { t: '8.7', f: D => D.weo('DEU', 'PCPIPCH', 2022), fmt: 'n1' }, { t: '0.6', f: D => D.pt('ukr', 2022).x, fmt: 'n1' },
       ],
       facts: [
-        { f: D => D.pt('gfc', 2009).x < D.pt('gfc', 2008).x && D.pt('gfc', 2009).dy < D.pt('gfc', 2008).dy && D.pt('gfc', 2010).x < 0 && D.pt('gfc', 2010).dy < 0, note: '2009 年那段往左下，2010 年还在左下格' },
-        { f: D => D.pt('gfc', 2008).x < 0 && D.pt('gfc', 2008).dy > 0, note: '2008 年先往左上一小段' },
-        { f: D => [1930, 1931, 1932, 1933].every(y => D.pt('gd', y).x < 0 && D.pt('gd', y).dy < 0), note: '1930–1933 年每年都在左下格' },
-      ],
-      concept: ['B2', 'unemployment'] },
-
-    { type: 'reveal', title: '第 3 步：河道变宽：互联网', panel: { id: 'shk-quad', group: 'modern', select: 'net' },
-      text: [
-        '**结论：1995–1999 年，GDP 跑到趋势线上方，通胀反而往下，方向相反 → 河道的问题，这次是好事：河道变宽。**',
-        '电脑和互联网让每个人一小时做得更多：同样的人，运出更多的东西。东西多了，价格涨不动。',
-        '看图：1999 年 GDP 比旧趋势线高 5.7%，通胀从 1995 年的 2.8% 降到 1998 年的 1.5%，箭头指向右下。',
-        '2000 年箭头往上拐：股市泡沫把水也推多了，加上油价，通胀回到 3.4%，央行加息（后面的课讲这个顶）。',
-        '央行的选择：河道变宽时，GDP 快一点不用急着收水。那几年美联储就是这样赌的（判断：赌对了）。2001 年中国入世是同一种事，范围是全世界（卡片：中国入世）。',
-      ],
-      nums: [
-        { t: '5.7', f: D => D.pt('net', 1999).x, fmt: 'n1' }, { t: '2.8', f: D => D.us('pi', 1995), fmt: 'n1' }, { t: '1.5', f: D => D.us('pi', 1998), fmt: 'n1' },
-        { t: '3.4', f: D => D.us('pi', 2000), fmt: 'n1' },
-      ],
-      facts: [
-        { f: D => [1997, 1998, 1999].every(y => D.pt('net', y).x > 0 && D.pt('net', y).dy < 0), note: '1997–1999 年在右下格' },
-        { f: D => D.pt('net', 2000).dy > D.pt('net', 1999).dy, note: '2000 年箭头往上拐' },
-      ],
-      concept: ['capacity', 'cpi'] },
-
-    { type: 'reveal', title: '第 4 步：两样一起来：疫情和乌克兰', panel: { id: 'shk-quad', group: 'modern', select: 'covid' },
-      text: [
-        '**结论：疫情是两样一起来：河道临时变窄 + 私人停水，然后政府大灌水。灌进来的水远多于河道窄掉的那一块，物价冲到 9.1%。**',
-        '2020 年：封城，工厂停、店关门（河道窄），大家也不出门花钱（水少）。箭头往左下：GDP 比旧趋势线低 4.4%，通胀从 1.8% 降到 1.3%。水少掉的比河道窄掉的还多，所以物价没涨。',
-        '2021 年：政府发钱、央行降息到零（大灌水），水回来得比河道快，箭头猛地往右上：GDP 回到 −0.8%，通胀 4.7%。2022 年全年 8.0%，6 月比一年前 9.1%。',
-        '2022 年的乌克兰战争又把欧洲的能源河道卡窄：德国通胀 2022 年 8.7%，GDP 几乎没动，箭头几乎垂直往上；2023 年加息收水，往左下。',
-        '2022 年以后的点是保留样本（研究截止以后的数据），图上画成空心。',
-      ],
-      nums: [
-        { t: '9.1', f: D => D.cpiNsa('2022-06'), fmt: 'n1' }, { t: '4.4', f: D => -D.pt('covid', 2020).x, fmt: 'n1' },
-        { t: '1.8', f: D => D.us('pi', 2019), fmt: 'n1' }, { t: '1.3', f: D => D.us('pi', 2020), fmt: 'n1' },
-        { t: '-0.8', f: D => D.pt('covid', 2021).x, fmt: 'n1' }, { t: '4.7', f: D => D.us('pi', 2021), fmt: 'n1' }, { t: '8.0', f: D => D.us('pi', 2022), fmt: 'n1' },
-        { t: '8.7', f: D => D.weo('DEU', 'PCPIPCH', 2022), fmt: 'n1' },
-      ],
-      facts: [
-        { f: D => D.pt('covid', 2020).x < 0 && D.pt('covid', 2020).dy < 0, note: '2020 年左下' },
-        { f: D => D.pt('covid', 2021).x - D.pt('covid', 2020).x > 2 && D.pt('covid', 2021).dy - D.pt('covid', 2020).dy > 2, note: '2021 年那段猛地往右上（两个方向都 > 2）' },
+        { f: D => Math.abs(D.pt('covid', 2022).x - D.pt('covid', 2021).x) < 0.5 && D.pt('covid', 2022).dy - D.pt('covid', 2021).dy > 2, note: '美国 2022 年那段几乎垂直往上（横向 < 0.5，纵向 > 2）' },
         { f: D => Math.abs(D.pt('ukr', 2022).x) < 1 && D.pt('ukr', 2022).dy > 4, note: '德国 2022 年几乎垂直往上（横向 < 1，纵向 > 4）' },
-        { f: D => D.pt('ukr', 2023).x < D.pt('ukr', 2022).x && D.pt('ukr', 2023).dy < D.pt('ukr', 2022).dy, note: '德国 2023 年那段往左下' },
+        { f: D => D.pt('ukr', 2023).x < 0 && D.pt('ukr', 2023).dy > 0, note: '德国 2023 年落在左上格（河道变窄）' },
+        { f: D => { let m = -1e9, at = ''; for (const mm of D.cpiMonths('2021-01', '2023-12')) { const v = D.cpiNsa(mm); if (v > m) { m = v; at = mm; } } return at === '2022-06'; }, note: '2022 年 6 月是这一轮 CPI 比一年前涨得最多的月份' },
       ],
-      concept: ['capacity', 'fiscalInjection', 'cpi'] },
+      concept: ['capacity', 'cpi'] },
 
     // the old optional lesson 「Capex 与产能」, on the running sim (claims in the check_lessons format)
-    { type: 'reveal', from: '2020Q4', until: '2023Q4', title: '第 5 步：Capex 拓宽河道，要等', view: 'flow',
-      glow: { parts: ['firm', 'capex'], pipes: ['toCapex'] },
+    { type: 'reveal', from: '2020Q4', until: '2023Q4', title: '第 4 步：拓宽要等：Capex', view: 'flow',
+      glow: { parts: ['firm', 'capex', 'channel'], pipes: ['toCapex'] },
       text: [
-        '**结论：只有 Capex（企业投资）能拓宽河道，而且要等：钱当季就花出去（先是水），施工约 6 个季度以后才变成产能（河道）。**',
-        '切回水流图，看企业下面那根 Capex 管和河道。游戏从 2020Q4 放到 2023Q4（2022 年以后是保留样本）。',
+        '**结论：只有企业投资（Capex）能拓宽断面，而且要等：钱当季就花出去（先是水），施工约 6 个季度以后才变成产能（断面宽度）。**',
+        '切回水流图，看企业下面那根 Capex 管和河上的断面。游戏从 2020Q4 放到 2023Q4（2022 年以后是保留样本）。',
         '2021 年企业看到东西卖不过来，加大 Capex：Capex 倍数 {m0} → {m1}。',
       ],
-      question: '2021 年 Capex 就加码了，为什么 2022 年通胀还在涨？',
+      question: '2021 年 Capex 就加码了，为什么 2022 年水位还在涨？',
       answerHint: [
-        '因为施工要时间。Capex 的钱当季就花出去，先推高需求（水）；新产能要等几个季度才到货（河道）。',
-        '看数字：2020Q4 → 2022Q2 产能（潜在）增加了 {c1}；2022Q2 → 2023Q4 增加了 {c2}。新河道到货的时候，通胀已经过了顶。',
+        '因为施工要时间。Capex 的钱当季就花出去，先是水（需求），把水位再推高一点；新产能要等几个季度才到货，断面才变宽。',
+        '看数字：2020Q4 → 2022Q2 断面宽度（潜在产能）增加了 {c1}；2022Q2 → 2023Q4 增加了 {c2}。断面变宽的时候，通胀已经过了顶。',
       ],
-      relation: '买房、买股票的水不拓宽河道，只有 Capex 能。Capex 先当水、后变河道，这个时间差就是通胀的窗口。',
+      relation: '买房、买股票的水不拓宽断面，只有 Capex 能。Capex 先当水、后变河道，这个时间差就是通胀的窗口。',
       vals: [
         { key: 'c1', get: 'chg:macro.capacityPotential', fmt: 'chg1', from: '2020Q4', until: '2022Q2' },
         { key: 'c2', get: 'chg:macro.capacityPotential', fmt: 'chg1', from: '2022Q2', until: '2023Q4' },
         { key: 'm0', get: 'start:extra.capexMult', fmt: 'x2', from: '2020Q4', until: '2022Q4' }, { key: 'm1', get: 'max:extra.capexMult', fmt: 'x2', from: '2020Q4', until: '2022Q4' },
       ],
-      metrics: [{ label: '产能（潜在，十亿美元）', get: 'macro.capacityPotential', fmt: 'num' }, { label: 'Capex（十亿美元/季）', get: 'flows.toCapex', fmt: 'num' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
+      metrics: [{ label: '断面宽度：潜在产能（十亿美元）', get: 'macro.capacityPotential', fmt: 'num' }, { label: 'Capex（十亿美元/季）', get: 'flows.toCapex', fmt: 'num' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
       claims: [
-        { get: 'chg:macro.capacityPotential', from: '2022Q2', until: '2023Q4', vs: { get: 'chg:macro.capacityPotential', from: '2020Q4', until: '2022Q2' }, gt: 0.003, note: '产能是后来才加速变宽的' },
+        { get: 'chg:macro.capacityPotential', from: '2022Q2', until: '2023Q4', vs: { get: 'chg:macro.capacityPotential', from: '2020Q4', until: '2022Q2' }, gt: 0.003, note: '断面是后来才加速变宽的' },
         { get: 'max:extra.capexMult', from: '2020Q4', until: '2022Q4', vs: { get: 'start:extra.capexMult', from: '2020Q4', until: '2022Q4' }, gt: 0.1, note: '2021 年起 Capex 加码' },
-        { get: 'argmax:macro.inflation', from: '2020Q4', until: '2023Q4', dateBetween: ['2021Q4', '2022Q4'], note: '通胀在 2022 年前后到顶（早于产能加速）' },
+        { get: 'argmax:macro.inflation', from: '2020Q4', until: '2023Q4', dateBetween: ['2021Q4', '2022Q4'], note: '通胀在 2022 年前后到顶（早于断面加速变宽）' },
       ],
       nums: [{ t: '6', f: D => D.capexLag, fmt: 'int' }],
       hl: ['capex', 'capacity', 'goodsChannel'], concept: ['capex', 'capacity'] },
 
-    { type: 'reveal', title: '第 6 步：战争：变窄 + 灌水 + 借债', panel: { id: 'shk-quad', group: 'war', select: 'ww2' },
+    { type: 'reveal', title: '第 5 步：临时还是永久：该怎么办', panel: { id: 'shk-lines', iso: 'USA' }, next: 'm2',
       text: [
-        '**结论：战争和大疫情是同一个配方：河道变窄 + 大灌水 + 大借债 → 通胀 → 之后靠 ⑦ 金融压制慢慢化债。**',
-        '二战：民用河道改成军用（汽车厂造坦克），政府借钱灌水，国债从 GDP 的 42% 升到 119%。1942 年通胀 10.9%。之后用价格管制和配给把水位按住：1944 年只有 1.7%。',
-        '水其实没走，只是关在家庭的存款里。1946 年管制一放开，物价就冲上来：1946 年通胀 8.3%，1947 年 14.4%。',
-        '之后美联储把国债利率钉在低位：通胀高、利率低，实际利率为负，政府的债一年年自己变轻。这就是 ⑦ 金融压制（后面讲政府接手那一课）。',
-        '一战也是这个配方：1917–1920 年每年通胀 14.6%–18.0%；1920 年加息收水，1921 年物价跌 10.5%。注意这一组的横轴宽得多：1944 年 GDP 比旧趋势线高 70.8%。',
+        '**结论：水的问题，央行收水或放水就行。河道的问题，收水压得住水位、流量掉得更多，放水保得住就业、水位更高，只能二选一；所以先分临时还是永久：临时变窄，央行一般「看穿」不管，除非大家开始以为物价会一直涨；永久变窄，放水也掰不回来。**',
+        '图里是美国实际 GDP 离一条长直线多远：长直线 = 断面宽度的趋势，波浪 = 水。疫情卡窄的断面两年就松开，坑填回去了：到 2023 年美国 GDP 离 2019 年以前的旧趋势线只差 0.2%（保留样本）。',
+        '点「日本：永久」：人一年年变老、变少，断面宽度的直线一次次变平，这才是永久变窄。',
+        '2021–2022 年的难处：2021 年是水多了，药是收水；美联储当时以为是临时的河道变窄，可以看穿（判断），2022 年 3 月才开始加息。下一课就讲央行手里这个旋钮：它怎么让河涨落。',
       ],
-      nums: [
-        { t: '42', f: D => D.jst('USA', 'debtgdp', 1940), fmt: 'pct0' }, { t: '119', f: D => D.jst('USA', 'debtgdp', 1946), fmt: 'pct0' },
-        { t: '10.9', f: D => D.us('pi', 1942), fmt: 'n1' }, { t: '1.7', f: D => D.us('pi', 1944), fmt: 'n1' },
-        { t: '8.3', f: D => D.us('pi', 1946), fmt: 'n1' }, { t: '14.4', f: D => D.us('pi', 1947), fmt: 'n1' },
-        { t: '14.6', f: D => Math.min(...[1917, 1918, 1919, 1920].map(y => D.us('pi', y))), fmt: 'n1' }, { t: '18.0', f: D => Math.max(...[1917, 1918, 1919, 1920].map(y => D.us('pi', y))), fmt: 'n1' },
-        { t: '10.5', f: D => -D.us('pi', 1921), fmt: 'n1' }, { t: '70.8', f: D => D.pt('ww2', 1944).x, fmt: 'n1' },
-      ],
+      nums: [{ t: '0.2', f: D => -D.pt('covid', 2023).x, fmt: 'n1' }, { t: '9.1', f: D => D.cpiNsa('2022-06'), fmt: 'n1' }],
       facts: [
-        { f: D => D.pt('ww2', 1946).x < D.pt('ww2', 1945).x && D.pt('ww2', 1946).dy > D.pt('ww2', 1945).dy, note: '1946 年那段往左上：管制放开，民用河道还没接上' },
-        { f: D => D.us('pi', 1944) < D.us('pi', 1942) && D.pt('ww2', 1944).x > D.pt('ww2', 1942).x, note: '管制下 GDP 继续往右，通胀却被压下来' },
-        { f: D => D.pt('ww1', 1921).dy < 0 && D.pt('ww1', 1920).dy > 0, note: '一战：1920 年还在上方，1921 年掉到下方' },
+        { f: D => Math.abs(D.pt('covid', 2023).x) < 0.5, note: '临时：2023 年美国 GDP 回到旧趋势线附近' },
+        { f: D => D.waves('JPN', 1956, 1973) > D.waves('JPN', 1973, 1990) && D.waves('JPN', 1973, 1990) > D.waves('JPN', 1990, 2022), note: '永久：日本的直线一次次变平' },
       ],
-      concept: ['govDebtGdp', 'realRate', 'longCycle'] },
-
-    { type: 'reveal', title: '第 7 步：临时还是永久', panel: { id: 'shk-lines' }, tab: 'cycle',
-      text: [
-        '**结论：先分清临时还是永久。临时的冲击，央行一般「看穿」不管，除非预期松动；永久的冲击会改变那条直线的斜率。**',
-        '「三条线」那张图：**直线 = 河道宽度的趋势**（生产率和人口决定），**波浪 = 水**（债务周期）。冲击要么推一下波浪，要么把直线掰弯。',
-        '临时：疫情把河道卡窄了一两年就松开，到 2023 年美国 GDP 离 2019 年以前的旧趋势线只差 0.2%。',
-        '永久：日本。实际 GDP 平均每年涨：1956–1973 年 9.5%，1973–1990 年 3.7%，1990–2022 年 0.8%（最后一年是保留样本）。人变老、变少，直线一次次变平，放水也掰不回来。',
-        '「看穿」的例外是 1970 年代：油价是一次性的，可大家开始相信物价年年涨，工资跟着要涨，预期松了，只能靠沃尔克狠狠收水。右边「周期」页往下翻到「真实世界的三条线」，可以换国家看。',
-      ],
-      nums: [
-        { t: '0.2', f: D => -D.pt('covid', 2023).x, fmt: 'n1' },
-        { t: '9.5', f: D => D.waves('JPN', 1956, 1973), fmt: 'n1' }, { t: '3.7', f: D => D.waves('JPN', 1973, 1990), fmt: 'n1' }, { t: '0.8', f: D => D.waves('JPN', 1990, 2022), fmt: 'n1' },
-      ],
-      facts: [{ f: D => D.waves('JPN', 1956, 1973) > D.waves('JPN', 1973, 1990) && D.waves('JPN', 1973, 1990) > D.waves('JPN', 1990, 2022), note: '日本的直线一次次变平' }],
-      concept: ['capacity', 'inflationExp', 'longCycle'] },
-
-    { type: 'reveal', title: '第 8 步：打中哪两样，哪样更重', panel: { id: 'shk-parts' }, next: 'm2',
-      text: [
-        '**结论：结局取决于打中了哪两样、哪样更重。**',
-        '图里这张表：每一行是一次冲击，每一列是六样东西之一。颜色深 = 打得重。表里的方向和轻重全部是判断，不是数据；点一行看卡片。',
-        '同样是河道变窄：1973 年还叠着多余的水，所以严重滞胀；2022 年的德国叠着收水，2023 年就往左下走了。',
-        '同样是水变少：2008 年还打中了债务和资产水库（房价），要好几年才缓过来；2020 年债务没出事，政府一灌水就回来了。',
-        '下一课：一个会自己转的圈。水为什么会自己越转越多，又突然变少？',
-      ],
-      facts: [
-        { f: D => D.card('oil73').hit.some(h => h.k === 'water' && h.s > 0) && D.card('ukr').hit.some(h => h.k === 'water' && h.s < 0), note: '表里：1973 叠着多水，德国 2022 叠着收水' },
-        { f: D => ['debt', 'pool'].every(k => D.card('gfc').hit.some(h => h.k === k && h.w === 3)), note: '表里：2008 年债务和资产水库都是最重一档' },
-      ],
-      // the fixed 三问 ending (tools/COURSE-V3.md), answered for this lesson's example: COVID 2020–22
+      // the fixed 三问 ending (tools/COURSE-V3.md), answered for this lesson's example: 2021 水多了 vs 2022 河道变窄
       ending: {
-        q1: '水的问题还是河道的问题？疫情是两样都有：河道临时变窄，水先少后多；灌进来的水远多于河道窄掉的那一块，物价冲到 9.1%。',
-        q2: '环上哪一步？⑥ 政府补水 → 小周期「过热·物价」，叠在大周期 ⑦ 上（⑦ + B1）。',
-        q3: '谁赢谁输、钱放哪？赢的是借了固定利率债的人、手里有房和股的人；输的是拿现金和长期国债的人。钱放实物资产，少放长期国债（判断）。',
+        q1: '水的问题还是河道的问题？两样都有，分两年：2021 年是水多了（流量和水位一起往上）；2022 年加上能源河道变窄（流量不动，水位冲到 6 月的 9.1%，保留样本）。',
+        q2: '环上哪一步？⑥ 政府补水 → 小周期「过热·物价」，叠在大周期 ⑦ 上（判断；两个环从第 3 课起讲）。',
+        q3: '谁赢谁输、钱放哪？赢的是借了固定利率债的人、手里有房和股的人、卖能源的人；输的是拿现金和长期国债的人、买能源的人。钱放实物资产，少放长期国债（判断）。',
       },
-      nums: [{ t: '9.1', f: D => D.cpiNsa('2022-06'), fmt: 'n1' }],
-      concept: ['B1', 'B2', 'longCycle'] },
+      concept: ['capacity', 'inflationExp', 'longCycle'] },
   ],
 };
 
