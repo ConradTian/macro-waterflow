@@ -39,6 +39,7 @@ const HOLDERS = ['JPN', 'CHN', 'GBR', 'EA', 'ROW'];
 const POS_WIDE = { GBR: [.19, .10], EA: [.45, .04], JPN: [.89, .17], ROW: [.53, .44], USA: [.21, .48], CHN: [.81, .59], POOL: [.43, .83], AUS: [.89, .87] };
 const POS_TALL = { GBR: [.33, .06], EA: [.77, .06], USA: [.32, .34], CHN: [.74, .26], ROW: [.43, .45], POOL: [.23, .70], JPN: [.81, .61], AUS: [.69, .82] };
 const YMIN = 1995, YMAX = 2025;
+const PHONE_LABELS = 3;       // phone (tall layout), nothing selected: amount labels on the 3 biggest flows only
 const TRADE_MIN = 0.08;       // a named pair is drawn if its exports >= 8% of the year's largest named-pair flow ...
 const TRADE_SHARE = 0.15;     // ... or >= 15% of the exporter's total exports (so a small economy's main buyers show: AUS -> CHN, AUS -> JPN)
 const CCY_CN = { AUD: '澳元', GBP: '英镑', JPY: '日元', EUR: '欧元', CNY: '人民币', USD: '美元' };
@@ -88,8 +89,9 @@ function readings(iso) {
 /* ---------- geometry ---------- */
 function layout(W, H, tall) {
   const s = tall ? clamp(W / 390, 1, 1.25) : clamp(Math.min(W / 900, H / 560), 0.9, 1.4);
-  const sf = clamp(s, 1, 1.25);                              // text scale
-  const wMin = 112 * sf, wMax = wMin + (tall ? 40 : 92) * s;  // phone: smaller spread, so two boxes fit side by side with a channel between
+  const sf = tall ? clamp(s * 1.09, 1.09, 1.3) : clamp(s, 1, 1.25);   // text scale (phone: 12px base, readable at 390)
+  // phone: bigger boxes with a small spread, so two still fit side by side with a channel between; the selected box expands
+  const wMin = tall ? 132 * s : 112 * sf, wMax = wMin + (tall ? 26 : 92) * s;
   const gmax = Math.max(1, ...ISOS.map(i => ser(i, 'gdpUsd') || 0));
   // ext: what hangs under a box: the FX sluice (straddles the bottom edge), the 吸力尺 chip under it, and for a pegged currency
   // the rope + 官方价 line between the two (see rulerGeo)
@@ -99,8 +101,9 @@ function layout(W, H, tall) {
   };
   for (const iso of ISOS) {
     const g = ser(iso, 'gdpUsd');
-    const w = g == null ? wMin : wMin + (wMax - wMin) * Math.sqrt(g / gmax);   // area-ish: side grows with sqrt(GDP), with a floor so the text fits
-    const h = Math.max(70 * sf, w * 0.6);
+    let w = g == null ? wMin : wMin + (wMax - wMin) * Math.sqrt(g / gmax);   // area-ish: side grows with sqrt(GDP), with a floor so the text fits
+    let h = Math.max((tall ? 80 : 70) * sf, w * 0.6);
+    if (tall && st.sel === iso) { w = Math.max(w, 172 * s); h += 12 * sf; }   // phone: tap = this box expands (GDP + the long row words)
     box[iso] = { iso, w, h, ext: iso === 'ROW' ? 0 : PEG[iso] ? extPeg : ext0 };
     put(box[iso], P[iso][0], P[iso][1]);
   }
@@ -125,7 +128,7 @@ function layout(W, H, tall) {
   for (const o of all) { o.x = o.cx - o.w / 2; o.y = o.cy - o.h / 2; }
   const ob = {};                                             // obstacles for the pipes: box + its sluice, and the pool
   for (const o of all) ob[o.iso] = { x: o.x, y: o.y, w: o.w, h: o.h + o.ext, cx: o.cx, cy: o.cy };
-  return { W, H, s, sf, box, pool, ob, fs: 11 * sf };
+  return { W, H, s, sf, box, pool, ob, fs: 11 * sf, tall };
 }
 
 /* ---------- pipe geometry: a corridor is a cubic curve P = [p0, c1, c2, p1]; a lane is a sampled parallel of it ---------- */
@@ -338,7 +341,7 @@ function collectPipes(L) {
   }
   const cors = [...cm.values()].sort((x, y) => (x.row - y.row) || (y.v - x.v));   // named heavy first, the grey ROW background last
   routeAll(L, cors);
-  for (const c of cors) { lanes(L, c); repair(L, c); }
+  for (const c of cors) { lanes(L, c); if (!st.fast) repair(L, c); }   // mid-drag (st.fast): skip the lane-clip repair; the release redraw does it
   const kind = st.kind, vis = p => (kind === 'all' && p.k !== 'debt') || (kind === 'trade' && p.k === 'trade') || (kind === 'capital' && p.k === 'cap') || (kind === 'debt' && p.k === 'debt');
   return out.filter(vis).sort((p, q) => (q.row - p.row) || (p.v - q.v));          // ROW (grey background) first, then small to big
 }
@@ -377,6 +380,7 @@ function chipsSvg(pipes, L) {
   else {
     const named = pipes.filter(p => p.k === 'trade' && !p.row).sort((a, b) => b.v - a.v), cap = pipes.filter(p => p.k === 'cap').sort((a, b) => b.v - a.v);
     pick = [...named.slice(0, kind === 'trade' ? 8 : 5), ...cap.slice(0, kind === 'capital' ? 9 : 3), ...pipes.filter(p => p.k === 'debt')];
+    if (L.tall) pick = pick.sort((a, b) => b.v - a.v).slice(0, PHONE_LABELS);   // phone: only the top 3 flows carry a number
   }
   pick.sort((a, b) => b.v - a.v);
   const f = L.fs * 0.9, ch = Math.round(L.fs * 1.6), placed = [];
@@ -423,11 +427,11 @@ function chipsSvg(pipes, L) {
 function boxSvg(b, L) {
   const r = readings(b.iso), sel = st.sel === b.iso, f = L.fs, col = CCY_COL[r.ccy] || CCY_COL.mixed;
   const col2 = b.x + b.w / 2 + 2, col1 = b.x + 9;
-  const gdp = r.gdp == null ? '' : `<text class="wm-g" x="${(b.x + b.w - 8).toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}" text-anchor="end">GDP ${fmtBn(r.gdp)}</text>`;
+  const gdp = r.gdp == null || (L.tall && !sel) ? '' : `<text class="wm-g" x="${(b.x + b.w - 8).toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}" text-anchor="end">GDP ${fmtBn(r.gdp)}</text>`;
   const y1 = b.y + f * 1.3 + 22, y2 = y1 + f * 1.55 + 2;
   const cell = (x, y, k, v) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}"><tspan class="wm-k">${k} </tspan><tspan class="wm-v">${v}</tspan></text>`;
   const stage = r.stage?.mark ? esc(r.stage.mark) : '—';
-  return `<g class="wm-box${sel ? ' sel' : ''}" data-iso="${b.iso}" tabindex="0" role="button" aria-pressed="${sel}" aria-label="${esc(nameOf(b.iso))}">
+  return `<g class="wm-box${sel ? ' sel' : ''}${L.tall && !sel ? ' cmp' : ''}" data-iso="${b.iso}" tabindex="0" role="button" aria-pressed="${sel}" aria-label="${esc(nameOf(b.iso))}">
     <rect class="wm-rect" x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="10"/>
     <text class="wm-n" x="${col1.toFixed(1)}" y="${(b.y + f + 7).toFixed(1)}">${esc(nameOf(b.iso))}</text>${gdp}
     ${layersSvg(b, L, r, col)}
@@ -447,11 +451,12 @@ export function layersIcon(iso, year = st.year) {
 }
 function layersSvg(b, L, r, col) {
   const k = layersIcon(b.iso), f = L.fs * 0.9, x = b.x + 8, w = b.w - 16, top = b.y + L.fs + 13, rh = Math.max(9, (b.h - (top - b.y) - 12 * L.sf) / 3);
-  const pct = fmtPct1;
+  const pct = fmtPct1, cmp = L.tall && st.sel !== b.iso;     // phone, not selected: the compact rows (numbers only); tap = expand
+  const gwS = gw => gw == null ? '—' : gw > GW_FLAT ? `洞深+${Math.round(gw * 100)}` : gw < -GW_FLAT ? `洞浅−${Math.round(-gw * 100)}` : '平常';
   const rows = [
-    ['wm-l-river', '河', k.infl == null ? '—' : '物价 ' + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
-    ['wm-l-lake', '湖', k.real == null ? '—' : '吸力 ' + pct(k.real), k.real == null ? 0.3 : clamp(0.5 + k.real * 10, 0.08, 1)],
-    ['wm-l-ground', '地下', gwWord(k.gw), k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],   // bar = the water table: a deeper hole = lower
+    ['wm-l-river', '河', k.infl == null ? '—' : (cmp ? '' : '物价 ') + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
+    ['wm-l-lake', '湖', k.real == null ? '—' : (cmp ? '' : '吸力 ') + pct(k.real), k.real == null ? 0.3 : clamp(0.5 + k.real * 10, 0.08, 1)],
+    ['wm-l-ground', '地下', cmp ? gwS(k.gw) : gwWord(k.gw), k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],   // bar = the water table: a deeper hole = lower
   ];
   const tips = ['河 物价 = 物价比一年前（通胀）', '湖吸力 = 实际利率（政策利率 − 通胀）', gwDef(k.span) + '。点这一行看说明'];
   return '<g class="wm-layers">' + rows.map(([c, nm, v, lv], i) => {
@@ -669,11 +674,12 @@ function stageSize() {
   const W = Math.max(300, els.stage.clientWidth || 360);
   const tall = W < 640;
   const side = getComputedStyle(els.body).display === 'grid';   // card is a side column: stage height is fixed by the page
-  const H = tall ? clamp(Math.round(W * 2.4), 760, 1000) : side ? Math.max(480, els.stage.clientHeight || 600) : Math.max(520, Math.round(W * 0.72));
+  const H = tall ? clamp(Math.round(W * 2.55), 800, 1040) : side ? Math.max(480, els.stage.clientHeight || 600) : Math.max(520, Math.round(W * 0.72));
   return { W, H, tall };
 }
 function renderMap() {
   if (!st.open) return;
+  const t0 = performance.now();
   const { W, H, tall } = stageSize();
   const L = layout(W, H, tall);
   L.bar = (window.innerWidth || W) >= RULER_BAR_MIN;            // the 吸力尺 chip: number + bar on iPad / desktop, number only on a phone
@@ -691,9 +697,11 @@ function renderMap() {
     <g class="wm-sluices">${ISOS.map(i => sluiceSvg(L.box[i], L).replace('class="wm-sluice', `class="wm-sluice${st.sel === i ? ' sel' : stateBox(i)}`)).join('')}</g>
     <g class="wm-rulers">${ISOS.map(i => rulerSvg(L.box[i], L).replace('class="wm-ruler', `class="wm-ruler${st.sel === i ? ' sel' : stateBox(i)}`)).join('')}</g>
     <g class="wm-chips">${chipsSvg(pipes, L)}</g>`;
-  st.last = { W, H };
+  st.last = { W, H }; st.mapYear = st.year;
   els.svg.dataset.pipes = pipes.length;
   placeTip();
+  st.redraws = (st.redraws || 0) + 1;                            // read by tools/check_map.mjs (drag throttle) and timing probes
+  els.svg.dataset.redraws = st.redraws; els.svg.dataset.year = st.year; els.svg.dataset.fast = st.fast ? 1 : 0; els.svg.dataset.ms = (performance.now() - t0).toFixed(1);
 }
 // the 地下 definition, shown under the tapped box's 地下 row, or beside the box when there is no room below (st.tip = that iso);
 // any other tap hides it
@@ -727,7 +735,7 @@ function placeTip() {
 }
 function renderCard() {
   els.card.innerHTML = cardHtml();
-  els.card.dataset.sel = st.sel || '';
+  els.card.dataset.sel = st.sel || ''; st.cardYear = st.year;
   if (st.sel && !COUNTRY_READY[st.sel]) loadCoverage(st.sel);
   if (st.sel && st.sel !== 'USA' && st.sel !== 'ROW') fillReactor(st.sel, st.year);
 }
@@ -754,6 +762,27 @@ function renderCtl() {
   els.seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === st.kind)));
 }
 function renderAll() { renderCtl(); renderMap(); renderCard(); }
+// slider drag throttle (see buildDom): a full map redraw costs ~40 ms at 1440 and ~90 ms at 390 (routing + label placement)
+const DRAG_MS = 120, IDLE_MS = 150;
+const drag = { on: false, raf: 0, idle: 0, last: 0, dirty: false };
+function dragTick() {
+  drag.raf = 0;
+  if (!st.open || !drag.dirty) return;
+  if (performance.now() - drag.last >= DRAG_MS) {
+    drag.dirty = false; st.fast = true;
+    try { renderMap(); } finally { st.fast = false; }
+    drag.last = performance.now(); st.mapYear = null;              // a fast frame: the release / idle redraw still runs in full
+  }
+  else drag.raf = requestAnimationFrame(dragTick);
+}
+function fullRedraw() {
+  clearTimeout(drag.idle); drag.idle = 0;
+  if (drag.raf) { cancelAnimationFrame(drag.raf); drag.raf = 0; }
+  drag.dirty = false;
+  if (!st.open) return;
+  if (st.mapYear !== st.year) renderMap();
+  if (st.cardYear !== st.year) renderCard();
+}
 
 /* ---------- selection ---------- */
 export function selectOnMap(iso, scroll = true) {
@@ -786,7 +815,17 @@ function buildDom(host) {
   els = { host, stage: host.querySelector('.wm-stage'), svg: host.querySelector('.wm-svg'), card: host.querySelector('.wm-card'), body: host.querySelector('.wm-body'), tip: host.querySelector('.wm-tip'),
     slider: host.querySelector('.wm-slider'), yv: host.querySelector('.wm-yv'), res: host.querySelector('.wm-res'), seg: host.querySelector('.wm-seg') };
   host.onclick = onClick;
-  els.slider.oninput = () => { st.year = clamp(+els.slider.value, YMIN, YMAX); renderAll(); };
+  // year slider: each input only updates the year label (cheap); the map redraws at most once per DRAG_MS (rAF-throttled),
+  // the card waits; on release (change / pointerup) or after IDLE_MS without input, one full redraw (map + card)
+  els.slider.oninput = () => {
+    st.year = clamp(+els.slider.value, YMIN, YMAX); renderCtl(); drag.dirty = true;
+    if (!drag.raf) drag.raf = requestAnimationFrame(dragTick);
+    clearTimeout(drag.idle); drag.idle = setTimeout(fullRedraw, IDLE_MS);
+  };
+  els.slider.onchange = fullRedraw;
+  els.slider.addEventListener('pointerdown', () => { drag.on = true; });
+  els.slider.addEventListener('pointerup', () => { drag.on = false; fullRedraw(); });
+  els.slider.addEventListener('pointercancel', () => { drag.on = false; fullRedraw(); });
   els.svg.addEventListener('keydown', e => {
     const sl = e.target.closest && e.target.closest('.wm-sluice');
     if (sl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sl.dispatchEvent(new MouseEvent('click', { bubbles: true })); return; }
@@ -842,6 +881,8 @@ export function openWorldMap(host, opts = {}) {
 function close(notify) {
   if (!st.open) return;
   st.open = false;
+  clearTimeout(drag.idle); if (drag.raf) cancelAnimationFrame(drag.raf);
+  Object.assign(drag, { on: false, raf: 0, idle: 0, dirty: false });
   if (st.ro) { st.ro.disconnect(); st.ro = null; }
   document.removeEventListener('keydown', onKey);
   st.host.hidden = true; st.host.innerHTML = '';

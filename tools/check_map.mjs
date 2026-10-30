@@ -8,7 +8,7 @@
 // SHOTS=<folder> saves the 2008 CHN-selected screenshots (1440, 390, 390 card) there.
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const port = 9361, BASE = process.env.BASE || 'http://localhost:8185/';
+const port = +process.env.CDP_PORT || 9361, BASE = process.env.BASE || 'http://localhost:8185/';
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, '--window-size=1180,820', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const allLayers = u => (/^about:/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'layers=all');   // progressive diagram: this check wants the whole diagram (layers: tools/check_layers.mjs)
@@ -145,6 +145,28 @@ async function rulerCard(c, iso, label) {
   const k = await c.ev(`(()=>{const d=document.querySelector('.wm-card .wm-rc[data-ruler="${iso}"]'); if(!d) return null; const c=document.querySelector('.wm-card'); return { par: (d.querySelector('[data-parity]')||{}).textContent, rope: d.querySelector('[data-rope]')?.dataset.rope, ropeT: (d.querySelector('[data-rope]')||{}).textContent, txt: d.textContent, x: c.scrollWidth <= c.clientWidth + 1 }})()`);
   ok(k && k.par === PARITY && k.txt.includes(NO_FX_EXP) && k.x && !/同比|环比/.test(k.txt), `[${label}] ${iso} card: one 吸力尺 block with 「${PARITY}」 and the ▽汇 note, no sideways overflow: ${k && k.txt.replace(/\s+/g, ' ').slice(0, 90)}`);
   ok(k && (iso === 'CHN' ? k.rope === 'peg' && k.ropeT.includes('有绳（钉住）') : k.rope === 'float' && k.ropeT.includes('没绳（浮动）')), `[${label}] ${iso} card: ${iso === 'CHN' ? '有绳（钉住）' : '没绳（浮动）'} (${k && k.ropeT})`);
+}
+// year-slider drag throttle: 30 input events 16 ms apart between pointerdown and pointerup. The year label follows every event,
+// the map redraws at most once per ~120 ms (≤ DRAG_MAX), and after release the map + card show the final year.
+const DRAG_MAX = 8;
+const DRAG = `new Promise(res => {
+  const s = document.querySelector('.wm-slider'), svg = document.querySelector('.wm-svg'), r0 = +svg.dataset.redraws;
+  s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  let i = 0, lab = true, slow = 0; const t0 = performance.now();
+  const step = () => {
+    const y = 1995 + (i * 7) % 31, a = performance.now(); s.value = y; s.dispatchEvent(new Event('input', { bubbles: true })); slow = Math.max(slow, performance.now() - a);
+    if (document.querySelector('.wm-yv').textContent !== String(y)) lab = false;
+    if (++i < 30) return setTimeout(step, 16);
+    const during = +svg.dataset.redraws - r0, ms = performance.now() - t0, fin = s.value, dragMs = +svg.dataset.ms;
+    s.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    setTimeout(() => res({ during, ms: Math.round(ms), lab, slow: +slow.toFixed(1), fin, mapY: svg.dataset.year, fast: svg.dataset.fast, card: (document.querySelector('.wm-card h3') || {}).textContent || '', dragMs, fullMs: +svg.dataset.ms }), 300);
+  };
+  step();
+})`;
+async function dragCheck(c, label) {
+  const d = await c.ev(DRAG);
+  ok(d.during <= DRAG_MAX && d.lab, `[${label}] drag throttle: ${d.during} map redraws during a 30-event drag (${d.ms} ms; ≤ ${DRAG_MAX}), year label followed every event, slowest input handler ${d.slow} ms (mid-drag redraw ${d.dragMs} ms, full redraw ${d.fullMs} ms)`);
+  ok(d.mapY === d.fin && d.fast === '0' && (d.card.includes(d.fin) || !d.card), `[${label}] after release: one full (not fast) redraw, map + card show the final year ${d.fin} (map ${d.mapY}, card ${d.card.slice(0, 20)})`);
 }
 const SHOTS = process.env.SHOTS || '';            // a folder: save the 吸力尺 screenshots there (1440 + 390, 2008, CHN selected)
 async function shot(c, name) {
@@ -310,6 +332,7 @@ try {
   ok(fo25.otherOp <= 0.1 && fo25.chipsOk, `2025 AUS: others faded (${fo25.otherOp}), labels only on AUS pipes (${fo25.chips.length})`);
   await A.click('.wm-bg'); await sleep(200);
   await A.click('.wm-box[data-iso="USA"]'); await sleep(200);
+  await dragCheck(A, 'iPad USA selected');
   await setYear(A, 1995); await sleep(300);
   ok((await A.text('.wm-yv')) === '1995' && await A.count('.wm-box') === 7, '1995 (null-heavy year) renders: ' + await A.text('.wm-box[data-iso="EA"]'));
   await setYear(A, 2008); await sleep(200);
@@ -375,6 +398,20 @@ try {
   ok(await mapOpen(A) && await A.count('.wm-box') === 7, 'phone 390: map opens with seven boxes');
   ok(await A.ev(`(()=>{const r=document.querySelector('.wm-stage').getBoundingClientRect(); return [...document.querySelectorAll('.wm-box')].every(b=>{const q=b.getBoundingClientRect(); return q.left>=r.left-1&&q.right<=r.right+1})})()`), 'phone: no box sticks out sideways');
   ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1`), 'phone: no horizontal page scroll');
+  const phL = await A.count('.wm-chip');
+  ok(phL >= 1 && phL <= 3, `phone 390, nothing selected: at most 3 amount labels (${phL})`);
+  const phTop = await A.ev(`(()=>{const t=document.querySelector('.wm-top'); return [...t.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect(); return r.left>=-1&&r.right<=innerWidth+1}) && t.scrollWidth <= t.clientWidth + 1})()`);
+  ok(phTop, 'phone 390: the back button and all five layer buttons are fully on screen (no clipped / sideways-scrolling top bar)');
+  const phBox = await A.ev(`[...document.querySelectorAll('.wm-box .wm-rect')].map(r=>Math.round(r.getBBox().width))`);
+  ok(Math.min(...phBox) >= 130 && await A.count('.wm-box.cmp') === 7 && !(await A.count('.wm-box .wm-g')), `phone 390: bigger compact boxes (min width ${Math.min(...phBox)} ≥ 130), numbers only, no GDP line until tapped`);
+  await A.click('.wm-box[data-iso="GBR"]'); await sleep(400);
+  const phX = await A.ev(`(()=>{const b=document.querySelector('.wm-box.sel'); return { iso: b.dataset.iso, cmp: b.classList.contains('cmp'), w: Math.round(b.querySelector('.wm-rect').getBBox().width), gdp: !!b.querySelector('.wm-g'), rv: b.querySelector('.wm-l-river text').textContent.replace(/\\s+/g,' ').trim(), others: document.querySelectorAll('.wm-box.cmp').length }})()`);
+  ok(phX.iso === 'GBR' && !phX.cmp && phX.w >= 170 && phX.gdp && /^河 物价 /.test(phX.rv) && phX.others === 6, `phone 390: tap expands the box (GBR ${phX.w}px, GDP + long words: ${phX.rv}), the other six stay compact`);
+  await geom(A, 'phone 2008 GBR expanded');
+  await A.click('.wm-bg'); await sleep(300);
+  await dragCheck(A, 'phone 390');
+  await setYear(A, 2008); await sleep(300);
+  await shot(A, 'map-390-2008.png');
   await geom(A, 'phone 2008');
   await setYear(A, 2025); await sleep(300);
   await geom(A, 'phone 2025');
@@ -415,6 +452,9 @@ try {
   await rulerCard(A, 'CHN', '1440 2008');
   await shot(A, 'map-ruler-1440-2008-CHN.png');
   await A.click('.wm-bg'); await sleep(200);
+  await dragCheck(A, '1440');
+  await setYear(A, 2008); await sleep(300);
+  await shot(A, 'map-1440-2008.png');
 
   // ---- 10. desktop 1920×1000: the same geometry rules ----
   await A.viewport(1920, 1000);
