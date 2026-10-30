@@ -48,21 +48,32 @@ export function deckOrder(cards) {
 export const sumW = w => Object.values(w || {}).reduce((a, v) => a + (+v || 0), 0);   // in tenths; a full allocation = 10
 
 /**
- * Portfolio return from tenths, 1y and 3y (annualised, as the data). The benchmark is computed the same way
- * (0.6 × 股票 + 0.4 × 国债 of the same numbers), so a player who copies 60/40 scores exactly the benchmark.
- *   (The data's own ret3.bench is a yearly-rebalanced path; with only annualised legs here a weighted average is the
- *    consistent approximation. ret1.bench is identical either way.)
+ * Portfolio return from tenths: 1 year, and 3 years annualised. ONE convention for the player and the benchmark:
+ * rebalance back to the chosen weights at the start of every year, compound the yearly portfolio returns, annualise
+ *   p3 = (Π_y (1 + Σ_k w_k · r_k,y))^(1/n) − 1      r_k,y = reveal.yearly[k][y], real AUD; n = ret3.years
+ * The benchmark is the same formula with w = 60% 股票 / 40% 国债, so it equals the data's ret3.bench (the builder's
+ * yearly-rebalanced 60/40) and a player who copies 60/40 scores exactly the benchmark. A single asset gives its ret3.
+ * (Before 2026-10-30 the 3y figures were weight × annualised legs; the benchmark then drifted up to 7%/年 from ret3.bench.)
  */
-export function portfolio(card, w) {
-  const R1 = card.reveal.ret1, R3 = card.reveal.ret3;
-  let p1 = 0, p3 = 0;
-  for (const [k, t] of Object.entries(w || {})) {
-    if (!t) continue;
-    p1 += (t / 10) * (R1[k] ?? 0);
-    p3 += (t / 10) * (R3[k] ?? 0);
+export function rebalanced(card, w) {
+  const Y = card.reveal.yearly || {}, n = card.reveal.ret3.years || 0;
+  if (!n) return null;
+  let g = 1;
+  for (let y = 0; y < n; y++) {
+    let r = 0;
+    for (const [k, t] of Object.entries(w || {})) if (t) r += (t / 10) * (Y[k]?.[y] ?? 0);   // no data = 0 (such assets cannot be picked)
+    g *= 1 + r;
   }
-  const b1 = 0.6 * R1.equity + 0.4 * R1.bond, b3 = 0.6 * R3.equity + 0.4 * R3.bond;
-  const years = R3.years || 3;
+  return Math.pow(g, 1 / n) - 1;
+}
+export const BENCH_W = { equity: 6, bond: 4 };
+export function portfolio(card, w) {
+  const R1 = card.reveal.ret1;
+  let p1 = 0;
+  for (const [k, t] of Object.entries(w || {})) if (t) p1 += (t / 10) * (R1[k] ?? 0);
+  const b1 = 0.6 * R1.equity + 0.4 * R1.bond;
+  const p3 = rebalanced(card, w) ?? p1, b3 = rebalanced(card, BENCH_W) ?? b1;
+  const years = card.reveal.ret3.years || 3;
   return { p1, p3, b1, b3, years, wealth: 100 * Math.pow(1 + p3, years), bwealth: 100 * Math.pow(1 + b3, years) };
 }
 

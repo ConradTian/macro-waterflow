@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { BLIND } from '../src/data/blind-cards.js';
+import * as M from '../src/blind/model.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
@@ -30,6 +31,8 @@ const RET = ['cash', 'bond', 'equity', 'house', 'fxUSD', 'fxJPY', 'fxCNY', 'fxAU
 const LONG = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
 const numOrNull = (x) => x === null || isNum(x);
+const near = (a, b) => Math.abs(a - b) <= Math.max(1e-4, 1e-3 * Math.abs(b));   // the data keeps 4 significant digits
+let nBench = 0;
 
 // ------------------------------------------------------------ top level
 for (const k of ['asOf', 'method', 'sources', 'cards']) if (!(k in BLIND)) err(`missing BLIND.${k}`);
@@ -83,6 +86,24 @@ for (const c of BLIND.cards) {
   if (r.ret3.years !== yrs) err(`${c.id}: ret3.years ${r.ret3.years}, expected ${yrs}`);
   if (yrs < 3 && !c.notes.some((n) => n.includes(`只有 ${yrs} 年`))) err(`${c.id}: needs the 「只有 ${yrs} 年」 note`);
   for (const k of ['cash', 'bond', 'equity', 'bench']) if (r.ret1[k] === null) err(`${c.id}: home ${k} 1y return missing`);
+  // yearly path: one return per year, consistent with ret1 / ret3; 60/40 rebalanced every year = ret3.bench
+  if (!r.yearly || typeof r.yearly !== 'object') err(`${c.id}: reveal.yearly missing`);
+  else {
+    for (const k of RET.filter((x) => x !== 'bench')) {
+      const a = r.yearly[k];
+      if (r.ret3[k] === null) { if (a !== null) err(`${c.id}: yearly.${k} should be null (ret3 is)`); continue; }
+      if (!Array.isArray(a) || a.length !== yrs || !a.every(isNum)) { err(`${c.id}: yearly.${k} needs ${yrs} finite numbers`); continue; }
+      if (!near(a[0], r.ret1[k])) err(`${c.id}: yearly.${k}[0] ${a[0]} ≠ ret1 ${r.ret1[k]}`);
+      const g = a.reduce((m, x) => m * (1 + x), 1) ** (1 / yrs) - 1;
+      if (!near(g, r.ret3[k])) err(`${c.id}: yearly.${k} compounds to ${g.toFixed(5)}, ret3 says ${r.ret3[k]}`);
+    }
+    const E = r.yearly.equity, B = r.yearly.bond;
+    if (E && B && r.ret3.bench !== null) {
+      const g = E.reduce((m, e, i) => m * (1 + 0.6 * e + 0.4 * B[i]), 1) ** (1 / yrs) - 1;
+      if (!near(g, r.ret3.bench)) err(`${c.id}: 60/40 rebalanced yearly = ${g.toFixed(5)}, ret3.bench ${r.ret3.bench}`);
+      nBench++;
+    }
+  }
   if (!Array.isArray(c.notes)) err(`${c.id}: notes`);
   if (c.year <= 1965 && !c.notes.some((n) => n.includes('澳镑'))) err(`${c.id}: needs the 澳镑 note`);
 }
@@ -93,6 +114,27 @@ const b1 = BLIND.cards.filter((c) => c.batch === 1);
 if (b1.length !== 10) err(`batch 1 has ${b1.length} cards, want 10`);
 for (const iso of Object.keys(DECK)) if (!b1.some((c) => c.iso === iso)) err(`batch 1 lacks ${iso}`);
 for (const t of ['危', '转', '平']) if (!b1.some((c) => c.type === t)) err(`batch 1 lacks type ${t}`);
+
+// 3-year convention, one card by hand (CHN-2007: the card where weight × annualised legs was furthest off, 7%/年):
+// the game rebalances the player and the 60/40 benchmark the same way, so 60/40 copies score exactly the benchmark
+let handLine = '';
+{
+  const c = BLIND.cards.find((x) => x.id === 'CHN-2007'), Y = c?.reveal.yearly, n = c?.reveal.ret3.years;
+  if (!c || !Y?.equity || !Y?.bond || !Y?.house || !Y?.fxUSD) err('CHN-2007: yearly data for the hand check missing');
+  else {
+    let gp = 1, gb = 1;
+    for (let y = 0; y < n; y++) {
+      gp *= 1 + 0.4 * Y.equity[y] + 0.3 * Y.house[y] + 0.3 * Y.fxUSD[y];   // 40% 股票, 30% 房子, 30% 美元现金
+      gb *= 1 + 0.6 * Y.equity[y] + 0.4 * Y.bond[y];
+    }
+    const p3 = gp ** (1 / n) - 1, b3 = gb ** (1 / n) - 1;
+    const pf = M.portfolio(c, { equity: 4, house: 3, fxUSD: 3 }), pb = M.portfolio(c, { equity: 6, bond: 4 });
+    if (Math.abs(pf.p3 - p3) > 1e-12 || Math.abs(pf.b3 - b3) > 1e-12) err(`CHN-2007: model 3y ${pf.p3} / ${pf.b3} ≠ hand ${p3} / ${b3}`);
+    if (!near(b3, c.reveal.ret3.bench)) err(`CHN-2007: hand 60/40 ${b3} ≠ ret3.bench ${c.reveal.ret3.bench}`);
+    if (Math.abs(pb.p3 - pb.b3) > 1e-12 || Math.abs(pb.p1 - pb.b1) > 1e-12 || M.returnScore(pb).total !== 5) err('CHN-2007: copying 60/40 must score exactly the benchmark (5)');
+    handLine = `CHN-2007 by hand: 40/30/30 股票/房子/美元 3y ${(p3 * 100).toFixed(2)}%/年, 60/40 ${(b3 * 100).toFixed(2)}%/年 (data ${(c.reveal.ret3.bench * 100).toFixed(2)}%)`;
+  }
+}
 
 // wording
 const raw = readFileSync(path.join(ROOT, 'src/data/blind-cards.js'), 'utf8');
@@ -130,6 +172,8 @@ const by = (k) => Object.entries(BLIND.cards.reduce((m, c) => ((m[c[k]] = (m[c[k
 console.log(`cards: ${BLIND.cards.length} (${by('iso')}; ${by('type')}); batch 1: ${b1.map((c) => c.id).join(' ')}`);
 console.log(`holdout (保留样本): ${BLIND.cards.filter((c) => c.holdout).map((c) => c.id).join(' ')}`);
 console.log(`returns: ${nRet - nNull}/${nRet} finite, ${nNull} explicit null`);
+console.log(`3y benchmark: ${nBench} cards where 60/40 rebalanced yearly from reveal.yearly = ret3.bench`);
+console.log(handLine);
 console.log(`no look-ahead: ${lookahead}`);
 if (errors.length) {
   console.log(`\n${errors.length} error(s):`);
