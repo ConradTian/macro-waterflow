@@ -14,9 +14,10 @@ export { GAUGES, NO_GAUGE };
 
 /* ------------------------------------------------------------------ css */
 function ensureCss() {
+  // exact file name: exp-gauge.css must not count as gauge.css
   if (typeof document === 'undefined') return;
   const f = 'gauge.css';
-  if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) return;
+  if ([...document.styleSheets].some(s => (s.href || '').split(/[?#]/)[0].endsWith('/' + f)) || document.querySelector(`link[data-css="${f}"]`)) return;
   const l = document.createElement('link');
   l.rel = 'stylesheet';
   l.href = new URL('../../assets/css/' + f, import.meta.url).href;
@@ -205,7 +206,9 @@ function verticalSvg(id, g, snap, sim) {
   const left = [];
   if (bands) { for (const e of edges) if (e > lo && e < hi) left.push({ y: Y(e), t: fedge(e, g.fmt) }); }
   else {
-    left.push({ y: TOP + 4, t: fedge(hi, g.fmt) }, { y: TOP + HS, t: fedge(lo, g.fmt) });
+    // scale ends are padded, not data: round them (no "117.01%")
+    const fe = v => g.fmt === 'pct' ? (v < 0 ? MINUS : '') + Math.abs(v * 100).toFixed(spanPct > 10 ? 0 : 1) + '%' : fedge(v, g.fmt);
+    left.push({ y: TOP + 4, t: fe(hi) }, { y: TOP + HS, t: fe(lo) });
     if (lo < 0 && hi > 0) left.push({ y: Y(0) + 3, t: '0', zero: true });
   }
   spread(left, 11, TOP + 4, TOP + HS + 4);
@@ -231,10 +234,12 @@ function verticalSvg(id, g, snap, sim) {
   else marks.push({ y: TOP + HS / 2, kind: 'now', t: '现在 —（还没有足够的历史）', lv: null });
   const spread0 = S.n > 0 && S.max - S.min > 1e-12;
   if (spread0) {
-    const hiTxt = `最高 ${F(S.max)} · ${S.dates[S.iMax]}`, loTxt = `最低 ${F(S.min)} · ${S.dates[S.iMin]}`;
+    // the extremes span the whole baseline run (they may lie after this quarter), so say 全程; when 现在 sits on one, merge the labels
+    const hiTxt = `全程最高 ${F(S.max)} · ${S.dates[S.iMax]}`, loTxt = `全程最低 ${F(S.min)} · ${S.dates[S.iMin]}`;
     const eh = eventName(S.dates[S.iMax], scen, iso), el = eventName(S.dates[S.iMin], scen, iso);
-    marks.push({ y: Y(S.max), kind: 'hi', t: hiTxt + (eh ? ' ' + eh : '') });
-    marks.push({ y: Y(S.min), kind: 'lo', t: loTxt + (el ? ' ' + el : '') });
+    const near = v => ok(cur) && Math.abs(Y(v) - Y(cur)) < 8;
+    if (near(S.max)) marks[0].t += '（全程最高）'; else marks.push({ y: Y(S.max), kind: 'hi', t: hiTxt + (eh ? ' ' + eh : '') });
+    if (near(S.min)) marks[0].t += '（全程最低）'; else marks.push({ y: Y(S.min), kind: 'lo', t: loTxt + (el ? ' ' + el : '') });
   }
   const placed = marks.map(m => ({ ...m, y0: m.y }));      // y0 = true position on the bar, y = label position after spreading
   spread(placed, 15, TOP + 6, TOP + HS + 2);

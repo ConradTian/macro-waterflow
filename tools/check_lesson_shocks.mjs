@@ -211,7 +211,12 @@ const strip = o => JSON.stringify(o, (k, v) => (typeof v === 'function' ? undefi
 const code = ['src/ui/shock-lab.js', 'src/data/shock-events.js', 'src/data/lesson-shocks.js', 'assets/css/shock-lab.css', 'tools/shock-lab-demo.html'].map(p => readFileSync(resolve(ROOT, p), 'utf8')).join('\n');
 ok(!/同比|环比/.test(strip(L) + strip(SHOCK_CARDS) + code), 'no 同比/环比 anywhere (lesson, cards, panels, data)');
 ok(!/河道宽度|资产水库|欠条箱|国境线/.test(strip(L) + strip(SHOCK_CARDS) + strip(SHOCK_PARTS) + strip(SHOCK_CORNERS) + readFileSync(resolve(ROOT, 'src/ui/shock-lab.js'), 'utf8')), 'glossary (tools/DESIGN-v3.md): no 河道宽度 / 资产水库 / 欠条箱 / 国境线 (断面宽度, 资产池, 地下水位, 闸)');
-ok(S[3].text.join('').includes('判断'), 'step 3: the oil price claim says 判断 (no oil price data)');
+{ // step 3 says oil peaked in 2022Q2: check it against the repo's own quarterly WTI (US_Q oilPrice)
+  const { US_Q } = await imp('src/data/us-quarterly.js'), oil = US_Q.series.oilPrice;
+  const win = US_Q.dates.map((d, i) => [d, oil[i]]).filter(([d, v]) => d >= '2019Q1' && d <= '2023Q4' && v != null);
+  const top = win.reduce((a, b) => (b[1] > a[1] ? b : a));
+  ok(S[3].text.join('').includes('2022 年二季度油价到了这几年的最高点') && top[0] === '2022Q2', `step 3: oil peak claim = data (2019–2023 max ${top[0]} at ${top[1]})`);
+}
 ok(S[5].text.join('').includes('判断') && code.includes('（判断）'), 'the part mappings are labelled 判断 (last step text and every card)');
 for (const c of SHOCK_CARDS) if (c.data && /20(2[2-9])/.test(c.data.replace(/2014–2019/, ''))) ok(c.data.includes('保留样本'), `card ${c.id}: 2022+ data labelled 保留样本`);
 for (const [i, s] of S.entries()) { const t = s.text.join('') + (s.ending ? Object.values(s.ending).join('') : ''); if (/2022|2023/.test(t) && (s.nums || s.vals)) ok(t.includes('保留样本'), `step ${i}: 2022+ data labelled 保留样本`); }

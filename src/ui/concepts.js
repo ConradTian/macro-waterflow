@@ -352,7 +352,7 @@ export function refreshConcepts() { if (root && !root.hidden && stack.length) dr
 
 function ensureCss() {
   for (const f of ['panels.css', 'concept-hl.css', 'causal.css', 'roles.css']) {
-    if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) continue;
+    if ([...document.styleSheets].some(s => (s.href || '').split(/[?#]/)[0].endsWith('/' + f)) || document.querySelector(`link[data-css="${f}"]`)) continue;
     const l = document.createElement('link');
     l.rel = 'stylesheet';
     l.href = new URL('../../assets/css/' + f, import.meta.url).href;

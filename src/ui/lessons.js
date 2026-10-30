@@ -440,7 +440,7 @@ function leaveStep() {
 /* ---------- step field panel:{id,...}: one interactive panel (冲击 shock-lab, 汇率 fx-lab + the FX reactor, 投资者 investor-lab) ---------- */
 // shock-lab.css is not linked by index.html: it is loaded on demand with its module (like concepts.js ensureCss)
 const ensureCss = f => {
-  if ([...document.styleSheets].some(s => (s.href || '').includes(f)) || document.querySelector(`link[data-css="${f}"]`)) return;
+  if ([...document.styleSheets].some(s => (s.href || '').split(/[?#]/)[0].endsWith('/' + f)) || document.querySelector(`link[data-css="${f}"]`)) return;
   const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL('../../assets/css/' + f, import.meta.url).href; l.dataset.css = f;
   document.head.appendChild(l);
 };
