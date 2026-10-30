@@ -39,7 +39,7 @@ export const ROLE_LESSONS = [
   /* ============================ 央行 ============================ */
   lesson({
     id: 'role-centralBank', role: 'centralBank',
-    title: '央行：只拧一个总闸',
+    title: '央行：只拧一个吸力旋钮',
     oneLine: '央行只有一个大阀门：政策利率。它能改水价，却不能直接决定银行放多少贷款，而且水价变化要过好几个季度才流到下游。',
     available: true,
     startParts: ['centralBank', 'bank', 'valves', 'ledger'],
@@ -47,7 +47,7 @@ export const ROLE_LESSONS = [
       { type: 'intro', title: '先说结论',
         text: [
           '**央行手里只有一个大阀门：政策利率（利率压到底以后才有第二个：QE）。它能改水价，不能直接决定银行放多少贷款。**',
-          '就像水库管理员只拧总闸：下游每家每户用多少水，他管不到；而且水要流好几个季度才到下游。',
+          '就像水库管理员只拧吸力旋钮：下游每家每户用多少水，他管不到；而且水要流好几个季度才到下游。',
           '{{STEPS}}',
           '地点：还是那个 5 户人家的小镇。',
         ],
@@ -94,7 +94,7 @@ export const ROLE_LESSONS = [
         explain: [
           '央行改的只是新贷款的价格。老房贷每季只向新利率靠近一小步（约 10%）。',
           '新房贷利率里，约 3/4 跟的是长期国债收益率，而长债又只是政策利率路径的慢平均。',
-          '所以总闸拧了，下游的水价还没怎么变：这就是传导延迟。',
+          '所以吸力旋钮拧了，下游的水价还没怎么变：这就是传导延迟。',
         ],
         metrics: [{ label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '新房贷利率', get: 'rates.mortgageNew', fmt: 'pct' }, { label: '平均房贷利率（家庭实付）', get: 'rates.mortgageEff', fmt: 'pct' }],
         hl: ['policyRate', 'interestPaid'], concept: ['mortgageEff'] },
@@ -106,7 +106,7 @@ export const ROLE_LESSONS = [
         ],
         question: '想一想：谁最先感觉到加息？',
         answerHint: '新借款的人，和刚好到期重定价的那一小批。大多数家庭还在付老利率。',
-        relation: '央行没碰银行的闸门，但水价变了以后，银行和家庭会按各自的规则反应：整条链要好几个季度。',
+        relation: '央行没碰银行的审批阀，但水价变了以后，银行和家庭会按各自的规则反应：整条链要好几个季度。',
         hl: ['interestPaid'], concept: ['dsr', 'mortgageEff'] },
 
       { type: 'watch', title: '它的规则：看它动手', show: ['government', 'ledger'], tab: 'ledger', quarters: 4,
@@ -138,14 +138,14 @@ export const ROLE_LESSONS = [
         hl: ['policyRate'] },
 
       { type: 'chain', title: '央行这一条因果链',
-        text: ['央行的整条链，从拧闸门到水流到每家每户。点任何一环，图里对应的位置会亮。'],
+        text: ['央行的整条链，从拧吸力旋钮到水流到每家每户。点任何一环，图里对应的位置会亮。'],
         links: [
           { text: '央行拧政策利率（只有这一个大阀门）', part: 'centralBank', hl: ['policyRate'], term: 'policyRate' },
           { text: '新房贷利率立刻变：新借款的人先感觉到', pipe: 'newLoans', part: 'bank', term: 'newLoans' },
-          { text: '借款变贵，新贷款（放贷泵）按比例变少', pipe: 'newLoans', term: 'newLoans' },
+          { text: '借款变贵，新贷款（抽水泵）按比例变少', pipe: 'newLoans', term: 'newLoans' },
           { text: '流进房产的水变少，房产水位涨不动或回落', pipe: 'toHousing', part: 'poolHousing', term: 'assetReservoir' },
           { text: '老房贷分批重定价：家庭的付息一季一季变重（延迟 2–3 年）', pipe: 'interestPaid', term: 'mortgageEff' },
-          { text: '偿债率 DSR 上升，家庭少借少花，商品河道降温', part: 'channel', term: 'dsr' },
+          { text: '偿债率 DSR 上升，家庭少借少花，河降温', part: 'channel', term: 'dsr' },
         ] },
 
       { type: 'zoom', title: '2004–2006 年的美联储', date: '2004Q2', until: '2006Q2', next: 'role-bank',
@@ -153,7 +153,7 @@ export const ROLE_LESSONS = [
           '同一张图换成真实的美国。2004 年中起，美联储连续加息，政策利率从约 1% 升到约 5.25%。',
           '看这个：政策利率升了 4 个多点，家庭实际在付的房贷利率却几乎没升。',
           '真实原因有两个。一是长期利率几乎没涨（格林斯潘称之为「谜」）：30 年房贷利率只从约 5.8% 升到约 6.4%。二是存量房贷多半是固定利率，老贷款的利率本来就不动。',
-          '下一课看银行：那道真正决定放多少水的闸门。',
+          '下一课看银行：那个真正决定抽多少水的审批阀。',
         ],
         hl: ['policyRate', 'interestPaid'], concept: ['mortgageEff'] },
     ],
@@ -162,15 +162,15 @@ export const ROLE_LESSONS = [
   /* ============================ 银行 ============================ */
   lesson({
     id: 'role-bank', role: 'bank',
-    title: '银行：开闸与关闸',
-    oneLine: '银行是主泵：它放贷就造出新水。审批闸门决定泵开多大：抵押品好就开大，抵押品差就关小。所以它把繁荣放大，也把萧条放大。',
+    title: '银行：开泵与关泵',
+    oneLine: '银行是主泵：它放贷就造出新水。审批阀决定泵开多大：抵押品好就开大，抵押品差就关小。所以它把繁荣放大，也把萧条放大。',
     available: true,
     startParts: ['bank', 'household', 'iou', 'poolHousing', 'repay', 'valves', 'ledger'],
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**银行是主泵：它放贷就造出新水。审批闸门（审批倍数）决定泵开多大：抵押品好就开大，抵押品差就关小，所以它把繁荣和萧条都放大。**',
-          '像水泵房的管理员：泵一开，新水就出来了。闸门开多大，决定泵出多少水。',
+          '**银行是主泵：它放贷就造出新水。审批阀（审批倍数）决定泵开多大：抵押品好就开大，抵押品差就关小，所以它把繁荣和萧条都放大。**',
+          '像水泵房的管理员：泵一开，新水就出来了。阀开多大，决定泵出多少水。',
           '{{STEPS}}',
           '地点：5 户人家的小镇，镇银行就是主角。',
         ],
@@ -191,8 +191,8 @@ export const ROLE_LESSONS = [
           '**看不到**：每户人家将来会不会失业、央行下一步怎么走、房价明年涨还是跌。',
           '**管不了**：央行利率（水价）、家庭想不想借（需求）、房价本身。银行只能决定“批不批”。',
         ],
-        question: '想一想：银行收紧闸门，能让房价立刻止跌吗？',
-        answerHint: '不能，反而更糟。房价是买房的水推出来的，银行关闸，水更少。',
+        question: '想一想：银行把审批阀拧紧，能让房价立刻止跌吗？',
+        answerHint: '不能，反而更糟。房价是买房的水推出来的，银行关泵，水更少。',
         hl: ['bankApproval'], concept: ['badLoans', 'bankCapital'] },
 
       { type: 'valve', title: '它能拧哪个阀门', valve: 'approval', value: 0.4, quarters: 2, keep: true,
@@ -202,21 +202,21 @@ export const ROLE_LESSONS = [
           '现在把审批拧到 0.40（大幅收紧），看水往哪传。',
         ],
         button: '把审批拧到 0.40',
-        question: '审批拧到 0.40，新贷款（放贷泵）和房价水位会怎样？',
-        answerHint: ['新贷款（放贷泵）按比例变少，流进房产的水变少，房价水位回落。', '新水少了，小镇的水总量就不再增长。'],
+        question: '审批拧到 0.40，新贷款（抽水泵）和房价水位会怎样？',
+        answerHint: ['新贷款（抽水泵）按比例变少，流进房产的水变少，房价水位回落。', '新水少了，小镇的水总量就不再增长。'],
         metrics: [{ label: '房产水位（房价指数）', get: 'assets.housing.price', fmt: 'n1' }, { label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }],
         hl: ['bankApproval', 'newLoans'], concept: ['bankApproval', 'newLoans'] },
 
       { type: 'predict', title: '猜一猜', quarters: 3,
-        q: '闸门还停在 0.40，家庭每季照样还本（还本的排水口没变细）。再过 3 个季度，小镇的水总量会怎样？',
+        q: '审批阀还停在 0.40，家庭每季照样还本（回灌口没变细）。再过 3 个季度，小镇的水总量会怎样？',
         options: [
           { t: '继续增加：只要银行还在放贷', ok: false },
           { t: '不变', ok: false },
-          { t: '缩小：新贷款少于还本，排出比泵入多', ok: true },
+          { t: '缩小：新贷款少于还本，回灌比抽水多', ok: true },
         ],
         explain: [
-          '银行收紧只管“新贷款”，也就是进水的泵；还本是出水的排水口，不听银行的。',
-          '新贷款少于还本，水量平衡条里“泵入 − 排出”变成负数：水位退潮。',
+          '银行收紧只管“新贷款”，也就是进水的泵；还本是回灌口，不听银行的。',
+          '新贷款少于还本，水量平衡条里“抽水 − 回灌”变成负数：水位退潮。',
           '这在真实世界叫信贷脉冲转负：流进来的水比流出去的少。',
         ],
         metrics: [{ label: '小镇总水量（万元）', get: 'money.M', fmt: 'n1' }, { label: '房产水位（房价指数）', get: 'assets.housing.price', fmt: 'n1' }],
@@ -229,10 +229,10 @@ export const ROLE_LESSONS = [
           '每家银行都在理性自保，合起来却让整个圈倒着转：房价↓ → LVR↑ → 收紧 → 新贷款↓ → 房价↓。',
         ],
         question: '想一想：如果这时央行降息，能把这个圈拉回来吗？',
-        answerHint: '很难。问题出在银行的闸门（抵押品和资本），不在水价。资本不足时，银行还会先修资本，不随降息自动放开。',
+        answerHint: '很难。问题出在银行的审批阀（抵押品和资本），不在水价。资本不足时，银行还会先修资本，不随降息自动放开。',
         hl: ['bankApproval', 'assetReservoir'], concept: ['lvr', 'bankApproval', 'creditImpulse'] },
 
-      { type: 'watch', title: '它的规则：看它开闸、关闸', show: ['centralBank', 'ledger'], tab: 'ledger', quarters: 6,
+      { type: 'watch', title: '它的规则：看它开泵、关泵', show: ['centralBank', 'ledger'], tab: 'ledger', quarters: 6,
         do: [{ reset: true }, { valve: 'policyRate', value: 0.09 }], after: [{ valve: 'policyRate', value: null }],
         text: [
           '银行有四条规则，按这个顺序判断：',
@@ -240,7 +240,7 @@ export const ROLE_LESSONS = [
           `② **再看抵押品**（bank_tighten_collateral）：房价比一年前 < ${p0(R('bank_tighten_collateral', 'hp'))}（或比近期峰值回撤 > ${p0(R('bank_tighten_collateral', 'dd'))}），并且平均 LVR > ${p0(R('bank_tighten_collateral', 'lvr'))}，每季收紧 ${x2(R('bank_tighten_collateral', 'step'))}。`,
           `③ **最后才放宽**（bank_loosen）：房价比一年前 > ${p0(R('bank_loosen', 'hp'))}、坏账率 < ${p1(R('bank_loosen', 'bad'))}、资本充足率 > ${p0(R('bank_loosen', 'cap'))}，三个都满足，每季放宽 ${x2(R('bank_loosen', 'step'))}，最高 ${x2(R('bank_loosen', 'max'))}。`,
           `④ **先修资本**（bank_rebuild_capital）：资本低于 ${p1(R('bank_rebuild_capital', 'cap'))}，审批上限被压住，降息也不会自动恢复。`,
-          '关闸比开闸快：收紧每步比放宽每步大。现在外面起了风：央行把水价拧到 9%，房价掉头。看流水账里银行的规则一条条出现。',
+          '关泵比开泵快：收紧每步比放宽每步大。现在外面起了风：央行把水价拧到 9%，房价掉头。看流水账里银行的规则一条条出现。',
         ],
         metrics: [{ label: '审批倍数', get: 'bank.approval', fmt: 'n2' }, { label: '房产水位（房价指数）', get: 'assets.housing.price', fmt: 'n1' }, { label: '银行坏账率', get: 'bank.badLoanRate', fmt: 'pct' }],
         hl: ['bankApproval', 'newLoans'], concept: ['bankApproval', 'lvr'] },
@@ -257,14 +257,14 @@ export const ROLE_LESSONS = [
           { label: '8 季后小镇总水量', get: 'end:money.M', fmt: 'n1' },
           { label: '坏账率峰值', get: 'max:bank.badLoanRate', fmt: 'pct' },
         ],
-        insight: '闸门是放大器。固定得越高，水越多、房价越高；固定得越低，水越少、房价越低。银行规则的问题不在于不理性，而在于每家都顺着周期走。',
+        insight: '审批阀是放大器。固定得越高，水越多、房价越高；固定得越低，水越少、房价越低。银行规则的问题不在于不理性，而在于每家都顺着周期走。',
         hl: ['bankApproval', 'newLoans'] },
 
       { type: 'chain', title: '银行这一条因果链',
         text: ['银行的整条链。点任何一环，图里对应的水管会亮。'],
         links: [
-          { text: '银行看抵押品（LVR）、坏账、资本，拧审批闸门', part: 'bank', hl: ['bankApproval'], term: 'bankApproval' },
-          { text: '审批倍数乘在新贷款上：放贷泵变粗或变细', pipe: 'newLoans', part: 'iou', term: 'newLoans' },
+          { text: '银行看抵押品（LVR）、坏账、资本，拧审批阀', part: 'bank', hl: ['bankApproval'], term: 'bankApproval' },
+          { text: '审批倍数乘在新贷款上：抽水泵变粗或变细', pipe: 'newLoans', part: 'iou', term: 'newLoans' },
           { text: '新贷款少于还本：水量平衡条变负，水位退潮', pipe: ['newLoans', 'principalRepay'], part: 'budget', term: 'creditImpulse' },
           { text: '流进房产的水变少，房价水位涨不动或回落', pipe: 'toHousing', part: 'poolHousing', term: 'assetReservoir' },
           { text: '抵押品变差（LVR 升高），银行下一季更敢收：圈倒着转', pipe: 'collateral', part: 'bank', term: 'lvr' },
@@ -273,8 +273,8 @@ export const ROLE_LESSONS = [
       { type: 'zoom', title: '2007–2008 年的美国银行', date: '2006Q4', until: '2008Q4', next: 'role-household',
         text: [
           '同一个圈，放在真实的美国：房价掉头，银行的收紧规则一条条触发，审批倍数一路下调。',
-          '看这个：新贷款（放贷泵）比还本管细，水总量净减少。',
-          '下一课看家庭：站在闸门另一边的人。',
+          '看这个：新贷款（抽水泵）比还本管细，水总量净减少。',
+          '下一课看家庭：站在审批阀另一边的人。',
         ],
         hl: ['bankApproval', 'newLoans', 'principalRepay'], concept: ['creditImpulse'] },
     ],
@@ -309,7 +309,7 @@ export const ROLE_LESSONS = [
       { type: 'reveal', title: '它看得到什么，看不到什么', show: ['bank'],
         text: [
           '**看得到**：自己的月供占收入的比例（DSR）、房价涨跌、周围的失业、利率。',
-          '**看不到**：银行下个季度收不收闸、房价明年涨还是跌、**别的家庭是不是也在同时多存钱**。',
+          '**看不到**：银行下个季度收不收泵、房价明年涨还是跌、**别的家庭是不是也在同时多存钱**。',
           '**管不了**：房价、利率、银行批不批。家庭只能决定“想借多少”和“存多少”。实际借到的，是想借的和银行允许的里较小的那个。',
         ],
         question: '想一想：为什么“别人也在多存钱”这一条，家庭偏偏看不到？',
@@ -319,7 +319,7 @@ export const ROLE_LESSONS = [
       { type: 'valve', title: '它能拧哪两个阀门', valve: 'saveAdj', value: 0.05, quarters: 2, keep: false,
         text: [
           '家庭有两个旋钮：**借款意愿**（想借多少，1.00 = 正常）和**储蓄率**（收入里存下多少）。',
-          '借款意愿变大，放贷泵想变粗；储蓄率升高，花出去的水变少。',
+          '借款意愿变大，抽水泵想变粗；储蓄率升高，花出去的水变少。',
           '现在拧储蓄率：全镇每户都多存 5 个点。看水往哪传。',
         ],
         button: '让每户多存 5 个点',
@@ -344,9 +344,9 @@ export const ROLE_LESSONS = [
 
       { type: 'reveal', title: '它的动作碰到谁：水怎么流回自己', show: ['firm', 'channel'],
         text: [
-          '家庭多存少花 → 小卖部（商品河道）需求少 → 企业卖不动、招工少 → 工资（回到家庭的水）变少 → 家庭收入下降。',
+          '家庭多存少花 → 小卖部（河）需求少 → 企业卖不动、招工少 → 工资（回到家庭的水）变少 → 家庭收入下降。',
           '收入是 DSR 的分母：收入一少，月供压力就更难降下来。',
-          '另一只手也一样：家庭想借得多、银行也肯批 → 放贷泵变粗 → 买房的水流进房产 → 房价涨。家庭的借款意愿和银行的审批，是同一根蓝管的两只手：一只想要，一只批准。',
+          '另一只手也一样：家庭想借得多、银行也肯批 → 抽水泵变粗 → 买房的水流进房产 → 房价涨。家庭的借款意愿和银行的审批，是同一根蓝管的两只手：一只想要，一只批准。',
         ],
         question: '想一想：你少花的每一块钱，去哪了？',
         answerHint: '你少花的每一块钱，都是别人少收到的一块钱。',
@@ -383,9 +383,9 @@ export const ROLE_LESSONS = [
         text: ['家庭的整条链，借和存两只手。点任何一环，图里对应的水管会亮。'],
         links: [
           { text: '家庭想借多少（借款意愿）和存多少（储蓄率），是它的两个旋钮', part: 'household', term: 'hhDebt' },
-          { text: '想借的与银行批准的重叠，才是放贷泵的水量', pipe: 'newLoans', part: 'bank', term: 'newLoans' },
+          { text: '想借的与银行批准的重叠，才是抽水泵的水量', pipe: 'newLoans', part: 'bank', term: 'newLoans' },
           { text: '借来的水流进房产：房价涨；流进小卖部：物价涨', pipe: ['toHousing', 'toConsumption'], term: 'assetReservoir' },
-          { text: '每家多存、少花：小卖部（商品河道）需求变少', pipe: 'toConsumption', part: 'channel', term: 'goodsChannel' },
+          { text: '每家多存、少花：小卖部（河）需求变少', pipe: 'toConsumption', part: 'channel', term: 'goodsChannel' },
           { text: '企业卖不动，工资变少：回到家庭的水变少，总收入下降（节约悖论）', pipe: 'wages', part: 'household', term: 'income' },
           { text: '收入是 DSR 的分母：压力更难降下来，家庭更想存：圈又转一圈', part: 'household', term: 'dsr' },
         ], next: 'role-firm' },
@@ -429,12 +429,12 @@ export const ROLE_LESSONS = [
         text: [
           '企业只有一个旋钮：**Capex 倍数**（1.00 = 基准）。现实里企业还定价、招聘、分红回购，本游戏简化成这一个旋钮。',
           '这一课我们**打开延迟**：现实里一座厂房要 **6 个季度**才能建成（小镇的默认只等 2 个季度）。',
-          '现在把 Capex 加大 30%，播放 6 个季度。看：河道变宽了吗？',
+          '现在把 Capex 加大 30%，播放 6 个季度。看：断面变宽了吗？',
         ],
         button: '让 Capex 加大 30%',
-        question: '加大 Capex 以后，6 个季度之内，河道会变宽吗？',
-        answerHint: ['Capex 当季先是**需求**：花出去的钱变成别人的工资和收入，需求压力先涨。', '6 个季度之内，河道（产能）一点都没变宽。这笔钱还在“管道”里。'],
-        metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '产能（河道宽度）', get: 'macro.capacityPotential', fmt: 'n1' }, { label: '全体家庭收入（万元/年）', get: 'household.income', fmt: 'n1' }],
+        question: '加大 Capex 以后，6 个季度之内，断面会变宽吗？',
+        answerHint: ['Capex 当季先是**需求**：花出去的钱变成别人的工资和收入，需求压力先涨。', '6 个季度之内，断面（产能）一点都没变宽。这笔钱还在“管道”里。'],
+        metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '产能（断面宽度）', get: 'macro.capacityPotential', fmt: 'n1' }, { label: '全体家庭收入（万元/年）', get: 'household.income', fmt: 'n1' }],
         hl: ['capex', 'capacity'], concept: ['capex', 'capacity'] },
 
       { type: 'predict', title: '猜一猜', quarters: 4,
@@ -446,16 +446,16 @@ export const ROLE_LESSONS = [
         ],
         explain: [
           'Capex 经过建设期才变成产能。头几个季度只有需求（压力高、通胀高）。',
-          '新产能到位后，河道变宽，压力回落，甚至比没加 Capex 时更低（产能过剩的苗头）。',
+          '新产能到位后，断面变宽，压力回落，甚至比没加 Capex 时更低（产能过剩的苗头）。',
           '先加需求，后加供给。时差就是通胀的空间。',
         ],
-        metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '产能（河道宽度）', get: 'macro.capacityPotential', fmt: 'n1' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
+        metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '产能（断面宽度）', get: 'macro.capacityPotential', fmt: 'n1' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
         hl: ['capex', 'capacity', 'cpi'], concept: ['capex', 'capacity', 'cpi'] },
 
       { type: 'reveal', title: '它的动作碰到谁', show: ['household', 'bank'],
         text: [
-          'Capex 加码 → 企业向银行多借、多花 → 当季：这笔钱是需求，流进商品河道，成了别人的工资和利润，需求压力更高。',
-          '约 6 个季度后：新产能到位，河道容量变大，压力才回落。',
+          'Capex 加码 → 企业向银行多借、多花 → 当季：这笔钱是需求，流进河，成了别人的工资和利润，需求压力更高。',
+          '约 6 个季度后：新产能到位，断面宽度变大，压力才回落。',
         ],
         question: '想一想：如果这时央行为了压通胀加息，Capex 会怎样？',
         answerHint: '融资成本升高，企业的“收缩”规则触发，Capex 削减。短期压住了需求，但未来的产能也少了，供给更紧。',
@@ -481,7 +481,7 @@ export const ROLE_LESSONS = [
         slider: { min: 0.6, max: 1.4, step: 0.05, def: 1.0, fmt: 'n2', label: 'Capex 倍数（全程保持）' },
         metrics: [
           { label: '需求压力峰值', get: 'max:macro.demandPressure', fmt: 'pct' },
-          { label: '10 季后产能（河道宽度）', get: 'end:macro.capacityPotential', fmt: 'n1' },
+          { label: '10 季后产能（断面宽度）', get: 'end:macro.capacityPotential', fmt: 'n1' },
           { label: '累计 Capex（万元）', get: 'sum:flows.toCapex', fmt: 'n1' },
           { label: '通胀峰值', get: 'max:macro.inflation', fmt: 'pct' },
         ],
@@ -492,10 +492,10 @@ export const ROLE_LESSONS = [
         text: ['企业的整条链：先需求，后供给。点任何一环，图里对应的水管会亮。'],
         links: [
           { text: '企业拧 Capex 倍数：需求旺、钱便宜就加码，缺口大、钱贵就削减', part: 'firm', hl: ['capex'], term: 'capex' },
-          { text: 'Capex 当季是需求：钱流进商品河道，成了别人的工资和利润', pipe: 'toCapex', part: 'channel', term: 'capex' },
+          { text: 'Capex 当季是需求：钱流进河，成了别人的工资和利润', pipe: 'toCapex', part: 'channel', term: 'capex' },
           { text: '需求压力先涨，通胀先涨；收入先涨', pipe: 'wages', part: 'channel', term: 'cpi' },
           { text: '约 6 个季度的建设期：钱还在管道里，河道没变宽', part: 'capex', hl: ['capacity'], term: 'capacity' },
-          { text: '新产能到位，河道变宽，需求压力回落：先加需求，后加供给', pipe: 'toCapex', part: 'capex', term: 'outputGap' },
+          { text: '新产能到位，断面变宽，需求压力回落：先加需求，后加供给', pipe: 'toCapex', part: 'capex', term: 'outputGap' },
         ], next: 'role-government' },
     ],
   }),
@@ -537,7 +537,7 @@ export const ROLE_LESSONS = [
 
       { type: 'valve', title: '它能拧哪个阀门', valve: 'fiscalInjection', value: 0.05, quarters: 2, keep: false,
         text: [
-          '政府的旋钮是**财政注入**（占 GDP 的比例，每年）。正数是多花（赤字，泵入新水），负数是收紧（盈余，排出水）。',
+          '政府的旋钮是**财政注入**（占 GDP 的比例，每年）。正数是多花（赤字，深井泵抽新水），负数是收紧（盈余，回灌）。',
           '注入的钱里，大部分变成消费需求，一部分变成企业 Capex，小部分存成现金。现实里还有税率、转移支付、公共投资的区别，本游戏把它们合成这一个旋钮。',
           '现在让镇政府多花 GDP 的 5%。看水往哪传。',
         ],
@@ -605,7 +605,7 @@ export const ROLE_LESSONS = [
         text: ['政府的整条链：补水，也有代价。点任何一环，图里对应的水管会亮。'],
         links: [
           { text: '私人部门收缩，失业升高、需求缺口变深', part: 'household', term: 'unemployment' },
-          { text: '政府的规则触发：财政注入（赤字泵）打开，造出新水', pipe: 'fiscalInjection', part: 'government', term: 'fiscalInjection' },
+          { text: '政府的规则触发：财政注入（深井泵）打开，造出新水', pipe: 'fiscalInjection', part: 'government', term: 'fiscalInjection' },
           { text: '钱先到家庭和企业：变成消费和 Capex，需求撑住', pipe: ['toConsumption', 'toCapex'], part: 'channel', term: 'goodsChannel' },
           { text: '失业回落、税收回升；景气稳定后，政府逐步收回', pipe: 'taxes', part: 'government', term: 'income' },
           { text: '代价：政府债务和利息上升，太高时紧缩规则触发', part: 'government', term: 'interestToTax' },
@@ -654,7 +654,7 @@ export const ROLE_LESSONS = [
           '**管不了**：新水一共有多少（那是新贷款、财政注入、QE 决定的）；价格本身（价格是被流进来的水推出来的）。',
         ],
         question: '想一想：为什么说投资者“只能分配新增的水”？',
-        answerHint: '水的总量由放贷泵、财政、QE 决定。投资者只决定这些新水往哪个池子送，而且只有约 1/4 听它的，其余约 3/4 已经有用途了。',
+        answerHint: '水的总量由抽水泵、财政、QE 决定。投资者只决定这些新水往哪个池子送，而且只有约 1/4 听它的，其余约 3/4 已经有用途了。',
         hl: ['assetReservoir'], concept: ['housePrice', 'equityAsset', 'riskPremium'] },
 
       { type: 'watch', title: '它的旋钮：新增水的去向', show: ['poolEquity', 'poolBond', 'poolGold'], quarters: 2, block: 'alloc',
@@ -681,7 +681,7 @@ export const ROLE_LESSONS = [
 
       { type: 'reveal', title: '它的动作碰到谁', show: ['channel', 'bank', 'springs'],
         text: [
-          '投资者逃向现金和国债 → 房产和股票的新水变少，价格涨不动或下跌 → 家庭的财富缩水，少花一点 → 商品河道需求降温。',
+          '投资者逃向现金和国债 → 房产和股票的新水变少，价格涨不动或下跌 → 家庭的财富缩水，少花一点 → 河需求降温。',
           '同时房价下跌，银行看到抵押品变差 → 收紧审批 → 回到银行课里的圈倒着转。',
           `**国债不总是避风港**：如果同时通胀预期高于 ${p0(R('inv_riskoff', 'infl'))}（通胀型危机），国债价格会跌，避险资金改去黄金。黄金没有现金流（图里没有它的“泉水”），只靠信任。`,
         ],
@@ -777,7 +777,7 @@ export const ROLE_LESSONS = [
         text: [
           '我们先让小卖部老板们猛投 Capex（上一课学过）：需求压力当季冲高。',
           '外国的“外溢”规则读的就是这个数：需求越冲过产能，进口越多，净出口越低，一部分需求流到海外，本国的压力小一点。',
-          '（模型里这条规则没有单独的水管，效果混在商品河道的需求压力里。）',
+          '（模型里这条规则没有单独的水管，效果混在河的需求压力里。）',
         ],
         metrics: [{ label: '需求压力', get: 'macro.demandPressure', fmt: 'pct' }, { label: '通胀', get: 'macro.inflation', fmt: 'pct' }],
         hl: ['goodsChannel', 'cpi'], concept: ['outputGap', 'goodsChannel'] },
@@ -827,7 +827,7 @@ export const ROLE_LESSONS = [
       { type: 'chain', title: '外国这一条因果链',
         text: ['外国部门的整条链：分担，也要价。点任何一环，图里对应的水管会亮。'],
         links: [
-          { text: '本国需求冲过产能：商品河道里的需求压力变高', part: 'channel', term: 'outputGap' },
+          { text: '本国需求冲过产能：河里的需求压力变高', part: 'channel', term: 'outputGap' },
           { text: '外溢：进口增加，净出口下降，一部分需求流到海外', pipe: 'spillToGoods', part: 'channel', term: 'goodsChannel' },
           { text: '本国的压力小一点，通胀缓和', part: 'channel', hl: ['cpi'], term: 'cpi' },
           { text: '赤字大 + 通胀高：外国债权人要求更高的期限溢价（要价）', pipe: 'fiscalInjection', part: 'government', term: 'bondAsset' },

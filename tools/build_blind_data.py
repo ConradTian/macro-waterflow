@@ -90,7 +90,7 @@ DECK = [
 ]
 # optional second reveal line (reveal.why, src/blind/main.js shows it under `what`); 负资产 ≠ B2 (tools/COURSE-V3.md queue 2c)
 REVEAL_WHY = {
-    "AUS-2008": "为什么不是 B2：房价只小跌、负资产少，银行没伤；降息很快传到浮动利率房贷，推得动。",
+    "AUS-2008": "为什么不是 B2（地下水位没跌破吸程线）：房价只小跌、负资产少，银行没伤；降息很快传到浮动利率房贷，推得动。",
 }
 
 # ---------------------------------------------------------------- generic helpers

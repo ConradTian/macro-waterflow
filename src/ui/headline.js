@@ -15,10 +15,10 @@ import { currentCountry, localizeText } from './country-info.js';
 
 /* ------------------------------------------------------------------ vocabulary */
 const LAMPS = {
-  credit:      { name: '信贷灯', term: 'lampCredit',      where: '放贷 / 还本管道' },
-  debtService: { name: '偿债灯', term: 'lampDebtService', where: '家庭 DSR、付息 / 还本管道' },
-  policy:      { name: '政策灯', term: 'lampPolicy',      where: '央行「政策利率」' },
-  valuation:   { name: '估值灯', term: 'lampValuation',   where: '房产池、股票池水位' },
+  credit:      { name: '信贷灯', term: 'lampCredit',      where: '抽水 / 回灌管道' },
+  debtService: { name: '偿债灯', term: 'lampDebtService', where: '家庭 DSR、分水堰的利息口 / 回灌管道' },
+  policy:      { name: '政策灯', term: 'lampPolicy',      where: '央行的吸力旋钮（政策利率）' },
+  valuation:   { name: '估值灯', term: 'lampValuation',   where: '湖：房产池、股票池水位' },
 };
 const LV = { green: '绿', yellow: '黄', red: '红' };
 const ASSETS = [
@@ -107,7 +107,7 @@ export function headlineItems(snap, prev, sim) {
   // the link between the two dials (shown first so the 3-item limit never drops it)
   const hand = [];
   if (cl && pl && cl.fork === 'B2' && pl.fork !== 'B2')
-    hand.push({ kind: 'cycle', text: '大周期走上 B2 岔路', where: '「周期」页 · 大周期表盘（②→⑤ 的 B2 岔路）', tab: 'cycle' });
+    hand.push({ kind: 'cycle', text: '地下水位跌破吸程线（大周期 B2）', where: '「周期」页 · 大周期表盘（②→⑤ 的 B2）', tab: 'cycle' });
   if (cs && ps && cs.handoff === 'no' && ps.handoff !== 'no')
     hand.push({ kind: 'cycle', text: '降息推不动 → 交给大周期', where: '「周期」页 · 小周期表盘（降息 → 大周期 ⑤）', tab: 'cycle' });
   out.unshift(...hand);
@@ -135,7 +135,7 @@ export function headlineItems(snap, prev, sim) {
   // 5. policy rate moved >= 25bp
   const r0 = prev.rates?.policy, r1 = snap.rates?.policy;
   if (num(r0) && num(r1) && Math.abs(r1 - r0) >= 0.0025 - 1e-9)
-    out.push({ kind: 'rate', text: `政策利率 ${pcRate(r0)}→${pcRate(r1)}`, where: '央行「政策利率」', term: 'policyRate', specs: { parts: ['centralBank'], pipes: [] } });
+    out.push({ kind: 'rate', text: `政策利率 ${pcRate(r0)}→${pcRate(r1)}`, where: '央行的吸力旋钮（政策利率）', term: 'policyRate', specs: { parts: ['centralBank'], pipes: [] } });
 
   return out.slice(0, 3);
 }
