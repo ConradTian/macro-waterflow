@@ -134,13 +134,14 @@
 .wm-def { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text); }
 .wm-ly .wm-def { padding-top: 4px; border-top: 1px dashed #d8cbb6; }
 .wm-hint .wm-def { padding: 4px 8px; border-left: 3px solid #9a7b4f; background: #f7f2ea; font-size: 12.5px; }
-/* tap the 地下 row of a box: its one-line definition floats under the row */
+/* tap the 地下 row of a box: its one-line definition floats under the row (or beside the box near the bottom) */
 .wm-layers .wm-l-hit { fill: transparent; pointer-events: all; cursor: help; }
 .wm-tip { position: absolute; z-index: 3; box-sizing: border-box; padding: 7px 10px; border-radius: 10px; background: var(--surface);
   border: 1.5px solid #9a7b4f; box-shadow: 0 4px 14px rgba(0, 0, 0, .14); font-size: 12.5px; line-height: 1.45; cursor: pointer; }
 .wm-tip[hidden] { display: none; }
 .wm-tip b { display: block; font-size: 13px; }
-.wm-tip span { display: block; color: var(--text); }
+.wm-tip > span { display: block; color: var(--text); }
+.wm-nw { white-space: nowrap; }   /* a year span like 1995–2025 never breaks across lines */
 .wm-line { margin: 6px 0; font-size: 13.5px; }
 .wm-partners { margin: 6px 0 10px; font-size: 13.5px; }
 .wm-partners ol { margin: 2px 0 0; padding-left: 20px; }

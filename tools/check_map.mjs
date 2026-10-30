@@ -3,6 +3,7 @@
 // main screen (US sim keeps its state), year slider, pipe toggles, mw:map event, ?map=1&select=, ?country= boot hook, phone layout, no JS errors.
 // Geometry (iPad 1180×820, phone 390, desktop 1920×1000): boxes do not overlap, every pipe has an arrowhead ≥ ARROW_MIN px, no pipe passes
 // through a box interior, the two lanes of a two-way pair do not overlap; selection fades all other pipes and labels only its own.
+// 1440×900: the AUS 地下 tip does not cover the AUS box; the year span (1995–2025) never wraps; box 河 rows read 河 物价 x%.
 import { spawn } from 'node:child_process';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const port = 9361, BASE = process.env.BASE || 'http://localhost:8185/';
@@ -158,6 +159,9 @@ try {
   ok(gwRows.length === 7 && gwRows.every(s => /^地下 (洞深 \+\d+点|洞浅 −\d+点|平常|—)$/.test(s)), `v3 fix: every box's 地下 row reads 洞深 +N点 / 洞浅 −N点 / 平常: ${gwRows.join(' · ')}`);
   const boxAll = await A.ev(`[...document.querySelectorAll('.wm-box')].map(b => b.textContent).join(' ')`);
   ok(!/大环|同比|环比/.test(boxAll), 'v3 fix: no box text contains 大环 / 同比 / 环比');
+  // 河 wording matches the card (物价比一年前): the box row says 河 物价 x%, never 通胀
+  const rvRows = await A.ev(`[...document.querySelectorAll('.wm-box .wm-l-river text')].map(t => t.textContent.replace(/\\s+/g, ' ').trim())`);
+  ok(rvRows.length === 7 && rvRows.every(s => /^河 (物价 −?\d+\.\d%|—)$/.test(s)),`map fix 2: every box's 河 row reads 河 物价 x% (same word as the card): ${rvRows.join(' · ')}`);
   const hintDef = await A.text('.wm-hint .wm-def[data-def="gw"]');
   ok(/^地下 = 私人欠款占 GDP，比自己 1995–2025 平均高（洞更深）或低多少个百分点/.test(hintDef) && await A.ev(`(()=>{const e=document.querySelector('.wm-hint .wm-def'); return !!e && e.getBoundingClientRect().height > 0})()`), 'v3 fix: the map legend carries the 地下 definition line (visible): ' + hintDef);
   ok(await A.count('.wm-box .wm-l-ground .wm-l-hit[data-def="gw"]') === 7, 'v3 fix: every box has a tappable 地下 row');
@@ -322,6 +326,19 @@ try {
   const ptip = await A.ev(`(()=>{const t=document.querySelector('.wm-tip'), r=t.getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(), c=document.querySelector('.wm-card'), h=document.querySelector('.wm-box[data-iso="EA"] .wm-l-hit').getBoundingClientRect(); return { shown: !t.hidden, inside: r.left >= s.left - 1 && r.right <= s.right + 1 && (Math.min(Math.abs(r.top - h.bottom), Math.abs(r.bottom - h.top)) < 12), w: Math.round(r.width), cardDef: (c.querySelector('.wm-def')||{}).textContent || '', cardX: c.scrollWidth <= c.clientWidth + 1, lys: c.querySelectorAll('.wm-ly').length }})()`);
   ok(ptip.shown && ptip.inside && ptip.lys === 3 && ptip.cardX && ptip.cardDef.includes('1999–2025'), `phone: EA 地下 tap shows the definition inside the stage (${ptip.w}px), card has 3 layers, no sideways overflow, EA baseline 1999–2025: ${ptip.cardDef}`);
   ok(await A.ev(`document.documentElement.scrollWidth <= innerWidth + 1`), 'phone: still no horizontal page scroll with the definition open');
+
+  // ---- 9b. 1440×900 (map fix 2): AUS sits at the bottom; its 地下 tip must not cover the box, the year span never wraps ----
+  await A.viewport(1440, 900);
+  await A.go(BASE + '?pause=1&t=53&map=1&year=2008&select=AUS');
+  await A.click('.wm-box[data-iso="AUS"] .wm-l-hit'); await sleep(400);
+  const t14 = await A.ev(`(()=>{const t=document.querySelector('.wm-tip'), r=t.getBoundingClientRect(), s=document.querySelector('.wm-stage').getBoundingClientRect(), b=document.querySelector('.wm-box[data-iso="AUS"] .wm-rect').getBoundingClientRect(), h=document.querySelector('.wm-box[data-iso="AUS"] .wm-l-hit').getBoundingClientRect();
+    const cover = !(r.right <= b.left + 1 || r.left >= b.right - 1 || r.bottom <= b.top + 1 || r.top >= b.bottom - 1);
+    const near = (Math.min(Math.abs(r.top - h.bottom), Math.abs(r.bottom - h.top)) < 12 && r.left < h.right && r.right > h.left) || (Math.min(Math.abs(r.right - b.left), Math.abs(r.left - b.right)) < 12 && r.top < h.bottom && r.bottom > h.top);
+    return { shown: !t.hidden, iso: t.dataset.iso, inside: r.left >= s.left - 1 && r.right <= s.right + 1 && r.top >= s.top - 1 && r.bottom <= s.bottom + 1, cover, near, tip: [r.left, r.top, r.right, r.bottom].map(Math.round), box: [b.left, b.top, b.right, b.bottom].map(Math.round) }})()`);
+  ok(t14.shown && t14.iso === 'AUS' && t14.inside && !t14.cover && t14.near, `1440: AUS 地下 tip opens beside / below the row, inside the stage, not covering the AUS box: ${JSON.stringify(t14)}`);
+  const nw14 = await A.ev(`[...document.querySelectorAll('.wm-card .wm-ly .wm-nw, .wm-tip .wm-nw')].map(e => ({ t: e.textContent, lines: new Set([...e.getClientRects()].map(q => Math.round(q.top))).size }))`);
+  ok(nw14.length >= 3 && nw14.every(e => /^\d{4}–\d{4}$/.test(e.t) && e.lines === 1), `1440: the year span 1995–2025 never breaks (card 地下 line + definition + tip): ${JSON.stringify(nw14)}`);
+  await A.click('.wm-bg'); await sleep(200);
 
   // ---- 10. desktop 1920×1000: the same geometry rules ----
   await A.viewport(1920, 1000);

@@ -77,6 +77,39 @@ check(!/资产缓冲池|商品河道|欠条箱|资本管|商品价格管/.test(a
   check(vol('growth') > vol('stable') && vol('cyclical') > vol('stable'), `sub-indices: narrow / river-flow pools jump more (vol growth ${vol('growth').toFixed(3)}, cyclical ${vol('cyclical').toFixed(3)} > stable ${vol('stable').toFixed(3)})`);
   check(H.map(s => s.assets.equity.price).every((v, i) => v === eq0[i]), 'sub-indices leave the engine equity pool untouched');
 }
+// the sub-indices vs reality (Kenneth French portfolios, src/data/french-check.js, built by tools/build_french_check.py):
+// US history sim, Q4-to-Q4 changes 1996-2021 (never 2022+). Volatility order must match reality; correlations are reported.
+{
+  const { FRENCH, FRENCH_RESULT: R } = await import('../src/data/french-check.js');
+  const { US_Q } = await import('../src/data/us-quarterly.js');
+  const { createSim } = await import('../src/engine/sim.js');
+  const { subIndices } = await import('../src/data/sub-index.js');
+  check(FRENCH.years[0] === 1995 && FRENCH.years.at(-1) === 2021 && ['stable', 'growth', 'cyclical'].every(k => FRENCH.styles[k].length === FRENCH.years.length && FRENCH.styles[k].every(isFinite)), 'French data: 1995–2021 only, three styles, finite');
+  const sim = createSim({ data: US_Q, mode: 'history' });
+  while (!sim.done) sim.step();
+  const H = sim.history(), yrs = FRENCH.years.filter(y => y >= 1996 && y <= 2021);
+  const q4 = ser => Object.fromEntries(ser.filter(p => /Q4$/.test(p.date)).map(p => [+p.date.slice(0, 4), p.price]));
+  const chg = by => yrs.map(y => by[y] / by[y - 1] - 1);
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const corr = (a, b) => { const ma = mean(a), mb = mean(b); let c = 0, va = 0, vb = 0; a.forEach((x, i) => { c += (x - ma) * (b[i] - mb); va += (x - ma) ** 2; vb += (b[i] - mb) ** 2; }); return c / Math.sqrt(va * vb); };
+  const sd = a => { const l = a.map(x => Math.log(1 + x)), m = mean(l); return Math.sqrt(l.reduce((x, y) => x + (y - m) ** 2, 0) / (l.length - 1)); };
+  const real = k => yrs.map(y => FRENCH.styles[k][FRENCH.years.indexOf(y)]);
+  const M = Object.fromEntries(subIndices(H).map(s => [s.k, chg(q4(s.series))]));
+  const eng = chg(q4(H.map(h => ({ date: h.date, price: h.assets.equity.price }))));
+  const mkt = yrs.map((y, i) => mean(Object.values(FRENCH.industries).map(a => a[FRENCH.years.indexOf(y)])));
+  const K = ['stable', 'growth', 'cyclical'];
+  const C = Object.fromEntries(K.map(k => [k, corr(M[k], real(k))])); C.engineVsMarket = corr(eng, mkt);
+  const vM = Object.fromEntries(K.map(k => [k, sd(M[k])])), vR = Object.fromEntries(K.map(k => [k, sd(real(k))]));
+  const order = v => [...K].sort((a, b) => v[a] - v[b]).join(' < ');
+  console.log(`info sub-indices vs French ${yrs[0]}–${yrs.at(-1)}: corr of annual changes ${K.map(k => `${k} ${C[k].toFixed(2)}`).join(', ')} (engine equity vs real market ${C.engineVsMarket.toFixed(2)})`);
+  console.log(`info vol (st. dev. of annual log changes): model ${K.map(k => `${k} ${vM[k].toFixed(3)}`).join(', ')}; real ${K.map(k => `${k} ${vR[k].toFixed(3)}`).join(', ')}`);
+  check(vM.cyclical > vM.stable && vR.cyclical > vR.stable, `French: 周期股 swings more than 稳股 in the model (${vM.cyclical.toFixed(3)} > ${vM.stable.toFixed(3)}) and in reality (${vR.cyclical.toFixed(3)} > ${vR.stable.toFixed(3)})`);
+  check(order(vM) === order(vR), `French: volatility order model = reality (${order(vM)} | ${order(vR)})`);
+  check(K.every(k => isFinite(C[k])), 'French: correlations computed');
+  const drift = R && [...K.map(k => [C[k], R.corr[k]]), [C.engineVsMarket, R.corr.engineVsMarket], ...K.map(k => [vM[k], R.volModel[k]]), ...K.map(k => [vR[k], R.volReal[k]])].some(([a, b]) => Math.abs(a - b) > 0.03);
+  if (!R || drift) WARN('French: FRENCH_RESULT in src/data/french-check.js is stale (the engine changed?): update it with the info lines above');
+  else OK('French: FRENCH_RESULT matches the recomputed numbers');
+}
 for (const s of pSteps) check(PANEL_IDS.includes(s.panel.id), `panel id '${s.panel.id}' exists`);
 check(new Set(pSteps.map(s => s.panel.id)).size === pSteps.length, 'each panel used once');
 steps.forEach((s, i) => { if (i > 0) check(s.title && s.title.startsWith(`第 ${i} 步`), `step ${i} title numbered`); });

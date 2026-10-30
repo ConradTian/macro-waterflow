@@ -53,6 +53,9 @@ const fmtPct1 = v => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v * 100
 const GW_FLAT = 0.05;
 const gwWord = gw => gw == null ? '—' : gw > GW_FLAT ? `洞深 +${Math.round(gw * 100)}点` : gw < -GW_FLAT ? `洞浅 −${Math.round(-gw * 100)}点` : '平常';
 const gwDef = span => `地下 = 私人欠款占 GDP，比自己 ${span} 平均高（洞更深）或低多少个百分点`;
+// HTML: the same text, escaped, with the year span kept on one line (never 「1995–」 / 「2025」 across a wrap)
+const nw = s => `<span class="wm-nw">${esc(s)}</span>`;
+const gwDefHtml = span => esc(gwDef(span)).replace(esc(span), nw(span));
 const SPAN_ALL = () => `${WORLD.years[0]}–${WORLD.years[WORLD.years.length - 1]}`;
 
 const st = { host: null, opts: null, year: 2008, sel: null, kind: 'all', open: false, last: null, ro: null, cover: {}, tip: null };
@@ -423,11 +426,11 @@ function layersSvg(b, L, r, col) {
   const k = layersIcon(b.iso), f = L.fs * 0.9, x = b.x + 8, w = b.w - 16, top = b.y + L.fs + 13, rh = Math.max(9, (b.h - (top - b.y) - 12 * L.sf) / 3);
   const pct = fmtPct1;
   const rows = [
-    ['wm-l-river', '河', k.infl == null ? '—' : '通胀 ' + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
+    ['wm-l-river', '河', k.infl == null ? '—' : '物价 ' + pct(k.infl), k.infl == null ? 0.3 : clamp(0.25 + k.infl * 8, 0.1, 1)],
     ['wm-l-lake', '湖', k.real == null ? '—' : '吸力 ' + pct(k.real), k.real == null ? 0.3 : clamp(0.5 + k.real * 10, 0.08, 1)],
     ['wm-l-ground', '地下', gwWord(k.gw), k.gw == null ? 0.5 : clamp(0.5 - k.gw * 1.2, 0.08, 1)],   // bar = the water table: a deeper hole = lower
   ];
-  const tips = ['河水位 = 通胀（物价比一年前）', '湖吸力 = 实际利率（政策利率 − 通胀）', gwDef(k.span) + '。点这一行看说明'];
+  const tips = ['河 物价 = 物价比一年前（通胀）', '湖吸力 = 实际利率（政策利率 − 通胀）', gwDef(k.span) + '。点这一行看说明'];
   return '<g class="wm-layers">' + rows.map(([c, nm, v, lv], i) => {
     const y = top + i * rh, bw = Math.max(14, Math.min(28 * L.sf, w * 0.22));
     // the 地下 row carries a transparent hit strip: tapping it selects the box AND shows the one-line definition (st.tip)
@@ -515,8 +518,8 @@ function cardHtml() {
   const iso = st.sel;
   if (!iso) {
     return `<div class="wm-hint"><b>点一个框，看它的情况</b>
-      <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（通胀）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（洞深 / 洞浅 N 点 / 平常）。框下面是闸。</p>
-      <p class="wm-def" data-def="gw">${esc(gwDef(SPAN_ALL()))}。洞越深，以后要还的越多。</p>
+      <p class="wm-more">每个国家的水一种颜色。框里三层：<b>河</b>（物价比一年前）、<b>湖</b>（吸力 = 实际利率）、<b>地下</b>（洞深 / 洞浅 N 点 / 平常）。框下面是闸。</p>
+      <p class="wm-def" data-def="gw">${gwDefHtml(SPAN_ALL())}。洞越深，以后要还的越多。</p>
       <p class="wm-more">框越大，GDP 越大。</p>
       <p><i class="wm-sw goods"></i> 绿管 = 贸易（出口，小的不画）<br><i class="wm-sw row"></i> 灰管 = 和「其他国家」的贸易（背景，宽度照实）<br><i class="wm-sw bond"></i> 蓝紫管 = 湖连湖：外国人买美债，流进最大的湖<br><i class="wm-sw debt"></i> 棕管（地下·美元债）= 地下连地下：美国以外借的美元债（BIS）<br>管越宽，水量越大。</p>
       <p><b>箭头 = 水往哪流。</b>两国互相出口 = 两条并排的管，各靠右走；数字贴在出口国那一头。点一个框，只看它的管子。</p>
@@ -528,12 +531,12 @@ function cardHtml() {
   const fx = iso === 'USA' ? '本币就是美元' : r.fx == null || !r.ccy || r.ccy === 'mixed' ? '—' : `1 美元 = ${r.fx >= 100 ? r.fx.toFixed(0) : r.fx.toFixed(2)} ${esc(CCY_CN[r.ccy] || '')}（${esc(r.ccy)}）`;
   const k = layersIcon(iso), col = CCY_COL[r.ccy] || CCY_COL.mixed;
   // the same three layers as the box icon, in words (DESIGN-v3 「World + FX」): 河 / 湖吸力 / 地下
-  const gwSub = k.pvt == null ? '没有私人欠款数据' : `私人欠款占 GDP ${fmtPct0(k.pvt)}，自己 ${k.span} 平均 ${fmtPct0(k.avg)}`;
+  const gwSub = k.pvt == null ? '没有私人欠款数据' : `私人欠款占 GDP ${fmtPct0(k.pvt)}，自己 ${nw(k.span)} 平均 ${fmtPct0(k.avg)}`;   // HTML
   const lay = (cls, nm, v, sub, extra = '') => `<div class="wm-ly ${cls}"><b class="wm-ly-k">${nm}</b><div class="wm-ly-b"><span class="wm-ly-v">${v}</span><small>${sub}</small>${extra}</div></div>`;
   const layers = `<div class="wm-lys" style="--ly-c:${col}">
       ${lay('river', '河', k.infl == null ? '—' : `物价比一年前 ${fmtPct1(k.infl)}`, `GDP ${fmtBn(r.gdp)}美元`)}
       ${lay('lake', '湖吸力', k.real == null ? '—' : `实际利率 ${fmtPct1(k.real)}`, k.rate == null ? '政策利率：没有数据' : `政策利率 ${fmtPct1(k.rate)}${k.infl == null ? '' : ` − 物价涨幅 ${fmtPct1(k.infl)}`}`)}
-      ${lay('ground', '地下', gwWord(k.gw), esc(gwSub), `<p class="wm-def" data-def="gw">${esc(gwDef(k.span))}</p>`)}
+      ${lay('ground', '地下', gwWord(k.gw), gwSub, `<p class="wm-def" data-def="gw">${gwDefHtml(k.span)}</p>`)}
     </div>`;
   const ready = !!COUNTRY_READY[iso];
   const here = st.opts?.country || 'USA';
@@ -598,7 +601,8 @@ function renderMap() {
   els.svg.dataset.pipes = pipes.length;
   placeTip();
 }
-// the 地下 definition, shown under the tapped box's 地下 row (st.tip = that iso); any other tap hides it
+// the 地下 definition, shown under the tapped box's 地下 row, or beside the box when there is no room below (st.tip = that iso);
+// any other tap hides it
 function placeTip() {
   const t = els.tip;
   if (!t) return;
@@ -606,13 +610,22 @@ function placeTip() {
   if (!hit) { t.hidden = true; t.dataset.iso = ''; return; }
   const k = layersIcon(st.tip), W = +els.svg.getAttribute('width'), H = +els.svg.getAttribute('height');
   const now = k.gw == null ? '没有数据' : gwWord(k.gw) + (k.pvt == null ? '' : `（私人欠款占 GDP ${fmtPct0(k.pvt)}，平均 ${fmtPct0(k.avg)}）`);
-  t.innerHTML = `<b>${esc(nameOf(st.tip))} ${st.year} 地下：${esc(now)}</b><span data-def="gw">${esc(gwDef(k.span))}</span>`;
+  t.innerHTML = `<b>${esc(nameOf(st.tip))} ${st.year} 地下：${esc(now)}</b><span data-def="gw">${gwDefHtml(k.span)}</span>`;
   t.dataset.iso = st.tip; t.hidden = false;
-  const b = hit.getBBox(), tw = Math.min(300, W - 16);
+  const b = hit.getBBox(), rect = hit.closest('.wm-box')?.querySelector('.wm-rect'), bx = rect ? rect.getBBox() : b, tw = Math.min(300, W - 16);
   t.style.maxWidth = tw + 'px';
-  const w = t.offsetWidth, h = t.offsetHeight;
-  const x = clamp(b.x + b.width / 2 - w / 2, 8, W - w - 8);
-  const y = b.y + b.height + 6 + h > H - 4 ? b.y - h - 6 : b.y + b.height + 6;   // below the row, or above it near the bottom
+  let w = t.offsetWidth, h = t.offsetHeight, x, y;
+  // 1. below the row if it fits; 2. beside the box (left or right, whichever has room), level with the row, so the
+  // box's other rows stay visible; 3. above the row (last resort, e.g. a narrow phone box at the bottom)
+  if (b.y + b.height + 6 + h <= H - 4) { x = clamp(b.x + b.width / 2 - w / 2, 8, W - w - 8); y = b.y + b.height + 6; }
+  else {
+    const roomL = bx.x - 6 - 8, roomR = W - 8 - (bx.x + bx.width + 6), side = Math.max(roomL, roomR);
+    if (side >= Math.min(220, tw)) {
+      if (side < w) { t.style.maxWidth = side + 'px'; w = t.offsetWidth; h = t.offsetHeight; }
+      x = roomL >= roomR ? bx.x - 6 - w : bx.x + bx.width + 6;
+      y = clamp(b.y + b.height - h, 4, H - h - 4);              // bottom edge level with the 地下 row's bottom
+    } else { x = clamp(b.x + b.width / 2 - w / 2, 8, W - w - 8); y = b.y - h - 6; }
+  }
   // svg elements have no offsetLeft: the svg's place inside the (scrolling, position: relative) stage, from the two rects
   const sr = els.stage.getBoundingClientRect(), vr = els.svg.getBoundingClientRect();
   const ox = vr.left - sr.left + els.stage.scrollLeft - els.stage.clientLeft, oy = vr.top - sr.top + els.stage.scrollTop - els.stage.clientTop;
