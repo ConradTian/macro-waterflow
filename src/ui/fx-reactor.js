@@ -1,7 +1,7 @@
 // 汇率闸的「反应堆」(FX reactor): why a currency moved against the USD over the last year, in the language of the diagram.
 //   Two pushing pipes, a needle and a line, nothing more:
-//     资本管     = 利差 + 信心                 (capital pipe)
-//     商品价格管 = 通胀差 + 生产率 + 贸易条件  (goods-price pipe)
+//     吸力差（+怕）= 利差 + 信心                 (capital pipe)
+//     水位差（+卖的东西贵不贵）= 通胀差 + 生产率 + 贸易条件  (goods-price pipe)
 //     needle     = the actual change of the home currency against the USD, 比一年前 (four quarters ago)
 //     gap        = needle − (the two pipes) = 「说不清的部分」
 //     anchor     = a faint PPP-only level: the cumulative inflation gap since 1995Q1 (its height set so that 1995–2021 deviate 0 on average)
@@ -132,8 +132,8 @@ export function computeFxReactor(home, us, date, iso) {
   forces.tot.dir = totDir;
   const sum = ks => ks.reduce((a, k) => a + (ok(forces[k].c) ? forces[k].c : 0), 0);
   const pipes = {
-    cap: { key: 'cap', name: '资本管', parts: ['rate', 'conf'], c: sum(['rate', 'conf']), missing: ['rate', 'conf'].filter(k => !ok(forces[k].c)) },
-    goods: { key: 'goods', name: '商品价格管', parts: ['infl', 'prod', 'tot'], c: sum(['infl', 'prod', 'tot']), missing: ['infl', 'prod', 'tot'].filter(k => !ok(forces[k].c)), totDir },
+    cap: { key: 'cap', name: '吸力差（+怕）', short: '吸力差+怕', parts: ['rate', 'conf'], c: sum(['rate', 'conf']), missing: ['rate', 'conf'].filter(k => !ok(forces[k].c)) },
+    goods: { key: 'goods', name: '水位差（+卖的东西贵不贵）', short: '水位差+贵不贵', parts: ['infl', 'prod', 'tot'], c: sum(['infl', 'prod', 'tot']), missing: ['infl', 'prod', 'tot'].filter(k => !ok(forces[k].c)), totDir },
   };
   const model = pipes.cap.c + pipes.goods.c;
   return { ok: true, iso, name, ccy, date, from: home.dates[i - 4], fx, fx4, actual, model, unexplained: actual - model, forces, pipes,
@@ -186,8 +186,8 @@ function fitted(home, date, iso, i, actual, FF, o) {
   if (iso === 'AUS') { forces.tot.ore = o.ore; forces.tot.oreDir = o.oreDir; }
   const sum = ks => ks.reduce((a, key) => a + (ok(forces[key].c) ? forces[key].c : 0), 0);
   const pipes = {
-    cap: { key: 'cap', name: '资本管', parts: ['rate', 'conf'], c: sum(['rate', 'conf']), missing: ['rate', 'conf'].filter(key => !ok(forces[key].c)) },
-    goods: { key: 'goods', name: '商品价格管', parts: ['infl', 'prod', 'tot'], c: sum(['infl', 'prod', 'tot']), missing: ['infl', 'tot'].filter(key => !ok(forces[key].c)), skipped: ['prod'], totDir: 0 },
+    cap: { key: 'cap', name: '吸力差（+怕）', short: '吸力差+怕', parts: ['rate', 'conf'], c: sum(['rate', 'conf']), missing: ['rate', 'conf'].filter(key => !ok(forces[key].c)) },
+    goods: { key: 'goods', name: '水位差（+卖的东西贵不贵）', short: '水位差+贵不贵', parts: ['infl', 'prod', 'tot'], c: sum(['infl', 'prod', 'tot']), missing: ['infl', 'tot'].filter(key => !ok(forces[key].c)), skipped: ['prod'], totDir: 0 },
   };
   const model = pipes.cap.c + pipes.goods.c;
   const S = FF.stats;
@@ -262,7 +262,7 @@ export function reactorSvg(R, g) {
     const dir = c >= 0 ? 1 : -1, x1 = cx + dir * half * (Math.abs(c) < 0.05 ? 0 : 0.42), len = Math.abs(x1 - cx), ah = Math.min(len, w * 0.8 + 3);
     const body = len < 1 ? '' : `<path class="fxr-bed" d="M${cx} ${y} H${(x1 - dir * ah).toFixed(1)}" style="stroke-width:${w.toFixed(1)}"/>` +
       `<path class="fxr-arrow" d="M${x1.toFixed(1)} ${y} L${(x1 - dir * ah).toFixed(1)} ${(y - w / 2 - 1.5).toFixed(1)} L${(x1 - dir * ah).toFixed(1)} ${(y + w / 2 + 1.5).toFixed(1)} Z"/>`;
-    const nm = g.compact ? (k === 'cap' ? '资本' : '商品') : p.name;
+    const nm = g.compact ? (k === 'cap' ? '吸力' : '水位') : (p.short || p.name);
     const sub = k === 'goods' && p.totDir ? `<tspan class="fxr-totl">铁矿石${p.totDir > 0 ? '↑' : '↓'}</tspan> 只有方向` : p.missing.length === p.parts.length ? '没有数据' : '部分没有数据';
     const miss = p.missing.length && !g.compact ? `<tspan class="fxr-miss" x="${g.lab}" dy="${(fs * 1.05).toFixed(1)}" style="font-size:${(fs * 0.8).toFixed(1)}px">${sub}</tspan>` : '';
     // ToT direction only (AUS): a hollow chevron after the arrow, pointing the way iron ore pushes
@@ -316,7 +316,7 @@ function forcesHtml(R, open, hl) {
   };
   const grp = (pk, label) => `<div class="fxr-grp${hl === pk ? ' hl' : ''}" data-grp="${pk}"><div class="fxr-gh"><b>${label}</b> 合计 ${push(R.pipes[pk].c)}</div><ul>${R.pipes[pk].parts.map(k => row(k, pk)).join('')}</ul></div>`;
   return `<details class="fxr-forces"${open ? ' open' : ''}><summary>五股力明细（点管子也能打开）</summary>` +
-    grp('cap', '资本管 = 利差 + 信心') + grp('goods', '商品价格管 = 通胀差 + 生产率 + 贸易条件') +
+    grp('cap', '吸力差（+怕）= 利差 + 信心') + grp('goods', '水位差（+卖的东西贵不贵）= 通胀差 + 生产率 + 贸易条件') +
     (R.fit ? fitNote(R) : `<p class="fxr-note">公式（「汇率」课）：Δs ≈ 1.0·通胀差 − 0.6·利差 − 0.8·生产率差 − k·贸易条件 + 信心。这里改成「本币变强为正」。贸易差额不算一股力：数据里它几乎推不动汇率。</p>`) + `</details>`;
 }
 /** the fitted countries' footnote: what the fit is, how good, the hold-out, and that the long-run anchor keeps the 5-year rule */
@@ -341,7 +341,7 @@ export function reactorHtml(R, opts = {}) {
   const tag = R.fit ? `<p class="fxr-tags"><span class="fxr-tag">${esc(R.fit.label)}</span>${R.fit.hold ? `<span class="fxr-tag hold" title="${esc(R.fit.holdFrom)} 起的季度没参与拟合">保留样本</span>` : ''}</p>` : '';
   const mg = R.managed ? `<p class="fxr-note fxr-managed">人民币是管理汇率：央行把它管在一个区间里（2005 年前直接盯住美元），利差和通胀差推不太动它，说不清的部分多半是央行的手。</p>` : '';
   return `<div class="fxr-box" data-iso="${esc(R.iso)}" data-date="${esc(R.date)}"${R.fit ? ` data-fit="1"${R.fit.hold ? ' data-hold="1"' : ''}` : ''}>${head}${tag}<p class="fxr-con">${esc(reactorLine(R))}</p>${mg}${svg}` +
-    `<p class="fxr-ppp"><i></i>${esc(anchorLine(R))}</p>${forcesHtml(R, !!opts.open, opts.hl)}</div>`;
+    `<p class="fxr-ppp"><i></i>${esc(anchorLine(R))}</p><p class="fxr-note fxr-trade">快 = 吸力差（+怕），慢 = 水位差（+卖的东西贵不贵）。贸易差额本身几乎不动汇率：漏出去的河水会经过湖流回来。</p>${forcesHtml(R, !!opts.open, opts.hl)}</div>`;
 }
 export function usdHtml(date, opts = {}) {
   const u = ok(opts.year) ? usdIndexYear(opts.year) : usdIndexAt(date);
@@ -433,7 +433,7 @@ export function installFxCardHook(cardName = '汇率') {
   ensureFxReactorCss();
   const block = `<div class="fxr-card" data-fxr-card="1"><span class="cc-k">推这道闸的五股力（「汇率」课）</span><ul>` +
     FX_FORCES.map(f => `<li><i style="background:var(--fxr-${f.key})"></i><b>${esc(f.name)}</b><span>${esc(f.push)}</span><small>${esc(f.when)}</small></li>`).join('') +
-    `</ul><p class="fxr-note">按「资本管 = 利差 + 信心」「商品价格管 = 通胀差 + 生产率 + 贸易条件」分两根管。贸易差额几乎推不动汇率。</p>` +
+    `</ul><p class="fxr-note">按「吸力差（+怕）= 利差 + 信心」（快）「水位差（+卖的东西贵不贵）= 通胀差 + 生产率 + 贸易条件」（慢）分两根管。贸易差额本身几乎不动汇率：漏出去的河水会经过湖流回来。</p>` +
     `<button type="button" class="btn primary fxr-go" data-fxr-lesson="fx">去上「汇率」课 →</button></div>`;
   const patch = body => {
     const t = body.querySelector('.cc-title');

@@ -159,3 +159,15 @@
   .wm-enter { min-height: 44px; }
 }
 body[data-map="1"] .toast { z-index: 70; }
+
+/* v3 (DESIGN-v3 「World + FX」): 地下连地下 = USD debt pipes; the mini 3-layer icon in each box; per-country one-liner */
+.wm-sw.debt { border-top-color: #9a7b4f; }
+.wm-pipe.debt { --pc: #9a7b4f; }
+.wm-chip.debt { --pc: #9a7b4f; }
+.wm-layers .wm-l-bg { fill: var(--surface, #fff); stroke: #c9d1da; stroke-width: .8; }
+.wm-layers .wm-l-fill { opacity: .8; }
+.wm-layers .wm-l-ground .wm-l-bg { fill: #f3ede4; }
+.wm-layers .wm-k { fill: var(--muted, #5b6875); font-weight: 600; }
+.wm-layers .wm-v { font-weight: 700; }
+.wm-seg { flex-wrap: wrap; }
+.wm-one { margin: 2px 0 8px; padding: 6px 9px; border-left: 3px solid var(--c-bond); background: #f4f7fa; font-size: 13px; line-height: 1.45; }

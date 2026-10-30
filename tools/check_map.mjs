@@ -124,7 +124,7 @@ try {
   ok(await A.ev(`document.querySelector('.wm-slider').value`) === '2008', 'year slider starts at the game year (2008)');
   ok((await A.text('.wm-yv')) === '2008' && await A.ev(`document.querySelector('.wm-res').hidden`), '2008: no 保留样本 label');
   ok((await A.text('.wm-back')).includes('回到美国水流图'), 'back button text');
-  ok((await A.text('.wm-pool')).includes('世界储备水库') && (await A.text('.wm-pool')).includes('美元占'), 'reserve pool labelled 世界储备水库 · 美元占 x%: ' + (await A.text('.wm-pt')));
+  ok((await A.text('.wm-pool')).includes('最大的湖') && (await A.text('.wm-pool')).includes('储备占') && (await A.text('.wm-pool')).includes('美联储加息 = 最大的湖吸力变大'), 'v3: the US lake = 最大的湖：美元 · 储备占 x%, captioned 美联储加息: ' + (await A.text('.wm-pt')));
   ok(await A.count('.wm-pool rect[style*="--c-"]') >= 3, 'reserve legend bar has currency segments');
   // trade pipes: every named pair above the threshold + ALL 其他国家 (ROW) pipes, grey, at their TRUE width (one scale), drawn behind
   const tp = await A.ev(`[...document.querySelectorAll('.wm-pipe[data-k="trade"]')].map(g => ({ f: g.dataset.from, t: g.dataset.to, v: +g.dataset.v, w: +g.dataset.w, row: g.dataset.row === '1',
@@ -151,8 +151,9 @@ try {
   ok(await A.ev(`getComputedStyle(document.body).backgroundColor`) !== 'rgb(15, 20, 27)', 'light theme by default');
   ok(await A.ev(`(()=>{const r=document.querySelector('.wm-svg').getBoundingClientRect(); return [...document.querySelectorAll('.wm-box')].every(b=>{const q=b.getBoundingClientRect(); return q.left>=r.left-1&&q.right<=r.right+1&&q.top>=r.top-1})})()`), 'all boxes inside the stage');
   // box readings present
-  const txt = await A.text('.wm-box[data-iso="USA"]');
-  ok(txt.includes('资产') && txt.includes('债务') && txt.includes('利率') && txt.includes('大环'), 'USA box shows 资产 债务 利率 大环: ' + txt);
+  const txt = await A.ev(`document.querySelector('.wm-box[data-iso="USA"]').textContent.replace(/\\s+/g, ' ')`), nL = await A.ev(`document.querySelectorAll('.wm-box .wm-layers').length`);
+  ok(['河', '湖', '吸力', '地下'].every(w => txt.includes(w)) && !txt.includes('大环') && nL === 7, `v3: every box shows the 3-layer icon (河 / 湖吸力 / 地下), not the four numbers: ${nL} boxes · ${txt.slice(0, 80)}`);
+  ok(await A.count('.wm-seg button[data-kind="debt"]') === 1, 'v3: a 地下·美元债 (地下连地下) layer button');
   await geom(A, 'iPad 2008');
   const lab0 = await A.count('.wm-chip');
   ok(lab0 >= 3 && lab0 <= 8, `no selection: only the biggest flows carry a number (${lab0} labels, 3..8)`);

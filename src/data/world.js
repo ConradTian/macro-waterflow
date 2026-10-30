@@ -141,3 +141,12 @@ export const WORLD = {
     ]
   }
 };
+
+// BIS Global Liquidity Indicators (WS_GLI): USD-denominated credit (bank loans + debt securities) to non-bank borrowers, USD bn,
+// last available quarter of each year. Built by tools/build_bis_usd_credit.py from data_src/bis/gli_all.csv (map layer 地下连地下).
+// BIS publishes USD credit by borrower country only for emerging economies (China here); the rest is the world-outside-the-US total.
+export const WORLD_USD_DEBT = {
+  src: "BIS GLI, USD credit to non-banks",
+  outsideUs: [null,null,null,null,null,2494.4,2611.3,2642.7,3022.4,3404,3794.1,4608.2,5525.1,5784,6108.6,6981.9,7582.6,8118,8803.8,9377.9,9913.4,10429.8,11108,11565.5,12121.9,12739.1,13465.6,12814.6,12759.3,13127.7,14264.2],
+  CHN: [null,null,null,null,null,13.9,13.5,10.1,10.7,13,17.3,16.1,21.4,28.3,29.9,316.4,385.3,493.7,599.3,645.7,537.1,490.8,518.4,481.2,491.7,509.6,543.8,443,388.4,338.3,299],
+};
