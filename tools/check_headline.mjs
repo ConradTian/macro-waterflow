@@ -4,7 +4,7 @@
 // not every quarter is 平稳 and not every quarter has 3 items. Prints the distribution and a few example quarters.
 import { createSim } from '../src/engine/sim.js';
 import { US_Q } from '../src/data/us-quarterly.js';
-import { headlineItems, nextStep, freshness, ruleKey } from '../src/ui/headline.js';
+import { headlineItems, headlineSplit, itemLayer, nextStep, freshness, ruleKey } from '../src/ui/headline.js';
 import { LAMP_LINKS } from '../src/ui/links.js';
 
 const verbose = process.argv.includes('--verbose');
@@ -88,6 +88,48 @@ ok(tw.n > 0, 'town ran');
   while (!sim.done) { sim.step(); for (const e of sim.snapshot().ledger) { total++; if (e.cond) { withCond++; if (!e.cond.every(c => Number.isFinite(c.value) && Number.isFinite(c.threshold) && ['>=', '<='].includes(c.dir) && ['pct', 'pp', 'x', 'num'].includes(c.fmt))) bad++; } } }
   ok(bad === 0, `all cond[] items well-formed (${withCond}/${total} ledger entries carry a condition ruler)`);
   console.log(`\n  ledger entries with cond[]: ${withCond}/${total}`);
+}
+
+// progressive layers: with only some layers learned (body.layers-on, 显示全部 off) no item names a part / dial of a hidden layer;
+// the left-out items are only counted (hidden). With every layer shown the list is the same as the default (no filter).
+{
+  const sim = createSim({ data: US_Q, mode: 'history' });
+  while (!sim.done) sim.step();
+  // words that belong to a layer after L-water (the dials, the 4 灯, the central bank's knob, the lake pools, groundwater, government, 闸)
+  const LATER = /周期|灯|央行|吸力|政策利率|房价|股价|国债|金价|房产池|股票池|国债池|黄金池|吸程线|地下水|政府|闸|外国/;
+  const sets = { water: ['L-water'], short: ['L-water', 'L-channel', 'L-short'], long: ['L-water', 'L-channel', 'L-short', 'L-long'] };
+  const cnt = { water: 0, short: 0, long: 0 }, hid = { water: 0, short: 0, long: 0 };
+  let badW = 0, badLayer = 0, badSplit = 0, badAll = 0, badNext = 0, quarters = 0;
+  for (let t = 1; t < sim.history().length; t++) {
+    const snap = sim.snapshot('model', t), prev = sim.snapshot('model', t - 1);
+    quarters++;
+    const full = headlineSplit(snap, prev, sim, () => true);
+    if (JSON.stringify(full.items.map(i => i.text)) !== JSON.stringify(headlineItems(snap, prev, sim).map(i => i.text)) || full.hidden !== 0) badAll++;
+    for (const [k, L] of Object.entries(sets)) {
+      const shown = id => L.includes(id);
+      const r = headlineSplit(snap, prev, sim, shown);
+      cnt[k] += r.items.length; hid[k] += r.hidden;
+      for (const it of r.items) {
+        if (!shown(itemLayer(it))) { badLayer++; if (badLayer < 4) console.log(`  ${snap.date} ${k}: "${it.text}" layer ${itemLayer(it)}`); }
+        if (k === 'water' && (LATER.test(it.text) || LATER.test(it.where))) { badW++; if (badW < 4) console.log(`  ${snap.date} L-water only: "${it.text}" [${it.where}]`); }
+        if (k === 'short' && /大周期|吸程线|地下水/.test(it.text + it.where)) { badW++; if (badW < 4) console.log(`  ${snap.date} up to L-short: "${it.text}" [${it.where}]`); }
+      }
+      if (r.items.length > 3 || (r.items.length < 3 && r.items.length + r.hidden < Math.min(3, full.items.length))) badSplit++;
+      if (k === 'water' && nextStep(snap, shown) !== null) badNext++;
+    }
+  }
+  console.log(`\n=== layers: ${quarters} US quarters; items shown / hidden  L-water only ${cnt.water}/${hid.water}  up to L-short ${cnt.short}/${hid.short}  up to L-long ${cnt.long}/${hid.long} ===`);
+  ok(badLayer === 0, `layers: every shown item's layer is on screen (${badLayer} bad)`);
+  ok(badW === 0, `layers: with only L-water learned no item names a dial / 灯 / 央行 / 湖 / 地下水 / 政府 / 闸; up to L-short none names the long cycle (${badW} bad)`);
+  ok(badNext === 0, 'layers: no 下一步 (short dial) with only L-water learned');
+  ok(badAll === 0, 'layers: everything shown = the unfiltered list, nothing hidden');
+  ok(badSplit === 0, 'layers: <= 3 items, hidden counts the left-out ones');
+  ok(hid.water > 0 && cnt.short > 0, 'layers: L-water only hides items (in US history every item names a later layer: the strip shows the neutral 没学到 line); up to L-short some show');
+  ok(hid.long < hid.short && hid.short < hid.water, 'layers: the more layers learned, the fewer items hidden');
+  // the B2 hand-off is a long-cycle item: hidden before L-long, shown with it
+  const t08 = US_Q.dates.indexOf('2008Q3'), s08 = sim.snapshot('model', t08), p08 = sim.snapshot('model', t08 - 1);
+  ok(!headlineSplit(s08, p08, sim, id => sets.short.includes(id)).items.some(i => i.text.startsWith('地下水位跌破吸程线')), '2008Q3: B2 item hidden up to L-short');
+  ok(headlineSplit(s08, p08, sim, id => sets.long.includes(id)).items[0]?.text.startsWith('地下水位跌破吸程线'), '2008Q3: B2 item first with L-long');
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nALL HEADLINE CHECKS PASSED');

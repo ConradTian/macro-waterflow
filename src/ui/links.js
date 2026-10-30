@@ -96,12 +96,12 @@ import { EXTRA_NODES } from '../data/causal.js';
 const POOLS4 = ['n:poolBond', 'n:poolEquity', 'n:poolHousing', 'n:poolGold'];
 export const CONCEPT_TARGETS = {
   // rates & money
-  realRate:        { self: ['t:policyRate', 't:cpi'], note: '央行的「政策利率」减去商品河道里的「CPI」' },
+  realRate:        { self: ['t:policyRate', 't:cpi'], note: '央行的「政策利率」（吸力旋钮）减去河（测流断面）里的「CPI」' },
   mortgageEff:     { self: ['p:interestPaid'], note: '「付息」管道（存量房贷利率越高，付得越多）' },
   M:               { self: ['n:iou'] },
   // credit flows
   principalRepay:  { self: ['n:drain'] },
-  creditImpulse:   { self: ['p:newLoans', 'p:principalRepay'], note: '「放贷」与「还本」两根管道的差' },
+  creditImpulse:   { self: ['p:newLoans', 'p:principalRepay'], note: '「抽水（放贷）」与「回灌（还本）」两根管道的差' },
   assetReservoir:  { self: POOLS4 },
   goodsChannel:    { self: ['n:channel'] },
   fiscalInjection: { self: ['n:govGross', 'v:fiscalInjection'] },        // the pump + trunk (t:/p: auto); the two branches show as 去向
@@ -113,17 +113,17 @@ export const CONCEPT_TARGETS = {
   badLoans:        { self: ['n:bank', 'p:collateral'], note: '银行方块，以及房价→银行的「抵押品」回路' },
   // household
   income:          { self: ['n:household', 'p:wages'], note: '家庭方块和「工资」管道' },
-  hhDebt:          { self: ['n:iou'], note: '「欠条箱」（家庭和企业欠银行的总账）' },
-  pvtDebtGdp:      { self: ['n:iou'], note: '欠条箱（占 GDP 的读数）' },
+  hhDebt:          { self: ['n:iou'], note: '「地下的洞」（欠款：家庭和企业欠银行的总账）' },
+  pvtDebtGdp:      { self: ['n:iou'], note: '地下的洞（欠款占 GDP 的读数）' },
   govDebtGdp:      { self: ['n:gov'], note: '政府方块里的「债务/GDP」' },
   dsr:             { self: ['n:household'], note: '家庭方块里的「DSR」' },
   lvr:             { self: ['p:collateral', 'v:lvrCap'] },
   // firm / macro
   capacity:        { self: ['css:.capmark', 'p:toCapex'] },
   capex:           { self: ['p:toCapex', 'v:capexMult', 'n:firm'] },
-  outputGap:       { self: ['n:channel'], note: '商品河道的水位（相对河道宽度）' },
+  outputGap:       { self: ['n:channel'], note: '河（测流断面）的水位（相对断面宽度）' },
   cpi:             { self: ['n:channel'] },
-  inflationExp:    { self: ['t:cpi'], note: '商品河道里的「CPI」（预期本身没有单独画出）' },
+  inflationExp:    { self: ['t:cpi'], note: '河（测流断面）里的「CPI」（预期本身没有单独画出，藏在吸力和怕里）' },
   cf:              { self: ['n:firm', 'p:profits'], note: '企业方块和「利润」管道' },
   // asset pricing
   discountRate:    { self: ['css:.seesaw', 't:policyRate'], note: '国债池的跷跷板（利率↑价格↓）和央行「政策利率」' },
@@ -134,22 +134,22 @@ export const CONCEPT_TARGETS = {
   priceToIncome:   { self: ['n:poolHousing', 'n:household'], note: '房产池水位对比家庭方块' },
   rentYield:       { self: ['p:rent'], note: '房产池底下的「租金」泉水' },
   // four lamps
-  lampCredit:      { self: ['p:newLoans', 'p:principalRepay'], note: '「放贷」与「还本」两根管道' },
-  lampDebtService: { self: ['n:household', 'p:interestPaid', 'p:principalRepay'], note: '家庭方块的 DSR，加上「付息」「还本」管道' },
+  lampCredit:      { self: ['p:newLoans', 'p:principalRepay'], note: '「抽水（放贷）」与「回灌（还本）」两根管道' },
+  lampDebtService: { self: ['n:household', 'p:interestPaid', 'p:principalRepay'], note: '家庭方块的 DSR，加上「付息」「回灌（还本）」管道' },
   lampPolicy:      { self: ['t:policyRate', 'v:policyRate'], note: '央行的「政策利率」' },
   lampValuation:   { self: ['n:poolEquity', 'n:poolHousing'], note: '股票池、房产池的水位' },
   // 国境线 (flow.js: pipes exports / imports / foreignBonds, term fx / reserveCurrency; on phones the compact pill .bd-p stands for all of them)
-  exports:         { self: ['p:exports', 'n:channel', 'css:.bd-p'], note: '国境线上的「出口」管道（只有开了国境线的视图才有）' },
-  imports:         { self: ['p:imports', 'n:channel', 'css:.bd-p'], note: '国境线上的「进口」管道（只有开了国境线的视图才有）' },
-  fx:              { self: ['t:fx', 'css:.bd-p'], note: '国境线上的「汇率」水闸（只有开了国境线的视图才有）' },
-  foreignBonds:    { self: ['p:foreignBonds', 'n:poolBond', 'css:.bd-p'], note: '国境线上通向「长期国债」池的管道（只有开了国境线的视图才有）' },
-  reserveCurrency: { self: ['t:reserveCurrency', 'p:foreignBonds', 'css:.bd-p'], note: '国境线上的「美元 = 储备货币」标签（美国视图才有）' },
+  exports:         { self: ['p:exports', 'n:channel', 'css:.bd-p'], note: '闸上的「出口」管道（只有开了闸的视图才有）' },
+  imports:         { self: ['p:imports', 'n:channel', 'css:.bd-p'], note: '闸上的「进口」管道（只有开了闸的视图才有）' },
+  fx:              { self: ['t:fx', 'css:.bd-p'], note: '闸价 =「汇率」（只有开了闸的视图才有）' },
+  foreignBonds:    { self: ['p:foreignBonds', 'n:poolBond', 'css:.bd-p'], note: '过闸通向「长期国债」池的管道（只有开了闸的视图才有）' },
+  reserveCurrency: { self: ['t:reserveCurrency', 'p:foreignBonds', 'css:.bd-p'], note: '闸边的「美元 = 储备货币」标签（美国视图才有）' },
   // cycles: nothing in the diagram -> note only
   ringStage:       { self: [], note: '「周期」标签页里的债务环' },
-  longCycle:       { self: [], note: '「周期」标签页里的大周期表盘（② 之后分岔 B1 / B2）' },
+  longCycle:       { self: [], note: '「周期」标签页里的大周期表盘（② 之后：B1 河溢，或 B2 地下水位跌破吸程线）' },
   shortCycle:      { self: [], note: '「周期」标签页里的小周期表盘（扩张→过热→收紧→降息）' },
-  B1:              { self: ['p:spillToGoods', 'n:channel', 't:policyRate'], note: '商品河道溢出（「溢出」管道）和央行加息（水漫出河道变成物价）' },
-  B2:              { self: ['n:poolHousing', 'p:collateral'], note: '房产池水位下降和「抵押品」回路（水位降了，欠条还在）' },
+  B1:              { self: ['p:spillToGoods', 'n:channel', 't:policyRate'], note: '河（测流断面）溢出（「溢出」管道）和央行加息（水漫出断面变成物价）' },
+  B2:              { self: ['n:poolHousing', 'p:collateral'], note: '湖（房产池）水位下降和「抵押品」回路（湖的水退了，地下的洞还在：地下水位跌破吸程线）' },
   // five assets
   cashAsset:       { self: ['n:cash'] },
   bondAsset:       { self: ['n:poolBond'] },

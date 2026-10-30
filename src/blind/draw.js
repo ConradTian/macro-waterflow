@@ -134,9 +134,9 @@ export function longDialSvg(pick = {}, call = null) {
   g += `<g class="bl-fk bl-fk1${fk('B1')}" data-pick-fork="B1" role="button" tabindex="0" aria-label="岔路 B1 溢出（通胀）">` +
     `<path d="M${f1(sx)} ${f1(sy)} Q${f1(qx)} ${f1(qy)} ${f1(ex)} ${f1(ey)}" class="bl-fk-l"/>${arrowDir(ex, ey, ex - qx, ey - qy, 'bl-fk-a')}` +
     `<text x="${f1(n2.x + 26)}" y="${f1(n1.y - 13)}" class="bl-fk-t">B1 溢出（通胀）</text></g>` +
-    `<g class="bl-fk bl-fk2${fk('B2')}" data-pick-fork="B2" role="button" tabindex="0" aria-label="岔路 B2 缩水（通缩）">` +
+    `<g class="bl-fk bl-fk2${fk('B2')}" data-pick-fork="B2" role="button" tabindex="0" aria-label="岔路 B2 跌破吸程线（缩水，通缩）">` +
     `<line x1="${f1(n2.x)}" y1="${f1(n2.y + 20)}" x2="${f1(n5.x)}" y2="${f1(n5.y - 20)}" class="bl-fk-l"/>${arrowDir(n5.x, n5.y - 28, 0, 1, 'bl-fk-a')}` +
-    `<text x="${f1(n2.x + 9)}" y="${f1(midY + 4)}" class="bl-fk-t">B2 缩水（通缩）</text></g>`;
+    `<text x="${f1(n2.x + 9)}" y="${f1(midY + 4)}" class="bl-fk-t">B2 跌破吸程线</text></g>`;
   for (const s of LONG_ORDER) g += nodeSvg(N[s], `data-pick-long="${s}"`, pick.long === s, call && call.long === s);
   const c1 = call ? `${call.long} ${LONG_NAME[call.long] || ''}` : pick.long ? `${pick.long} ${LONG_NAME[pick.long]}` : '？';
   const c2 = call ? `框架的判断${call.fork ? ' + ' + call.fork : ''}` : pick.long ? `你选的${pick.fork && pick.fork !== 'none' ? ' + ' + pick.fork : ''}` : '点一个圈';

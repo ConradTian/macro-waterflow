@@ -96,13 +96,13 @@ export function applyTownAction(S, K, a) {
     if (!(amt > 0)) return fail('贷款金额必须大于 0');
     me.debt += amt; me.deposit += amt; S.Dh += amt; S.M += amt;
     f.newLoans = amt; f.toCash = amt; pumped = amt;
-    text = `${me.name}向镇银行借款 ${amt} 万元：存款 +${amt}（凭空新增的水），同时欠条 +${amt}`;
+    text = `${me.name}向镇银行借款 ${amt} 万元：存款 +${amt}（凭空新增的水），同时欠款 +${amt}（地下的洞深了）`;
   } else if (kind === 'repay') {
     const amt = Math.min(Number(a.amount), me.debt, me.deposit);
     if (!(amt > 0)) return fail(me.deposit <= 0 ? `${me.name}账上没有存款可还` : `${me.name}没有债务可还`);
     me.debt -= amt; me.deposit -= amt; S.Dh -= amt; S.M -= amt;
     f.principalRepay = amt; drained = amt;
-    text = `${me.name}还本 ${amt} 万元：存款 -${amt}（水被排掉），欠条 -${amt}`;
+    text = `${me.name}还本 ${amt} 万元：存款 -${amt}（回灌：水被销毁），欠款 -${amt}（地下的洞浅了）`;
   } else if (kind === 'payInterest') {
     const amt = Math.min(Number(a.amount), me.deposit);
     if (!(amt > 0)) return fail(`${me.name}账上没有存款付息`);

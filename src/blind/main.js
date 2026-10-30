@@ -71,7 +71,7 @@ function judgeHtml(c, pick, play) {
   const sigOpen = k => (ui.openSigs.has(k) ? ' open' : '');
   const longCard = `<div class="bl-dcard bl-long"><h4>${term('longCycle', '大周期')} <small>几十年一轮 · 以年计</small></h4>${longDialSvg(pick, call)}` +
     chips('long', LONG_ORDER.map(s => [s, `${s} ${LONG_NAME[s]}`]), pick.long, ro) +
-    `<div class="bl-fork-l">② 之后的岔路：</div>` + chips('fork', [['none', '没有'], ['B1', 'B1 溢出（通胀）'], ['B2', 'B2 缩水（通缩）']], pick.fork || 'none', ro) +
+    `<div class="bl-fork-l">② 之后的岔路：</div>` + chips('fork', [['none', '没有'], ['B1', 'B1 溢出（通胀）'], ['B2', 'B2 跌破吸程线（通缩）']], pick.fork || 'none', ro) +
     signalsHtml(c, 'long', !!play).replace('<details class="bl-sigs"', `<details class="bl-sigs"${play ? '' : sigOpen('long')}`) + `</div>`;
   const shortCard = `<div class="bl-dcard bl-short"><h4>${term('shortCycle', '小周期')} <small>几年一轮 · 跟着央行走</small></h4>${shortDialSvg(pick, call)}` +
     chips('short', SHORT_ORDER.map(k => [k, SHORT_NAME[k]]), pick.short, ro) +

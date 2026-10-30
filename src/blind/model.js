@@ -8,10 +8,10 @@ export const TYPE_NAME = { '危': '危机前夜', '转': '转折点', '平': '�
 
 // 大周期 ring (the game's six stops; ③④ are the fork B1/B2 after ②) and 小周期 ring (Dalio's four steps)
 export const LONG_ORDER = ['①', '②', '⑤', '⑥', '⑦', '⑧'];
-export const LONG_NAME = { '①': '堆债', '②': '缓冲池满', '⑤': '私人去杠杆', '⑥': '政府接手', '⑦': '压制化债', '⑧': '修复' };
+export const LONG_NAME = { '①': '堆债', '②': '逼近吸程线', '⑤': '私人去杠杆', '⑥': '政府接手', '⑦': '压制化债', '⑧': '修复' };
 export const SHORT_ORDER = ['expand', 'hot', 'tight', 'ease'];
 export const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息' };
-export const FORK_NAME = { none: '没有岔路', B1: 'B1 溢出（通胀）', B2: 'B2 缩水（通缩）' };
+export const FORK_NAME = { none: '没有岔路', B1: 'B1 溢出（通胀）', B2: 'B2 跌破吸程线（通缩）' };
 // framework signals that belong to the short dial (all others are drawn under the long dial)
 export const SHORT_SIGNALS = new Set(['inflHot', 'hiking', 'cutting', 'creditBack']);
 
@@ -120,7 +120,7 @@ export function scorePlay(card, play) {
  *  cashHeavy  「现金放太多」            average 现金（本币）≥ 40% over ≥ 5 plays.
  *  shortAhead / shortBehind 「小周期总比框架早 / 晚一步」  one step ahead (behind) on the 4-step ring in ≥ 3 plays and ≥ 40% of plays.
  *  longStuck  「大周期总选同一格」      one stop picked in ≥ 80% of ≥ 5 plays while the framework used ≥ 2 different stops.
- *  b2Often    「总以为会 B2 缩水」      B2 picked ≥ 3 times and the framework disagreed in ≥ 60% of them.
+ *  b2Often    「总以为会跌破吸程线（B2）」      B2 picked ≥ 3 times and the framework disagreed in ≥ 60% of them.
  * No rule fires -> one neutral line.
  */
 export function biasProfile(plays, byId) {
@@ -162,7 +162,7 @@ export function biasProfile(plays, byId) {
   const chase = danger.filter(x => W(x, 'equity') + W(x, 'house') >= 6);
   if (chase.length >= 2 && chase.length >= danger.length / 2)
     add('chaseTop', '危机前夜还重仓股票和房子', `${danger.length} 张危机前夜的卡里，${chase.length} 次股票 + 房子 ≥ 60%。`,
-      '缓冲池满（②）+ 央行在收紧时，先减一点风险资产。');
+      '逼近吸程线（②，湖里装的是借来的水）+ 央行在收紧时，先减一点风险资产。');
 
   const turn = P.filter(x => x.c.type === '转');
   const shy = turn.filter(x => W(x, 'equity') + W(x, 'house') <= 2);
@@ -192,7 +192,7 @@ export function biasProfile(plays, byId) {
   const b2 = P.filter(x => x.p.fork === 'B2');
   const b2Wrong = b2.filter(x => x.c.view.call.fork !== 'B2');
   if (b2.length >= 3 && b2Wrong.length >= 0.6 * b2.length)
-    add('b2Often', '总以为会 B2 缩水', `你选了 ${b2.length} 次 B2，其中 ${b2Wrong.length} 次框架不这么看。`, 'B2 要三条同时成立：房价在跌 + 债务高 + 降了息信贷还在缩。');
+    add('b2Often', '总以为会跌破吸程线（B2）', `你选了 ${b2.length} 次 B2，其中 ${b2Wrong.length} 次框架不这么看。`, 'B2 要三条同时成立：房价在跌 + 债务高 + 降了息信贷还在缩。');
 
   return out;
 }

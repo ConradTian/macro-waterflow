@@ -105,6 +105,14 @@ try {
   ok(D.nP === D.nC && D.last3 === 'exports,imports,foreignBonds', `pipe count == chip count (${D.nP}/${D.nC}), border pipes last (${D.last3})`);
   const B1 = await budgetOk('L-water');
   ok(/其他泵/.test(B1.text) && !/QE|赤字/.test(B1.text), 'L-water: QE / 赤字 hidden, a grey 其他泵 term instead');
+  // 本季看点 (strip + simple panel list): nothing from a layer not learned yet (dials, 灯, 央行 / 吸力, the lake pools, groundwater,
+  // government, 闸, 外国); the left-out items are only counted (「还有 N 个看点在还没学到的部分」)
+  {
+    const HL = `JSON.stringify([document.querySelector('#headline')?.textContent || '', document.querySelector('#simple .sp-hl')?.textContent || ''])`;
+    const LATER = /周期|灯|央行|吸力|政策利率|房价|股价|国债|金价|房产池|股票池|国债池|黄金池|吸程线|地下水|政府|闸|外国/;
+    const [strip, side] = JSON.parse(await ev(HL));
+    ok(strip.includes('本季看点') && !LATER.test(strip) && !LATER.test(side), `L-water: 本季看点 names no hidden layer (strip "${strip.slice(0, 80)}" | panel "${side.slice(0, 80)}")`);
+  }
   await shot('ipad-1-water');
 
   // ---- 2. markDone m1 .. inv ----
@@ -163,6 +171,7 @@ try {
   ok(await layersAttr() === 'OFF' && await ev(`document.querySelector('#layers-toggle').getAttribute('aria-pressed')`) === 'true', '「显示全部」: everything, toggle pressed');
   S = JSON.parse(await ev(STATE));
   ok(ALL.every(L => S[L][0] > 0), '「显示全部」: every layer renders');
+  ok(await ev(`!document.querySelector('#headline .hl-hidden') && document.querySelectorAll('#headline .hl-item').length > 0`), '「显示全部」: the 本季看点 strip lists its items again (no 没学到 line), without a reload');
   ok(await ev(`localStorage.getItem('mw.layers.all')`) === '1', 'toggle stored (mw.layers.all = 1)');
   await shot('ipad-8-toggle-on');
   await go('?pause=1&t=60');

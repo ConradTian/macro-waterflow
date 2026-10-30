@@ -12,6 +12,8 @@ import { linksForEntry, LAMP_LINKS, flash, flashConcept } from './links.js';
 import { KEY_LABEL } from '../engine/regimes.js';
 import { nextText } from './tabs/_cycle-ev.js';
 import { currentCountry, localizeText } from './country-info.js';
+import { layerShown } from './progress.js';
+import { LAYER_IDS, LAYER_OF } from '../data/layers.js';
 
 /* ------------------------------------------------------------------ vocabulary */
 const LAMPS = {
@@ -35,6 +37,8 @@ export const RULE_NAME = {
   inv_momentum: '追涨', inv_riskoff: '避险', foreign_funding: '要求更高期限溢价', shock_gdp: '产出冲击', shock_oil: '油价冲击',
 };
 const PLAYER_NAME = { centralBank: '央行', government: '政府', bank: '银行', household: '家庭', firm: '企业', investor: '投资者', foreign: '外国' };
+// the layer where each player's box / valves first appear (src/data/layers.js; 外国 = the 闸, L-border)
+const PLAYER_LAYER = { household: 'L-water', firm: 'L-water', bank: 'L-short', centralBank: 'L-short', government: 'L-gov', foreign: 'L-border', investor: 'L-assets' };
 const PLAYER_ORDER = ['bank', 'centralBank', 'government', 'household', 'investor', 'firm', 'foreign'];
 const num = x => typeof x === 'number' && Number.isFinite(x);
 
@@ -74,8 +78,39 @@ export function fv(v, fmt, signed = false) {
 }
 const cmp = d => (d === '<=' ? '≤' : '≥');
 
+/* ------------------------------------------------------------------ layers (progressive diagram) */
+// Every item carries `layer` = the DEEPEST diagram layer (src/data/layers.js) it talks about: the dial a cycle item names, the parts /
+// pipes it lights up. The four 灯 belong to the short dial (「四盏灯」 come with L-short) on top of their own pipes.
+// With body.layers-on (simple mode / a lesson) and 「显示全部」 off, items whose layer is not shown are left out, so the strip never
+// names a part the viewer has not met yet; the strip then says how many are hidden (no names). Outside layers-on: everything.
+const LIDX = id => LAYER_IDS.indexOf(id);
+function deepest(ids) {
+  let best = null;
+  for (const id of ids) if (id && LIDX(id) >= 0 && (best == null || LIDX(id) > LIDX(best))) best = id;
+  return best || LAYER_IDS[0];
+}
+function specsLayers(specs) {
+  const out = [];
+  for (const p of specs?.parts || []) out.push(LAYER_OF.parts[p] || LAYER_OF.nodes[p] || LAYER_OF.keys[p]);
+  for (const k of specs?.pipes || []) out.push(LAYER_OF.pipes[k]);
+  return out;
+}
+export const itemLayer = it => it?.layer || deepest([...(it?.layers || []), ...specsLayers(it?.specs)]);
+export const NEXT_LAYER = 'L-short';            // nextStep() reads the short dial
+
 /* ------------------------------------------------------------------ items */
-export function headlineItems(snap, prev, sim) {
+/** The strip's items, at most 3. shown(layerId) -> bool filters by the diagram layers on screen (default: progress.js layerShown,
+ *  which is true everywhere outside body.layers-on, and in Node). */
+export function headlineItems(snap, prev, sim, shown = layerShown) {
+  return headlineSplit(snap, prev, sim, shown).items;
+}
+/** { items (<= 3, only shown layers), hidden (how many items were left out because their layer is not shown yet) } */
+export function headlineSplit(snap, prev, sim, shown = layerShown) {
+  const all = allItems(snap, prev, sim);
+  const vis = all.filter(it => shown(itemLayer(it)));
+  return { items: vis.slice(0, 3), hidden: all.length - vis.length };
+}
+function allItems(snap, prev, sim) {
   if (!snap) return [];
   if (!prev && sim && typeof sim.snapshot === 'function' && snap.t > 0) prev = sim.snapshot('model', snap.t - 1);
   if (!prev) return [];
@@ -86,30 +121,30 @@ export function headlineItems(snap, prev, sim) {
     const a = prev.lights?.[k]?.level, b = snap.lights?.[k]?.level;
     if (a && b && a !== b) {
       const L = LAMPS[k];
-      out.push({ kind: 'lamp', text: `${L.name} ${LV[a]}→${LV[b]}`, where: L.where, term: L.term, specs: LAMP_LINKS[k] });
+      out.push({ kind: 'lamp', text: `${L.name} ${LV[a]}→${LV[b]}`, where: L.where, term: L.term, specs: LAMP_LINKS[k], layers: ['L-short'] });
     }
   }
 
   // 2. cycle dials: stage moved, or the next-stage condition just became true
   const cl = snap.cycles?.long, pl = prev.cycles?.long, cs = snap.cycles?.short, ps = prev.cycles?.short;
   if (cl && pl && cl.stage !== pl.stage)
-    out.push({ kind: 'cycle', text: `大周期 ${stageNo(pl.label)}→${stageNo(cl.label)}`, where: '「周期」页 · 大周期表盘', tab: 'cycle' });
+    out.push({ kind: 'cycle', text: `大周期 ${stageNo(pl.label)}→${stageNo(cl.label)}`, where: '「周期」页 · 大周期表盘', tab: 'cycle', layer: 'L-long' });
   else if (cl && pl && cl.met && !pl.met && cl.progress)
-    out.push({ kind: 'cycle', text: `大周期 → ${stageNo(cl.progress.label)} 的条件达标`, where: '「周期」页 · 大周期表盘', tab: 'cycle' });
+    out.push({ kind: 'cycle', text: `大周期 → ${stageNo(cl.progress.label)} 的条件达标`, where: '「周期」页 · 大周期表盘', tab: 'cycle', layer: 'L-long' });
   if (cs && ps && cs.key !== ps.key)
-    out.push({ kind: 'cycle', text: `小周期 ${KEY_LABEL[ps.key] || ps.key}→${KEY_LABEL[cs.key] || cs.key}`, where: '「周期」页 · 小周期表盘', tab: 'cycle' });
+    out.push({ kind: 'cycle', text: `小周期 ${KEY_LABEL[ps.key] || ps.key}→${KEY_LABEL[cs.key] || cs.key}`, where: '「周期」页 · 小周期表盘', tab: 'cycle', layer: 'L-short' });
   else if (cs && ps && Array.isArray(cs.progress)) {
     const was = new Map((ps.progress || []).map(p => [p.target, p.met]));
     const hit = cs.progress.find(p => p.met && was.get(p.target) === false);
-    if (hit) out.push({ kind: 'cycle', text: `小周期「${hit.label}」的条件达标`, where: '「周期」页 · 小周期表盘', tab: 'cycle' });
+    if (hit) out.push({ kind: 'cycle', text: `小周期「${hit.label}」的条件达标`, where: '「周期」页 · 小周期表盘', tab: 'cycle', layer: 'L-short' });
   }
 
   // the link between the two dials (shown first so the 3-item limit never drops it)
   const hand = [];
   if (cl && pl && cl.fork === 'B2' && pl.fork !== 'B2')
-    hand.push({ kind: 'cycle', text: '地下水位跌破吸程线（大周期 B2）', where: '「周期」页 · 大周期表盘（②→⑤ 的 B2）', tab: 'cycle' });
+    hand.push({ kind: 'cycle', text: '地下水位跌破吸程线（大周期 B2）', where: '「周期」页 · 大周期表盘（②→⑤ 的 B2）', tab: 'cycle', layer: 'L-long' });
   if (cs && ps && cs.handoff === 'no' && ps.handoff !== 'no')
-    hand.push({ kind: 'cycle', text: '降息推不动 → 交给大周期', where: '「周期」页 · 小周期表盘（降息 → 大周期 ⑤）', tab: 'cycle' });
+    hand.push({ kind: 'cycle', text: '降息推不动 → 交给大周期', where: '「周期」页 · 小周期表盘（降息 → 大周期 ⑤）', tab: 'cycle', layer: 'L-long' });
   out.unshift(...hand);
 
   // 3. ledger rules newly triggered (same player + rule was not in last quarter's ledger)
@@ -119,7 +154,7 @@ export function headlineItems(snap, prev, sim) {
     const nm = RULE_NAME[e.ruleId];
     out.push({
       kind: 'rule', text: `${PLAYER_NAME[e.player] || e.player}${nm ? `「${nm}」` : '的规则'}新触发`,
-      where: `「流水账」里 ${PLAYER_NAME[e.player] || ''}那一条`, specs: linksForEntry(e), tab: 'ledger',
+      where: `「流水账」里 ${PLAYER_NAME[e.player] || ''}那一条`, specs: linksForEntry(e), tab: 'ledger', layers: [PLAYER_LAYER[e.player]],
     });
   }
 
@@ -137,7 +172,7 @@ export function headlineItems(snap, prev, sim) {
   if (num(r0) && num(r1) && Math.abs(r1 - r0) >= 0.0025 - 1e-9)
     out.push({ kind: 'rate', text: `政策利率 ${pcRate(r0)}→${pcRate(r1)}`, where: '央行的吸力旋钮（政策利率）', term: 'policyRate', specs: { parts: ['centralBank'], pipes: [] } });
 
-  return out.slice(0, 3);
+  return out;
 }
 // 'high' = price above every earlier quarter; 'low' = lowest of the last 12 quarters and >= 5% under their peak; else null
 function assetState(sim, k, t) {
@@ -160,14 +195,18 @@ const stageNo = label => String(label || '').split(' ')[0];
 
 /* ------------------------------------------------------------------ 下一步 … 还差 … */
 // same wording as the 周期 tab (one helper, so the strip and the tab never disagree)
-export function nextStep(snap) {
+export function nextStep(snap, shown = layerShown) {
   const sh = snap?.cycles?.short;
+  if (!shown(NEXT_LAYER)) return null;              // the short dial is not on screen yet
   if (!sh || !Array.isArray(sh.progress) || !sh.progress.length) return null;
   const { text } = nextText('short', sh, k => KEY_LABEL[k] || k);
   return text ? { text, where: '「周期」页 · 小周期的「还差什么」', tab: 'cycle' } : null;
 }
 
 /* ------------------------------------------------------------------ DOM */
+/** the neutral line that stands for the items left out (their layer is not learned yet): a count, never their names. Shared with simple.js */
+export const hiddenRow = (n, cls) => (n > 0 ? `<li class="${cls} hl-hidden"><span class="hl-tag">没学到</span><span class="hl-body"><b class="hl-t">还有 ${n} 个看点在还没学到的部分</b>` +
+  '<small class="hl-w">学完后面的课，它们会出现；想先看：点水流图右上角「显示全部」</small></span></li>' : '');
 const KIND_TAG = { lamp: '灯', cycle: '周期', rule: '规则', asset: '水位', rate: '利率' };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let host = null, last = null, open = false, pulseTimer = 0, wiredEl = null;
@@ -180,23 +219,33 @@ export function renderHeadline(el, ctx) {
   if (!snap || !sim || sim.scenario === 'town') { el.hidden = true; return; }
   el.hidden = false;
   const prev = snap.t > 0 ? sim.snapshot('model', snap.t - 1) : null;
-  let items = [], nx = null;
-  try { items = headlineItems(snap, prev, sim); nx = nextStep(snap); } catch (e) { console.error(e); }
+  let items = [], nx = null, hidden = 0;
+  try { ({ items, hidden } = headlineSplit(snap, prev, sim)); nx = nextStep(snap); } catch (e) { console.error(e); }
   const iso = currentCountry(sim), loc = o => (o && iso !== 'USA' ? { ...o, text: localizeText(o.text, iso), where: localizeText(o.where, iso) } : o);   // country view: US-only words swapped
   items = items.map(loc); nx = loc(nx);
   last.items = items; last.next = nx;
   const quiet = prev && !items.length;
-  const sum = !prev ? '这是起点，还没有上一季可以比较' : quiet ? '本季平稳：没有新信号' : items.slice(0, 2).map(i => esc(i.text)).join(' · ');
+  const sum = !prev ? '这是起点，还没有上一季可以比较' : quiet ? (hidden ? '学过的部分本季平稳' : '本季平稳：没有新信号') : items.slice(0, 2).map(i => esc(i.text)).join(' · ');
   const more = items.length > 2 ? `<span class="hl-more">+${items.length - 2}</span>` : '';
   const rows = items.map((it, i) => `<li><button type="button" class="hl-item" data-i="${i}"><span class="hl-tag">${KIND_TAG[it.kind] || '看点'}</span>` +
     `<span class="hl-body"><b class="hl-t">${esc(it.text)}</b><small class="hl-w">看：${esc(it.where)}</small></span></button></li>`).join('') +
-    (quiet ? '<li class="hl-quiet"><span class="hl-tag">平稳</span><span class="hl-body"><b class="hl-t">本季平稳：没有新信号</b><small class="hl-w">灯没变色、没有新规则触发——只需要看「水」是多了还是少了</small></span></li>' : '') +
+    (quiet && !hidden ? '<li class="hl-quiet"><span class="hl-tag">平稳</span><span class="hl-body"><b class="hl-t">本季平稳：没有新信号</b><small class="hl-w">灯没变色、没有新规则触发——只需要看「水」是多了还是少了</small></span></li>' : '') +
+    hiddenRow(hidden, 'hl-quiet') +
     (nx ? `<li><button type="button" class="hl-item hl-next" data-i="next"><span class="hl-tag">下一步</span><span class="hl-body"><b class="hl-t">${esc(nx.text)}</b><small class="hl-w">看：${esc(nx.where)}</small></span></button></li>` : '');
   el.className = 'headline' + (open ? ' open' : '') + (el.classList.contains('hl-pulse') ? ' hl-pulse' : '');
   el.innerHTML = `<button type="button" class="hl-bar" aria-expanded="${open}" aria-controls="hl-list"><b class="hl-date">${esc(snap.date)}</b>` +
     `<span class="hl-lab">本季看点：</span><span class="hl-sum">${sum}</span>${more}<i class="hl-caret" aria-hidden="true">${open ? '▴' : '▾'}</i></button>` +
     `<ol class="hl-list" id="hl-list" ${open ? '' : 'hidden'}>${rows}</ol>`;
-  if (wiredEl !== el) { wiredEl = el; el.addEventListener('click', onClick); document.addEventListener('click', onOutside); }
+  if (wiredEl !== el) { wiredEl = el; el.addEventListener('click', onClick); document.addEventListener('click', onOutside); watchLayers(); }
+  shownKey = layersKeyNow();
+}
+// app.js re-renders the simple panel when the diagram layers change (a lesson ends, 「显示全部」), not this strip: follow body itself
+let shownKey = '', layerObs = null;
+const layersKeyNow = () => { const b = document.body; return b && b.classList.contains('layers-on') ? b.dataset.layers || '' : '*'; };
+function watchLayers() {
+  if (layerObs || typeof MutationObserver !== 'function' || !document.body) return;
+  layerObs = new MutationObserver(() => { if (host && last && layersKeyNow() !== shownKey) renderHeadline(host, last); });
+  layerObs.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-layers'] });
 }
 
 function setOpen(v) {
