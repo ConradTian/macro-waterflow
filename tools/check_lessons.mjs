@@ -18,7 +18,7 @@
 //  9. outline     the intro's '下面分 N 步：A → B → ...' lists exactly N items (arrows, no circled numbers: those are the long-cycle stages)
 // 10. town steps  (m1 starts in the 万元 town, then zooms to the US): townClaims [{ at:'before'|'after', get, minus?:'before', gt|gte|lt|lte }] are
 //                 checked on a town replay with the SAME code as the UI (replayTown + the tap); the US steps after the zoom run the usual checks
-// 11. mark / roleCard ids exist; ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
+// 11. mark / roleCard / roleCards ids exist (m5: 1-2 cards per step, at most 6 steps); ledgerAt [{ player, ruleId, date? }] = that quarter's ledger has the entry
 // 12. course v3 (tools/COURSE-V3.md): COURSE.parts = 4 parts, COURSE.main = m1 shk m2 m3 m4 fx m5 inv; each hands over to the next (last step
 //                `next`), inv ends on the 盲测 links; labels 第 1–8 课; COURSE lists every lesson / role lesson exactly once (the rest under 旧版)
 // BIG LESSONS (kind:'fx' 汇率, kind:'capstone' 投资者; src/data/lesson-fx.js, lesson-investor.js): their numbers, facts and claims are verified by
@@ -38,7 +38,7 @@ import { resolve } from 'node:path';
 import { US_Q } from '../src/data/us-quarterly.js';
 import { WAVES } from '../src/data/waves.js';
 import { LESSONS, COURSE } from '../src/data/lessons.js';
-import { ROLE_CARD_ORDER } from '../src/data/role-cards.js';
+import { ROLE_CARD_ORDER, ROLE_META } from '../src/data/role-cards.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
 import { CONCEPTS } from '../src/data/concepts.js';
 import { RULE_BY_ID } from '../src/engine/rules.js';
@@ -124,6 +124,7 @@ function evalCond(L, c, win) {
   return { pass: tests.length > 0 && tests.every(t => t[1]), msg: `${c.get}${c.set ? ' ' + JSON.stringify(c.set) : ''}${bs} = ${d.toFixed(4)} vs ${tests.map(t => t[0] + ' ' + c[t[0]]).join(', ')}` };
 }
 const condName = c => c.note || c.get;
+const stepRoles = st => arr(st.roleCards || st.roleCard);   // step field roleCard:'bank' or roleCards:['investor','foreign'] (src/ui/lessons.js stepRoles)
 
 const mkTown = L => createSim({ scenario: 'town', delays: !!L.delays });
 for (const L of [...ROUTINE, ...MAIN, ...SHK, ...CYC, ...WORLDL]) {
@@ -165,7 +166,8 @@ for (const L of [...ROUTINE, ...MAIN, ...SHK, ...CYC, ...WORLDL]) {
     const w = `L${L.id} step ${i + 1} (${st.type}) `;
     ok((isM ? MAIN_TYPES : TYPES).includes(st.type), w + 'type');
     arr(st.mark).forEach(m => ok(MARKS.includes(m), w + 'mark ' + m));
-    if (st.roleCard) ok(ROLE_CARD_ORDER.includes(st.roleCard), w + 'roleCard ' + st.roleCard);
+    for (const r of stepRoles(st)) ok(ROLE_CARD_ORDER.includes(r), w + 'roleCard ' + r);
+    if (st.roleCards) ok(Array.isArray(st.roleCards) && st.roleCards.length >= 1 && st.roleCards.length <= 2 && !st.roleCard, w + 'roleCards: 1-2 roles (and no roleCard next to it)');
     if (st.next != null) ok(i === L.steps.length - 1 || ['chain', 'zoom', 'recap'].includes(st.type), w + 'next only on the last step');
     ok(st.title, w + 'title');
     (st.hl || []).forEach(h => ok(FLOW_TERMS.includes(h), w + 'hl ' + h));
@@ -357,7 +359,7 @@ ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 8 course 
   ok(k >= 0 && (m4.steps[k].claims || []).some(c => c.get === 'max:rates.realPolicy' && c.lt === 0) && (m4.steps[k].claims || []).some(c => c.get === 'dpp:gov.debtGdp' && c.lt < 0), 'm4: tied to ⑦ with claims (real rate < 0, debt/GDP falling)');
 }
 { // L7 (m5): the 外国人 step has the AUS reactor sub-step (a panel, not a sim switch)
-  const st = MAIN[4].steps.find(s => s.roleCard === 'foreign'), d = st && arr(st.drills)[0];
+  const st = MAIN[4].steps.find(s => stepRoles(s).includes('foreign')), d = st && arr(st.drills)[0];
   ok(d && d.panel && d.panel.id === 'fx-reactor' && d.panel.iso === 'AUS' && arr(d.panel.dates).join() === '2008Q3,2009Q1' && st.drillCta, 'm5 外国人: sub-step = the AUS FX reactor 2008Q3 → 2009Q1 (drill, primary button)');
   ok(MAIN[4].steps.every(s => !s.country && !s.panel), 'm5: no sim switch and no step panel (the US view stays)');
 }
@@ -419,7 +421,9 @@ const mainSteps = MAIN.reduce((a, l) => a + l.steps.length, 0);
 ok(mainSteps <= 32, `main line is about an hour: ${mainSteps} steps (<= 32, ~2 min each)`);
 { const m1 = MAIN[0].steps, m5 = MAIN[4].steps;
   ok(arr(m1[3].mark).includes('loop') && arr(m1[4].mark).includes('outlets') && arr(m1[5].mark).includes('objective'), 'm1 marks: 水转圈 = loop, 四个出口 = outlets, 总目标 = objective');
-  ok(m5.slice(1).map(s => s.roleCard).join() === ROLE_CARD_ORDER.join(), 'm5 opens the 8 role cards in ROLE_CARD_ORDER');
+  ok(m5.slice(1).flatMap(stepRoles).join() === ROLE_CARD_ORDER.join(), 'm5 opens the 8 role cards in ROLE_CARD_ORDER (1-2 per step)');
+  ok(m5.length <= 6 && m5.slice(1).every(s => stepRoles(s).length >= 1), `m5: at most 6 steps incl. the intro (${m5.length}), every step after the intro opens a role card`);
+  ok(m5.slice(1).every(s => stepRoles(s).every(r => s.text.join('').includes(ROLE_META[r].name))), 'm5: each step text names every role whose card it opens');
   ok(MAIN[4].startDate === '2008Q3' && dateT('2008Q3') === 54 && m5.every(s => !s.from && !s.until), 'm5 stays at 2008Q3 (t=54)');
   ok(arr(m5[m5.length - 1].mark).includes('objective') && (m5[m5.length - 1].claims || []).some(c => c.get === 'start:lamps.lit' && c.gte === 4), 'm5 ends on the 总目标 strip with all 4 lamps lit (claimed)'); }
 const menuKeys = [...COURSE.main, ...COURSE.legacy].map(String);

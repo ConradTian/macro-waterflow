@@ -24,6 +24,8 @@
 //   ending    the last step's ending:{q1,q2,q3} renders as the fixed 三问 block (.ls-end) once the step is answered; {placeholders} filled
 //   drills    step field drills:[{label, panel, text, back?}] = optional drill-down buttons: the drill's panel replaces the step's (over the
 //             diagram) and its text shows in the card until 「回到」; drillCta:true = the first drill is the primary button (m5 外国人 -> AUS reactor)
+//   roles     step field roleCard:'bank' or roleCards:['centralBank','bank'] (m5) = those role cards under the step's first (bold) paragraph, and their valves
+//             glow on the diagram (flow.js highlightRole, ROLE_VALVES of src/data/layers.js); leaving the step clears the glow
 //   progress  markDone(id) of src/ui/progress.js (layer agent) when a lesson reaches its last step;
 //             document event mw:lesson-active { id } on start and every step change, { id: null } on exit
 // Country lessons (lesson field country:'AUS': w2, 投资者): starting one goes to ?country=AUS&lesson=<id>; exiting it goes back to the US root page.
@@ -187,8 +189,26 @@ function applyMarks() {
   if (!st || !st.mark || ss.zooming) return;
   for (const m of arr(st.mark)) if (MARKS[m]) document.querySelectorAll(MARKS[m]).forEach(n => n.classList.add('ls-mark'));
 }
+// step field roleCard / roleCards:[...]: the step's roles; their valves glow (flow.js highlightRole: one role at a time, so the glow of each
+// role is collected and put back together). Re-applied only when the step or the diagram element changes, so a tap on a role card
+// (flow.js: focus that one role / clear) is not undone by the next render.
+const stepRoles = st => (st ? arr(st.roleCards || st.roleCard) : []);
+let roleSeen = null;
+function applyRoles() {
+  if (typeof FLOW.highlightRole !== 'function') return;
+  const roles = cur && !ss.zooming ? stepRoles(cur.L.steps[cur.i]) : [];
+  const wrap = document.querySelector('.flow-wrap'), key = roles.length ? `${cur.L.id}:${cur.i}:${roles.join()}` : '';
+  if (roleSeen && roleSeen.wrap === wrap && roleSeen.key === key) return;
+  const had = !!(roleSeen && roleSeen.key);
+  roleSeen = { wrap, key };
+  if (!roles.length) { if (had) FLOW.highlightRole(null); return; }
+  const keep = [];
+  for (const r of roles) { FLOW.highlightRole(r); if (wrap) wrap.querySelectorAll('.rv-on').forEach(n => keep.push(n)); }
+  keep.forEach(n => n.classList.add('rv-on'));
+}
 function applyHl() {
   applyMarks();
+  applyRoles();
   const host = document.getElementById('diagram');
   if (!host) return;
   host.querySelectorAll('.ls-hl, .ls-hl-pipe').forEach(n => n.classList.remove('ls-hl', 'ls-hl-pipe'));
@@ -964,15 +984,18 @@ function draw() {
   const snap = ctx.getSnap();
   const dots = L.steps.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'done' : ''}"></i>`).join('');
   let body = `<h3 class="ls-stitle">${esc(st.title || '')}</h3>`;
-  const paras = arr(st.text).map(t => `<p>${rich(t)}</p>`).join('');
+  const drillOpen = ss.drill != null && !!(st.drills && st.drills[ss.drill]);
+  const roles = !ss.zooming && !drillOpen ? stepRoles(st) : [];
+  const lead = roles.length && st.type === 'reveal' && !st.question;   // a role step: its bold conclusion first, then the role card(s), then the rest
+  const paras = arr(st.text).slice(lead ? 1 : 0).map(t => `<p>${rich(t)}</p>`).join('');
   const playLine = () => {
     const playing = ctx.isPlaying();
     return `<div class="ls-status">${ss.arrived || snap.t >= dateT(pos[i].until) ? `已播放到 ${lab(pos[i].until)}` : `${playing ? '播放中' : '已暂停'} → ${lab(pos[i].until)}`}` +
       `<span class="ls-mini"><button type="button" class="btn" data-act="play">${playing ? '⏸ 暂停' : '▶ 播放'}</button><button type="button" class="btn" data-act="replay">↺ 重播</button></span></div>`;
   };
   let canNext = i < n - 1;
-  const drillOpen = ss.drill != null && !!(st.drills && st.drills[ss.drill]);
-  if (st.roleCard && !ss.zooming && !drillOpen) { try { body += `<div class="ls-rc">${roleCardHtml(st.roleCard)}</div>`; } catch (e) { /* roles module missing: text only */ } }
+  if (lead) body += `<p>${rich(arr(st.text)[0])}</p>`;
+  for (const r of roles) { try { body += `<div class="ls-rc">${roleCardHtml(r)}</div>`; } catch (e) { /* roles module missing: text only */ } }
   if (drillOpen) {                                           // a drill-down is open: its text replaces the step's text until 「回到」
     body += drillsHtml(st);
   } else if (st.type === 'zoom' && ss.zooming) {             // the live numbers are not filled yet while the zoom animates
