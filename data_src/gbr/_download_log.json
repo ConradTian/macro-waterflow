@@ -1,0 +1,51 @@
+[
+ {
+  "file": "boe_CFMHSDE.csv",
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=CFMHSDE&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-30",
+  "note": "BoE IADB CFMHSDE: effective interest rate, UK MFIs' sterling secured loans to households, OUTSTANDING (stock), monthly",
+  "bytes": 5970
+ },
+ {
+  "file": "boe_CFMHSCV.csv",
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=CFMHSCV&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-30",
+  "note": "BoE IADB CFMHSCV: UNVERIFIED code (values 0.1-3.5%: not a mortgage rate); downloaded by mistake, NOT used",
+  "bytes": 5987
+ },
+ {
+  "file": "boe_IUMBV34.csv",
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=IUMBV34&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-30",
+  "note": "BoE IADB IUMBV34: quoted rate, 2-year fixed mortgage (75% LTV), monthly average",
+  "bytes": 6813
+ },
+ {
+  "file": "boe_IUMBV42.csv",
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=IUMBV42&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-30",
+  "note": "BoE IADB IUMBV42: quoted rate, 5-year fixed mortgage (75% LTV), monthly average",
+  "bytes": 6817
+ },
+ {
+  "file": "boe_IUMTLMV.csv",
+  "url": "https://www.bankofengland.co.uk/boeapps/iadb/fromshowcolumns.asp?csv.x=yes&Datefrom=01/Jan/1995&Dateto=now&SeriesCodes=IUMTLMV&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N",
+  "date": "2026-10-30",
+  "note": "BoE IADB IUMTLMV: quoted rate, standard variable rate (SVR), monthly average",
+  "bytes": 6814
+ },
+ {
+  "file": "ons_J5II.csv",
+  "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/j5ii/pusf",
+  "date": "2026-10-30",
+  "note": "ONS J5II: PS net borrowing ex public sector banks, GBP m, NSA",
+  "bytes": 14875
+ },
+ {
+  "file": "ons_HF6X.csv",
+  "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6x/pusf",
+  "date": "2026-10-30",
+  "note": "ONS HF6X: PS net debt ex public sector banks, % of GDP, NSA (not used in round 1)",
+  "bytes": 11419
+ }
+]

@@ -741,7 +741,10 @@ export function settle(S0, K, ex, dec, env) {
   }
   // labour slack: output below capacity. cp.slackVsCapEff: measured against the shock-reduced capacity (a lockdown's lost capacity
   // is not job loss: JobKeeper-type schemes keep workers attached); otherwise against full capacity Ystar (USA)
-  const slack = 1 - S.Y / (K.cp.slackVsCapEff ? capEff : S.Ystar);
+  // cp.furlough (0..1, off = 0/absent: the expression is the original one, bit for bit): a job-retention scheme (UK CJRS 2020-21, 工资补贴)
+  // keeps this share of the lockdown's forced demand collapse (the 1.5 x shock in demandShockF) off the labour slack as well
+  const slackCap = K.cp.slackVsCapEff ? capEff : S.Ystar, fl = K.cp.furlough || 0;
+  const slack = 1 - S.Y / (fl ? slackCap * (1 - fl * 1.5 * S.shock) : slackCap);
   const uT = uStar - 0.15 * clamp(pressure, 0, 0.08) + K.cp.okun * Math.max(0, slack) + (K.cp.shockLayoff ?? 0) * S.shock;
   S.u = S0.u + 0.5 * (uT - S0.u);
   S.uHist.push(S.u); S.uHist.shift();
