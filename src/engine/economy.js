@@ -19,6 +19,9 @@ const PE_FLOOR_DEN = 0.0375;    // floor of (yield + ERP - growth): caps the fun
 const PE_REV = 0.08, PE_MOM = 0.6;   // P/E reversion to fundamental / momentum of last change
 const PE_STEP = 0.17, PE_LO = 8, PE_HI = 40;   // per-quarter P/E move limit (+-17%) and P/E range
 const REG_TARGET = 0.075;        // capital ratio banks aim to hold (lending headroom)
+// valuation -> Capex pipe: firms follow the valuation gap at 35%/quarter, read within +-25% (a bubble does not fund unlimited Capex);
+// free mode's "normal" P/E = its slow EMA (2.5%/quarter, ~10y)
+const VAL_LAG = 0.35, VAL_CAP = 0.25, PE_NORM = 0.025;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const pct = x => (x * 100).toFixed(1) + '%';
 const pp = x => (x * 100).toFixed(2) + '%';
@@ -67,6 +70,7 @@ export function exogenous(data, t, cp = countryParams()) {
   const g = get('gdpRealGrowthYoY', t);
   return {
     policyRate: get('policyRate', t),
+    cape: get('cape', t),   // real equity valuation (Shiller CAPE): history mode drives the valuation -> Capex pipe with it (like oil)
     oilYoY: oil != null && oil4 != null ? oil / oil4 - 1 : 0,
     // a collapse of real output far beyond a normal recession (yoy < cp.shockFloor, US -5%) is treated as a combined supply+demand
     // shock (lockdown-type event); the depth beyond the floor is amplified (x4) because one yoy number understates a one-quarter shutdown
@@ -148,6 +152,9 @@ export function seed(data, opts = {}) {
   if (cp.uStarPath && cp.uStarPath.length) K.uStarKnots = cp.uStarPath.map(([d, o]) => [qIndex(d), o]).sort((a, b) => a[0] - b[0]);
   if (cp.firmNeutralQ > 0) K.rpReal0 = policy0 - cpi0;   // real policy rate at the start (the moving neutral is measured from it)
   if (cp.fixedCohort) { const f = cp.fixedCohort; K.fcT = { open: qIndex(f.open), close: qIndex(f.close), reset: qIndex(f.reset) }; }
+  // "normal" real valuation for the valuation -> Capex pipe: mean CAPE before the hold-out (data.reservedFrom, 2022Q1); null without data
+  const capeFit = (s.cape || []).slice(0, Math.max(0, data.dates.indexOf(data.reservedFrom || '2022Q1'))).filter(x => x != null);
+  K.capeN = capeFit.length ? capeFit.reduce((a, b) => a + b, 0) / capeFit.length : null;
   const Ystar = gdp0, P = 1;
   const pipelineQ = K.c0 * Ystar * DT;
   const B0 = Dh + Df;
@@ -167,7 +174,7 @@ export function seed(data, opts = {}) {
     dsrH: new Array(5).fill(dsr0), polH: new Array(5).fill(policy0), hpQPrev: 0,
     bondFlow: 0, bondTR: 100, Gh: new Array(5).fill(100), distrust: 0, Mstart: cp.moneyGdp * gdp0, lastDiv: 0,
     ringProbs: null, ringStage: 1, mem: { last: {}, outBand: false, ciSign: 0, falling: false, dsrRed: false, capLow: false, i2t: false, stage: null },
-    flows: null, wealthPrev: K.HV0 + K.mkt0,
+    flows: null, wealthPrev: K.HV0 + K.mkt0, valG: 0, peN: pe0,
   };
   if (cp.firmNeutralQ > 0) S.rpH = new Array(cp.firmNeutralQ).fill(K.rpReal0);   // trailing real policy rates (moving neutral)
   K.f0 = exogenous(data, 0, cp).fShare;   // share of government debt held abroad at the start (foreign-yield effect is measured from it)
@@ -626,7 +633,13 @@ export function settle(S0, K, ex, dec, env) {
   // firms compare their real funding cost with a neutral rate: fixed at the start (USA), or (cp.firmNeutralQ > 0) moving with the
   // trailing mean of the real policy rate, so a secular fall in rates does not keep Capex (and capacity) booming for ever
   const rfrN = S0.rpH ? K.rfr0 + S0.rpH.reduce((a, b) => a + b, 0) / S0.rpH.length - K.rpReal0 : K.rfr0;
-  const capexShare = clamp((K.c0 + (K.cp.capexPress ?? 0.4) * clamp(v0.pressure, -0.1, 0.1) - (K.cp.capexRate ?? 0.6) * (rFirmReal - rfrN)) * S.capexMult, 0.08, 0.20);
+  // stock valuation -> Capex (Tobin's q: dear shares = cheap equity funding, so firms build more; the AI capex boom). cp.capexVal (off = 0):
+  // Capex/GDP per unit of valuation gap. The gap: history mode with data = real CAPE / its pre-hold-out mean - 1 (exogenous, like oil:
+  // the model's own equity peaks ~2 years early and misses 2001-02); free mode / no data = the model's P/E / its slow average - 1
+  const valNow = env.mode === 'history' && ex.cape != null && K.capeN ? ex.cape / K.capeN - 1 : S0.pe / S0.peN - 1;
+  S.valG = S0.valG + VAL_LAG * (clamp(valNow, -VAL_CAP, VAL_CAP) - S0.valG);   // firms act on valuations with a lag (~2-3 quarters)
+  const capexVal = (K.cp.capexVal ?? 0) * S.valG;
+  const capexShare = clamp((K.c0 + (K.cp.capexPress ?? 0.4) * clamp(v0.pressure, -0.1, 0.1) - (K.cp.capexRate ?? 0.6) * (rFirmReal - rfrN) + capexVal) * S.capexMult, 0.08, 0.20);
   const capex_q = capexShare * S0.gdp * dt;
   S.pipeline.push(capex_q / S0.P);
   const lag = dl ? 6 : 2;   // quarters between Capex spending and new capacity (town demo: short but visible)
@@ -792,6 +805,7 @@ export function settle(S0, K, ex, dec, env) {
   const peNoise = S0.pe * 0.02 * noise.eq;
   S.pePrev = S0.pe;
   S.pe = clamp(S0.pe + clamp(peRev + peMom + peFlow + peNoise, -PE_STEP * S0.pe, PE_STEP * S0.pe), PE_LO, PE_HI);
+  S.peN = S0.peN + PE_NORM * (S.pe - S0.peN);   // "normal" P/E for the free-mode valuation gap
   S.eqPrice = 100 * S.earnIdx * S.pe / K.pe0;
   S.eqCap = K.mkt0 * S.eqPrice / 100;
   const eqPriceRet = S.eqPrice / S0.eqPrice - 1;
