@@ -38,6 +38,7 @@ const YMIN = 1995, YMAX = 2025;
 const TRADE_MIN = 0.08;       // a named pair is drawn if its exports >= 8% of the year's largest named-pair flow ...
 const TRADE_SHARE = 0.15;     // ... or >= 15% of the exporter's total exports (so a small economy's main buyers show: AUS -> CHN, AUS -> JPN)
 const CCY_CN = { AUD: '澳元', GBP: '英镑', JPY: '日元', EUR: '欧元', CNY: '人民币', USD: '美元' };
+const SHORT = { USA: '美', JPN: '日', AUS: '澳', CHN: '中', GBR: '英', EA: '欧', ROW: '其他', POOL: '美' };   // amount labels say who → whom
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -361,7 +362,8 @@ function chipsSvg(pipes, L) {
     || r.x < 2 || r.y < 2 || r.x + r.w > L.W - 2 || r.y + r.h > L.H - 2;
   let out = '';
   for (const p of pick) {
-    const lab = fmtBn(p.v), cw = tw(lab) + 12;
+    const s = iso => SHORT[iso] || iso;
+    const lab = (p.k === 'cap' ? `${s(p.from)}持美债 ` : p.k === 'debt' ? `${s(p.to)}借美元 ` : `${s(p.from)}→${s(p.to)} `) + fmtBn(p.v), cw = tw(lab) + 12;
     let spot = null;
     for (const t of [0.2, 0.28, 0.13, 0.36, 0.45, 0.55]) {
       const [[x, y], [tx, ty]] = along(p, t);

@@ -76,7 +76,9 @@ for (const [node, vid] of Object.entries(VALVE_OF)) {
 }
 // structure: every node is a concept or an extra node; every concept (except detected ones) sits on the map
 const nodes = new Set(allNodes());
-const missing = Object.keys(CONCEPTS).filter(id => !nodes.has(id) && !chainView(id).detected);
+// v3 picture places (tools/DESIGN-v3.md): cards for parts of the drawing, not variables, so they have no edges of their own
+const PICTURE_ONLY = new Set(['suction', 'weir', 'groundwater', 'deepPump', 'gate']);
+const missing = Object.keys(CONCEPTS).filter(id => !nodes.has(id) && !chainView(id).detected && !PICTURE_ONLY.has(id));
 console.log(`\ncausal map: ${EDGES.length} edges, ${nodes.size} nodes; concepts not on the map: ${missing.length ? missing.join(', ') : 'none'}`);
 console.log(`valve directions vs engine: ${agree} agree, ${quiet} quiet (engine barely moves), ${soft} warn, ${hard} FAIL`);
 for (const f of fails) console.log('  ' + f);

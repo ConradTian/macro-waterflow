@@ -270,7 +270,7 @@ try {
     await go(`?pause=1&lesson=fx&step=${D.L.fx.steps.length - 1}`, 3500);
     s = await state(); ok(s.panels.length === 1 && s.panels[0].id === 'fx-calc', 'fx last step: the calculator');
     await click('#ls-card [data-act=prev]', 1700);
-    s = await state(); ok(s.step === 5 && s.panels.length === 1 && s.panels[0].id === 'fx-reactor' && s.panels[0].date === '2003Q4', '上一步 → the AUD case: calculator unmounted, reactor at 2003Q4');
+    s = await state(); ok(s.step === 5 && s.panels.length === 1 && s.panels[0].id === 'fx-reactor' && s.panels[0].date === '2008Q4', '上一步 → the AUD case: calculator unmounted, reactor at 2008Q4 (v3 L6 opens on the 怕 case)');
     await click('#ls-card [data-act=prev]', 1500);
     s = await state(); ok(s.step === 4 && s.panels.length === 0 && s.map === '1', '上一步 → the reserve-currency map step: reactor unmounted, map open');
     await click('#ls-card [data-act=prev]', 1200); await click('#ls-card [data-act=prev]', 1700);

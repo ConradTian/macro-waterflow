@@ -321,7 +321,7 @@ if (!process.env.NOBROWSER) {
     await click('.bd-gate:not(.bd-res)'); await sleep(500);
     const card = await ev(`(()=>{const r=document.getElementById('concept-root'); return r && !r.hidden ? { t: r.querySelector('.cc-title')?.textContent, five: r.querySelectorAll('.fxr-card li').length, go: !!r.querySelector('[data-fxr-lesson="fx"]'), why: r.querySelector('.cc-why')?.textContent || '' } : null})()`);
     say(card && card.t === '汇率' && card.five === 5 && card.go, `tapping the FX gate opens the 汇率 card with the five forces and a lesson button: ${JSON.stringify(card && { ...card, why: undefined })}`);
-    say(card && card.why.includes('资本管') && card.why.includes('说不清') && card.why.includes('PPP'), `汇率 card why = the reactor numbers: ${card && card.why.slice(0, 120)}`);
+    say(card && card.why.includes('吸力差') && card.why.includes('说不清') && card.why.includes('PPP'), `汇率 card why = the reactor numbers: ${card && card.why.slice(0, 120)}`);
     // phone: the 净出口 gate popover carries the reactor
     await vp(390, 844);
     await go(`${BASE}?country=AUS&forceCountry=1&t=65&pause=1`);
