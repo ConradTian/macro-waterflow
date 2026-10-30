@@ -13,8 +13,8 @@ const ASSETS = [
   { k: 'housing', name: '房产', tid: 'housePrice', part: 'poolHousing', pipes: ['toHousing', 'rent', 'collateral'], flip: '房贷有效利率持续上升、银行审批倍数 < 1，或 LVR 抬头触发抵押品回路' },
   { k: 'equity', name: '股票', tid: 'equityAsset', part: 'poolEquity', pipes: ['toEquity', 'dividends'], flip: '盈利 CF 转降，或折现率 / 风险溢价上升压过盈利增长' },
   { k: 'bond', name: '长期国债', tid: 'bondAsset', part: 'poolBond', pipes: ['toBond', 'qe', 'coupons'], flip: '通胀预期重新抬头（B1），或长端收益率由降转升' },
-  { k: 'gold', name: '黄金', tid: 'goldAsset', part: 'poolGold', pipes: ['toGold'], flip: '吸力（实际利率）由负转正并持续上升，且对货币信心回稳' },
-  { k: 'cash', name: '现金湖', tid: 'cashAsset', part: 'cash', pipes: ['toCash'], flip: '政策利率明显低于通胀（吸力 = 实际利率转负），或降息周期开始' },
+  { k: 'gold', name: '黄金', tid: 'goldAsset', part: 'poolGold', pipes: ['toGold'], flip: '长端吸力（10 年期 − ▽）由负转正并持续上升，且对货币信心回稳' },
+  { k: 'cash', name: '现金湖', tid: 'cashAsset', part: 'cash', pipes: ['toCash'], flip: '政策利率明显低于通胀（到手 ▶ − ▼ 转负），或降息周期开始' },
 ];
 
 function trailing(hist, k, field, n = 4) {
@@ -22,6 +22,9 @@ function trailing(hist, k, field, n = 4) {
   return h.reduce((a, s) => a * (1 + (s.assets[k]?.[field] || 0)), 1) - 1;
 }
 const money = (v, town) => (v == null || !isFinite(v) ? '—' : Math.abs(v) >= 1000 && !town ? (v / 1000).toFixed(1) + 'k' : Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v)));
+
+// 长端吸力 = 10 年期 − ▽ (rates.gov10y − macro.inflationExp): what the engine's bonds and gold read (economy.js real10y); null when missing
+const pull10 = s => { const y = s.rates?.gov10y, e = s.macro?.inflationExp; return typeof y === 'number' && typeof e === 'number' && isFinite(y - e) ? y - e : null; };
 
 // valuation one-liner (as before)
 function valuation(k, s) {
@@ -32,7 +35,7 @@ function valuation(k, s) {
   }
   if (k === 'equity') { const st = a.pe > 25 ? '偏贵' : a.pe < 14 ? '偏便宜' : '中性'; return `${st}（市盈率 ${num(a.pe, 1)}）`; }
   if (k === 'bond') { const st = a.yield > 0.06 ? '收益有吸引力' : a.yield < 0.03 ? '收益偏低、对加息敏感' : '中性'; return `${st}（收益率 ${pct(a.yield)}）`; }
-  if (k === 'gold') return `无现金流，看吸力 = 实际利率（现 ${pct(s.rates.realPolicy)}）`;
+  if (k === 'gold') return `无现金流，看长端吸力 = 10 年期 − ▽（现 ${pct(pull10(s))}）`;
   return `看政策利率 ${pct(s.rates.policy)} 与通胀 ${pct(s.macro.inflation)}`;
 }
 
@@ -59,7 +62,7 @@ function special(k, s) {
   if (k === 'housing') return `<b>抵押品回路</b>：房价 ↑ → 抵押品值钱 → 银行审批更松 → 更多房贷 → 房价 ↑（反过来也成立）。现在 LVR ${pct(s.household.lvr, 0)}，审批 ×${num(s.bank.approval, 2)}`;
   if (k === 'equity') return `<b>利润 + 风险溢价</b>：企业利润（${money(s.firm.profit, !!s.town)}）是泉眼，风险溢价 ${pct(s.rates.riskPremium)} 决定贴现多少`;
   if (k === 'bond') return `<b>利率跷跷板</b>：利率 ↑ → 价格 ↓。通胀型危机里国债不是避风港。现在 10 年收益率 ${pct(s.rates.gov10y, 2)}`;
-  if (k === 'gold') return `<b>信心</b>：吸力（实际利率）↓ 或对货币失去信任时流入。现在实际政策利率 ${pct(s.rates.realPolicy, 2)}${s.assets.gold.distrust != null ? `，不信任度 ${num(s.assets.gold.distrust, 2)}` : ''}`;
+  if (k === 'gold') return `<b>信心</b>：长端吸力（10 年期 − ▽）↓ 或对货币失去信任时流入。现在 10 年期 − ▽ = ${pct(pull10(s), 2)}${s.assets.gold.distrust != null ? `，不信任度 ${num(s.assets.gold.distrust, 2)}` : ''}`;
   return '<b>现金湖</b>：现金不在资产池里，是“还没决定买什么”的水；央行的吸力泵装在这里。通胀会把它的购买力慢慢蒸发';
 }
 function factors(s, k) {

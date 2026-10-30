@@ -71,6 +71,10 @@ const BD_TOP = -48, BD_LINE = -4, BD_H = 52;
 const FXR = { x0: 64, x1: 160, cx: 112, lab: 60, tx: 166, top: BD_TOP + 4, rows: [BD_TOP + 8, BD_TOP + 16.5], bot: BD_TOP + 21, gapY: BD_TOP + 25, fs: 7.4, range: 25, compact: true };
 const PH_MQ = typeof matchMedia === 'function' ? matchMedia('(max-width: 767.98px)') : null;
 const isPhone = () => !!(PH_MQ && PH_MQ.matches);
+// WIDE (>= 1280px, the whole picture): the viewBox grows RUL_XL units to the LEFT, so the RULER SLOT is wider (box + the ▶ ▼ ▽ value labels
+// next to their marks) and the drawing (height-bound there) gets a wider column. Nothing else moves; iPad / phone keep the 390-wide picture.
+const WIDE_MQ = typeof matchMedia === 'function' ? matchMedia('(min-width: 1280px)') : null;
+const RUL_XL = 26;
 
 // engine valve table (dynamic: the diagram keeps working if the engine file is absent)
 let ENGINE_VALVES = null;
@@ -517,12 +521,19 @@ function placeBox(R) {
   const x0 = clamp(px, 0, VB_W - w);
   return [+x0.toFixed(1), +y0.toFixed(1), +w.toFixed(1), +h.toFixed(1)];
 }
+// WIDE: the full-width bands (border zone, soil, groundwater, 吸程线) follow the viewBox into the extra room on the left (syncView)
+function wx(R, n, y) { const o = { n, y, x: +(n.getAttribute('x') ?? 0), w: +(n.getAttribute('width') ?? VB_W) }; (R.wx ||= []).push(o); wxSet(o, R.xl || 0); return n; }
+function wxSet(o, xl) { if (o.y == null) { o.n.setAttribute('x', String(o.x - xl)); o.n.setAttribute('width', String(o.w + xl)); } else o.n.setAttribute('d', `M${o.x - xl} ${o.y} H${o.x + o.w}`); }
 function syncView(R) {
   const ph = isPhone(), pm = placeMode();
   R.wrap.classList.toggle('phone', ph);
   R.wrap.classList.toggle('placed', pm);
   if (pm) R.wrap.dataset.place = R.place; else delete R.wrap.dataset.place;
-  const vb = pm ? placeBox(R) : (!ph && R.hasBorder ? [0, -BD_H, VB_W, VB_H + BD_H] : [0, 0, VB_W, VB_H]);
+  const xl = !pm && !ph && WIDE_MQ && WIDE_MQ.matches ? RUL_XL : 0;
+  const vb = pm ? placeBox(R) : (!ph && R.hasBorder ? [-xl, -BD_H, VB_W + xl, VB_H + BD_H] : [-xl, 0, VB_W + xl, VB_H]);
+  R.wrap.classList.toggle('rl-wide', xl > 0);
+  if (R.xl !== xl) { R.xl = xl; for (const o of R.wx || []) wxSet(o, xl); }
+  if (R.v3 && R.v3.rbox) for (const n of R.v3.rbox) { n.setAttribute('x', String(SLOT.x - xl + (xl ? 2 : 0))); n.setAttribute('width', String(SLOT.w + xl - (xl ? 2 : 0))); }
   R.vb = vb;
   R.svg.setAttribute('viewBox', vb.join(' '));
   R.wrap.classList.toggle('pan-l', pm && vb[0] > 0.5);
@@ -639,7 +650,7 @@ function build(host) {
   wrap.appendChild(card);
   const R = { svg, wrap, pipes: {}, pools: {}, place: 'river', placesEl: places, placeCard: card, tools, panX: {} };
   R.syncVB = () => syncView(R);
-  try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', R.syncVB) : PH_MQ.addListener(R.syncVB)); } catch (e) { /* ignore */ }
+  try { for (const mq of [PH_MQ, WIDE_MQ]) mq && (mq.addEventListener ? mq.addEventListener('change', R.syncVB) : mq.addListener(R.syncVB)); } catch (e) { /* ignore */ }
   {   // keep the phone crop / the desktop column fitted when sizes change (panel grip, card 「更多」, window, budget bar wrapping)
     const later = () => { cancelAnimationFrame(R.roF); R.roF = requestAnimationFrame(() => syncView(R)); };
     if (typeof ResizeObserver === 'function') { R.ro = new ResizeObserver(later); R.ro.observe(svg); R.ro.observe(wrap); }
@@ -658,19 +669,19 @@ function build(host) {
   const back = el('g', {}, svg);
   {   // 国境线: the foreign zone (shaded) ABOVE the picture and the dashed border line
     const bg = part(el('g', { class: 'bd bd-d bd-bg' }, back), 'border');
-    el('rect', { class: 'bd-zone', x: 0, y: BD_TOP, width: VB_W, height: BD_LINE - BD_TOP }, bg);
-    el('path', { class: 'bd-line', d: `M0 ${BD_LINE} H${VB_W}` }, bg);
+    wx(R, el('rect', { class: 'bd-zone', x: 0, y: BD_TOP, width: VB_W, height: BD_LINE - BD_TOP }, bg));
+    wx(R, el('path', { class: 'bd-line', d: `M0 ${BD_LINE} H${VB_W}` }, bg), BD_LINE);
   }
   {   // 地下 (L-water): the soil band across the bottom; the pumps lift out of it, 回灌 goes back into it
     const g = lk(part(el('g', { class: 'v3-ground' }, back), 'bank repay iou'), 'groundBase');
-    el('rect', { class: 'gw-soil', x: GW.x, y: GW.top, width: GW.w, height: GW.bot - GW.top }, g);
-    el('path', { class: 'gw-surface', d: `M0 ${GW.top} H${VB_W}` }, g);
+    wx(R, el('rect', { class: 'gw-soil', x: GW.x, y: GW.top, width: GW.w, height: GW.bot - GW.top }, g));
+    wx(R, el('path', { class: 'gw-surface', d: `M0 ${GW.top} H${VB_W}` }, g), GW.top);
   }
   {   // 地下水 (L-long): the water body under the water table; the dry part above it = the hole the debts dug. The iou part / node live here now.
     const g = R.gwG = lk(part(el('g', { class: 'v3-gw' }, back), 'iou groundwater'), 'groundwater');
     R.iouBox = node(g, GW.x, GW.top, GW.w, GW.bot - GW.top, 'gw-band', 'iou', 'iou');
-    R.iouBox.setAttribute('rx', 0);
-    R.gwWater = el('rect', { class: 'gw-water', x: GW.x, y: GW.bot - 10, width: GW.w, height: 10 }, g);
+    R.iouBox.setAttribute('rx', 0); wx(R, R.iouBox);
+    R.gwWater = wx(R, el('rect', { class: 'gw-water', x: GW.x, y: GW.bot - 10, width: GW.w, height: 10 }, g));
     R.gwTable = el('path', { class: 'gw-table', d: '' }, g);
     R.gwTitle = el('title', {}, g);
   }
@@ -913,7 +924,7 @@ function buildV3(R, top, wrap) {
     txt(g, 136, GW.top + 11, '抽水 = 把未来的收入抽上来 → 地下水位降', 'cap ph-hide', 'start', 'iou');
     V.gwStat = txt(g, 40, GW.bot - 7, '', 'cap gw-stat', 'start');
     const lg = lk(part(el('g', { class: 'v3-lift' }, top), 'iou liftLine'), 'liftLine');
-    el('path', { class: 'gw-lift', d: `M${GW.x} ${GW.lift.toFixed(1)} H${GW.x + GW.w}` }, lg);
+    wx(R, el('path', { class: 'gw-lift', d: `M${GW.x} ${GW.lift.toFixed(1)} H${GW.x + GW.w}` }, lg), +GW.lift.toFixed(1));
     txt(lg, 284, GW.lift - 2, '吸程线（低于它 = 抽不上来）', 'cap gw-lt', 'end');
     el('title', {}, lg).textContent = '吸程线：地下水位掉到这条线下面，泵就抽不上来了（= B2）';
   }
@@ -923,7 +934,7 @@ function buildV3(R, top, wrap) {
   {
     const cx = SLOT.x + SLOT.w / 2, RS = RULER_STYLE, k = RUL.k, rx = RUL.rx, hb = RUL_HB;
     const g = V.slot = V.suction = lk(part(el('g', { class: 'v3-suction', 'data-ruler-slot': '', role: 'button', tabindex: 0, 'aria-label': '吸力尺：点一下看 ▼ 和绳' }, top), 'centralBank suction'), 'suction');
-    el('rect', { class: 'ruler-box', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: SLOT.h, rx: 6 }, g);
+    V.rbox = [el('rect', { class: 'ruler-box', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: SLOT.h, rx: 6 }, g)];
     el('rect', { class: 'rl-bg', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: 110, rx: 6 }, g);      // phone 河 / 地下: a backing card (the box is hidden there)
     V.skName = txt(g, SLOT.x + SLOT.w - 1.5, SLOT.y + 11, '吸力', 'cap sk-n', 'end');
     const rl = V.rl = { g: el('g', { class: 'rl', 'data-lo': RUL.lo, 'data-hi': RUL.hi, 'data-top': RUL.top, 'data-bot': RUL.bot }, g) };
@@ -948,6 +959,9 @@ function buildV3(R, top, wrap) {
     rl.e = sty(el('polygon', { class: 'rl-e', points: '' }, rl.g), { fill: 'var(--surface)', stroke: RS.e.color, 'stroke-width': RS.e.stroke * k * 1.2 });
     rl.p = sty(el('polygon', { class: 'rl-p', points: '' }, rl.g), { fill: RS.p.color });
     for (const key of ['m', 'e', 'p']) rl[key + 'T'] = el('title', {}, rl[key]);
+    // WIDE only (app.css .flow-wrap.rl-wide): the value of each mark, in the extra room left of the staff, at the mark's height
+    rl.vals = el('g', { class: 'rl-vals' }, g);
+    for (const key of ['p', 'm', 'e']) rl[key + 'V'] = txt(rl.vals, RUL.rx - RUL_HB - 2 * RUL_SZ - 3, 0, '', 'cap rl-v rl-v' + key, 'end');
     V.skVal = txt(g, cx, SLOT.y + 104, '', 'cap sk-v', 'middle');
     V.skTitle = el('title', {}, g);
     const s1 = V.suctionSave = lk(part(el('g', { class: 'v3-sarrow' }, g), 'centralBank suction'), 'suctionSave');
@@ -1027,7 +1041,7 @@ function applyV3(R, snap, prevSnap) {
   let y;
   if (below) y = GW.lift + 4 + (GW.bot - 10 - GW.lift - 4) * clamp(d ?? 1, 0, 1);
   else y = GW.top + 6 + (GW.lift - 4 - GW.top - 6) * (d != null ? d : 0.35);
-  R.gwTable.setAttribute('d', `M${GW.x} ${y.toFixed(1)} H${GW.x + GW.w}`);
+  R.gwTable.setAttribute('d', `M${GW.x - (R.xl || 0)} ${y.toFixed(1)} H${GW.x + GW.w}`);
   R.gwWater.setAttribute('y', y.toFixed(1)); R.gwWater.setAttribute('height', Math.max(0, GW.bot - y).toFixed(1));
   R.gwG.classList.toggle('below', below);
   R.gwG.classList.toggle('noev', d == null && !below);
@@ -1117,6 +1131,12 @@ function applyRuler(R, D) {
   }
   rl.rope.setAttribute('d', rope); show(rl.knot, knot);
   rl.rope.dataset.taut = String(D.dean == null);
+  // WIDE: the value labels (▶ ▼ ▽ + value) left of the staff, each at its mark's height, pushed apart so they never overlap
+  {
+    const L = [['p', D.p, 1], ['m', D.m, 1], ['e', D.e, 1]].filter(([, v]) => v != null).map(([key, v, d]) => ({ key, v, d, y: rulY(v) + 2.2 })).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < L.length; i++) if (L[i].y - L[i - 1].y < 7.4) L[i].y = L[i - 1].y + 7.4;
+    for (const key of ['p', 'm', 'e']) { const n = rl[key + 'V'], o = L.find(x => x.key === key); show(n, !!o); if (o) { n.setAttribute('y', f(o.y)); n.textContent = { p: '▶', m: '▼', e: '▽' }[key] + ' ' + pcPct(o.v, o.d); } }
+  }
   // the CPI → ▼ line: from the 测流断面 (CPI row) round the left edge, in over the slot top, down the ▼ column to ▼'s top
   if (V.cpiPath) {
     const ok = D.m != null, yTop = ok ? rulY(D.m) - 1.7 * RUL_SZ - 0.8 : 0;

@@ -77,6 +77,24 @@
 .ivl-at tr.sel td.k-flat { background: var(--surface); }
 .ivl-at td.colsel { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ivl-at tr[data-act]:focus-visible th { outline: 2px solid var(--accent); }
+/* the US data check on top of the table: a mark per cell (对 / 部分对 / 错), the number of episodes per row, notes of the tapped row */
+.ivl-at { min-width: 560px; }
+.ivl-at td { vertical-align: top; line-height: 1.3; }
+.ivl-at td > span { display: block; }
+.ivl-at td.long > span { font-size: 11px; text-align: left; }
+.ivl-at .stg { position: sticky; left: 0; z-index: 1; }
+.ivl-at tr:first-child th.stg { background: var(--surface); }
+.ivl-n { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
+.ivl-at tr.sel th .ivl-n { color: inherit; opacity: .85; }
+.ivl-mk { display: inline-block; margin-top: 2px; font-size: 10px; font-weight: 600; line-height: 1.5; padding: 0 4px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); white-space: nowrap; }
+.ivl-mk.mk-ok { border-color: var(--lamp-green); }
+.ivl-mk.mk-part { border-color: var(--lamp-yellow); border-style: dashed; }
+.ivl-mk.mk-bad { border-color: var(--lamp-red); color: var(--lamp-red); }
+.ivl-mk.mk-na { color: var(--muted); }
+.ivl-chk { font-size: 12px; background: var(--surface-2); border-radius: 8px; padding: 6px 10px; }
+.ivl-chk p { margin: 0; color: var(--muted); }
+.ivl-chk ul { margin: 4px 0 0; padding-left: 16px; }
+.ivl-chk li { margin: 2px 0; }
 .ivl-sum, .ivl-col { margin: 0; font-size: 13px; }
 .ivl-sum .w { color: var(--text); } .ivl-sum .l { color: var(--text); }
 .ivl-sum .w::before { content: '⬆ '; color: var(--ivl-win); } .ivl-sum .l::before { content: '⬇ '; color: var(--ivl-lose); }

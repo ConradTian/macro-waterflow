@@ -8,7 +8,7 @@ export const TYPE_NAME = { '危': '危机前夜', '转': '转折点', '平': '�
 
 // 大周期 ring (the game's six stops; ③④ are the fork B1/B2 after ②) and 小周期 ring (Dalio's four steps)
 export const LONG_ORDER = ['①', '②', '⑤', '⑥', '⑦', '⑧'];
-export const LONG_NAME = { '①': '堆债', '②': '逼近吸程线', '⑤': '私人去杠杆', '⑥': '政府接手', '⑦': '压制化债', '⑧': '修复' };
+export const LONG_NAME = { '①': '堆债', '②': '逼近吸程线', '⑤': '私人去杠杆', '⑥': '政府接手', '⑦': '增长化债', '⑧': '修复' };
 export const SHORT_ORDER = ['expand', 'hot', 'tight', 'ease'];
 export const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息' };
 export const FORK_NAME = { none: '没有岔路', B1: 'B1 溢出（通胀）', B2: 'B2 跌破吸程线（通缩）' };

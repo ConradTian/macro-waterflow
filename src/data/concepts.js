@@ -561,12 +561,12 @@ export const CONCEPTS = {
       const o = c.past(4), y = s.rates?.gov10y;
       if (!o || !ok(o.macro?.gdpNominal)) return `现在没有足够的历史来算增长；10 年国债 ${P(y, 2)}。`;
       const g = s.macro.gdpNominal / o.macro.gdpNominal - 1, d = g - y;
-      return `名义增长 ${P(g)} − 10 年国债 ${P(y, 2)} = ${PP(d)}：${d > 0 ? '增长跑赢利率，债务相对收入在自动变轻（化债，环 ⑦ 靠它）。' : '增长跑不赢利率，债务像滚雪球越滚越重。'}`;
+      return `名义增长 ${P(g)} − 10 年国债 ${P(y, 2)} = ${PP(d)}：${d > 0 ? '增长跑赢利率，债务相对收入在自动变轻（增长化债，环 ⑦ 靠它）。' : '增长跑不赢利率，债务像滚雪球越滚越重。'}`;
     },
     water: '债务是一个雪球：g > r 时雪球（相对收入）越滚越轻，g < r 时越滚越重。',
     formula: '债务/收入 的变化 ≈ (r − g)·债务/收入 + 基本赤字\n（基本赤字 = 不含利息的赤字；利息已经在 r 里）',
     from: ['policyRate', 'cpi', 'discountRate'], to: ['interestToTax', 'ringStage'],
-    logic: '政府、央行：压低利率（金融压制）并容忍通胀\n→ 名义收入和 GDP 增长快于借款利率\n→ 债务/收入自动缩小，不需要违约\n→ 这是环 ⑦（金融压制/增长化债）的核心。',
+    logic: '政府、央行：让名义增长跑赢借款利率（g > r）；常常同时压低利率、容忍通胀\n→ 名义收入和 GDP 增长快于借款利率\n→ 债务/收入自动缩小，不需要违约\n→ 这是环 ⑦ 增长化债（g > r）的核心；到手实际利率（▶ − ▼）为负时叫金融压制。',
     live: null, fmt: 'pct',
     liveFn: (s, p) => { if (!p) return null; return (s.macro.gdpNominal / p.macro.gdpNominal) ** 4 - 1 - s.rates.gov10y; } },
   interestToTax: {
@@ -721,12 +721,12 @@ export const CONCEPTS = {
     name: '现金', short: '短期利率赚取的收益，实际回报=名义−通胀。',
     why: (s) => {
       const a = s.assets?.cash || {}, i = s.macro?.inflation;
-      return `本季回报 ${P(a.ret, 2)}（政策利率 ${P(s.rates?.policy, 2)} ÷ 4），扣掉通胀 ${P(i)} 后实际 ${P(a.realRet, 2)}：${a.realRet < 0 ? '现金在缩水（金融压制，环 ⑦ 的特征）。' : '现金实际在增值，加息或 B2 时相对占优。'}`;
+      return `本季回报 ${P(a.ret, 2)}（政策利率 ${P(s.rates?.policy, 2)} ÷ 4），扣掉通胀 ${P(i)} 后实际 ${P(a.realRet, 2)}：${a.realRet < 0 ? '现金在缩水（到手为负 = 金融压制，⑦ 增长化债里常见）。' : '现金实际在增值，加息或 B2 时相对占优。'}`;
     },
     water: '现金湖里的水：吸力给它利息，不会涨也不会冲走，但通胀会让它蒸发。',
     formula: '现金回报 ≈ 政策利率 / 4（每季）',
     from: ['policyRate', 'cpi'], to: ['ringStage'],
-    logic: '央行：加息 → 现金利息上升\n→ 投资者：在加息和 B2 时转向现金\n→ 通胀高过利息时实际回报为负：金融压制（⑦）就是这样把债务负担「蒸发」掉的。',
+    logic: '央行：加息 → 现金利息上升\n→ 投资者：在加息和 B2 时转向现金\n→ 通胀高过利息时实际回报为负：这叫金融压制，⑦ 增长化债常靠它把债务负担「蒸发」掉。',
     live: 'assets.cash.ret', fmt: 'pct' },
   bondAsset: {
     name: '长期国债', short: '价格与收益率反向：利率降→债价涨，利率升→债价跌。',
@@ -866,7 +866,7 @@ export const CONCEPTS = {
 };
 
 // the v3 mnemonic, shown at the foot of every concept card (src/ui/concepts.js)
-export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸。';
+export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸，预期看▽。';
 
 // Keyword -> concept id, used to turn plain rule text into clickable terms (longest first matters).
 export const KEYWORDS = [

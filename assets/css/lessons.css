@@ -359,3 +359,9 @@ body.lesson-on .teach-btn { background: var(--accent); color: #fff; border-color
 /* world lessons: the 地图 page (#world-map, position:fixed, own module) must not hide behind the lesson card (--ls-h = card height, --tb-h = tab bar).
    On every width the map ends above the lesson card, so a box the lesson selects is never covered (the map scales down to fit). */
 body.lesson-on .wm:not([hidden]) .wm-body { padding-bottom: calc(var(--ls-h, 0px) + var(--tb-h, 0px)); }
+
+/* a lesson panel showing its own period (src/ui/lessons.js panelDated): the ledger column and the 本季看点 strip follow the main sim, so dim them
+   and say which period the panel shows */
+body.ls-panel-dated #tab-content > *, body.ls-panel-dated #headline { opacity: .45; }
+body.ls-panel-dated #tab-content::before { content: attr(data-pnote); display: block; margin: 0 0 8px; padding: 6px 10px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface-2); border-left: 3px solid var(--accent); }

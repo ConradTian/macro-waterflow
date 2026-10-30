@@ -50,7 +50,7 @@ export function computeLamps(v, cp = countryParams()) {
 }
 
 const STAGES = ['', '① 借钱扩张', '② 逼近吸程线（缓冲池满）', '③ 岔路口（B1/B2）', '④ 降息尝试重启信用',
-  '⑤ 私人借不动、转向还债', '⑥ 政府接手、央行支持', '⑦ 化债 / 金融压制', '⑧ 偿债压力下降、资产负债表修复'];
+  '⑤ 私人借不动、转向还债', '⑥ 政府接手、央行支持', '⑦ 增长化债（g > r）；到手为负时叫金融压制', '⑧ 偿债压力下降、资产负债表修复'];
 const NEXT = {
   1: '若房价比一年前 >5% 且信贷持续增长 → 进入 ②',
   2: '若通胀 >3.5% 且政策利率上行 → B1；若房价转跌且信贷脉冲转负 → B2（均进入 ③）',
@@ -97,7 +97,9 @@ export function detectRing(v0, prevProbs) {
 //  - a stage advances only to the next one (or skips at most one ahead) when that target's streak >= N
 //  - on moving, all streaks restart (confirmation is measured AFTER arrival); no counter-clockwise moves
 //  - mixed evidence (target's streak > 0 but < N) is shown as `between`, the current stage does not change
-export const LONG_LABEL = { 1: '① 堆债', 2: '② 逼近吸程线（缓冲池满）', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 金融压制·增长化债', 8: '⑧ 修复' };
+export const LONG_LABEL = { 1: '① 堆债', 2: '② 逼近吸程线（缓冲池满）', 5: '⑤ 降息失灵·私人去杠杆', 6: '⑥ 政府接手', 7: '⑦ 增长化债（g > r）', 8: '⑧ 修复' };
+// ⑦'s label when 到手实际利率 (▶ − ▼, realP) < 0 that quarter: the same stage, read as financial repression. Text only, never in the gate.
+export const LONG_LABEL_7_REPRESS = '⑦ 增长化债（到手为负 = 金融压制）';
 export const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 // Short cycle as the learner sees it (Dalio): 扩张 → 过热 → 收紧 → 降息（推得动吗？）. The top comes in two kinds:
 // 物价过热 (inflation high and running up) or 资产过热 (a borrowing-driven boom that breaks: credit shrinks, house prices turn, DSR stretched).
@@ -293,7 +295,7 @@ export function advanceCycles(prev, x0, t, date, cyc = countryParams().cycle) {
     if (streak[m] >= Math.ceil(longN(m, L.stage) / 2)) lbetween = [L.stage, m];
   }
   const longOut = {
-    stage: lstage, label: LONG_LABEL[lstage], between: lbetween,
+    stage: lstage, label: lstage === 7 && x.realP < 0 ? LONG_LABEL_7_REPRESS : LONG_LABEL[lstage], between: lbetween,
     evidence: lev[lnext].map(i => ({ ...i, target: LONG_LABEL[lnext] })), met: holds(lev[lnext]),
     progress: { target: lnext, label: LONG_LABEL[lnext], have: lstreak[lnext] || 0, need: longN(lnext, lstage) },
     nextSignal: LONG_NEXT[lstage], since: lsince,

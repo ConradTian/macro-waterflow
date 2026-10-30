@@ -519,7 +519,13 @@ def le(x, th):
 # ---------------------------------------------------------------- the annual cycle machine
 LONG_ORDER = [1, 2, 5, 6, 7, 8]
 LONG_SYM = {1: "①", 2: "②", 5: "⑤", 6: "⑥", 7: "⑦", 8: "⑧"}
-LONG_TXT = {1: "① 堆债", 2: "② 逼近吸程线（缓冲池满）", 5: "⑤ 私人去杠杆", 6: "⑥ 政府接手", 7: "⑦ 金融压制·增长化债", 8: "⑧ 修复"}
+LONG_TXT = {1: "① 堆债", 2: "② 逼近吸程线（缓冲池满）", 5: "⑤ 私人去杠杆", 6: "⑥ 政府接手", 7: "⑦ 增长化债（g > r）", 8: "⑧ 修复"}
+# ⑦ when the real rate (到手 ▶ − ▼) is negative that year: same stage, read as financial repression (as src/engine/regimes.js)
+LONG_TXT_7_REPRESS = "⑦ 增长化债（到手为负 = 金融压制）"
+
+
+def long_txt(stage, real):
+    return LONG_TXT_7_REPRESS if stage == 7 and nz(real) and real < 0 else LONG_TXT[stage]
 LONG_N = {2: 2, 5: 2, 6: 1, 7: 2, 8: 2, 1: 2}       # years of evidence needed to enter the stage (no skipping)
 SHORT_TXT = {"expand": "扩张", "hotP": "过热·物价", "hotA": "过热·资产", "tight": "收紧", "ease": "降息（推得动吗？）"}
 
@@ -747,7 +753,7 @@ def make_view(P, iso, year, calls):
     else:
         view["call"] = {
             "long": LONG_SYM[k["stage"]], "fork": k["fork"], "short": phase_of(k["phase"]),
-            "shortKey": k["phase"], "labels": {"long": LONG_TXT[k["stage"]], "short": short_label(k)},
+            "shortKey": k["phase"], "labels": {"long": long_txt(k["stage"], f["real"]), "short": short_label(k)},
             "signals": signals(k),
         }
     return view

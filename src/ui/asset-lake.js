@@ -37,7 +37,7 @@ const SUBS = {
           R: [{ name: '公司债', why: '利息靠企业利润：河干了，先出事。', narrow: true }] },
   house: { L: [{ name: '好地段自住房', why: '租金稳：主要看按揭利率，也就是吸力。', narrow: false }],
            R: [{ name: '投资房、新盘', why: '看抽水泵：银行放不放贷。抽水停了，这里先跌。', narrow: true }] },
-  gold: { L: [{ name: '黄金', why: '没有泉眼：只看吸力（实际利率）和怕。', narrow: true }], R: [] },
+  gold: { L: [{ name: '黄金', why: '没有泉眼：只看长端吸力（10 年期 − ▽）和怕。', narrow: true }], R: [] },
 };
 
 // the narrow middle pipe (cash lake ↔ risk pools), read from the engine's dials

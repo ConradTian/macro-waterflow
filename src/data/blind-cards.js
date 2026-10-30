@@ -480,7 +480,7 @@ export const BLIND = {
      "short": "tight",
      "shortKey": "tight",
      "labels": {
-      "long": "⑦ 金融压制·增长化债",
+      "long": "⑦ 增长化债（到手为负 = 金融压制）",
       "short": "收紧·衰退（接 物价过热）"
      },
      "signals": [
@@ -2332,7 +2332,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "⑦ 金融压制·增长化债",
+      "long": "⑦ 增长化债（到手为负 = 金融压制）",
       "short": "降息（推得动吗？）（接 物价过热）"
      },
      "signals": [
@@ -2517,7 +2517,7 @@ export const BLIND = {
      "short": "hot",
      "shortKey": "hotP",
      "labels": {
-      "long": "⑦ 金融压制·增长化债",
+      "long": "⑦ 增长化债（到手为负 = 金融压制）",
       "short": "过热·物价"
      },
      "signals": [
@@ -4575,7 +4575,7 @@ export const BLIND = {
      "short": "ease",
      "shortKey": "ease",
      "labels": {
-      "long": "⑦ 金融压制·增长化债",
+      "long": "⑦ 增长化债（g > r）",
       "short": "降息（推得动吗？）"
      },
      "signals": [
@@ -4762,7 +4762,7 @@ export const BLIND = {
      "short": "expand",
      "shortKey": "expand",
      "labels": {
-      "long": "⑦ 金融压制·增长化债",
+      "long": "⑦ 增长化债（到手为负 = 金融压制）",
       "short": "扩张"
      },
      "signals": [

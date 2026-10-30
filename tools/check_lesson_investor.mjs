@@ -17,7 +17,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { resolve, extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LESSON_INVESTOR, ASSET_ROWS, ASSET_COLS, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../src/data/lesson-investor.js';
+import { LESSON_INVESTOR, ASSET_ROWS, ASSET_COLS, ASSET_TABLE_NOTE, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../src/data/lesson-investor.js';
 import { BLIND } from '../src/data/blind-cards.js';
 import { CONCEPTS } from '../src/data/concepts.js';
 import { AUS_Q } from '../src/data/countries/aus-quarterly.js';
@@ -151,6 +151,19 @@ else {
   });
 }
 
+// the US data check (tools/ASSET-TABLE-CHECK.md) layered on top: a mark per checked cell, 0–3 episodes per row, rewrites only where the check said so
+{
+  const MK = ['对', '部分对', '错', '无样本'], K5 = ['cash', 'bond', 'equity', 'house', 'gold'];
+  check(ASSET_ROWS.every(r => Number.isInteger(r.n) && r.n >= 0 && r.n <= 3 && K5.every(k => MK.includes(r.marks?.[k]))), 'asset table: every checked cell has a mark 对/部分对/错/无样本 and every row an episode count 0–3');
+  check(ASSET_ROWS.every(r => Object.keys(r.show || {}).every(k => K5.includes(k) && r.marks[k] === '错')), 'asset table: only cells marked 错 are rewritten (show)');
+  const G = ['b1', 'cut', 'C'].map(id => ASSET_ROWS.find(r => r.id === id));
+  check(G.every(r => r.cells.gold === '—' && /看吸力（长端 ▶ − ▽ 下降 → 涨）/.test(r.show?.gold || '')), 'asset table: gold 「—」 shows 看吸力 in B1, 降息, C');
+  const b2 = ASSET_ROWS.find(r => r.id === 'b2'), l7 = ASSET_ROWS.find(r => r.id === 'l7'), b1 = ASSET_ROWS.find(r => r.id === 'b1');
+  check(/下跌当中/.test(b2.show?.cash) && /确认时/.test(b2.show?.cash) && /下跌当中/.test(b2.show?.equity) && /确认时/.test(b2.show?.equity), 'asset table: B2 separates 下跌当中 from 确认时');
+  check(b1.marks.bond === '部分对' && /2022/.test(b1.notes?.bond || ''), 'asset table: B1 bonds 部分对 (only 2022)');
+  check(l7.name === '⑦ 增长化债（g > r）' && /到手实际利率/.test(l7.show?.cash || '') && /< 0 才亏/.test(l7.show.cash), 'asset table: ⑦ named 增长化债, cash cell reads 到手实际利率');
+}
+
 /* ---------- 3. JST data ---------- */
 const jy = i => JPN_JST.from + i, jIdx = y => y - JPN_JST.from;
 const csvPath = join(DALIO, 'data/jst_panel.csv');
@@ -237,7 +250,7 @@ specs.forEach(s => console.log('spec ' + s));
   let mono = true; for (let r = TOY.rMin; r < TOY.rMax; r += 0.0025) mono = mono && bond(r + 0.0025) < bond(r) && gold(r + 0.0025) < gold(r) && pe(r + 0.0025) < pe(r);
   check(mono && TOY.rMin + TOY.erp - TOY.growth > 0, 'toy: bonds, gold, equity valuation all fall as the real rate rises (finite on the slider range)');
   check(/玩具/.test(textOf(steps.find(s => s.panel?.id === 'realRate'))) && /玩具公式/.test(labSrc), 'toy formulas are labelled 玩具');
-  check(/还没有用数据逐格验证/.test(textOf(steps.find(s => s.panel?.id === 'assetTable'))) && /还没有用数据逐格验证/.test(labSrc), 'asset table says it is not verified cell by cell');
+  check(/每行只有 1–3 段样本/.test(textOf(steps.find(s => s.panel?.id === 'assetTable'))) && /每行只有 1–3 段样本/.test(ASSET_TABLE_NOTE) && /ASSET_TABLE_NOTE/.test(labSrc), 'asset table says each row rests on 1–3 episodes (map, not law)');
 }
 
 /* ---------- 5b. step 4: assets read 开阀 = 10 年期利率 − ▽ (live engine numbers via vals / derive, as src/ui/lessons.js fills them) ---------- */
@@ -299,7 +312,7 @@ async function browser() {
       const P = rep.panels;
       check(P.gauges?.followed, `${label}: gauges follow the sim (${P.gauges?.follow})`);
       check(['小周期位置', '大周期位置', '实际利率', '估值', '汇率'].every(t => P.gauges?.text.includes(t)), `${label}: five gauges`);
-      check(P.assetTable?.clicked && /还没有用数据逐格验证/.test(P.assetTable.text), `${label}: asset table row tap + caveat`);
+      check(P.assetTable?.clicked && P.assetTable.text.includes(ASSET_TABLE_NOTE) && /部分对/.test(P.assetTable.text), `${label}: asset table row tap + caveat + data-check marks`);
       check(P.realRate?.slid === '+3.00%' && /玩具公式/.test(P.realRate.text), `${label}: real-rate slider moves (${P.realRate?.slid})`);
       check(P.realRate?.reattached, `${label}: same spec re-attaches the live panel to a new host (state kept)`);
       check(['223 倍', '46 倍', '−37%', '+47%', '100 分位', '3 分位'].every(t => P.priced?.text.includes(t)) && P.priced.extra >= 8, `${label}: priced shows the card numbers (panel kept, not in the v3 lesson)`);

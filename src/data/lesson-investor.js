@@ -14,8 +14,15 @@
 //   The last step's `ending` { q1, q2, q3 } (the fixed 三问 of course v3, rendered by the runner) counts as step text for `shown`.
 // The JST series below (JPN_JST) are recomputed from ../dalio_432/data/jst_panel.csv by the same checker when that file is there.
 
-// 资产反应表: handover_macro.md §4.3, copied cell by cell (the checker compares it with the markdown table).
-// row.now: which engine state maps to this row (see investor-lab.js nowRow()); A / C are not engine states.
+// 资产反应表: handover_macro.md §4.3, copied cell by cell (the checker compares `stage` and `cells` with the markdown table, so
+// they stay as the handover wrote them). row.now: which engine state maps to this row (see investor-lab.js nowRow()); A / C are not engine states.
+// The US data check (tools/ASSET-TABLE-CHECK.md, US 1995–2025) is layered on top as extra fields, read by the assetTable panel:
+//   n       independent historical episodes behind the row (段, 0–3; A has none, C is a 1995–99 proxy)
+//   marks   per asset column (fx not checked): 对 / 部分对 / 错 / 无样本
+//   show    what the panel prints instead of the handover text, for cells the check rewrote (cells[] keeps the handover text)
+//   name    the stage name the panel prints, when the course renamed it (⑦ 2026-10-30)
+//   notes   one line per checked cell that needs it, shown under the table when the row is tapped
+const GOLD_PULL = '看吸力（长端 ▶ − ▽ 下降 → 涨）';
 export const ASSET_COLS = [
   { k: 'cash', name: '现金', part: 'cash', spring: '没有泉水：持有成本 = 通胀' },
   { k: 'bond', name: '长期国债', part: 'poolBond', spring: '泉水 = 票息；利率 ↑ 价格 ↓（跷跷板）' },
@@ -25,14 +32,35 @@ export const ASSET_COLS = [
   { k: 'fx', name: '本币', part: null, spring: '本币对外的价格：跌了，手里的外币就值钱' },
 ];
 export const ASSET_ROWS = [
-  { id: 'b1', stage: '③④ B1 加息', cells: { cash: '⬆', bond: '⬇', equity: '⬇/—', house: '⬇', gold: '—', fx: '⬆' } },
-  { id: 'cut', stage: '④→① 降息捷径', cells: { cash: '⬇', bond: '⬆（最先）', equity: '⬆', house: '⬆（滞后）', gold: '—', fx: '⬇' } },
-  { id: 'b2', stage: '⑤ B2 缩水', cells: { cash: '⬆', bond: '⬆⬆', equity: '⬇', house: '⬇⬇', gold: '⬆', fx: '对内⬆ 对外⬇' } },
-  { id: 'l6', stage: '⑥ 接手 + 印钱', cells: { cash: '⬇', bond: '⬆', equity: '⬆', house: '慢升', gold: '⬆', fx: '⬇' } },
-  { id: 'l7', stage: '⑦ 金融压制', cells: { cash: '⬇⬇', bond: '⬇（实际）', equity: '名义⬆', house: '⬆', gold: '⬆⬆', fx: '⬇' } },
-  { id: 'A', stage: 'A 失去信心', cells: { cash: '—', bond: '⬇⬇', equity: '⬇', house: '—', gold: '⬆⬆', fx: '⬇⬇' } },
-  { id: 'C', stage: 'C 生产率强', cells: { cash: '—', bond: '—', equity: '⬆', house: '—', gold: '—', fx: '长期⬆' } },
+  { id: 'b1', stage: '③④ B1 加息', cells: { cash: '⬆', bond: '⬇', equity: '⬇/—', house: '⬇', gold: '—', fx: '⬆' },
+    n: 2, marks: { cash: '对', bond: '部分对', equity: '对', house: '部分对', gold: '错' }, show: { gold: GOLD_PULL },
+    notes: { bond: '只有 2022 年成立；1999–2000、2004–07 加息后半段 10 年期利率已不再升，持有一年反而赚', house: '2005–06 还在涨，2007 才跌',
+      gold: '原写「—」：2005–07 加息当中金价大涨。金价跟着吸力走，不跟加息走' } },
+  { id: 'cut', stage: '④→① 降息捷径', cells: { cash: '⬇', bond: '⬆（最先）', equity: '⬆', house: '⬆（滞后）', gold: '—', fx: '⬇' },
+    n: 3, marks: { cash: '部分对', bond: '对', equity: '部分对', house: '对', gold: '错' }, show: { gold: GOLD_PULL },
+    notes: { bond: '「最先」只部分成立：比股票早，但房价一开始就在涨', equity: '2001–02 降息时股市继续跌', house: '方向对；「滞后」不成立：2001–03 房价一开始就在涨',
+      gold: '原写「—」：降息期金价多半在涨' } },
+  { id: 'b2', stage: '⑤ B2 缩水', cells: { cash: '⬆', bond: '⬆⬆', equity: '⬇', house: '⬇⬇', gold: '⬆', fx: '对内⬆ 对外⬇' },
+    n: 1, marks: { cash: '错', bond: '部分对', equity: '错', house: '对', gold: '对' },
+    show: { cash: '下跌当中 ⬆；确认时（晚 3 季）多已过去', equity: '下跌当中 ⬇；确认时多已在反弹' },
+    notes: { cash: 'B2 连续 3 季才确认（美国 2008Q3）：⬆ 说的是下跌当中，不是确认那一季之后', equity: '从确认那季起算，之后 4 季多半是 2009 年的反弹',
+      bond: '方向 4/6 对，幅度不到 ⬆⬆', house: '6 季起点全部为负' } },
+  { id: 'l6', stage: '⑥ 接手 + 印钱', cells: { cash: '⬇', bond: '⬆', equity: '⬆', house: '慢升', gold: '⬆', fx: '⬇' },
+    n: 1, marks: { cash: '对', bond: '部分对', equity: '对', house: '部分对', gold: '部分对' },
+    notes: { house: '方向对，但不慢：2012–21 实际房价每年约 +4%', gold: '2011–15 金价熊市' } },
+  { id: 'l7', stage: '⑦ 金融压制', name: '⑦ 增长化债（g > r）', cells: { cash: '⬇⬇', bond: '⬇（实际）', equity: '名义⬆', house: '⬆', gold: '⬆⬆', fx: '⬇' },
+    n: 1, marks: { cash: '错', bond: '部分对', equity: '对', house: '部分对', gold: '对' },
+    show: { cash: '看到手实际利率：< 0 才亏（1946–80 式压制）；2023–25 年美国到手为正，不亏' },
+    notes: { cash: '原写「⬇⬇」：2023 起政策利率高于通胀，现金实际是正收益。到手为负时这一站才叫金融压制', house: '基本持平' } },
+  { id: 'A', stage: 'A 失去信心', cells: { cash: '—', bond: '⬇⬇', equity: '⬇', house: '—', gold: '⬆⬆', fx: '⬇⬇' },
+    n: 0, marks: { cash: '无样本', bond: '无样本', equity: '无样本', house: '无样本', gold: '无样本' },
+    notes: { cash: '美国 1995–2025 没有一季是这个状态' } },
+  { id: 'C', stage: 'C 生产率强', cells: { cash: '—', bond: '—', equity: '⬆', house: '—', gold: '—', fx: '长期⬆' },
+    n: 2, marks: { cash: '错', bond: '错', equity: '对', house: '部分对', gold: '错' }, show: { gold: GOLD_PULL },
+    notes: { cash: '引擎没有这一站，用 1995–99 当代理：实际利率约 3%，不是 0', bond: '代理期持有一年实际约 +6%', gold: '原写「—」：90 年代后期金价下跌' } },
 ];
+// the header line of the table (the panel prints it; tools/check_lesson_investor.mjs looks for it)
+export const ASSET_TABLE_NOTE = '按历史事例整理，每行只有 1–3 段样本：当地图用，不当定律';
 
 // Japan 1985-2020 from JST R6 (annual). equity = price index from eq_capgain, 1989 = 100; credit = (thh + tbus) / gdp, %;
 // houseReal = hpnom / cpi, 1991 = 100; gMinusR = nominal GDP growth − ltrate, pp. Same formulas as dalio_432/closeout/scripts/japan_exit_signals.py.
@@ -97,7 +125,7 @@ export const LESSON_INVESTOR = {
       text: [
         '**结论：降息那一行，国债最先涨，股票跟上，房子滞后：债 → 股 → 房。**',
         '点「④→① 降息捷径」那一行，看谁亮。点表头，看每个池子的泉眼从哪来。',
-        '这张表是按历史事例整理的，**还没有用数据逐格验证**。把它当地图用，不要当定律。',
+        '这张表按历史事例整理，**每行只有 1–3 段样本**：当地图用，不当定律。每格的「对 / 部分对 / 错」是拿美国 1995–2025 年的真实数据核对的。',
       ] },
 
     { type: 'reveal', title: '第 3 步：看湖',

@@ -218,7 +218,7 @@ export const LESSON_NOW = {
 
     step({ type: 'reveal', title: '第 2 步：地下：洞多深，离吸程线多远', panel: { id: 'now-ground' },
       text: [
-        '**结论：美国的洞{uHole}，澳洲的洞{aHole}；两国都在 ⑦，地下水位都没跌破吸程线。**',
+        '**结论：美国的洞{uHole}，澳洲的洞{aHole}；两国都在 ⑦ 增长化债（g > r），地下水位都没跌破吸程线。**',
         '洞多深 = 私人债务占 GDP（家庭 + 企业），跟它自己 1995 年以来的平均比。美国 {uPvt}（{uPvtNote}用 {uPvtDate}的），平均 {uPvtAvg}，{uPvtCmp}。澳洲 {aPvt}（{aPvtDate}），平均 {aPvtAvg}，{aPvtCmp}。',
         '离吸程线多远，只读 B2 的证据。{liftCon}。',
         '对照：美国上一次跌破吸程线是 {uB2}；澳洲 {aB2}。',
@@ -264,7 +264,7 @@ export const LESSON_NOW = {
 
     step({ type: 'reveal', title: '第 6 步：三问：今天的答案', panel: { id: 'now-sum' },
       text: [
-        '**结论：两国都在 ⑦（靠增长化债）；河偏满，结账读数（▶ − ▼）贴着 0，湖里有贵的池子。' + NOW_TRUTH + '。**',
+        '**结论：两国都在 ⑦ 增长化债（g > r）；河偏满，结账读数（▶ − ▼）贴着 0，湖里有贵的池子。' + NOW_TRUTH + '。**',
         '数据会更新，答案也会跟着变：下一季的数一发布，这一课的每个数都会重算。',
       ],
       // the fixed 三问, answered for today (USA {dU}, AUS {dA})

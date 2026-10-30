@@ -125,6 +125,11 @@ body[data-layout="simple"]:not(.lesson-on) .tabbar { display: none; }
   .flow-svg .ttl { font-weight: 600; }
   .flow-svg .sub.num { font-weight: 500; }
 }
+/* WIDE (>= 1280px): the diagram column may take up to 58% (it is height-bound there: --flow-col = the drawing's width at full height, now
+   including the wider RULER SLOT, flow.js WIDE_MQ), so the labels breathe; the right column keeps >= 42% */
+@media (min-width: 1280px) {
+  .main { grid-template-columns: minmax(400px, min(58%, 960px, var(--flow-col, 620px))) 1fr; }
+}
 
 /* ---------- shared components ---------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
@@ -809,6 +814,15 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
 .flow-svg .rl-cpi { fill: none; stroke: var(--exg-m, var(--c-repay)); stroke-width: .7; stroke-opacity: .55; stroke-dasharray: 1.6 1.4; }
 .flow-svg .rl-cpi-dot { fill: var(--exg-m, var(--c-repay)); fill-opacity: .7; }
 .flow-svg .v3-rlcpi.off { display: none; }
+/* WIDE (>= 1280px, flow.js WIDE_MQ / .rl-wide): the slot grows left; ▶ ▼ ▽ + value beside their marks; the CPI → ▼ link as a solid coloured line */
+.flow-svg .rl-vals { display: none; }
+.flow-wrap.rl-wide .flow-svg .rl-vals { display: inline; }
+.flow-svg .rl-v { font-size: 6.6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-svg .rl-vp { fill: var(--exg-p, var(--text)); }
+.flow-svg .rl-vm { fill: var(--exg-m, var(--c-repay)); }
+.flow-svg .rl-ve { fill: var(--exg-e, var(--c-fiscal)); }
+.flow-wrap:not(.phone) .flow-svg .rl-cpi { stroke-width: 1.2; stroke-opacity: .9; stroke-dasharray: none; }
+.flow-wrap:not(.phone) .flow-svg .rl-cpi-dot { fill-opacity: 1; }
 /* the flash in engine-lag order (fiveTurns): a soft glow, one group after another */
 @keyframes rl-flash { 0% { filter: none; } 35% { filter: drop-shadow(0 0 3px var(--rl-flash, var(--accent))) drop-shadow(0 0 1.5px var(--rl-flash, var(--accent))); } 100% { filter: none; } }
 .flow-svg .rl-flash { animation: rl-flash .9s ease-in-out both; }

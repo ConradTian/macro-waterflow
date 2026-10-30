@@ -26,8 +26,8 @@ const LAMPS = [
 ];
 const LONG_ORDER = [1, 2, 5, 6, 7, 8];
 const LONG_MARK = { 1: '①', 2: '②', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧' };
-const LONG_NAME = { 1: '堆债', 2: '逼近吸程线', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '金融压制·增长化债', 8: '修复' };
-const LONG_NODE = { 1: '堆债', 2: '逼近吸程线', 5: '私人去杠杆', 6: '政府接手', 7: '压制化债', 8: '修复' };
+const LONG_NAME = { 1: '堆债', 2: '逼近吸程线', 5: '降息失灵·私人去杠杆', 6: '政府接手', 7: '增长化债（g > r）', 8: '修复' };
+const LONG_NODE = { 1: '堆债', 2: '逼近吸程线', 5: '私人去杠杆', 6: '政府接手', 7: '增长化债', 8: '修复' };
 // short names for the dial (cards and texts use KEY_LABEL). B1/B2 are NOT short-cycle names any more: they are the long cycle's fork after ②.
 const SHORT_NAME = { expand: '扩张', hot: '过热', tight: '收紧', ease: '降息' };
 const SHORT_GLYPH = { expand: '扩', hot: '热', tight: '紧', ease: '降' };
@@ -109,7 +109,7 @@ export function longDial(L) {
   const cur = nodes[L.stage];
   const over = L.b1Overlay ? `<g class="cy-b1badge"><circle cx="${f1(cur.x + 15)}" cy="${f1(cur.y - 15)}" r="9"/><text x="${f1(cur.x + 15)}" y="${f1(cur.y - 12)}" text-anchor="middle">B1</text></g>` : '';
   const c3 = L.b1Overlay ? '叠着 B1 溢出' : L.fork ? (L.fork === 'B2' ? 'B2：跌破吸程线' : '岔路：B1 溢出') : b2Pend ? `B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季` : '';
-  const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${LONG_MARK[L.stage]} ${esc(LONG_NAME[L.stage].split('·')[0])}</text>` +
+  const centre = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" class="cy-c1">${LONG_MARK[L.stage]} ${esc(LONG_NAME[L.stage].split(/[·（]/)[0])}</text>` +
     `<text x="${cx}" y="${cy + 12}" text-anchor="middle" class="cy-c2">${L.between ? `在 ${LONG_MARK[L.between[0]]} 与 ${LONG_MARK[L.between[1]]} 之间` : '慢变量·以年计'}</text>` +
     (c3 ? `<text x="${cx}" y="${cy + 28}" text-anchor="middle" class="cy-c3${L.b1Overlay ? ' b1' : ''}">${esc(c3)}</text>` : '');
   return dialSvg({ id: 'L', nodes, edges, cur: L.stage, between: L.between, centre, under, over,

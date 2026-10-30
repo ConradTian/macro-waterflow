@@ -8,7 +8,7 @@
 import { currentSim } from './flow.js';
 import { flash, clearFlash } from './links.js';
 import { LONG_LABEL } from '../engine/regimes.js';
-import { ASSET_COLS, ASSET_ROWS, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../data/lesson-investor.js';
+import { ASSET_COLS, ASSET_ROWS, ASSET_TABLE_NOTE, JPN_JST, JPN_SIGNALS, TOY, nowRate } from '../data/lesson-investor.js';
 import { lakeHtml, lakeAct, ensureLakeCss } from './asset-lake.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -189,7 +189,7 @@ function gaugesHtml(m, snap) {
       <p class="ivl-gm">${cur}比一年前 <b>${pct(chg)}</b>（对美元）。${esc(mean)}</p></section>`;
   }
   const nr = nowRow(snap), row = ASSET_ROWS.find(r => r.id === nr.id);
-  const now = `<p class="ivl-now"><span>→ 现在该查表的</span> <b>${row ? esc(row.stage) + ' 这一行' : '（表里没有对应行）'}</b>${nr.note ? `<small>${esc(nr.note)}</small>` : ''}</p>`;
+  const now = `<p class="ivl-now"><span>→ 现在该查表的</span> <b>${row ? esc(stageName(row)) + ' 这一行' : '（表里没有对应行）'}</b>${nr.note ? `<small>${esc(nr.note)}</small>` : ''}</p>`;
   return `<div class="ivl-head"><b>五个表</b><span class="ivl-date">${esc(CUR[iso] ? iso : '')} · ${esc(snap.date || '')}</span></div>
     <div class="ivl-gauges">${g1}${g2}${g3}${g4}${g5}</div>${now}`;
 }
@@ -208,6 +208,15 @@ function cellKind(t) {
   if (dn) return /—/.test(t) ? 'lose' : dn > 1 ? 'lose2' : 'lose';
   return 'flat';
 }
+// what the panel prints: the US data check's rewrite (row.show) over the handover text (row.cells, pinned by the checker)
+const cellText = (r, k) => (r.show && r.show[k]) || r.cells[k];
+const stageName = r => r.name || r.stage;
+const MARK_CLS = { '对': 'ok', '部分对': 'part', '错': 'bad', '无样本': 'na' };
+function markHtml(r, k) {
+  const mk = r.marks && r.marks[k];
+  if (!mk) return '';
+  return `<small class="ivl-mk mk-${MARK_CLS[mk] || 'na'}">${esc(mk)}${r.show && r.show[k] ? '·已改' : ''}</small>`;
+}
 function tableHtml(m) {
   const st = m.st, snap = snapOf(m), nr = snap ? nowRow(snap) : { id: null };
   st.now = nr.id;
@@ -216,27 +225,29 @@ function tableHtml(m) {
   const rows = ASSET_ROWS.map(r => {
     const sel = r.id === st.sel;
     return `<tr class="${sel ? 'sel' : ''}${r.id === st.now ? ' now' : ''}" data-act="row" data-id="${r.id}" tabindex="0" role="button" aria-pressed="${sel}">` +
-      `<th scope="row" class="stg">${esc(r.stage)}${r.id === st.now ? '<span class="ivl-tag now">现在</span>' : ''}</th>` +
-      ASSET_COLS.map(c => { const t = r.cells[c.k]; return `<td class="k-${cellKind(t)}${st.col === c.k ? ' colsel' : ''}">${esc(t)}</td>`; }).join('') + '</tr>';
+      `<th scope="row" class="stg">${esc(stageName(r))}${r.id === st.now ? '<span class="ivl-tag now">现在</span>' : ''}<small class="ivl-n">${r.n ? r.n + ' 段样本' : '无样本'}</small></th>` +
+      ASSET_COLS.map(c => { const t = cellText(r, c.k); return `<td class="k-${cellKind(t)}${st.col === c.k ? ' colsel' : ''}${t.length > 8 ? ' long' : ''}"><span>${esc(t)}</span>${markHtml(r, c.k)}</td>`; }).join('') + '</tr>';
   }).join('');
   const R = ASSET_ROWS.find(r => r.id === st.sel);
-  let sum = '<p class="ivl-sum">点一行，看谁赢谁输。</p>';
+  let sum = '<p class="ivl-sum">点一行，看谁赢谁输。</p>', chk = '';
   if (R) {
-    const pick = f => ASSET_COLS.filter(c => f(cellKind(R.cells[c.k]))).map(c => c.name);
+    const pick = f => ASSET_COLS.filter(c => f(cellKind(cellText(R, c.k)))).map(c => c.name);
     const win = pick(k => k === 'win' || k === 'win2'), lose = pick(k => k === 'lose' || k === 'lose2'), mix = pick(k => k === 'mix');
-    sum = `<p class="ivl-sum"><b>${esc(R.stage)}</b>　<span class="w">赢：${esc(win.join('、') || '—')}</span>　<span class="l">输：${esc(lose.join('、') || '—')}</span>${mix.length ? `　<span>两头：${esc(mix.join('、'))}</span>` : ''}</p>`;
+    sum = `<p class="ivl-sum"><b>${esc(stageName(R))}</b>　<span class="w">赢：${esc(win.join('、') || '—')}</span>　<span class="l">输：${esc(lose.join('、') || '—')}</span>${mix.length ? `　<span>两头：${esc(mix.join('、'))}</span>` : ''}</p>`;
+    const lines = ASSET_COLS.filter(c => R.notes && R.notes[c.k]).map(c => `<li><b>${esc(c.name)}</b> ${markHtml(R, c.k)} ${esc(R.notes[c.k])}</li>`);
+    chk = `<div class="ivl-chk"><p>美国 1995–2025 核对：${R.n ? R.n + ' 段样本' : '没有样本'}${R.id === 'C' ? '（1995–99 当代理）' : ''}</p>${lines.length ? `<ul>${lines.join('')}</ul>` : ''}</div>`;
   }
   const C = ASSET_COLS.find(c => c.k === st.col);
   const colNote = C ? `<p class="ivl-col"><b>${esc(C.name)}</b>　${esc(C.spring)}</p>` : '';
   return `<div class="ivl-head"><b>资产反应表</b><span class="ivl-date">${snap ? esc(snap.date || '') : ''}</span></div>
-    <p class="ivl-warn"><b>注意</b> 按历史事例整理（Dalio 框架 + 几段历史），还没有用数据逐格验证。当地图用，不当定律。</p>
-    <div class="ivl-tw"><table class="ivl-at">${head}${rows}</table></div>${sum}${colNote}
-    <p class="ivl-legend"><span class="k-win2">⬆ 赢</span><span class="k-lose2">⬇ 输</span><span class="k-mix">两头</span><span class="k-flat">— 看不出</span>　A、C 不是周期的一站，模型里不会亮「现在」。</p>`;
+    <p class="ivl-warn"><b>注意</b> ${esc(ASSET_TABLE_NOTE)}。</p>
+    <div class="ivl-tw"><table class="ivl-at">${head}${rows}</table></div>${sum}${chk}${colNote}
+    <p class="ivl-legend"><span class="k-win2">⬆ 赢</span><span class="k-lose2">⬇ 输</span><span class="k-mix">两头</span><span class="k-flat">— 看不出</span>　<span class="ivl-mk mk-ok">对</span><span class="ivl-mk mk-part">部分对</span><span class="ivl-mk mk-bad">错</span> = 美国 1995–2025 数据核对；「已改」= 原表这一格不对，改写过；本币列没有核对。A、C 不是周期的一站，模型里不会亮「现在」。</p>`;
 }
 function lightRow(m) {
   const R = ASSET_ROWS.find(r => r.id === m.st.sel);
   if (!R) return;
-  const parts = ASSET_COLS.filter(c => c.part && /win/.test(cellKind(R.cells[c.k]))).map(c => c.part);
+  const parts = ASSET_COLS.filter(c => c.part && /win/.test(cellKind(cellText(R, c.k)))).map(c => c.part);
   try { if (parts.length) flash({ parts }, 3500); else clearFlash(); } catch (e) { /* no diagram on this page */ }
 }
 const assetTable = {
@@ -552,7 +563,7 @@ function blindHtml(m) {
       `<a class="btn ivl-go" href="${esc(href)}" target="_blank" rel="noopener">打开 ↗</a></li>`;
   }).join('');
   return `<div class="ivl-head"><b>去历史盲测里练</b><span class="ivl-date">3 张练习卡</span></div>
-    <ol class="ivl-do"><li>定位置（五个表）</li><li>查资产反应表</li><li>看湖：水从哪根管子进</li><li>看吸力（实际利率）</li></ol>
+    <ol class="ivl-do"><li>定位置（五个表）</li><li>查资产反应表</li><li>看湖：水从哪根管子进</li><li>看长端吸力（10 年期 − ▽）</li></ol>
     <ol class="ivl-cards">${cards}</ol>
     <a class="btn primary ivl-all" href="${esc(base)}" target="_blank" rel="noopener">进入历史盲测：整副 ${Object.keys(by).length || ''} 张牌 ↗</a>
     <p class="ivl-note">盲测页面没有专门的教学模式：这三张就是普通卡，在新窗口打开，这一课留在这里。</p>`;

@@ -510,6 +510,16 @@ function dropPanel() {
   document.body.classList.remove('ls-panel-on');
   if (card) card.classList.remove('ls-pcard');
   pnl = null;
+  panelDated(null);
+}
+// a panel that shows its own period (spec.date / dates / chips, e.g. L3 step 2: 2022Q1 while the sim stands at 2001Q2): dim the ledger column and the
+// 本季看点 strip (they follow the main sim) and say which period the panel shows (CSS: body.ls-panel-dated, #tab-content[data-pnote])
+const panelPeriod = spec => { const d = arr(spec && (spec.chips || spec.dates)); return d.length ? d.join(' / ') : (spec && spec.date) || null; };
+function panelDated(spec, where) {
+  const pd = panelPeriod(spec), now = ctx && ctx.getSnap ? (ctx.getSnap() || {}).date : null;
+  const on = !!pd && pd !== now, tab = document.getElementById('tab-content');
+  document.body.classList.toggle('ls-panel-dated', on);
+  if (tab) { if (on) tab.dataset.pnote = `${where === 'diagram' && !(typeof matchMedia === 'function' && matchMedia('(max-width: 767.98px)').matches) ? '左边' : '上方'}面板看的是 ${pd}`; else delete tab.dataset.pnote; }
 }
 // the panel the step shows now: an open drill-down's panel, else the step's own
 const curSpec = st => (st && ss.drill != null && st.drills && st.drills[ss.drill] ? st.drills[ss.drill].panel : st && st.panel);
@@ -536,6 +546,7 @@ function syncPanel() {
     mountPanel(kind, host, spec);                            // 投资者: an equal spec moves the live panel into the new host (keeps its state)
   }
   document.body.classList.add('ls-panel-on');
+  panelDated(spec, where);
 }
 
 function enterStep(i) {
