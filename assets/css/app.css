@@ -393,7 +393,7 @@ button.term:hover { text-decoration-style: solid; }
 }
 
 /* =====================================================================================================================
-   PHONE (<768px) "main-trunk" diagram (flow.js crops the viewBox to 434 high on phone).
+   PHONE (<768px) diagram (flow.js: one place at a time outside a lesson, the whole picture in a lesson; see the v3.1 section).
    Hidden here (DOM stays, hidden by class/CSS only): legend row (-> 图例 button + sheet), spring source captions, 买取水权 caption,
    Capex caption, 欠条箱 sub-caption, valve text labels (the popover names the valve), QT / 盈余 drains while their flow is 0.
    Remaining text is bumped to >= 10px; the water budget collapses to one tappable line.
@@ -541,8 +541,6 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
 .flow-svg .bd-p { cursor: pointer; }
 .flow-svg .bd-p text { fill: var(--text); font-size: 10.5px; font-weight: 600; }
 .flow-svg .bd-p:focus-visible .bd-pill { stroke-width: 2.6; outline: none; }
-.flow-svg.has-border .legend { transform: translateY(41px); }          /* the legend row moves under the border zone */
-.flow-svg.has-border .bd-shift { transform: translateX(14px); }        /* make room for the foreign-bond pipe at x = 16 */
 .flow-svg g.bd-gate.cc-hl > .bd-gbox { stroke-width: 2.6; }
 .flow-bpop { position: absolute; right: 8px; bottom: 44px; z-index: 19; width: min(300px, calc(100% - 16px)); background: var(--surface);
   border: 1.5px solid var(--c-border); border-radius: 14px; box-shadow: var(--shadow); padding: 6px 12px 8px; font-size: 13px; }
@@ -744,34 +742,97 @@ body.no-sync .wv-btn[data-act="wv-win"], body.no-sync .wv-btn[data-act="wv-follo
   .flow-svg .sec-dim { stroke-width: 1.1; }
 }
 
-/* ---------- water diagram v3 (tools/DESIGN-v3.md; flow.js buildV3 / applyV3 / highlightRole) ---------- */
-.flow-svg .weir-sill { fill: var(--surface-2); stroke: var(--c-goods); stroke-width: 1.2; }
-.flow-svg .weir-mouth { stroke: var(--c-goods); stroke-width: 2.2; stroke-linecap: round; }
-.flow-svg .weir-t { fill: var(--c-goods); font-weight: 600; }
-.flow-svg .spw { fill: none; stroke: var(--c-pipe); stroke-width: 1; stroke-dasharray: 2 2; stroke-opacity: .8; }
-.flow-svg .rch-t { fill: var(--c-drain); font-weight: 600; }
-.flow-svg .gw-band { fill: #e9dcc6; stroke: #b49a72; stroke-width: .8; }
-.flow-svg .gw-water { fill: #5f8fc6; fill-opacity: .45; }
-.flow-svg .gw-table { stroke: #2f5f99; stroke-width: 1.8; }
-.flow-svg .v3-gw.below .gw-water { fill: #9a6a3a; fill-opacity: .35; }
+/* ---------- water diagram v3.1 (tools/DESIGN-v3.md; flow.js build / buildV3 / applyV3 / syncView / highlightRole) ----------
+   河 = the ring (家庭 → 测流断面 → 企业 → 分水堰 → 工资), 湖 = the lake row with the RULER SLOT (吸力), 地下 = the groundwater band at the bottom. */
+:root { --c-soil: #e7dbc6; --c-soil-edge: #b49a72; --c-gw: #5f8fc6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-soil: #4a4034; --c-soil-edge: #8a7559; --c-gw: #6d9fd6; } }
+:root[data-theme="dark"] { --c-soil: #4a4034; --c-soil-edge: #8a7559; --c-gw: #6d9fd6; }
+/* the ring: THE backbone */
+.flow-svg .loop-ring { fill: none; stroke: var(--c-goods); stroke-opacity: .28; stroke-width: 13; stroke-linejoin: round; }
+.flow-svg .loop-arr { fill: var(--c-goods); fill-opacity: .9; }
+.flow-svg .loop-lbl rect { fill: var(--surface); fill-opacity: .95; stroke: var(--c-goods); stroke-opacity: .7; stroke-width: 1.2; }
+.flow-svg .loop-lbl text.loop-big { fill: var(--c-goods); font-size: 10.5px; font-weight: 800; }
+.flow-svg .loop-lbl { cursor: pointer; }
+/* 分水堰 */
+.flow-svg .weir-box { fill: color-mix(in srgb, var(--c-goods) 12%, var(--surface)); stroke: var(--c-goods); stroke-width: 1.6; }
+.flow-svg .weir-sill { fill: none; stroke: var(--c-goods); stroke-width: 2.4; stroke-linecap: round; }
+.flow-svg .weir-mouth { stroke: var(--c-goods); stroke-width: 2.6; stroke-linecap: round; }
+.flow-svg .weir-t { fill: var(--c-goods); font-weight: 800; font-size: 9px; }
+.flow-svg .spw { fill: none; stroke: var(--c-pipe); stroke-width: 1; stroke-dasharray: 2 2; stroke-opacity: .85; }
+.flow-svg .rch-t { fill: var(--c-drain); font-weight: 700; }
+/* 地下: soil (L-water), water body + table (L-long), 吸程线 */
+.flow-svg .gw-soil { fill: var(--c-soil); }
+.flow-svg .gw-surface { stroke: var(--c-soil-edge); stroke-width: 1.4; fill: none; }
+.flow-svg rect.node.gw-band { fill: none; stroke: var(--c-soil-edge); stroke-width: .8; }
+.flow-svg .gw-water { fill: var(--c-gw); fill-opacity: .6; }
+/* 溢出 (cash lake -> the river) is a short side pipe: only drawn while water actually spills */
+.flow-svg g[data-pipe="spillToGoods"].idle:not(.ls-hl-pipe):not(.rp-on) { display: none; }
+.flow-svg .gw-table { stroke: #2f5f99; stroke-width: 1.8; fill: none; }
+.flow-svg .v3-gw.below .gw-water { fill: var(--c-gw); fill-opacity: .25; }
 .flow-svg .v3-gw.below .gw-table { stroke: var(--c-drain); }
 .flow-svg .v3-gw.noev .gw-table { stroke-dasharray: 2 2; stroke-opacity: .6; }
-.flow-svg .gw-lift { stroke: var(--c-drain); stroke-width: 1.2; stroke-dasharray: 3 2; }
-.flow-svg .gw-lt { fill: var(--c-drain); font-size: 6.5px; }
-.flow-svg .sk-dial { fill: var(--surface); stroke: var(--accent); stroke-width: 1.6; }
-.flow-svg .sk-ptr { stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; }
+.flow-svg .gw-lift { stroke: var(--c-drain); stroke-width: 1.3; stroke-dasharray: 4 2.5; fill: none; }
+.flow-svg .gw-lt { fill: var(--c-drain); font-weight: 600; }
+.flow-svg .gw-name { fill: var(--text); font-weight: 700; }
+.flow-svg .gw-hole { fill: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-svg .gw-stat { fill: var(--muted); font-weight: 600; }
+.flow-svg .gw-stat.below { fill: var(--c-drain); }
+.flow-svg .gw-name, .flow-svg .gw-hole, .flow-svg .gw-stat, .flow-svg .gw-lt { paint-order: stroke; stroke: var(--c-soil); stroke-width: 2.6px; stroke-linejoin: round; }
+.flow-svg .deep-ring { fill: none; stroke: var(--c-pump); stroke-width: 1; stroke-dasharray: 2 2; }
+/* RULER SLOT: the reserved box of the 吸力 knob (a vertical gauge can replace the knob later) */
+.flow-svg .ruler-box { fill: var(--surface-2); stroke: var(--accent); stroke-opacity: .45; stroke-width: 1; stroke-dasharray: 3 2; }
+.flow-svg .sk-n { fill: var(--accent); font-weight: 800; }
+.flow-svg .sk-v { fill: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-svg .sk-dial { fill: var(--surface); stroke: var(--accent); stroke-width: 1.8; }
+.flow-svg .sk-ptr { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
 .flow-svg .v3-suction.neg .sk-dial { stroke: var(--c-drain); }
-.flow-svg .sk-a { fill: var(--muted); font-size: 6.8px; }
-.flow-svg .fs-new { stroke: var(--c-pump); stroke-width: 1.4; }
-.flow-svg .fs-lake { stroke: var(--c-pipe); stroke-width: 1.4; stroke-dasharray: 2.5 2; }
-.flow-svg .fs-t { fill: var(--muted); font-size: 6.5px; }
+.flow-svg .sk-a { fill: var(--muted); font-size: 7.4px; }
+.flow-svg .sk-a.sk-b { fill: var(--text); font-weight: 700; }
+.flow-svg .sub.cbr { font-size: 9.3px; }
+/* 政府深井泵 */
+.flow-svg .fs-new { stroke: var(--c-pump); stroke-width: 1.4; fill: none; }
+.flow-svg .fs-lake { stroke: var(--c-pipe); stroke-width: 1.4; stroke-dasharray: 2.5 2; fill: none; }
+.flow-svg .fs-t { fill: var(--muted); font-size: 7px; }
 .flow-v3cap { flex: none; display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 2px 10px 3px; font-size: 11.5px; color: var(--muted); }
 .flow-v3cap .v3-mn { color: var(--text); font-weight: 600; }
+.flow-v3cap .v3-vc[hidden] { display: none; }
 .flow-legend .fl-mn { color: var(--text); }
 @media (max-width: 767.98px) { .flow-v3cap { display: none; } }
 /* role -> valves (highlightRole): glow the role's valves, dim the others */
 .flow-wrap.role-hl [data-valve]:not(.rv-on) { opacity: .28; }
 .flow-wrap.role-hl .rv-on { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
+/* PHONE: one place at a time (flow.js syncView: .flow-wrap.placed + data-place; the viewBox is that place's box). The 吸力 knob is moved
+   into every place. The drawing takes its own height; the place card under it fills the rest. Lessons show the whole picture. */
+.flow-places, .flow-place-card { display: none; }
+@media (max-width: 767.98px) {
+  .flow-wrap.placed > .flow-places { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 8px 3px; }
+  .flow-places button { min-width: 52px; min-height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .flow-places button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .flow-places button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .flow-places .fpl-hint { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .flow-wrap.placed > .flow-svg { flex: 0 1 auto; }
+  .flow-wrap.placed > .flow-place-card { display: block; flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 4px 12px 6px; font-size: 13px; line-height: 1.5;
+    color: var(--muted); border-top: 1px dashed var(--border); }
+  .flow-place-card b { color: var(--text); }
+  .flow-place-card > b:first-child { display: block; font-size: 13.5px; }
+  .flow-place-card span { display: block; }
+  .flow-place-card .fpc-vc { margin-top: 3px; color: var(--text); font-size: 12.5px; }
+  .flow-place-card:empty { display: none !important; }
+  body.lesson-on .flow-places, body.lesson-on .flow-place-card { display: none !important; }
+  .flow-svg .sk-a { font-size: 8px; }
+  .flow-wrap[data-place="river"] .ruler-box, .flow-wrap[data-place="ground"] .ruler-box { display: none; }   /* moved knob: only the knob, not its reserved box */
+  .flow-svg .gw-lt, .flow-svg .fs-t { font-size: 9px; }
+  /* the place row carries the two top-right buttons (曲线 / 显示全部) beside the switch, so they never cover the drawing */
+  #diagram:has(> .flow-wrap.placed) > .view-toggle { top: 4px; right: 6px; min-height: 32px; padding: 0 10px; font-size: 12.5px; }
+  #diagram:has(> .flow-wrap.placed) > .layers-toggle { top: 6px; right: 6px; }
+  #diagram:has(> .flow-wrap.placed) > .view-toggle:not([hidden]) ~ .layers-toggle { top: 6px; right: 96px; }
+  #diagram:has(> .flow-wrap.placed) .flow-places button { min-width: 44px; padding: 0 10px; }
+  #diagram:has(> .view-toggle:not([hidden])) .fpl-hint { display: none; }
+  /* the ground place: the lake row above the band is only context */
+  .flow-wrap[data-place="ground"] .flow-svg [data-part~="pool"], .flow-wrap[data-place="ground"] .flow-svg [data-part~="springs"],
+  .flow-wrap[data-place="ground"] .flow-svg [data-node="cash"], .flow-wrap[data-place="ground"] .flow-svg .water.cash { opacity: .35; }
+}
 
 /* =====================================================================================================================
    PROGRESSIVE DIAGRAM (tools/COURSE-V3.md; table src/data/layers.js, state app.js syncLayers): body.layers-on + body[data-layers="L-water ..."]
@@ -823,8 +884,8 @@ body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
   :root {
     --app-w: min(100vw, 2000px);
     --top-h: 104px;                       /* time bar 46 + progress row 24 + the shared 总目标 / 本季看点 row 32 + border */
-    /* diagram column: the drawing's width at full height (viewBox 390×512, + 8px padding each side + border) */
-    --dcol: clamp(480px, calc((100dvh - var(--top-h) - 20px) * 0.762 + 17px), 900px);
+    /* diagram column: the drawing's width at full height (viewBox 390×502 with the border band, + 8px padding each side + border) */
+    --dcol: clamp(480px, calc((100dvh - var(--top-h) - 20px) * 0.777 + 17px), 900px);
     --fb-h: 64px;                         /* the 本季水量 card in the right column */
     --fb-gap: 12px;
   }
@@ -847,7 +908,7 @@ body.layers-on:not([data-layers~="L-border"]) #btn-map { opacity: .45; }
   /* the two columns */
   .main { grid-template-columns: var(--dcol) minmax(0, 1fr); }
   /* at the 900px cap (very tall ultrawides) the box would be taller than the drawing: size it to the drawing so it is not centred in white */
-  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - var(--top-h) - 20px); height: min(calc(100dvh - var(--top-h) - 20px), calc((var(--dcol) - 17px) * 1.313)); }
+  .flow-wrap > .flow-svg { flex: none; max-height: calc(100dvh - var(--top-h) - 20px); height: min(calc(100dvh - var(--top-h) - 20px), calc((var(--dcol) - 17px) * 1.287)); }
 
   /* 本季水量: a card at the top of the right column (positioned from #diagram, which is position: relative) */
   .flow-budget { position: absolute; z-index: 5; top: var(--fb-gap); left: calc(100% + 24px); width: calc(var(--app-w) - var(--dcol) - 48px);

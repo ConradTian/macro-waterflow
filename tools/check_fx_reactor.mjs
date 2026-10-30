@@ -308,7 +308,8 @@ if (!process.env.NOBROWSER) {
     say(band.date === '2008Q4' && band.shown && band.pipes === 2 && band.needle && band.anchor, `AUS 2008Q4 border band: reactor drawn (2 pipes, needle, anchor): ${JSON.stringify(band)}`);
     say(band.txt.includes(`${Math.abs(R.actual).toFixed(0)}%`) && band.txt.includes('/美元') && band.txt.includes(`${Math.abs(R.anchor.value).toFixed(0)}%`), `band readings = the numbers (澳元 ${R.actual.toFixed(0)}%, 比锚 ${R.anchor.value.toFixed(0)}%): ${band.txt}`);
     const lim = await ev(`(()=>{const g=document.querySelector('.bd-fxr').getBBox(); return [g.y, g.y + g.height]})()`);
-    say(lim[0] >= 455 && lim[1] <= 497.5, `reactor stays inside the border band (y ${lim.map(x => x.toFixed(1)).join('–')}, band 461–497, the needle head reaches the line)`);
+    // v3.1 picture: the border band sits ABOVE the drawing (flow.js BD_TOP -48 .. BD_LINE -4); was 461–497 under it
+    say(lim[0] >= -54 && lim[1] <= -3.5, `reactor stays inside the border band (y ${lim.map(x => x.toFixed(1)).join('–')}, band -48–-4, the needle head reaches the top edge)`);
     await click('.bd-fxr [data-fxr-pipe="cap"]'); await sleep(300);
     const pop = await ev(`(()=>{const p=document.querySelector('.fxr-pop'); return p ? { hidden: p.hidden, open: !!p.querySelector('.fxr-forces[open]'), hl: (p.querySelector('.fxr-grp.hl')||{}).dataset?.grp, n: p.querySelectorAll('.fxr-f').length, t: p.textContent } : null})()`);
     say(pop && !pop.hidden && pop.open && pop.hl === 'cap' && pop.n === 5, `desktop: tapping 资本管 opens the five forces with 资本管 highlighted: ${pop && JSON.stringify({ ...pop, t: undefined })}`);

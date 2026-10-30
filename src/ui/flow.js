@@ -46,14 +46,20 @@ import { layerShown } from './progress.js';
 import { computeFxReactor, reactorSvg, reactorHtml, usdIndexAt, usdHtml, reactorLine, wireFxReactor, ensureFxReactorCss, installFxCardHook, openForcesIn } from './fx-reactor.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const VB_W = 390, VB_H = 472;
-// Phone (<768px): "main-trunk" mode. Same DOM, extra captions hidden by CSS (.ph-hide etc.) and the viewBox cropped below the spring sources.
-const PH_VB_H = 434;
-// 国境线 block: dashed line at BD_LINE, foreign zone down to BD_BOT; the legend row moves down by BD_LEG while the border is on; VB_HB = taller viewBox then
-const BD_LINE = 461, BD_BOT = 497, BD_LEG = 41, VB_HB = 512;
-// FX reactor inside the band (viewBox units): track x0..x1 (zero = cx, under the gate), pipe rows, needle top..bot, the 说不清 bracket at gapY,
-// pipe names right-aligned at lab, the readings column from tx (right of it the 出口 / 进口 chips start at ~318)
-const FXR = { x0: 150, x1: 246, cx: 198, lab: 146, tx: 252, top: BD_LINE + 4, rows: [BD_LINE + 8, BD_LINE + 16.5], bot: BD_LINE + 21, gapY: BD_LINE + 25, fs: 7.4, range: 25, compact: true };
+// v3.1 picture (tools/DESIGN-v3.md): three places stacked in one 390-wide drawing.
+//   河 (y 0..198): the RING  家庭 → 测流断面 → 企业 → 分水堰 → 工资 → 家庭 (the backbone 「我花的 = 你赚的」), 政府 above the firm.
+//   湖 (y 198..360): the lake row  [RULER SLOT: 吸力][央行 + 现金湖][国债 黄金 股票 房产][银行] + the springs under the pools (wired from the weir).
+//   地下 (y 360..420): the groundwater band across the bottom; 抽水 pipes go UP out of it, 回灌 goes DOWN into it; 吸程线 + 地下的洞.
+const VB_W = 390, VB_H = 462;
+// Phone (<768px) outside a lesson: ONE place at a time (the 河 / 湖 / 地下 switch above the drawing). viewBox = that place's box.
+const PLACES = { river: [0, 0, 390, 200], lake: [0, 196, 390, 168], ground: [0, 286, 390, 156] };
+const PLACE_NAMES = { river: '河', lake: '湖', ground: '地下' };
+// 国境线 block: a band ABOVE the picture (y < 0). The dashed border line at BD_LINE, the foreign zone BD_TOP..BD_LINE; the viewBox starts at
+// -BD_H while the border is on (desktop only: the phone keeps the compact 净出口 gate).
+const BD_TOP = -48, BD_LINE = -4, BD_H = 52;
+// FX reactor inside the band (viewBox units): track x0..x1 (zero = cx, over the gate), pipe rows, needle top..bot, the 说不清 bracket at gapY,
+// pipe names right-aligned at lab, the readings column from tx (right of it the 出口 / 进口 chips)
+const FXR = { x0: 64, x1: 160, cx: 112, lab: 60, tx: 166, top: BD_TOP + 4, rows: [BD_TOP + 8, BD_TOP + 16.5], bot: BD_TOP + 21, gapY: BD_TOP + 25, fs: 7.4, range: 25, compact: true };
 const PH_MQ = typeof matchMedia === 'function' ? matchMedia('(max-width: 767.98px)') : null;
 const isPhone = () => !!(PH_MQ && PH_MQ.matches);
 
@@ -83,92 +89,115 @@ function estW(str, fs) {
 /* =====================================================================================================================
    STATIC LAYOUT
    ===================================================================================================================== */
-// POOLS: 4 sub-pools. x = left edge of the tank (width 46), tank spans y 274..390.
-const TANK_Y = 274, TANK_H = 116, TANK_W = 46;
+// LAKE ROW (湖): the 4 asset pools. x = left edge of the tank (width TANK_W), tank spans y TANK_Y..TANK_Y + TANK_H.
+const TANK_Y = 222, TANK_H = 104, TANK_W = 35;
 const POOLS = [
-  { id: 'bond',    part: 'poolBond',    x: 10,  name: '长期国债', term: 'bondAsset',   cls: 'bond',    spring: { k: 'coupons',   label: '票息', src: '分水堰' } },
-  { id: 'equity',  part: 'poolEquity',  x: 60,  name: '股票',     term: 'equityAsset', cls: 'equity',  spring: { k: 'dividends', label: '分红', src: '分水堰' } },
-  { id: 'housing', part: 'poolHousing', x: 110, name: '房产',     term: 'housePrice',  cls: 'housing', spring: { k: 'rent',      label: '租金', src: '分水堰' } },
-  { id: 'gold',    part: 'poolGold',    x: 160, name: '黄金',     term: 'goldAsset',   cls: 'gold',    spring: null },
+  { id: 'bond',    part: 'poolBond',    x: 116, name: '国债', term: 'bondAsset',   cls: 'bond',    spring: { k: 'coupons',   label: '票息', src: '分水堰' } },
+  { id: 'equity',  part: 'poolEquity',  x: 192, name: '股票', term: 'equityAsset', cls: 'equity',  spring: { k: 'dividends', label: '分红', src: '分水堰' } },
+  { id: 'housing', part: 'poolHousing', x: 230, name: '房产', term: 'housePrice',  cls: 'housing', spring: { k: 'rent',      label: '租金', src: '分水堰' } },
+  { id: 'gold',    part: 'poolGold',    x: 154, name: '黄金', term: 'goldAsset',   cls: 'gold',    spring: null },
 ];
 const poolCx = p => p.x + TANK_W / 2;
-// 欠条 + 现金 tanks side by side (B3), then the goods channel frame. CH_CX = centre of the river (its width = capacity).
-const IOU_X = 209, CASH_X = 229, PAIR_W = 18;
-const CH_X0 = 254, CH_W = 130, CH_CX = 319;
-// channel: bank line (河岸) in the plan view; water depth r = 1 at the bank. Interior bottom = TANK_Y + TANK_H - 4.
-const CH_BOT = TANK_Y + TANK_H - 4, BANK_Y = 316;
+const PB = TANK_Y + TANK_H;                 // pool bottom (326)
+const SPRING_Y = 357;                       // the 泉眼 dots under the pools; the spring wire runs just under them
+// RULER SLOT (吸力): a fixed box at the left end of the lake row, beside the central bank + cash lake. Today it holds the knob; a tall
+// narrow 吸力尺 (vertical gauge, >= 40×160 px on desktop) can replace the knob later without moving anything else.
+const SLOT = { x: 4, y: 200, w: 32, h: 156 };          // from the lane above the lake row down to the spring lane
+// 央行 box on top of the 现金湖 (cash lake = all the water, M); the pipe 现金 drops into the lake left of the box
+const CB = { x: 48, y: TANK_Y, w: 64, h: 42 };
+const CASH = { x: 38, w: 74, y: 268, h: PB - 268 };
+// 银行 (the pump house): its pump lifts water out of the groundwater band into the household; 回灌 goes down beside it
+const BANK = { x: 270, y: TANK_Y, w: 76, h: 44 };
+// RIVER (河): the ring. Left leg x RL, top leg y RT (through the 测流断面), right leg x RR (through the firm), bottom leg y RB (分水堰 -> 工资 -> 家庭)
+const RL = 30, RT = 86, RR = 350, RB = 182;
+const HH = { x: 14, y: 150, w: 244, h: 46 };            // 家庭 (the spenders), on the ring's bottom-left corner
+const FIRM = { x: 270, y: 62, w: 90, h: 44 };           // 企业 (sellers receive), on the top-right corner
+const GOV = { x: 268, y: 4, w: 118, h: 40 };            // 政府, above the firm; its deep-well shaft runs down the right edge
+const WEIR = { x: 300, y: 166, w: 58, h: 32 };          // 分水堰 box on the bottom leg (the right leg comes down into it)
+// 测流断面 (the goods channel box on the top leg). CH_CX = centre of the river (its width = capacity).
+const CH_X0 = 62, CH_W = 178, CH_Y = 36, CH_H = 96, CH_CX = 127;
+// channel: bank line (河岸) in the plan view; water depth r = 1 at the bank.
+const CH_BOT = CH_Y + CH_H - 4, BANK_Y = 68;
 // 断面 inset (cross-section) inside the channel, right side
-const SEC = { x: 312, y: 297, w: 70, h: 91, cx: 347, top: 318, bed: 338 };
+const SEC = { x: 184, y: 40, w: 54, h: 88, cx: 211, top: 60, bed: 78 };
+// GROUND (地下): the groundwater band across the bottom; 吸程线 at GW.lift
+const GW = { x: 0, w: VB_W, top: 362, bot: 432 };
+GW.lift = GW.top + (GW.bot - GW.top) * 0.62;
+const SHAFT_X = 379;                                    // 政府深井泵: the deep-well shaft (band -> 政府) along the right edge
 
-// PIPES. pts follow flow direction. chip = [x, y, anchor]. kind: pump | drain | pipe | buy | capex | spring | fb.
+// PIPES. pts follow flow direction. chip = [x, y, anchor]. kind: pump | drain | pipe | buy | capex | spring | fb | out.
 // from / to = endpoint part ids (used to hide pipes that would dangle when a lesson hides both ends).
 // minor: chip is only shown when the flow is non-zero.
 const PIPES = [
-  { k: 'qe',              part: 'centralBank', cls: 'fiscal',  kind: 'pump',  label: 'QE',      term: 'qe',              pts: [[18, 52], [18, 274]],                         chip: [18, 150, 'middle'], from: 'centralBank', to: 'poolBond' },
-  // fiscal: pump + short trunk (the NEW water N), then two branches: orders -> firm (govPurchases), transfers / tax cuts / relief -> household (transfers)
-  { k: 'fiscalInjection', part: 'government',  cls: 'fiscal',  kind: 'pump',  label: '注入', term: 'fiscalInjection', pts: [[320, 52], [320, 108]],                       chip: [320, 94, 'middle'], from: 'government', to: 'firm' },
-  { k: 'govPurchases',    part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '订单', term: 'govPurchases',    pts: [[320, 108], [320, 170]],                      chip: [320, 160, 'middle'], from: 'government', to: 'firm' },
-  { k: 'transfers',       part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '转移', term: 'transfers',       pts: [[320, 108], [320, 124], [254, 124], [254, 170]], chip: [290, 124, 'middle'], from: 'government', to: 'household' },
-  { k: 'taxes',           part: 'government',  cls: 'cash',    kind: 'pipe',  label: '税',                                 pts: [[378, 274], [378, 52]],                       chip: [384, 138, 'end'], from: 'channel', to: 'government' },
-  { k: 'newLoans',        part: 'bank',        cls: 'credit',  kind: 'pump',  label: '抽水',   term: 'newLoans',        pts: [[150, 112], [150, 170]],                      chip: [150, 124, 'middle'], from: 'bank', to: 'household' },
-  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '利息',     term: 'interestPaid',    pts: [[262, 170], [262, 112]],                      chip: [268, 144, 'start'], from: 'household', to: 'bank' },
-  { k: 'principalRepay',  part: 'repay',       cls: 'repay',   kind: 'drain', label: '回灌',     term: 'principalRepay',  pts: [[76, 194], [56, 194]],                        chip: [40, 229, 'middle'], from: 'household', to: 'repay' },
-  { k: 'toBond',          part: 'pool poolBond',    cls: 'bond',    kind: 'buy', label: '国债', term: 'assetReservoir',   pts: [[82, 218], [82, 244], [33, 244], [33, 274]], chip: [33, 262, 'middle'], from: 'household', to: 'poolBond' },
-  { k: 'toEquity',        part: 'pool poolEquity',  cls: 'equity',  kind: 'buy', label: '股票', term: 'assetReservoir',   pts: [[100, 218], [100, 274]],                      chip: [101, 232, 'middle'], from: 'household', to: 'poolEquity' },
-  { k: 'toHousing',       part: 'pool poolHousing', cls: 'housing', kind: 'buy', label: '房产', term: 'assetReservoir',   pts: [[142, 218], [142, 274]],                      chip: [143, 252, 'middle'], from: 'household', to: 'poolHousing' },
-  { k: 'toGold',          part: 'pool poolGold',    cls: 'gold',    kind: 'buy', label: '黄金', term: 'assetReservoir',   pts: [[183, 218], [183, 274]],                      chip: [184, 232, 'middle'], from: 'household', to: 'poolGold' },
-  { k: 'toCash',          part: 'cash',        cls: 'cash',    kind: 'pipe',  label: '现金',                               pts: [[238, 218], [238, 274]],                      chip: [238, 234, 'middle'], from: 'household', to: 'cash', minor: true },
+  { k: 'qe',              part: 'centralBank', cls: 'fiscal',  kind: 'pump',  label: 'QE',      term: 'qe',              pts: [[104, TANK_Y], [104, 210], [128, 210], [128, TANK_Y]], chip: [92, 205, 'end'], from: 'centralBank', to: 'poolBond' },
+  // fiscal: the deep-well pump (the NEW water N) from the groundwater band up the right edge into the government, then two branches:
+  // orders -> firm (govPurchases), transfers / tax cuts / relief -> household (transfers)
+  { k: 'fiscalInjection', part: 'government',  cls: 'fiscal',  kind: 'pump',  label: '注入', term: 'fiscalInjection', pts: [[SHAFT_X, 404], [SHAFT_X, GOV.y + GOV.h]], chip: [374, 352, 'end'], from: 'government', to: 'firm', maxW: 6 },
+  { k: 'govPurchases',    part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '订单', term: 'govPurchases',    pts: [[296, GOV.y + GOV.h], [296, FIRM.y]], chip: [296, 53, 'middle'], from: 'government', to: 'firm' },
+  { k: 'transfers',       part: 'government',  cls: 'fiscal',  kind: 'pipe',  label: '转移', term: 'transfers',       pts: [[GOV.x, 30], [255, 30], [255, HH.y]], chip: [255, 109, 'middle'], from: 'government', to: 'household', maxW: 6 },
+  { k: 'taxes',           part: 'government',  cls: 'cash',    kind: 'pipe',  label: '税',                                 pts: [[WEIR.x + WEIR.w, 176], [368, 176], [368, GOV.y + GOV.h]], chip: [364, 142, 'end'], from: 'channel', to: 'government', maxW: 6 },
+  // 抽水: out of the groundwater band, up through the bank's pump, into the household (an L over the lane)
+  { k: 'newLoans',        part: 'bank',        cls: 'credit',  kind: 'pump',  label: '抽水',   term: 'newLoans',        pts: [[316, 404], [316, 203], [252, 203], [252, HH.y + HH.h]], chip: [324, 274, 'start'], from: 'bank', to: 'household' },
+  { k: 'interestPaid',    part: 'interest',    cls: 'repay',   kind: 'pipe',  label: '利息',     term: 'interestPaid',    pts: [[334, WEIR.y + WEIR.h], [334, BANK.y]], chip: [338, 210, 'start'], from: 'household', to: 'bank' },
+  // 回灌: from the household down beside the bank into the groundwater band
+  { k: 'principalRepay',  part: 'repay',       cls: 'repay',   kind: 'drain', label: '回灌',     term: 'principalRepay',  pts: [[242, HH.y + HH.h], [242, 214], [300, 214], [300, 386]], chip: [292, 352, 'end'], from: 'household', to: 'repay', maxW: 7 },
+  { k: 'toBond',          part: 'pool poolBond',    cls: 'bond',    kind: 'buy', label: '国债', term: 'assetReservoir',   pts: [[142, HH.y + HH.h], [142, TANK_Y]], chip: [133.5, 270, 'middle'], from: 'household', to: 'poolBond', pctOnly: true },
+  { k: 'toEquity',        part: 'pool poolEquity',  cls: 'equity',  kind: 'buy', label: '股票', term: 'assetReservoir',   pts: [[216, HH.y + HH.h], [216, TANK_Y]], chip: [209.5, 270, 'middle'], from: 'household', to: 'poolEquity', pctOnly: true },
+  { k: 'toHousing',       part: 'pool poolHousing', cls: 'housing', kind: 'buy', label: '房产', term: 'assetReservoir',   pts: [[234, HH.y + HH.h], [234, TANK_Y]], chip: [247.5, 270, 'middle'], from: 'household', to: 'poolHousing', pctOnly: true },
+  { k: 'toGold',          part: 'pool poolGold',    cls: 'gold',    kind: 'buy', label: '黄金', term: 'assetReservoir',   pts: [[178, HH.y + HH.h], [178, TANK_Y]], chip: [171.5, 270, 'middle'], from: 'household', to: 'poolGold', pctOnly: true },
+  { k: 'toCash',          part: 'cash',        cls: 'cash',    kind: 'pipe',  label: '现金',                               pts: [[43, HH.y + HH.h], [43, CASH.y]], chip: [92, 314, 'middle'], from: 'household', to: 'cash', minor: true, maxW: 6, pctOnly: true },
   // only the household's EXTRA spending paid with new water (credit + part of the deficit), not consumption C (that is the outlet 'outC')
-  { k: 'toConsumption',   part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '新水消费',                           pts: [[260, 218], [260, 274]],                      chip: [256, 252, 'end'], from: 'household', to: 'channel' },
-  { k: 'wages',           part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '工资',                               pts: [[268, 274], [268, 218]],                      chip: [272, 238, 'start'], from: 'channel', to: 'household' },
-  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[304, 274], [304, 218]],                      chip: [308, 226, 'start'], from: 'channel', to: 'firm' },
-  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[338, 218], [338, 274]],                      chip: [338, 260, 'middle'], from: 'firm', to: 'channel' },
-  { k: 'spillToGoods',    part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '溢出',                               pts: [[247, 352], [257, 352]],                      chip: [251, 340, 'middle'], from: 'cash', to: 'channel', minor: true, nochip: true, maxW: 4 },
-  // A2: the 4 outlets at the end of the goods channel = GDP by use (goods are used up; the water goes round the 收入循环). Chip = % of GDP only, the name is
-  // drawn under it. out: width by share of GDP; signed: a negative value (net imports) reverses the arrow.
-  { k: 'outC',            part: 'channel',            cls: 'goods',  kind: 'out', label: '家庭消费', short: '消费',                     pts: [[268, 390], [268, 397]], chip: [268, 404, 'middle'], from: 'channel', to: 'channel' },
-  { k: 'outI',            part: 'channel capex',      cls: 'capex',  kind: 'out', label: '企业投资', short: '投资', term: 'capex',        pts: [[297, 390], [297, 397]], chip: [297, 404, 'middle'], from: 'channel', to: 'capex' },
-  { k: 'outG',            part: 'channel government', cls: 'fiscal', kind: 'out', label: '政府购买', short: '政府', term: 'govPurchases', pts: [[326, 390], [326, 397]], chip: [326, 404, 'middle'], from: 'channel', to: 'government' },
-  { k: 'outNX',           part: 'channel',            cls: 'goods',  kind: 'out', label: '净出口',   short: '净出口',                   pts: [[356, 390], [356, 397]], chip: [356, 404, 'middle'], from: 'channel', to: 'border', signed: true },
-  // springs (cash flows into the pools, "pipes only move water")
-  { k: 'coupons',   part: 'springs', cls: 'bond',    kind: 'spring', label: '票息', pts: [[poolCx(POOLS[0]), 424], [poolCx(POOLS[0]), 390]], chip: [poolCx(POOLS[0]), 406, 'middle'], from: 'poolBond', to: 'poolBond', soft: true },
-  { k: 'dividends', part: 'springs', cls: 'equity',  kind: 'spring', label: '分红', pts: [[poolCx(POOLS[1]), 424], [poolCx(POOLS[1]), 390]], chip: [poolCx(POOLS[1]), 406, 'middle'], from: 'poolEquity', to: 'poolEquity', soft: true },
-  { k: 'rent',      part: 'springs', cls: 'housing', kind: 'spring', label: '租金', pts: [[poolCx(POOLS[2]), 424], [poolCx(POOLS[2]), 390]], chip: [poolCx(POOLS[2]), 406, 'middle'], from: 'poolHousing', to: 'poolHousing', soft: true },
-  // pumps' sister drains (idle most of the time)
-  { k: 'qt',              part: 'centralBank', cls: 'repay', kind: 'drain', label: 'QT',  pts: [[90, 52], [90, 68]], chip: [90, 60, 'middle'], from: 'centralBank', to: 'centralBank', minor: true },
-  { k: 'govSurplusDrain', part: 'government',  cls: 'repay', kind: 'drain', label: '盈余', pts: [[284, 52], [284, 68]], chip: [284, 60, 'middle'], from: 'government', to: 'government', minor: true },
+  { k: 'toConsumption',   part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '新水消费',                           pts: [[76, HH.y], [76, CH_Y + CH_H]], chip: [70, 141, 'end'], from: 'household', to: 'channel' },
+  // the 分水堰 mouths: 工资 back to the spenders (the ring's bottom leg), 利润 back up to the firm
+  { k: 'wages',           part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '工资',                               pts: [[WEIR.x, RB], [HH.x + HH.w, RB]], chip: [279, RB, 'middle'], from: 'channel', to: 'household' },
+  { k: 'profits',         part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '利润',                               pts: [[312, WEIR.y], [312, FIRM.y + FIRM.h]], chip: [306, 128, 'end'], from: 'channel', to: 'firm' },
+  { k: 'toCapex',         part: 'capex',       cls: 'capex',   kind: 'capex', label: 'Capex',    term: 'capex', slow: true, pts: [[FIRM.x, 72], [CH_X0 + CH_W, 72]],                    chip: [255, 72, 'middle'], from: 'firm', to: 'channel' },
+  { k: 'spillToGoods',    part: 'channel',     cls: 'goods',   kind: 'pipe',  label: '溢出',                               pts: [[36, 300], [26, 300], [26, HH.y + HH.h]], chip: [26, 290, 'middle'], from: 'cash', to: 'channel', minor: true, nochip: true, maxW: 4 },
+  // A2: the 4 outlets on top of the 测流断面 = GDP by use (goods are used up; the water goes round the ring). Chip = % of GDP only, the
+  // name is drawn over it. out: width by share of GDP; signed: a negative value (net imports) reverses the arrow.
+  { k: 'outC',            part: 'channel',            cls: 'goods',  kind: 'out', label: '家庭消费', short: '消费',                     pts: [[82, CH_Y], [82, 28]],  chip: [82, 20, 'middle'], from: 'channel', to: 'channel' },
+  { k: 'outI',            part: 'channel capex',      cls: 'capex',  kind: 'out', label: '企业投资', short: '投资', term: 'capex',        pts: [[122, CH_Y], [122, 28]], chip: [122, 20, 'middle'], from: 'channel', to: 'capex' },
+  { k: 'outG',            part: 'channel government', cls: 'fiscal', kind: 'out', label: '政府购买', short: '政府', term: 'govPurchases', pts: [[162, CH_Y], [162, 28]], chip: [162, 20, 'middle'], from: 'channel', to: 'government' },
+  { k: 'outNX',           part: 'channel',            cls: 'goods',  kind: 'out', label: '净出口',   short: '净出口',                   pts: [[202, CH_Y], [202, 28]], chip: [202, 20, 'middle'], from: 'channel', to: 'border', signed: true },
+  // springs (cash flows into the pools from below, "pipes only move water"); the 泉眼 dots are wired from the 分水堰 (buildV3 springWire)
+  { k: 'coupons',   part: 'springs', cls: 'bond',    kind: 'spring', label: '票息', pts: [[poolCx(POOLS[0]), SPRING_Y - 1], [poolCx(POOLS[0]), PB]], chip: [poolCx(POOLS[0]), 336, 'middle'], from: 'poolBond', to: 'poolBond', soft: true },
+  { k: 'dividends', part: 'springs', cls: 'equity',  kind: 'spring', label: '分红', pts: [[poolCx(POOLS[1]), SPRING_Y - 1], [poolCx(POOLS[1]), PB]], chip: [poolCx(POOLS[1]), 348, 'middle'], from: 'poolEquity', to: 'poolEquity', soft: true },
+  { k: 'rent',      part: 'springs', cls: 'housing', kind: 'spring', label: '租金', pts: [[poolCx(POOLS[2]), SPRING_Y - 1], [poolCx(POOLS[2]), PB]], chip: [poolCx(POOLS[2]), 336, 'middle'], from: 'poolHousing', to: 'poolHousing', soft: true },
+  // pumps' sister drains (idle most of the time): QT out of the cash lake, the budget surplus back into the groundwater (a recharge)
+  { k: 'qt',              part: 'centralBank', cls: 'repay', kind: 'drain', label: 'QT',  pts: [[52, PB], [52, 332]], chip: [52, 330, 'middle'], from: 'centralBank', to: 'centralBank', minor: true },
+  { k: 'govSurplusDrain', part: 'government',  cls: 'repay', kind: 'drain', label: '盈余', pts: [[362, 362], [362, 372]], chip: [362, 368, 'middle'], from: 'government', to: 'government', minor: true },
   // collateral feedback: housing level -> bank approval (dashed loop, not a money flow)
-  { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[122, 274], [122, 112]], chip: [130, 134, 'end'], from: 'poolHousing', to: 'bank' },
-  // valuation feedback: share prices -> Capex (Tobin's q, engine cp.capexValFree; dashed, not a money flow). Live only where the engine runs
-  // it (the sandbox / free mode); grey in history, 真实 mode and the town (setValCapex)
-  { k: 'valCapex', part: 'poolEquity', cls: 'fb', kind: 'fb', label: '股价', term: 'capex', pts: [[84, 274], [84, 262], [300, 262]], chip: [86, 262, 'middle'], from: 'poolEquity', to: 'capex' },
-  // 国境线 (only drawn while snap.border exists; keep these LAST: lessons.js pairs pipes and chips by index)
-  { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[381, BD_BOT], [381, 390]], chip: [376, 470, 'end'],   from: 'border', to: 'channel',  bd: true },
-  { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[371, 390], [371, BD_BOT]], chip: [366, 488, 'end'],   from: 'channel', to: 'border',  bd: true },
-  { k: 'foreignBonds', part: 'border', cls: 'border', kind: 'pipe', label: '外国人买国债', term: 'foreignBonds', pts: [[16, BD_BOT], [16, 390]],   chip: [24, 486, 'start'],  from: 'border', to: 'poolBond', bd: true, maxW: 5 },
+  { k: 'collateral', part: 'poolHousing', cls: 'fb', kind: 'fb', label: '抵押品', term: 'lvr', pts: [[258, 300], [284, 300], [284, BANK.y + BANK.h]], chip: [256, 306, 'middle'], from: 'poolHousing', to: 'bank' },
+  // valuation feedback: share prices -> Capex (Tobin's q, engine cp.capexValFree; dashed, not a money flow): up from the stock pool, behind
+  // the household, into the 测流断面 (capacity). Live only where the engine runs it (the sandbox / free mode); grey in history, 真实 mode and the town (setValCapex)
+  { k: 'valCapex', part: 'poolEquity', cls: 'fb', kind: 'fb', label: '股价', term: 'capex', pts: [[200, TANK_Y], [200, CH_Y + CH_H]], chip: [196, 209, 'middle'], from: 'poolEquity', to: 'capex' },
+  // 国境线 (only drawn while snap.border exists; keep these LAST: lessons.js pairs pipes and chips by index). The band is ABOVE the picture.
+  { k: 'exports',      part: 'border', cls: 'border', kind: 'pipe', label: '出口',        term: 'exports',      pts: [[222, BD_TOP + 22], [222, CH_Y]], chip: [236, BD_TOP + 16, 'start'],   from: 'border', to: 'channel',  bd: true },
+  { k: 'imports',      part: 'border', cls: 'border', kind: 'pipe', label: '进口',        term: 'imports',      pts: [[232, CH_Y], [232, BD_TOP + 22]], chip: [236, BD_TOP + 33, 'start'], from: 'channel', to: 'border',  bd: true },
+  { k: 'foreignBonds', part: 'border', cls: 'border', kind: 'pipe', label: '外国人买国债', term: 'foreignBonds', pts: [[3, BD_LINE - 6], [3, 360], [124, 360], [124, PB]],   chip: [66, 352, 'start'],  from: 'border', to: 'poolBond', bd: true, maxW: 4 },
 ];
 
 // PUMP icons (on a pipe), DRAIN icons. label = small caption next to the icon.
 const PUMP_ICONS = [
-  { k: 'newLoans',        x: 150, y: 151, main: true },
-  { k: 'qe',              x: 18,  y: 80 },
-  { k: 'fiscalInjection', x: 320, y: 72 },
+  { k: 'newLoans',        x: 316, y: 298, main: true },
+  { k: 'qe',              x: 116, y: 210 },
+  { k: 'fiscalInjection', x: SHAFT_X, y: 300 },
 ];
 const DRAIN_ICONS = [
-  { k: 'qt',              x: 90,  y: 82, label: 'QT', lx: 90, ly: 103 },
-  { k: 'govSurplusDrain', x: 284, y: 82, label: '盈余', lx: 284, ly: 103 },
+  { k: 'qt',              x: 52,  y: 338, label: 'QT', lx: 52, ly: 359, la: 'middle' },
+  { k: 'govSurplusDrain', x: 362, y: 380, label: '盈余', lx: 362, ly: 404, la: 'middle' },
 ];
 
-// VALVES: the 8 knobs. id matches src/engine/valves.js. (x, y) = icon centre.
+// VALVES: the 8 knobs. id matches src/engine/valves.js. (x, y) = icon centre. lab: false = no caption (the box text names it)
 const VALVE_SLOTS = [
-  { id: 'policyRate',      x: 116, y: 19, label: '利率',  owner: 'centralBank' },
-  { id: 'qe',              x: 138, y: 19, label: 'QE',    owner: 'centralBank' },
-  { id: 'approval',        x: 232, y: 78, label: '审批',  owner: 'bank' },
-  { id: 'lvrCap',          x: 258, y: 78, label: 'LVR',   owner: 'bank' },
-  { id: 'borrowMult',      x: 214, y: 186, label: '借款',  owner: 'household' },
-  { id: 'saveAdj',         x: 242, y: 186, label: '储蓄',  owner: 'household' },
-  { id: 'capexMult',       x: 346, y: 186, label: 'Capex', owner: 'firm' },
-  { id: 'fiscalInjection', x: 362, y: 19, label: '财政',  owner: 'government' },
+  { id: 'policyRate',      x: 86,  y: 233, label: '利率',  owner: 'centralBank', lab: false },
+  { id: 'qe',              x: 103, y: 233, label: 'QE',    owner: 'centralBank', lab: false },
+  { id: 'approval',        x: 316, y: 234, label: '审批',  owner: 'bank' },
+  { id: 'lvrCap',          x: 334, y: 234, label: 'LVR',   owner: 'bank' },
+  { id: 'borrowMult',      x: 200, y: 166, label: '借款',  owner: 'household' },
+  { id: 'saveAdj',         x: 226, y: 166, label: '储蓄',  owner: 'household' },
+  { id: 'capexMult',       x: 342, y: 78,  label: 'Capex', owner: 'firm' },
+  { id: 'fiscalInjection', x: 370, y: 17,  label: '财政',  owner: 'government' },
 ];
 
 // built-in causal chains (fallback when src/engine/valves.js is missing). Same shape as the engine table.
@@ -437,8 +466,33 @@ function valveIcon(parent, v) {
   el('rect', { class: 'hit', x: -14, y: -15, width: 28, height: 36, rx: 8 }, g);
   el('path', { class: 'stem', d: 'M0 0 V-8 M-5.5 -8 H5.5' }, g);
   el('path', { class: 'body', d: 'M-8 -5 L0 0 L-8 5 Z M8 -5 L0 0 L8 5 Z' }, g);
-  txt(g, 0, 17, v.label, 'cap vl ph-hide', 'middle');
+  if (v.lab !== false) txt(g, 0, 17, v.label, 'cap vl ph-hide', 'middle');
   return g;
+}
+
+export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸';
+export const FISCAL_SPLIT_TXT = '假设一半由银行和央行买国债（新抽的水），一半由存款人买（从湖里挪过来）';
+const lk = (n, id) => { n.setAttribute('data-lk', id); return n; };
+
+// phone outside a lesson: one place at a time (the 河 / 湖 / 地下 switch); iPad / desktop / a lesson: the whole picture
+const placeMode = () => isPhone() && !document.body.classList.contains('lesson-on');
+function syncView(R) {
+  const ph = isPhone(), pm = placeMode();
+  const vb = pm ? PLACES[R.place] : (!ph && R.hasBorder ? [0, -BD_H, VB_W, VB_H + BD_H] : [0, 0, VB_W, VB_H]);
+  R.svg.setAttribute('viewBox', vb.join(' '));
+  R.wrap.classList.toggle('phone', ph);
+  R.wrap.classList.toggle('placed', pm);
+  if (pm) R.wrap.dataset.place = R.place; else delete R.wrap.dataset.place;
+  R.placesEl.querySelectorAll('[data-place]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.place === R.place)));
+  // RULER SLOT: the 吸力 knob stays on screen in every place (moved into the top-left corner of 河 / 地下)
+  const dy = pm ? { river: 6 - SLOT.y, lake: 0, ground: 290 - SLOT.y }[R.place] : 0;
+  if (R.v3 && R.v3.slot) { if (dy) R.v3.slot.setAttribute('transform', `translate(0 ${dy})`); else R.v3.slot.removeAttribute('transform'); }
+  syncNxGate(R);
+  fillPlaceCard(R);
+}
+function fillPlaceCard(R) {
+  const h = (placeMode() && R.cards && R.cards[R.place]) || '';
+  if (R.placeCard._h !== h) { R.placeCard._h = h; R.placeCard.innerHTML = h; }
 }
 
 function build(host) {
@@ -446,38 +500,53 @@ function build(host) {
   const wrap = document.createElement('div');
   wrap.className = 'flow-wrap';
   host.appendChild(wrap);
+  // phone: the place switch (app.css shows it only on phones outside a lesson)
+  const places = document.createElement('div');
+  places.className = 'flow-places'; places.setAttribute('role', 'group'); places.setAttribute('aria-label', '一次看一处：河 / 湖 / 地下');
+  places.innerHTML = Object.keys(PLACES).map(k => `<button type="button" data-place="${k}" aria-pressed="${k === 'river'}">${PLACE_NAMES[k]}</button>`).join('') +
+    '<span class="fpl-hint">一次看一处</span>';
+  wrap.appendChild(places);
   const svg = el('svg', { class: 'flow-svg', viewBox: `0 0 ${VB_W} ${VB_H}`, preserveAspectRatio: 'xMidYMid meet',
-    role: 'img', 'aria-label': '宏观水流示意图：泵（造水）、排水口（消水）、管道（搬水）、阀门、湖（资产池）与河（测流断面）' }, document.createElement('div'));
+    role: 'img', 'aria-label': '宏观水流示意图：河（我花的 = 你赚的的环）、湖（现金湖和资产池）、地下水（未来的收入）；泵造水、排水口消水、管道搬水、阀门可拧' }, document.createElement('div'));
   wrap.appendChild(svg);
-  const R = { svg, wrap, pipes: {}, pools: {} };
-  const syncPhone = () => { const ph = isPhone(); svg.setAttribute('viewBox', `0 0 ${VB_W} ${ph ? PH_VB_H : (R.hasBorder ? VB_HB : VB_H)}`); wrap.classList.toggle('phone', ph); syncNxGate(R); };
-  R.syncVB = syncPhone;
-  syncPhone();
-  try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', syncPhone) : PH_MQ.addListener(syncPhone)); } catch (e) { /* ignore */ }
+  const card = document.createElement('div'); card.className = 'flow-place-card'; card.setAttribute('aria-live', 'polite');
+  wrap.appendChild(card);
+  const R = { svg, wrap, pipes: {}, pools: {}, place: 'river', placesEl: places, placeCard: card };
+  R.syncVB = () => syncView(R);
+  try { PH_MQ && (PH_MQ.addEventListener ? PH_MQ.addEventListener('change', R.syncVB) : PH_MQ.addListener(R.syncVB)); } catch (e) { /* ignore */ }
 
-  /* ---- back layer: nodes, tanks, water ---- */
+  /* ---- back layer: the ground, the ring, nodes, tanks, water ---- */
   const back = el('g', {}, svg);
-  {   // 国境线: the foreign zone (shaded) and the dashed border under the springs
+  {   // 国境线: the foreign zone (shaded) ABOVE the picture and the dashed border line
     const bg = part(el('g', { class: 'bd bd-d bd-bg' }, back), 'border');
-    el('rect', { class: 'bd-zone', x: 0, y: BD_LINE, width: VB_W, height: BD_BOT - BD_LINE }, bg);
+    el('rect', { class: 'bd-zone', x: 0, y: BD_TOP, width: VB_W, height: BD_LINE - BD_TOP }, bg);
     el('path', { class: 'bd-line', d: `M0 ${BD_LINE} H${VB_W}` }, bg);
   }
-  node(back, 6, 4, 144, 48, '', 'centralBank', 'cb');
-  node(back, 244, 4, 140, 48, '', 'government', 'gov');
-  node(back, 110, 62, 162, 50, '', 'bank', 'bank');
-  node(back, 76, 170, 194, 48, '', 'household', 'household');
-  node(back, 276, 170, 84, 48, '', 'firm', 'firm');
-  node(back, 24, 170, 32, 48, 'soft drainbox', 'repay', 'drain');
-  // B2: one big 收入循环 loop (household -> spend -> channel -> firm -> wages, profits -> household), behind the income pipes
-  {
-    const lg = part(el('g', { class: 'loop' }, back), 'household firm channel');
-    el('path', { class: 'loop-ring', d: 'M262 240 V254 Q262 270 278 270 H334 Q350 270 350 254 V238 Q350 224 336 224 H276 Q262 224 262 240 Z' }, lg);
-    for (const [x, y, rot] of [[262, 250, 90], [306, 270, 0], [350, 244, -90], [306, 224, 180]]) el('path', { class: 'loop-arr', d: 'M-5 -6.5 L6 0 L-5 6.5 Z', transform: `translate(${x} ${y}) rotate(${rot})` }, lg);
+  {   // 地下 (L-water): the soil band across the bottom; the pumps lift out of it, 回灌 goes back into it
+    const g = lk(part(el('g', { class: 'v3-ground' }, back), 'bank repay iou'), 'groundBase');
+    el('rect', { class: 'gw-soil', x: GW.x, y: GW.top, width: GW.w, height: GW.bot - GW.top }, g);
+    el('path', { class: 'gw-surface', d: `M0 ${GW.top} H${VB_W}` }, g);
   }
-  // B3: the 欠条 tank stands next to the 现金 tank (pool row), same height and the same % of GDP scale. The dashed link: loans -> IOUs.
-  part(el('path', { class: 'link', d: `M163 157 H${IOU_X + PAIR_W / 2} V${TANK_Y}` }, back), 'iou');
-  R.iouBox = node(back, IOU_X, TANK_Y, PAIR_W, TANK_H, 'soft tank iou', 'iou', 'iou');
-  R.iouWater = part(el('rect', { class: 'water debt', x: IOU_X, y: TANK_Y + TANK_H, width: PAIR_W, height: 0 }, back), 'iou');
+  {   // 地下水 (L-long): the water body under the water table; the dry part above it = the hole the debts dug. The iou part / node live here now.
+    const g = R.gwG = lk(part(el('g', { class: 'v3-gw' }, back), 'iou groundwater'), 'groundwater');
+    R.iouBox = node(g, GW.x, GW.top, GW.w, GW.bot - GW.top, 'gw-band', 'iou', 'iou');
+    R.iouBox.setAttribute('rx', 0);
+    R.gwWater = el('rect', { class: 'gw-water', x: GW.x, y: GW.bot - 10, width: GW.w, height: 10 }, g);
+    R.gwTable = el('path', { class: 'gw-table', d: '' }, g);
+    R.gwTitle = el('title', {}, g);
+  }
+  {   // 河的环: the backbone ring  家庭 → 测流断面 → 企业 → 分水堰 → 工资 → 家庭 (behind the boxes; the path starts inside the household box)
+    const lg = lk(part(el('g', { class: 'loop' }, back), 'household firm channel'), 'ring');
+    const c = 12;
+    el('path', { class: 'loop-ring', d: `M150 ${RB} H${RL + c} Q${RL} ${RB} ${RL} ${RB - c} V${RT + c} Q${RL} ${RT} ${RL + c} ${RT} H${RR - c} Q${RR} ${RT} ${RR} ${RT + c} V${RB - c} Q${RR} ${RB} ${RR - c} ${RB} H150 Z` }, lg);
+    for (const [x, y, rot] of [[RL, 124, -90], [50, RT, 0], [255, RT - 0.01, 0], [RR, 138, 90]]) el('path', { class: 'loop-arr', d: 'M-5.5 -7 L6.5 0 L-5.5 7 Z', transform: `translate(${x} ${y}) rotate(${rot})` }, lg);
+  }
+  node(back, GOV.x, GOV.y, GOV.w, GOV.h, '', 'government', 'gov');
+  node(back, BANK.x, BANK.y, BANK.w, BANK.h, '', 'bank', 'bank');
+  node(back, HH.x, HH.y, HH.w, HH.h, '', 'household', 'household');
+  node(back, FIRM.x, FIRM.y, FIRM.w, FIRM.h, '', 'firm', 'firm');
+  node(back, CB.x, CB.y, CB.w, CB.h, '', 'centralBank', 'cb');
+  node(back, 289, 316, 22, 34, 'soft drainbox', 'repay', 'drain');
   // pools
   for (const p of POOLS) {
     const pp = 'pool ' + p.part;
@@ -491,44 +560,40 @@ function build(host) {
     o.bandB = el('rect', { class: 'vb-bar', x: p.x + 1.5, width: 3.5, y: TANK_Y, height: 0, rx: 1.5 }, o.band);     // staff-gauge style 'normal range' bar
     const ticks = part(el('g', { class: 'ticks' }, back), pp);
     for (let i = 1; i < 4; i++) el('path', { d: `M${p.x} ${TANK_Y + TANK_H * i / 4} h5` }, ticks);
-    // springs: gold has an empty slot
+    // springs (泉眼) under the pools: gold has an empty slot
     if (p.spring) {
-      el('circle', { class: 'src ' + p.cls, cx: poolCx(p), cy: 427, r: 3.2 }, part(el('g', { 'data-owner': p.part }, back), 'springs'));
+      el('circle', { class: 'src ' + p.cls, cx: poolCx(p), cy: SPRING_Y, r: 3.2 }, part(el('g', { 'data-owner': p.part }, back), 'springs'));
     } else {
       const g = part(el('g', { class: 'emptyspring', 'data-owner': p.part }, back), 'springs');
-      el('circle', { cx: poolCx(p), cy: 418, r: 7 }, g);
-      el('path', { d: `M${poolCx(p) - 3} ${418 - 3} L${poolCx(p) + 3} ${418 + 3} M${poolCx(p) + 3} ${418 - 3} L${poolCx(p) - 3} ${418 + 3}` }, g);
+      el('circle', { cx: poolCx(p), cy: SPRING_Y - 6, r: 6 }, g);
+      el('path', { d: `M${poolCx(p) - 2.6} ${SPRING_Y - 8.6} L${poolCx(p) + 2.6} ${SPRING_Y - 3.4} M${poolCx(p) + 2.6} ${SPRING_Y - 8.6} L${poolCx(p) - 2.6} ${SPRING_Y - 3.4}` }, g);
     }
   }
-  // cash tank (= all the water, M)
-  node(back, CASH_X, TANK_Y, PAIR_W, TANK_H, 'soft tank', 'cash', 'cash');
-  R.cashWater = part(el('rect', { class: 'water cash', x: CASH_X, y: TANK_Y + TANK_H, width: PAIR_W, height: 0 }, back), 'cash');
-  {   // shared scale ticks: 50% / 100% / 150% / 200% of GDP across both tanks
+  // 现金湖 (= all the water, M) under the central bank
+  node(back, CASH.x, CASH.y, CASH.w, CASH.h, 'soft tank', 'cash', 'cash');
+  R.cashWater = part(el('rect', { class: 'water cash', x: CASH.x, y: CASH.y + CASH.h, width: CASH.w, height: 0 }, back), 'cash');
+  {   // scale ticks on the cash lake: 50% / 100% / 150% / 200% of GDP
     const S = Math.max(curInfo().tank.iou, curInfo().tank.cash);
-    const ti = part(el('g', { class: 'ticks pair' }, back), 'iou'), tc = part(el('g', { class: 'ticks pair' }, back), 'cash');   // one group per tank (layers)
-    for (const k of [0.5, 1, 1.5, 2]) if (k < S) {
-      const y = (TANK_Y + TANK_H - TANK_H * k / S).toFixed(1);
-      el('path', { class: k === 1 ? 'one' : '', d: `M${IOU_X + PAIR_W - 4} ${y} h4` }, ti);
-      el('path', { class: k === 1 ? 'one' : '', d: `M${CASH_X} ${y} h4` }, tc);
-    }
+    const tc = part(el('g', { class: 'ticks pair' }, back), 'cash');
+    for (const k of [0.5, 1, 1.5, 2]) if (k < S) el('path', { class: k === 1 ? 'one' : '', d: `M${CASH.x + CASH.w - 5} ${(CASH.y + CASH.h - CASH.h * k / S).toFixed(1)} h5` }, tc);
   }
-  // goods channel (max capacity frame + current river). B1: river width = capacity, water depth = demand / capacity against the bank line.
-  part(el('rect', { class: 'frame', x: CH_X0, y: TANK_Y, width: CH_W, height: TANK_H, rx: 10 }, back), 'channel');
-  R.river = node(back, CH_X0 + 2, TANK_Y + 4, CH_W - 4, TANK_H - 8, 'soft', 'channel', 'channel');
+  // goods channel = 测流断面 (max capacity frame + current river). B1: river width = capacity, water depth = demand / capacity against the bank line.
+  part(el('rect', { class: 'frame', x: CH_X0, y: CH_Y, width: CH_W, height: CH_H, rx: 10 }, back), 'channel');
+  R.river = node(back, CH_X0 + 2, CH_Y + 4, CH_W - 4, CH_H - 8, 'soft', 'channel', 'channel');
   R.river.setAttribute('rx', 8);
-  R.chWater = part(el('rect', { class: 'water goods', x: CH_X0 + 2, y: TANK_Y + 4, width: CH_W - 4, height: 0 }, back), 'channel');
+  R.chWater = part(el('rect', { class: 'water goods', x: CH_X0 + 2, y: CH_Y + 4, width: CH_W - 4, height: 0 }, back), 'channel');
   R.chOver = part(el('rect', { class: 'ch-over', x: CH_X0 + 2, y: BANK_Y, width: CH_W - 4, height: 0 }, back), 'channel');      // water above the bank = 溢出（通胀）
   R.bankLn = part(el('path', { class: 'ch-bank', d: '' }, back), 'channel');
   R.chOver.setAttribute('data-lk', 'bankLine'); R.bankLn.setAttribute('data-lk', 'bankLine');      // layers: the bank line = depth (L-channel)
   // capacity brackets (Capex widens the channel)
-  R.capL = part(el('path', { class: 'capmark', d: `M${CH_X0} 332 l-5 -4 v8 z` }, back), 'capex');
-  R.capR = part(el('path', { class: 'capmark', d: `M${CH_X0 + CH_W} 332 l5 -4 v8 z` }, back), 'capex');
-  // bond seesaw
-  R.seesaw = part(el('g', { class: 'seesaw', transform: `translate(${poolCx(POOLS[0])} 358)` }, back), 'pool poolBond');
+  R.capL = part(el('path', { class: 'capmark', d: `M${CH_X0} ${CH_Y + 82} l-5 -4 v8 z` }, back), 'capex');
+  R.capR = part(el('path', { class: 'capmark', d: `M${CH_X0 + CH_W} ${CH_Y + 82} l5 -4 v8 z` }, back), 'capex');
+  // bond seesaw (in the bond pool)
+  R.seesaw = part(el('g', { class: 'seesaw', transform: `translate(${poolCx(POOLS[0])} 300)` }, back), 'pool poolBond');
   R.plank = el('g', { class: 'plank' }, R.seesaw);
-  el('path', { d: 'M-17 0 H17' }, R.plank);
-  el('circle', { class: 'endl', cx: -17, cy: 0, r: 2.6 }, R.plank);
-  el('circle', { class: 'endr', cx: 17, cy: 0, r: 2.6 }, R.plank);
+  el('path', { d: 'M-13 0 H13' }, R.plank);
+  el('circle', { class: 'endl', cx: -13, cy: 0, r: 2.4 }, R.plank);
+  el('circle', { class: 'endr', cx: 13, cy: 0, r: 2.4 }, R.plank);
   el('path', { class: 'pivot', d: 'M0 1 L-4 7 H4 Z' }, R.seesaw);
 
   /* ---- pipes + chips ---- */
@@ -551,14 +616,17 @@ function build(host) {
     Object.assign(R.pipes[p.k], { chip: g, chipBg: bg, chipHit: hit, chipText: t });
   }
 
-  /* ---- top layer: icons, texts, valves ---- */
+  /* ---- top layer: covers, icons, texts, valves ---- */
   const top = el('g', {}, svg);
+  // covers: the pipes that pass a box go BEHIND it (抽水 / 回灌 through the bank, 股价 → Capex behind the household)
+  node(top, BANK.x, BANK.y, BANK.w, BANK.h, 'cover', 'bank').setAttribute('data-lk', 'bankTitle');   // the bank box comes with L-water (as its title)
+  node(top, HH.x, HH.y, HH.w, HH.h, 'cover', 'household');
   // pumps and drains on their pipes
   for (const d of PUMP_ICONS) R.pipes[d.k].icon = pumpIcon(top, d, R.pipes[d.k].def);
   for (const d of DRAIN_ICONS) R.pipes[d.k].icon = drainIcon(top, d, R.pipes[d.k].def);
-  // main drain (principal repayment)
+  // main drain (回灌 = principal repayment, back into the groundwater)
   {
-    const g = el('g', { class: 'drain main repay pc-drain', 'data-pipe': 'principalRepay', transform: 'translate(40 183)' }, top);
+    const g = el('g', { class: 'drain main repay pc-drain', 'data-pipe': 'principalRepay', transform: 'translate(300 328)' }, top);
     part(g, 'repay');
     el('path', { class: 'body', d: 'M-10 -8 L10 -8 L3.2 2 L3.2 9 L-3.2 9 L-3.2 2 Z' }, g);
     const b = el('g', { class: 'badge', transform: 'translate(11 -9)' }, g);
@@ -566,111 +634,83 @@ function build(host) {
     el('path', { class: 'sign', d: 'M-3.2 0 H3.2' }, b);
     R.pipes.principalRepay.icon = g;
   }
-  txt(top, 40, 205, '货币', 'sub small ph-l1', 'middle', 'repay');
-  txt(top, 40, 214, '注销', 'sub small ph-l2', 'middle', 'repay');
   buildMarks(R, top);   // 洪痕 (behind the texts, inside the top layer)
-  // central bank / government
-  txt(top, 14, 24, '央行', 'ttl', 'start', 'centralBank');
-  let g = termGroup(top, 'policyRate', [8, 34, 78, 17], 'centralBank', 'rate');
-  R.rate = txt(g, 14, 46, '', 'sub');
-  // A3: 实际利率 = 政策利率 − 通胀 (rates.realPolicy), the real master valve (Capex, bond, gold, ⑦/⑧ rules)
-  g = termGroup(top, 'realRate', [86, 34, 62, 17], 'centralBank', 'realRate');
-  R.realRate = txt(g, 90, 46, '', 'sub');
-  txt(top, 254, 24, '政府', 'ttl', 'start', 'government', 'gov');
+  // central bank (on top of the cash lake) / government
+  txt(top, CB.x + 4, CB.y + 14, '央行', 'ttl', 'start', 'centralBank');
+  let g = termGroup(top, 'policyRate', [CB.x + 1, CB.y + 18, CB.w - 2, 12], 'centralBank', 'rate');
+  R.rate = txt(g, CB.x + 3, CB.y + 27.5, '', 'sub cbr');
+  // A3: 实际利率 = 政策利率 − 通胀 (rates.realPolicy), the real master valve (= the 吸力 knob)
+  g = termGroup(top, 'realRate', [CB.x + 1, CB.y + 30, CB.w - 2, 11], 'centralBank', 'realRate');
+  R.realRate = txt(g, CB.x + 3, CB.y + 38.5, '', 'sub cbr');
+  txt(top, GOV.x + 6, GOV.y + 15, '政府', 'ttl', 'start', 'government', 'gov');
   g = termGroup(top, 'govDebtGdp', null, 'government');
-  el('rect', { x: 250, y: 32, width: 100, height: 15, rx: 5, fill: 'transparent' }, g);   // touch target only
-  R.gov = txt(g, 254, 43, '', 'sub', 'start', 'government');
+  el('rect', { x: GOV.x + 2, y: GOV.y + 22, width: 100, height: 15, rx: 5, fill: 'transparent' }, g);   // touch target only
+  R.gov = txt(g, GOV.x + 6, GOV.y + 33, '', 'sub', 'start', 'government');
   g = termGroup(top, 'fiscalInjection', null, 'government', 'govGross');
-  el('rect', { x: 286, y: 8, width: 64, height: 20, rx: 6, fill: 'transparent' }, g);   // touch target only (no tinted .hit box over the small text)
-  R.govGross = txt(g, 346, 24, '', 'cap', 'end', 'government');
-  // bank
-  R.bankTitle = txt(top, 120, 80, '银行', 'ttl', 'start', 'bank', 'bank');
+  el('rect', { x: 300, y: GOV.y + 3, width: 56, height: 16, rx: 6, fill: 'transparent' }, g);   // touch target only (no tinted .hit box over the small text)
+  R.govGross = txt(g, 302, GOV.y + 15, '', 'cap', 'start', 'government');
+  // bank (the pump house)
+  R.bankTitle = txt(top, BANK.x + 6, BANK.y + 15, '银行', 'ttl', 'start', 'bank', 'bank');
   R.bankTitle.setAttribute('data-lk', 'bankTitle');
-  g = termGroup(top, 'bankApproval', [114, 84, 90, 24], 'bank', 'approval');
-  R.bank = txt(g, 120, 102, '', 'sub');
-  // 欠条 tank texts (B3). The two captions label the dashed link: a loan creates water AND an IOU.
-  txt(top, 168, 141.5, '抽水：从地下水抽上来，', 'cap ph-hide', 'start', 'iou');
-  txt(top, 168, 150.5, '是未来的收入 → 地下水位降', 'cap ph-hide', 'start', 'iou');
-  g = termGroup(top, 'pvtDebtGdp', [IOU_X - 1, TANK_Y, PAIR_W + 2, 40], 'iou');
-  txt(g, IOU_X + PAIR_W / 2, TANK_Y + 15, '地', 'ttl pname', 'middle');
-  txt(g, IOU_X + PAIR_W / 2, TANK_Y + 28, '下', 'ttl pname', 'middle');
-  txt(g, IOU_X + PAIR_W / 2, TANK_Y + 41, '水', 'ttl pname', 'middle');
-  // 「欠条 x% / 水 y% / 占 GDP」 under the pair: private debt / annual GDP (the number the long-cycle dial reads) vs M / GDP
-  g = termGroup(top, 'pvtDebtGdp', [IOU_X - 3, 391, 46, 13], 'iou');
-  g.classList.add('pairlbl');
-  R.iouGdp = txt(g, IOU_X - 1, 400, '', 'cap gdp debt', 'start');
-  g = termGroup(top, 'M', [IOU_X - 3, 403, 46, 12], 'cash');
-  g.classList.add('pairlbl');
-  R.cashGdp = txt(g, IOU_X - 1, 411, '', 'cap gdp cashv', 'start');
-  txt(top, IOU_X - 1, 422, '占 GDP', 'cap', 'start', 'iou cash');
-  // household / firm  (cover rect: the collateral loop passes BEHIND the household box)
-  node(top, 76, 170, 194, 48, 'cover', 'household');
-  R.hhTitle = txt(top, 84, 187, '', 'ttl hh', 'start', 'household', 'hh');
-  R.hh = txt(top, 84, 205, '', 'sub', 'start', 'household');
-  txt(top, 284, 187, '企业', 'ttl', 'start', 'firm');
-  R.firm = txt(top, 284, 205, '', 'sub', 'start', 'firm');
+  g = termGroup(top, 'bankApproval', [BANK.x + 2, BANK.y + 31, 54, 12], 'bank', 'approval');
+  R.bank = txt(g, BANK.x + 6, BANK.y + 40.5, '', 'sub');
+  // household / firm
+  R.hhTitle = txt(top, HH.x + 8, HH.y + 17, '', 'ttl hh', 'start', 'household', 'hh');
+  R.hh = txt(top, HH.x + 8, HH.y + 36, '', 'sub', 'start', 'household');
+  txt(top, FIRM.x + 6, FIRM.y + 17, '企业', 'ttl', 'start', 'firm');
+  R.firm = txt(top, FIRM.x + 6, FIRM.y + 36, '', 'sub', 'start', 'firm');
   // pools: name + level
   for (const p of POOLS) {
     const o = R.pools[p.id], cx = poolCx(p);
-    const gg = termGroup(top, p.term, [p.x, TANK_Y, TANK_W, 42], 'pool ' + p.part);
-    txt(gg, cx, TANK_Y + 15, p.name, 'ttl pname', 'middle');
-    o.val = txt(gg, cx, TANK_Y + 29, '', 'sub num', 'middle');
-    o.cap = txt(top, cx, TANK_Y + 42, '', 'cap', 'middle', 'pool ' + p.part, 'housingCap');
+    const gg = termGroup(top, p.term, [p.x, TANK_Y, TANK_W, 34], 'pool ' + p.part);
+    txt(gg, cx, TANK_Y + 13, p.name, 'ttl pname', 'middle');
+    o.val = txt(gg, cx, TANK_Y + 26, '', 'sub num', 'middle');
+    o.cap = txt(top, cx, TANK_Y + 37, '', 'cap', 'middle', 'pool ' + p.part, 'housingCap');
     if (p.id !== 'housing') o.cap.removeAttribute('data-lbl');
-    o.stat = txt(top, cx, TANK_Y + 42, '', 'cap vstat', 'middle', 'pool ' + p.part);     // B6: 贵 / 正常 / 便宜 against the band
+    o.stat = txt(top, cx, TANK_Y + 37, '', 'cap vstat', 'middle', 'pool ' + p.part);     // B6: 贵 / 正常 / 便宜 against the band
     o.stat.setAttribute('data-lk', 'poolStat');
-    if (p.id === 'housing') o.real = txt(gg, cx, TANK_Y + 51.5, '', 'cap rhint', 'middle');   // 模型 mode, 保留样本: 「真实 x」 (applyRealHint)
+    if (p.id === 'housing') o.real = txt(gg, cx, TANK_Y + 46.5, '', 'cap rhint', 'middle');   // 模型 mode, 保留样本: 「真实 x」 (applyRealHint)
   }
   // seesaw captions
-  txt(top, poolCx(POOLS[0]), 372, '利率↑', 'cap', 'middle', 'pool poolBond');
-  txt(top, poolCx(POOLS[0]), 382, '价格↓', 'cap', 'middle', 'pool poolBond');
-  // spring captions
-  for (const p of POOLS) {
-    const cx = poolCx(p);
-    txt(top, cx, 441.5, p.spring ? '↑' + p.spring.src : '无泉水', 'cap ph-hide', 'middle', 'springs').setAttribute('data-owner', p.part);
-  }
-  // cash
-  g = termGroup(top, 'cashAsset', [CASH_X - 1, TANK_Y, PAIR_W + 2, 54], 'cash');
-  txt(g, CASH_X + PAIR_W / 2, TANK_Y + 15, '现', 'ttl pname', 'middle');
-  txt(g, CASH_X + PAIR_W / 2, TANK_Y + 28, '金', 'ttl pname', 'middle');
-  txt(g, CASH_X + PAIR_W / 2, TANK_Y + 41, '湖', 'ttl pname', 'middle');
-  // channel (texts on the left; the 断面 inset on the right)
+  txt(top, poolCx(POOLS[0]), 314, '利率↑', 'cap', 'middle', 'pool poolBond');
+  txt(top, poolCx(POOLS[0]), 322.5, '价格↓', 'cap', 'middle', 'pool poolBond');
+  // gold: no spring
+  txt(top, poolCx(POOLS[3]), SPRING_Y + 3, '无泉水', 'cap ph-hide', 'middle', 'springs').setAttribute('data-owner', POOLS[3].part);
+  // cash lake
+  g = termGroup(top, 'cashAsset', [CASH.x, CASH.y, CASH.w, 16], 'cash');
+  txt(g, CASH.x + 4, CASH.y + 12, '现金湖', 'ttl pname', 'start');
+  g = termGroup(top, 'M', [CASH.x, CASH.y + 16, CASH.w, 12], 'cash');
+  g.classList.add('pairlbl');
+  R.cashGdp = txt(g, CASH.x + 4, CASH.y + 25, '', 'cap gdp cashv', 'start');
+  // channel = 测流断面 (texts on the left; the 断面 inset on the right)
   const cx0 = CH_X0 + 6;
-  g = termGroup(top, 'goodsChannel', [CH_X0 + 2, TANK_Y + 4, 96, 22], 'channel', 'chtitle');
-  R.chTitle = txt(g, cx0, TANK_Y + 19, '河（测流断面）', 'ttl', 'start', null, 'channel');
-  g = termGroup(top, 'cpi', [CH_X0 + 2, TANK_Y + 24, 54, 16], 'channel', 'cpi');
-  R.cpi = txt(g, cx0, TANK_Y + 36, '', 'sub');
-  g = termGroup(top, 'unemployment', [CH_X0 + 2, TANK_Y + 42, 54, 16], 'channel', 'unemp');
-  R.unemp = txt(g, cx0, TANK_Y + 54, '', 'sub');
+  g = termGroup(top, 'goodsChannel', [CH_X0 + 2, CH_Y + 3, 96, 17], 'channel', 'chtitle');
+  R.chTitle = txt(g, cx0, CH_Y + 16, '河（测流断面）', 'ttl', 'start', null, 'channel');
+  g = termGroup(top, 'cpi', [CH_X0 + 2, CH_Y + 21, 54, 13], 'channel', 'cpi');
+  R.cpi = txt(g, cx0, CH_Y + 31, '', 'sub');
+  g = termGroup(top, 'unemployment', [CH_X0 + 2, CH_Y + 34, 54, 13], 'channel', 'unemp');
+  R.unemp = txt(g, cx0, CH_Y + 44, '', 'sub');
   // 模型 mode, 保留样本 (2022+): 「真实CPI x」 / 「真实失业 x」 in the free space under the two (applyRealHint)
-  R.cpiReal = txt(top, cx0, TANK_Y + 67, '', 'cap rhint', 'start', 'channel');
-  R.unempReal = txt(top, cx0, TANK_Y + 76.5, '', 'cap rhint', 'start', 'channel');
-  R.px = txt(top, cx0, 363, '', 'sub', 'start', 'channel');
-  g = termGroup(top, 'capacity', [CH_X0 + 2, 368, 54, 18], 'capex');
-  R.cap = txt(g, cx0, 381, '', 'sub');
+  R.cpiReal = txt(top, cx0 + 56, CH_Y + 31, '', 'cap rhint', 'start', 'channel');
+  R.unempReal = txt(top, cx0 + 56, CH_Y + 44, '', 'cap rhint', 'start', 'channel');
+  R.px = txt(top, cx0, CH_Y + 70, '', 'sub', 'start', 'channel');
+  g = termGroup(top, 'capacity', [CH_X0 + 2, CH_Y + 74, 54, 15], 'capex');
+  R.cap = txt(g, cx0, CH_Y + 85, '', 'sub');
   buildSection(R, top);
-  // A2 outlet names under their chips; 企业投资 adds a line (Capex becomes a wider channel), then the GDP sentence
-  // (>=768px: the full name on two lines; phone: the short name on one line)
-  for (const p of PIPES) if (p.kind === 'out') {
-    const x = p.chip[0], nm = p.label;
-    txt(top, x, 418.5, nm.slice(0, nm.length - 2), 'cap oname ph-hide', 'middle', p.part);
-    txt(top, x, 427.5, nm.slice(-2), 'cap oname ph-hide', 'middle', p.part);
-    txt(top, x, 417, p.short, 'cap oname ph-only', 'middle', p.part);
-  }
-  txt(top, 297, 437, '↑变成更宽的河道', 'cap ph-hide', 'middle', 'capex');
-  txt(top, CH_X0 + CH_W / 2 + 2, 447.5, 'GDP = 四个出口拿走的货', 'cap gdpln ph-hide', 'middle', 'channel');
-  txt(top, CH_X0 + CH_W / 2 + 2, 430, 'GDP = 四个出口拿走的货', 'cap gdpln ph-only', 'middle', 'channel');
-  // B2 loop label on the ring's bottom leg: tap = the loop sentence
+  // A2 outlet names over their chips, then the GDP sentence in the top-left corner (desktop)
+  for (const p of PIPES) if (p.kind === 'out') txt(top, p.chip[0], 8.5, p.short, 'cap oname', 'middle', p.part);
+  for (const [i, s] of ['GDP =', '四个出口', '拿走的货'].entries()) txt(top, 30, 40 + 10 * i, s, 'cap gdpln ph-hide', 'middle', 'channel');
+  // the ring's sentence, in the middle of the ring: tap = the loop card
   {
     const lg = part(el('g', { class: 'loop-lbl', 'data-act': 'loop', role: 'button', tabindex: 0, 'aria-label': '河的环：我花的 = 你赚的' }, top), 'household firm channel');
-    el('rect', { x: 263, y: 263, width: 60, height: 14, rx: 7 }, lg);
-    txt(lg, 293, 273.2, '我花的 = 你赚的', 'cap', 'middle');
+    el('rect', { x: 100, y: 134, width: 96, height: 16, rx: 8 }, lg);
+    txt(lg, 148, 145.5, '我花的 = 你赚的', 'cap loop-big', 'middle');
   }
-  // spring chips etc are in chip layer; pool caption + legend + unit
-  g = termGroup(top, 'assetReservoir', [6, 443, 378, 14], 'pool');
-  g.classList.add('ph-hide', 'bd-shift');
-  txt(g, 10, 451, '资产池：买资产 = 买取水权，只抬水位', 'cap', 'start');
-  txt(top, 162, 451, '· 灰带 = 历史正常区间', 'cap ph-hide bd-shift', 'start', 'pool');
+  // pool caption + legend + unit (bottom rows)
+  g = termGroup(top, 'assetReservoir', [6, 435, 160, 13], 'pool');
+  g.classList.add('ph-hide');
+  txt(g, 8, 444, '资产池：买资产 = 买取水权，只抬水位', 'cap', 'start');
+  txt(top, 170, 444, '· 灰带 = 历史正常区间', 'cap ph-hide', 'start', 'pool');
   buildLegend(top);
   buildBorder(R, top, wrap);
   buildV3(R, top, wrap);
@@ -678,12 +718,13 @@ function build(host) {
   const valves = el('g', { class: 'valves' }, top);
   for (const v of VALVE_SLOTS) valveIcon(valves, v);
 
-    // budget bar (HTML)
+  // budget bar (HTML)
   const bar = document.createElement('div');
   bar.className = 'flow-budget'; bar.setAttribute('data-part', 'budget'); bar.setAttribute('data-node', 'budget');
   wrap.appendChild(bar);
   R.bar = bar;
   tagLayers(wrap);
+  R.syncVB();
   // ripple strip + popover + zoom banner (HTML overlays)
   const strip = document.createElement('div'); strip.className = 'flow-ripple'; strip.hidden = true; host.appendChild(strip); R.strip = strip;
   const pop = document.createElement('div'); pop.className = 'flow-pop'; pop.hidden = true; host.appendChild(pop); R.pop = pop;
@@ -694,84 +735,89 @@ function build(host) {
 }
 
 /* =====================================================================================================================
-   v3 PICTURE (tools/DESIGN-v3.md): 分水堰 + 泉眼线, 地下水 + 吸程线, 吸力 knob, 政府深井泵, role -> valves, the mnemonic.
+   v3 PICTURE (tools/DESIGN-v3.md): 分水堰 + 泉眼线, 地下水 + 吸程线, 吸力 knob (RULER SLOT), 政府深井泵, role -> valves, the mnemonic.
    Every new element carries data-lk = its contract id (src/data/layers.js keys) and data-part = its own id + the existing part it sits on,
    so a lesson that reveals the old part still shows it. Nothing here changes the engine; the readouts are read from the snapshot.
    ===================================================================================================================== */
-const WEIR = { x: 262, y: 274, w: 120, h: 5 };
-const GW = { x: IOU_X - 4, w: PAIR_W + 8, top: TANK_Y + 46, bot: TANK_Y + TANK_H - 2 };   // 地下水 band (the 欠条 tank, below its name)
-GW.lift = GW.top + (GW.bot - GW.top) * 0.72;                                              // 吸程线: the depth the pump can still lift from
-export const MNEMONIC = '短周期看河，长周期看地下水，资产看湖，角色看阀，汇率看闸';
-export const FISCAL_SPLIT_TXT = '假设一半由银行和央行买国债（新抽的水），一半由存款人买（从湖里挪过来）';
-const lk = (n, id) => { n.setAttribute('data-lk', id); return n; };
-
 function buildV3(R, top, wrap) {
   const V = R.v3 = {};
-  // 分水堰: a sill across the top of the 测流断面; 工资 / 利润 / 税 leave from it (利息 leaves from the household side: its own pipe)
+  // 分水堰: the box on the ring's bottom leg, right after the firm. 工资 / 利润 / 利息 / 税 and the spring wire all leave from it.
   {
     const g = lk(part(el('g', { class: 'v3-weir' }, top), 'weir channel'), 'weir');
-    el('rect', { class: 'weir-sill', x: WEIR.x, y: WEIR.y - 1, width: WEIR.w, height: WEIR.h, rx: 2 }, g);
-    for (const x of [268, 304, 378]) el('path', { class: 'weir-mouth', d: `M${x - 3} ${WEIR.y - 1} h6` }, g);
-    txt(g, WEIR.x + WEIR.w - 2, WEIR.y + 12, '分水堰', 'cap weir-t', 'end');
-    el('title', {}, g).textContent = '分水堰：河里流过来的钱在这里分成 工资 / 利润 / 租金 / 利息 / 税 几个口';
+    el('rect', { class: 'weir-box', x: WEIR.x, y: WEIR.y, width: WEIR.w, height: WEIR.h, rx: 5 }, g);
+    el('path', { class: 'weir-sill', d: `M${WEIR.x + 5} ${WEIR.y + 21} H${WEIR.x + WEIR.w - 5}` }, g);
+    for (const [x, y, d] of [[WEIR.x, RB, 'h-4'], [312, WEIR.y, 'v-4'], [334, WEIR.y + WEIR.h, 'v4'], [WEIR.x + WEIR.w, 176, 'h4'], [352, WEIR.y + WEIR.h, 'v4']])
+      el('path', { class: 'weir-mouth', d: `M${x} ${y} ${d}` }, g);
+    txt(g, WEIR.x + WEIR.w / 2, WEIR.y + 14, '分水堰', 'cap weir-t', 'middle');
+    el('title', {}, g).textContent = '分水堰：卖东西收到的钱在这里分成 工资 / 利润 / 租金 / 利息 / 税 几个口';
   }
-  // 河的环 highlight id (the existing loop label carries the tap; this only gives the ring a contract id)
-  const ring = R.svg.querySelector('.loop');
-  if (ring) ring.setAttribute('data-lk', 'ring');
-  // 泉眼线: weir -> 票息 / 分红 / 租金 springs (they used to float with ←政府 / ←商品河道 / ←家庭)
+  // 泉眼线: weir -> the 票息 / 分红 / 租金 springs under the pools (down the gap beside the bank, then along under the lake row)
   {
     const g = lk(part(el('g', { class: 'v3-spring' }, top), 'springs weir'), 'springWire');
-    const yW = 433;
-    el('path', { class: 'spw', d: `M${WEIR.x} ${WEIR.y + 1.5} H251 V${yW} H${poolCx(POOLS[0])}` }, g);
-    for (const p of POOLS) if (p.spring) el('path', { class: 'spw', d: `M${poolCx(p)} ${yW} V430` }, g);
+    el('path', { class: 'spw', d: `M352 ${WEIR.y + WEIR.h} V${SPRING_Y + 2.5} H${poolCx(POOLS[0])}` }, g);
     el('title', {}, g).textContent = '泉眼线：票息、分红、租金都是从分水堰接过来的（利息、利润、租金口）';
   }
-  // 回灌 alias on the 还本 drain (key only; the pipe id stays principalRepay)
+  // 回灌 label on the 还本 drain (key only; the pipe id stays principalRepay)
   {
     const g = lk(part(el('g', { class: 'v3-recharge' }, top), 'repay'), 'recharge');
-    txt(g, 40, 164, '回灌', 'cap rch-t', 'middle');
+    txt(g, 300, 313, '回灌', 'cap rch-t', 'middle');
+    el('title', {}, g).textContent = '回灌：还本 = 把水还给地下水（这些钱被注销）';
   }
-  // 地下水 band + water table + 吸程线 inside the old 欠条 tank (the iou part id stays on these elements)
+  // 地下水 texts (L-long): 「地下的洞 = 欠款 x% GDP」, the 抽水 caption, and where the table stands against the 吸程线
   {
-    const g = V.gw = lk(part(el('g', { class: 'v3-gw' }, top), 'iou groundwater'), 'groundwater');
-    el('rect', { class: 'gw-band', x: GW.x, y: GW.top, width: GW.w, height: GW.bot - GW.top, rx: 3 }, g);
-    V.gwWater = el('rect', { class: 'gw-water', x: GW.x + 1, y: GW.top + 4, width: GW.w - 2, height: GW.bot - GW.top - 4 }, g);
-    V.gwTable = el('path', { class: 'gw-table', d: '' }, g);
-    V.gwTitle = el('title', {}, g);
+    txt(lk(part(el('g', { class: 'v3-gtitle' }, top), 'bank repay iou'), 'groundBase'), 40, GW.top + 11, '地下水 · 未来的收入', 'cap gw-name', 'start');
+    const g = lk(part(el('g', { class: 'v3-gwt' }, top), 'iou groundwater'), 'groundwater');
+    const tg = termGroup(g, 'pvtDebtGdp', [38, GW.top + 15, 150, 13], 'iou');
+    R.iouGdp = txt(tg, 40, GW.top + 25, '', 'cap gw-hole', 'start');
+    txt(g, 136, GW.top + 11, '抽水 = 把未来的收入抽上来 → 地下水位降', 'cap ph-hide', 'start', 'iou');
+    V.gwStat = txt(g, 40, GW.bot - 7, '', 'cap gw-stat', 'start');
     const lg = lk(part(el('g', { class: 'v3-lift' }, top), 'iou liftLine'), 'liftLine');
-    el('path', { class: 'gw-lift', d: `M${GW.x - 3} ${GW.lift.toFixed(1)} H${GW.x + GW.w + 3}` }, lg);
-    txt(lg, GW.x + GW.w + 4, GW.lift + 2.5, '吸程', 'cap gw-lt ph-hide', 'start');
+    el('path', { class: 'gw-lift', d: `M${GW.x} ${GW.lift.toFixed(1)} H${GW.x + GW.w}` }, lg);
+    txt(lg, 284, GW.lift - 2, '吸程线（低于它 = 抽不上来）', 'cap gw-lt', 'end');
     el('title', {}, lg).textContent = '吸程线：地下水位掉到这条线下面，泵就抽不上来了（= B2）';
   }
-  // 吸力 knob on the central bank (= the real rate) + its two arrows
+  // RULER SLOT: the 吸力 knob (central bank = the real rate) lives in this group, with a FIXED reserved box (SLOT, 32×156 viewBox units,
+  // ~40×160 px on a desktop) beside the central bank / cash lake. A later vertical 吸力尺 replaces what is inside the box; nothing else moves.
+  // On phones syncView() moves the whole group into the place on screen, so the knob stays visible in 河 / 湖 / 地下.
   {
-    const g = V.suction = lk(part(el('g', { class: 'v3-suction', transform: 'translate(37 63)' }, top), 'centralBank suction'), 'suction');
-    el('circle', { class: 'sk-dial', r: 5.2 }, g);
-    V.skPtr = el('path', { class: 'sk-ptr', d: 'M0 0 V-4.4' }, g);
+    const cx = SLOT.x + SLOT.w / 2;
+    const g = V.slot = V.suction = lk(part(el('g', { class: 'v3-suction', 'data-ruler-slot': '' }, top), 'centralBank suction'), 'suction');
+    el('rect', { class: 'ruler-box', x: SLOT.x, y: SLOT.y, width: SLOT.w, height: SLOT.h, rx: 6 }, g);
+    txt(g, cx, SLOT.y + 13, '吸力', 'cap sk-n', 'middle');
+    const kn = el('g', { transform: `translate(${cx} ${SLOT.y + 29})` }, g);
+    el('circle', { class: 'sk-dial', r: 8.5 }, kn);
+    V.skPtr = el('path', { class: 'sk-ptr', d: 'M0 0 V-7' }, kn);
+    V.skVal = txt(g, cx, SLOT.y + 50, '', 'cap sk-v', 'middle');
     V.skTitle = el('title', {}, g);
-    const s1 = V.suctionSave = lk(part(el('g', { class: 'v3-sarrow' }, top), 'centralBank suction'), 'suctionSave');
-    V.saveT = txt(s1, 45.5, 62, '', 'cap sk-a', 'start');
-    const s2 = V.suctionPump = lk(part(el('g', { class: 'v3-sarrow' }, top), 'centralBank suction'), 'suctionPump');
-    V.pumpT = txt(s2, 45.5, 70.5, '', 'cap sk-a', 'start');
+    const s1 = V.suctionSave = lk(part(el('g', { class: 'v3-sarrow' }, g), 'centralBank suction'), 'suctionSave');
+    V.saveT1 = txt(s1, cx, SLOT.y + 67, '存湖', 'cap sk-a', 'middle');
+    V.saveT = txt(s1, cx, SLOT.y + 76, '', 'cap sk-a sk-b', 'middle');
+    const s2 = V.suctionPump = lk(part(el('g', { class: 'v3-sarrow' }, g), 'centralBank suction'), 'suctionPump');
+    V.pumpT1 = txt(s2, cx, SLOT.y + 92, '抽水', 'cap sk-a', 'middle');
+    V.pumpT = txt(s2, cx, SLOT.y + 101, '', 'cap sk-a sk-b', 'middle');
   }
   // 政府深井泵: the deficit drawn as two streams (fInj = 0.5 stays in the engine; this is only the picture)
   {
     const g = lk(part(el('g', { class: 'v3-deep' }, top), 'government deepPump'), 'deepPump');
+    el('circle', { class: 'deep-ring', cx: SHAFT_X, cy: 300, r: 15 }, g);
+    txt(g, SHAFT_X - 17, 303, '深井泵', 'cap fs-t', 'end');
     el('title', {}, g).textContent = '政府深井泵：' + FISCAL_SPLIT_TXT;
     const n = lk(part(el('g', { class: 'v3-fnew' }, top), 'government deepPump'), 'fiscalNew');
-    el('path', { class: 'fs-new', d: 'M314.5 56 V104' }, n);
-    txt(n, 312, 63, '新抽½', 'cap fs-t', 'end');
+    el('path', { class: 'fs-new', d: `M${SHAFT_X - 6} 398 V318` }, n);
+    txt(n, SHAFT_X - 8, 334, '新抽½', 'cap fs-t', 'end');
     el('title', {}, n).textContent = '一半新抽的水：银行和央行买国债';
     const l = lk(part(el('g', { class: 'v3-flake' }, top), 'government deepPump'), 'fiscalLake');
-    el('path', { class: 'fs-lake', d: 'M325.5 56 V104' }, l);
-    txt(l, 328, 63, '湖里挪½', 'cap fs-t', 'start');
+    el('path', { class: 'fs-lake', d: `M${BANK.x + BANK.w + 2} 254 H${SHAFT_X - 3}` }, l);
+    txt(l, 362, 250, '湖里挪½', 'cap fs-t', 'middle');
     el('title', {}, l).textContent = '一半从湖里挪过来：存款人买国债';
   }
-  // mnemonic + the fiscal-split caption under the diagram (desktop); the phone legend sheet carries the mnemonic too
+  // mnemonic + the fiscal-split caption + the 股价 → Capex note under the diagram (desktop); the phone place cards carry them
   const cap = document.createElement('div');
   cap.className = 'flow-v3cap';
-  cap.innerHTML = `<span class="v3-mn">${MNEMONIC}</span><span class="v3-fs" data-layer="L-gov">深井泵：${FISCAL_SPLIT_TXT}</span>`;
-  wrap.appendChild(cap);
+  cap.innerHTML = `<span class="v3-mn">${MNEMONIC}</span><span class="v3-fs" data-layer="L-gov">深井泵：${FISCAL_SPLIT_TXT}</span>` +
+    `<span class="v3-vc" data-layer="L-assets" hidden>股价 → Capex · 关：${VALCAPEX_SHUT}</span>`;
+  wrap.insertBefore(cap, R.placeCard);
+  V.vc = cap.querySelector('.v3-vc');
 }
 
 const LONG_STAGE5 = s => s === 5 || s === '⑤';
@@ -797,32 +843,44 @@ export function groundwaterDepth(long) {
 function applyV3(R, snap) {
   const V = R.v3;
   if (!V) return;
-  // 地下水位
+  // 地下水位: read from the existing B2 evidence only (groundwaterDepth); BELOW the 吸程线 exactly when the long cycle is B2 or ⑤
   const L = snap?.cycles?.long || null;
   const below = !!L && (L.fork === 'B2' || LONG_STAGE5(L.stage));
   const d = groundwaterDepth(L);
-  const H = GW.lift - GW.top;
   let y;
-  if (below) y = GW.lift + 4 + 6 * (d ?? 1) ;
-  else if (d != null) y = GW.top + 4 + (H - 8) * d;
-  else y = GW.top + 4 + (H - 8) * 0.35;
-  y = Math.min(y, GW.bot - 2);
-  V.gwTable.setAttribute('d', `M${GW.x} ${y.toFixed(1)} H${GW.x + GW.w}`);
-  V.gwWater.setAttribute('y', y.toFixed(1)); V.gwWater.setAttribute('height', Math.max(0, GW.bot - y).toFixed(1));
-  V.gw.classList.toggle('below', below);
-  V.gw.classList.toggle('noev', d == null && !below);
-  const b2 = '地下水位跌破吸程线 = B2（抽不上来）。' + (L?.forkSignal || '');
-  V.gwTitle.textContent = (below ? '现在：地下水位在吸程线下面。' : d == null ? '这一段长周期不读 B2 证据，水位只示意。' : `现在：离吸程线还有 ${Math.round((1 - d) * 100)}%。`) +
-    (L?.forkPending ? `（B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季）` : '') + b2;
+  if (below) y = GW.lift + 4 + (GW.bot - 10 - GW.lift - 4) * clamp(d ?? 1, 0, 1);
+  else y = GW.top + 6 + (GW.lift - 4 - GW.top - 6) * (d != null ? d : 0.35);
+  R.gwTable.setAttribute('d', `M${GW.x} ${y.toFixed(1)} H${GW.x + GW.w}`);
+  R.gwWater.setAttribute('y', y.toFixed(1)); R.gwWater.setAttribute('height', Math.max(0, GW.bot - y).toFixed(1));
+  R.gwG.classList.toggle('below', below);
+  R.gwG.classList.toggle('noev', d == null && !below);
+  const pend = L?.forkPending ? `（B2 待确认 ${L.forkPending.have}/${L.forkPending.need} 季）` : '';
+  const stat = below ? '地下水位跌破吸程线：抽不上来（B2）' : d == null ? '水位只示意：这一段长周期不读 B2 证据' : `地下水位离吸程线还有 ${Math.round((1 - d) * 100)}%${pend}`;
+  V.gwStat.textContent = stat;
+  V.gwStat.classList.toggle('below', below);
+  R.gwTitle.textContent = stat + '。地下水位跌破吸程线 = B2（抽不上来）。' + (L?.forkSignal || '');
   // 吸力 = the real policy rate
   const rr = snap?.rates?.realPolicy;
   const ok = typeof rr === 'number' && isFinite(rr);
   const ang = ok ? clamp(rr / 0.05, -1, 1) * 75 : 0;
   V.skPtr.setAttribute('transform', `rotate(${ang.toFixed(1)})`);
   V.suction.classList.toggle('neg', ok && rr < 0);
-  V.skTitle.textContent = `吸力旋钮（央行）= 实际利率 ${ok ? pct(rr) : '—'}。预期不单独画：它藏在吸力和「怕」里。`;
-  V.saveT.textContent = !ok ? '' : rr >= 0 ? '↑存湖划算' : '↓存湖不划算';
-  V.pumpT.textContent = !ok ? '' : rr >= 0 ? '↑抽水贵' : '↓抽水便宜';
+  V.skTitle.textContent = `吸力旋钮（央行）= 实际利率 ${ok ? pct(rr) : '—'}。高：存湖划算、抽水贵；低：存湖不划算、抽水便宜。预期不单独画：它藏在吸力和「怕」里。`;
+  V.skVal.textContent = ok ? pctTxt(rr) : '';
+  V.saveT.textContent = !ok ? '' : rr >= 0 ? '划算↑' : '不划算';
+  V.pumpT.textContent = !ok ? '' : rr >= 0 ? '贵↑' : '便宜';
+  // 股价 → Capex: the visible caption while it is shut (desktop line under the diagram; phone: the 湖 card and a tap on the chip)
+  const shut = valCapexState(snap) !== 'on';
+  if (V.vc) V.vc.hidden = !shut;
+  // phone place cards (one per place; layer-tagged spans follow the progressive diagram)
+  const hole = R.iouGdp ? R.iouGdp.textContent : '';
+  R.cards = {
+    river: `<b>河 · 现在的收入</b>一个环：<b>我花的 = 你赚的</b>。家庭花钱 → 测流断面（宽 = 产能，水位 = 物价，流量 = GDP）→ 企业收到 → 分水堰分成 工资 / 利润 / 利息 / 税，工资回到家庭。`,
+    lake: `<b>湖 · 存着的钱</b>现金湖 + 资产池（国债、黄金、股票、房产）。<span data-layer="L-short">吸力（央行的旋钮 = 实际利率${ok ? ' ' + pctTxt(rr) : ''}）：存湖划不划算、抽水贵不贵。</span>` +
+      (shut ? `<span class="fpc-vc" data-layer="L-assets">股价 → Capex · 关：${VALCAPEX_SHUT}</span>` : ''),
+    ground: `<b>地下 · 未来的收入</b>抽水（放贷）把未来的收入抽上来，回灌（还本）还回去。<span data-layer="L-long">${esc(hole)}。${esc(stat)}。</span>`,
+  };
+  fillPlaceCard(R);
 }
 
 // role -> valves (src/data/layers.js ROLE_VALVES): glow that role's valves / parts, dim the other valves. null = clear.
@@ -878,13 +936,13 @@ function buildSection(R, top) {
   S.bank = el('path', { class: 'sec-bank', d: '' }, g);
   S.fb = el('path', { class: 'sec-dim fb', d: '' }, g);          // freeboard arrow
   S.wd = el('path', { class: 'sec-dim', d: '' }, g);             // width dimension under the bed
-  S.t1 = txt(g, SEC.cx, 352, '宽 = 产能', 'cap', 'middle');
-  S.t2 = txt(g, SEC.cx, 363, '', 'cap sec-n', 'middle');
-  S.t3 = txt(g, SEC.cx, 374, '', 'cap sec-n', 'middle');
-  S.t4 = txt(g, SEC.cx, 385, '', 'cap sec-s', 'middle');
+  S.t1 = txt(g, SEC.cx, SEC.y + 52, '宽 = 产能', 'cap', 'middle');
+  S.t2 = txt(g, SEC.cx, SEC.y + 62, '', 'cap sec-n', 'middle');
+  S.t3 = txt(g, SEC.cx, SEC.y + 72, '', 'cap sec-n', 'middle');
+  S.t4 = txt(g, SEC.cx, SEC.y + 82, '', 'cap sec-s', 'middle');
 }
 function applySection(R, cur) {
-  const S = R.sec, r = cur.chR, w = cur.chW * 0.4, x0 = SEC.cx - w / 2, x1 = SEC.cx + w / 2, H = SEC.bed - SEC.top, lip = 7;
+  const S = R.sec, r = cur.chR, w = cur.chW * 0.32, x0 = SEC.cx - w / 2, x1 = SEC.cx + w / 2, H = SEC.bed - SEC.top, lip = 7;
   S.ground.setAttribute('d', `M${(x0 - lip).toFixed(1)} ${SEC.top} H${x0.toFixed(1)} V${SEC.bed} H${x1.toFixed(1)} V${SEC.top} H${(x1 + lip).toFixed(1)} V${SEC.bed + 3} H${(x0 - lip).toFixed(1)} Z`);
   S.bank.setAttribute('d', `M${(x0 - lip).toFixed(1)} ${SEC.top} H${x0.toFixed(1)} V${SEC.bed} H${x1.toFixed(1)} V${SEC.top} H${(x1 + lip).toFixed(1)}`);
   const wy = SEC.bed - H * r;
@@ -918,7 +976,7 @@ function legendHtml() {
 
 function buildLegend(top) {
   const g = part(el('g', { class: 'legend' }, top), 'budget');
-  const y = 466;
+  const y = 456;
   // pump
   const p = el('g', { class: 'pump pc-pump mini', transform: `translate(14 ${y - 3})` }, g);
   el('circle', { class: 'body', r: 6 }, p);
@@ -944,7 +1002,7 @@ function buildLegend(top) {
    ===================================================================================================================== */
 function buildBorder(R, top, wrap) {
   const D = R.bd = {};
-  txt(top, 24, BD_LINE + 11, '国境线 · 以下是外国', 'cap bd bd-d bd-lbl', 'start', 'border');
+  txt(top, 386, BD_LINE - 5, '国境线 · 以上是外国', 'cap bd bd-d bd-lbl', 'end', 'border');
   // FX gate on the line (non-USA): a little sluice (tap = 汇率 card); under it the FX reactor (two pipes + needle + anchor, drawn by setBorder),
   // and on its right the readings: 本币比一年前 / 汇率 / PPP 锚
   const gx = FXR.cx;
@@ -954,24 +1012,24 @@ function buildBorder(R, top, wrap) {
   el('path', { class: 'bd-gslat', d: `M${gx - 6} ${BD_LINE - 3} V${BD_LINE + 3} M${gx} ${BD_LINE - 3} V${BD_LINE + 3} M${gx + 6} ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
   D.fx = g;
   D.fxr = part(el('g', { class: 'bd bd-d bd-fxr' }, top), 'border');          // the reactor (innerHTML from fx-reactor.js reactorSvg)
-  g = termGroup(top, 'fx', [FXR.tx - 2, BD_LINE + 2, 52, 31], 'border');
+  g = termGroup(top, 'fx', [FXR.tx - 2, BD_TOP + 2, 52, 31], 'border');
   g.setAttribute('class', 'term bd bd-d bd-fxt');
   D.fxt = g;
-  D.fx2 = txt(g, FXR.tx, BD_LINE + 10, '', 'cap bd-chg', 'start');
-  D.fx1 = txt(g, FXR.tx, BD_LINE + 19.5, '', 'cap num', 'start');
-  D.fx3 = txt(g, FXR.tx, BD_LINE + 29, '', 'cap', 'start');
+  D.fx2 = txt(g, FXR.tx, BD_TOP + 10, '', 'cap bd-chg', 'start');
+  D.fx1 = txt(g, FXR.tx, BD_TOP + 19.5, '', 'cap num', 'start');
+  D.fx3 = txt(g, FXR.tx, BD_TOP + 29, '', 'cap', 'start');
   // USA: the gate shows the broad dollar index (美元对一篮子货币; tap = 汇率 card) and the reserve-currency line (tap = 储备货币 card)
-  g = termGroup(top, 'fx', [124, BD_LINE - 7, 132, 27], 'border');
+  g = termGroup(top, 'fx', [46, BD_TOP + 4, 132, 50], 'border');
   g.setAttribute('class', 'term bd bd-d bd-gate bd-res'); g.setAttribute('data-lk', 'gate');
-  el('rect', { class: 'bd-gbox', x: 178, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
-  el('path', { class: 'bd-gslat', d: `M184 ${BD_LINE - 3} V${BD_LINE + 3} M190 ${BD_LINE - 3} V${BD_LINE + 3} M196 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
+  el('rect', { class: 'bd-gbox', x: 100, y: BD_LINE - 6, width: 24, height: 12, rx: 3 }, g);
+  el('path', { class: 'bd-gslat', d: `M106 ${BD_LINE - 3} V${BD_LINE + 3} M112 ${BD_LINE - 3} V${BD_LINE + 3} M118 ${BD_LINE - 3} V${BD_LINE + 3}` }, g);
   D.res = g;
-  D.usd1 = txt(g, 190, BD_LINE + 14, '', 'sub num', 'middle');
-  D.usd2 = txt(g, 190, BD_LINE + 23.5, '', 'cap bd-chg', 'middle');
-  g = termGroup(top, 'reserveCurrency', [124, BD_LINE + 25, 132, 11], 'border');
+  D.usd1 = txt(g, 112, BD_TOP + 12, '', 'sub num', 'middle');
+  D.usd2 = txt(g, 112, BD_TOP + 21.5, '', 'cap bd-chg', 'middle');
+  g = termGroup(top, 'reserveCurrency', [46, BD_TOP + 24, 132, 11], 'border');
   g.setAttribute('class', 'term bd bd-d bd-res2');
   D.resT = g;
-  D.res2 = txt(g, 190, BD_LINE + 33, '', 'cap', 'middle');
+  D.res2 = txt(g, 112, BD_TOP + 32, '', 'cap', 'middle');
   // phone: one compact gate pill (bottom right, under the goods channel); tap = popover with the details
   const pill = part(el('g', { class: 'bd bd-p', 'data-bd': 'pill', role: 'button', tabindex: 0, 'aria-label': '国境线：汇率、出口、进口、外国人买国债' }, top), 'border');
   D.pillBg = el('rect', { class: 'bd-pill', y: 397, height: 24, rx: 12 }, pill);
@@ -1076,8 +1134,7 @@ const HWM_MIN_T = 3;            // fewer quarters of history than this: a 'peak'
 const HWM_NEW = 0.01;           // within 1% of the mark (level units) = 新高
 const HWM_ITEMS = [
   ...POOLS.map(p => ({ key: p.id, cur: 'lv.' + p.id, part: 'pool ' + p.part, x: p.x, w: TANK_W, top: TANK_Y, h: TANK_H, label: true, trough: p.id === 'housing' || p.id === 'equity' })),
-  { key: 'cash', cur: 'cash', part: 'cash', x: CASH_X, w: PAIR_W, top: TANK_Y, h: TANK_H, label: false, trough: false },   // 18 wide: line only
-  { key: 'iou', cur: 'iou', part: 'iou', x: IOU_X, w: PAIR_W, top: TANK_Y, h: TANK_H, label: false, trough: false },
+  { key: 'cash', cur: 'cash', part: 'cash', x: CASH.x, w: CASH.w, top: CASH.y, h: CASH.h, label: false, trough: false },   // the 现金湖: line only
 ];
 const HWM_KEYS = HWM_ITEMS.map(i => i.key);
 
@@ -1131,9 +1188,9 @@ function updateMarks(st, snap) {
 
 function hwmObstacles(it, phone, town) {      // y bands that already carry text / drawings inside the tank
   switch (it.key) {
-    case 'housing': return [[TANK_Y, TANK_Y + (town ? 47 : 35)]];
-    case 'bond': return [[TANK_Y, TANK_Y + 35], [349, 386]];                  // seesaw + its captions
-    default: return [[TANK_Y, TANK_Y + 35]];                                  // pool name + value (+ the 贵/便宜 tag: see applyMarks)
+    case 'housing': return [[TANK_Y, TANK_Y + (town ? 47 : 35)], [TANK_Y + 40, TANK_Y + 56]];
+    case 'bond': return [[TANK_Y, TANK_Y + 35], [TANK_Y + 40, TANK_Y + 56], [292, PB]];                  // seesaw + its captions
+    default: return [[TANK_Y, TANK_Y + 35], [TANK_Y + 40, TANK_Y + 56]];                                  // pool name + value (+ the 贵/便宜 tag: see applyMarks)
   }
 }
 function hwmSpot(it, y, fs, obs) {            // text baseline above the line, else below it, else null (tank too busy: line only)
@@ -1204,10 +1261,8 @@ function applyCur(R, cur) {
     o.bandB.setAttribute('y', y1.toFixed(1)); o.bandB.setAttribute('height', Math.max(1.5, y0 - y1).toFixed(1));
     o.bandP.setAttribute('d', `M${p.x} ${y1.toFixed(1)} h${TANK_W} M${p.x} ${y0.toFixed(1)} h${TANK_W}`);
   }
-  const ih = TANK_H * cur.iou;
-  R.iouWater.setAttribute('y', (TANK_Y + TANK_H - ih).toFixed(1)); R.iouWater.setAttribute('height', ih.toFixed(1));
-  const ch = TANK_H * cur.cash;
-  R.cashWater.setAttribute('y', (TANK_Y + TANK_H - ch).toFixed(1)); R.cashWater.setAttribute('height', ch.toFixed(1));
+  const ch = CASH.h * cur.cash;
+  R.cashWater.setAttribute('y', (CASH.y + CASH.h - ch).toFixed(1)); R.cashWater.setAttribute('height', ch.toFixed(1));
   const rw = cur.chW, rx = CH_CX - rw / 2;
   R.river.setAttribute('x', rx.toFixed(1)); R.river.setAttribute('width', rw.toFixed(1));
   // B1 plan view: water depth against the bank line (r = 1 at the bank); the part above the bank is tinted (溢出)
@@ -1316,7 +1371,7 @@ function setTexts(R, snap, prevSnap, st) {
     // B4: % of GDP (annualised) by default; the town keeps its 万元 (its lessons count amounts). Outlets: the number only (name under the chip).
     const sv = neg && p.signed ? -v : v;      // 净出口 keeps its sign; 外国人卖国债 says the direction in its label
     const val = town ? fmtMoney(sv, town) : pctTxt(shareOf(sv, snap), p.kind === 'out');
-    placeChip(pr, p.kind === 'fb' ? p.label : p.kind === 'out' ? val : `${lab} ${val}`);
+    placeChip(pr, p.kind === 'fb' ? p.label : p.kind === 'out' || p.pctOnly ? val : `${lab} ${val}`);
     pr.chip.classList.toggle('off', minorHide);
     const idle = p.kind === 'fb' ? false : v < r * 0.0007;
     pr.g.classList.toggle('idle', idle);
@@ -1345,10 +1400,10 @@ function setTexts(R, snap, prevSnap, st) {
     o.stat.textContent = bs && !town ? { hi: '贵', lo: '便宜', ok: '正常' }[bs.state] : '';
     o.stat.setAttribute('class', 'cap vstat' + (bs ? ' ' + bs.state : ''));
   }
-  // B3: 欠条 x% / 水 y% of GDP under the pair (the same scale as the two tanks)
+  // 地下的洞 = private debt / annual GDP (the number the long-cycle dial reads); the cash lake = M / GDP
   { const gd = snap.macro?.gdpNominal, ratio = gd > 0 ? iouOf(snap) / gd : null, mr = gd > 0 ? (a.cash?.level ?? snap.money?.M ?? 0) / gd : null;
-    R.iouGdp.textContent = ratio != null && isFinite(ratio) ? `地下水 −${pct(ratio, 0)}` : '';
-    R.cashGdp.textContent = mr != null && isFinite(mr) ? `水 ${pct(mr, 0)}` : ''; }
+    R.iouGdp.textContent = ratio != null && isFinite(ratio) ? `地下的洞 = 欠款 ${pct(ratio, 0)} GDP` : '地下的洞 = 欠款';
+    R.cashGdp.textContent = mr != null && isFinite(mr) ? `${pct(mr, 0)} GDP` : ''; }
   R.cpi.textContent = `CPI ${pct(m.inflation ?? 0)}`;
   R.unemp.textContent = `失业 ${pct(m.unemployment ?? 0)}`;
   R.px.textContent = `物价 ${Math.round(m.priceLevel ?? 0)}`;
@@ -1391,7 +1446,10 @@ function valueStateOf(snap, path) {
 function markText(n, s) {
   if (!n) return;
   n.classList.toggle('v-est', s === 'est'); n.classList.toggle('v-none', s === 'none');
-  if (s === 'none') { const t = n.textContent; n.textContent = /\d/.test(t) ? (/\s/.test(t.trim()) ? t.trim().replace(/\s+\S*$/, '') : '') : t; }
+  if (s === 'none') {
+    const t = n.textContent.trim();
+    n.textContent = !/\d/.test(t) ? t : / GDP$/.test(t) ? t.replace(/\s*\S*\d\S*\s+GDP$/, '') : /\s/.test(t) ? t.replace(/\s+\S*$/, '') : '';   // 「x% GDP」: drop both
+  }
   if (s === 'est') n.setAttribute('data-est', EST_TIP); else n.removeAttribute('data-est');
 }
 function applyValueState(R, snap) {
@@ -1503,6 +1561,13 @@ function fmtValve(v, x) {
 /* B4: tap a pipe chip -> its amounts (the chip itself shows % of GDP) */
 function chipPopHtml(st, p) {
   const snap = st.snap, town = st.town, f = flowsOf(snap, st.prev), iso = curInfo().iso;
+  if (p.k === 'valCapex') {      // a feedback line, not a money flow: what it does, and whether it is open here
+    const s = valCapexState(snap);
+    const why = s === 'on' ? '现在是开的（沙盒）：股价高 → 融资便宜 → 企业多投资（Capex），约 2–4 季。' : s === 'off' ? '这个国家的模型里没接：试过，几乎不改变结果。' : VALCAPEX_SHUT;
+    return `<button type="button" class="fp-x" data-act="cp-close" aria-label="关闭">✕</button><div class="fp-kind">反馈线：不是钱在流，是股价在推投资</div>` +
+      `<h4>股价 → Capex${s === 'on' ? '' : ' · 关'}</h4><div class="cp-note">${esc(why)}</div>` +
+      (hasTerm('capex') ? `<div class="fp-btns"><button type="button" class="btn term-btn" data-term="capex">看「${esc(CONCEPTS.capex.name || 'Capex')}」的解释</button></div>` : '');
+  }
   const v = f[p.k] ?? 0;
   const money = x => (town ? `${fmtMoney(x, true)} 万元` : fmtBn(x, iso));
   const signed = x => (x < 0 ? '−' : '') + money(Math.abs(x));
@@ -1669,6 +1734,9 @@ function wireEvents(host, R) {
   };
   host.addEventListener('click', e => {
     const bp = R.bd && R.bd.pop, tg = e.target && e.target.closest ? e.target : null;
+    // phone: the 河 / 湖 / 地下 place switch
+    const pl = tg && tg.closest('.flow-places [data-place]');
+    if (pl) { e.preventDefault(); R.place = pl.dataset.place; R.cpop.hidden = true; closeValvePopover(); syncView(R); return; }
     // FX reactor (desktop band): tap a pipe = the reactor popover with the five forces; tap outside / ✕ closes it
     const fxp = R.bd && R.bd.fxPop;
     if (fxp && tg) {
@@ -1699,7 +1767,7 @@ function wireEvents(host, R) {
     const chip = tg && tg.closest('.flow-svg g.chip[data-pipe]');
     if (chip && !chip.hasAttribute('data-bd')) {
       const p = PIPES.find(x => x.k === chip.getAttribute('data-pipe'));
-      if (p && p.kind !== 'fb') {
+      if (p && (p.kind !== 'fb' || p.k === 'valCapex')) {      // 股价 → Capex: the tap says whether it is open (phones have no hover title)
         e.preventDefault(); e.stopPropagation();
         if (cpOpen !== p.k) openChipPop(host, p, chip);
         return;
@@ -1823,6 +1891,7 @@ export function renderFlow(host, snap, prevSnap) {
         syncDangling(host);
         const s = host._flow;
         if (s && s.snap && !!s.R.hasBorder !== (!s.town && !!s.snap.border && layerShown('L-border'))) setBorder(s.R, s.snap, s.town);
+        if (s && !!s.R.wrap.classList.contains('placed') !== placeMode()) s.R.syncVB();      // a lesson starts / ends: whole picture <-> one place
       }).observe(document.body, { attributes: true, attributeFilter: ['data-vis', 'class', 'data-layers'] });
     } catch (e) { /* ignore */ }
   }

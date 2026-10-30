@@ -14,7 +14,8 @@ export const LAYERS = [
     // the 收入循环 loop, the 4 outlets = GDP, the 现金 tank, the household / firm boxes, the 本季水量 bar + legend row
     parts: ['household', 'firm', 'channel', 'cash', 'repay', 'budget', 'weir'],
     pipes: ['newLoans', 'principalRepay', 'toCash', 'toConsumption', 'wages', 'profits', 'spillToGoods', 'outC', 'outI', 'outG', 'outNX'],
-    nodes: ['bank'], keys: ['bankTitle', 'weir', 'ring', 'recharge'], valves: ['saveAdj'],
+    // v3.1: 'groundBase' = the plain soil band at the bottom the pumps lift from / recharge into (its water table + 吸程线 come with L-long)
+    nodes: ['bank'], keys: ['bankTitle', 'weir', 'ring', 'recharge', 'groundBase'], valves: ['saveAdj'],
     extras: ['objective'] },
   { id: 'L-channel', name: '水的问题，还是河道的问题',
     // channel width (产能 brackets + number) / depth (the bank line, water over the bank), the 断面 cross-section inset, Capex
