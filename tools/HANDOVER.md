@@ -75,6 +75,30 @@ Everything below is pushed; no work is pending in any worktree.
      - step 5 adds 「我们用公开数据做的卡点雷达和行业动量，回测里扣掉成本后都没有稳定跑赢大盘：市场比公开数据快。所以卡点只当背景，不当择时信号」;
      - step 6: the 10% tilt becomes a fixed 「信念仓位」 (0–10% by conviction), rebalanced yearly, NOT rotated. REMOVE the 「卡点挪了」 button. Keep 收紧 / AI 信用压力, labelled 「风险控制，不是赚钱信号；历史上只有 4 次收紧，证据不足」;
      - conclusion: the core (60% global ex-AU unhedged) does most of the work; the tilt is optional.
+   - **RESTRUCTURE (user, later the same night): about 80% macro, 20% allocation = 8 macro steps + 2 allocation steps + ending.** This supersedes the step list above; the corrections above still apply. One idea per step, conclusion first, parts shown on the main diagram.
+     - **M1 问题与结论:** AI widens the channel, but the weir tilts toward the owners of the bottlenecks; the shocks come in three phases; an AU household sits on one river (house + job + AUD).
+     - **M2 分水堰** (Restrepo, NBER WP 34423, Oct 2025):
+       - in the AGI limit the labor share → 0 and wages are capped by the compute cost of replicating a job, yet the wage level can still be higher (the share shrinks, not the level);
+       - the relative loss hurts in three places: (a) scarce fixed-库容 assets (good-location houses, schools) priced by the top; (b) the saving glut of the rich (Mian–Straub–Sufi), so water sits in the lake → household borrowing → the hole deepens; (c) politics → taxes at the weir / redistribution (Dalio internal order);
+       - draw the K by place on the diagram.
+     - **M3 河道与物价, two speeds:**
+       - now, physical bottlenecks (power, copper, chips) narrow the channel → inflation, leaning B1 (CPI: US ~3.8%, AUS ~4% per real data);
+       - later, cheap AI services → disinflation;
+       - use the 测流断面 diagnostic.
+     - **M4 吸力:** capex + deficits push it up; the saving glut pushes it down; currently up (10y: US ~4.9%, AUS ~5.1%; RBA path per real data; VERIFY every number against data_src/real before typing). Long bonds and narrow pools fear a rising 吸力.
+     - **M5 估值:** big AI profit growth is already priced; returns depend on surprise; narrow pools fall most on disappointment.
+     - **M6 地下和闸:** AI capex is increasingly debt-financed (bonds, private credit, DC builders), so a bust is a credit event (情景 B); money runs to the USD lake.
+     - **M7 三阶段与切换风险:** 投资期 → 扩散期 → 分配期 (K politics, compute / capital taxed, UBI via the deep pump; if financed by printing → B1). The main risk is a bumpy switch.
+     - **M8 澳洲视角:**
+       - same river; ASX has little compute exposure; AU banks = mortgage risk;
+       - iron ore: China steel peaked 2020, property starts down > 50%, Simandou supply from late 2025, so the 2021–23 windfall (hh debt/GDP 118 → 109%) is unlikely to repeat; the ratio has been rising since 2024 (114% in 2025);
+       - debt reduction must come from nominal GDP and slower credit (APRA);
+       - the AUD as a shock absorber (2008 AUD −24%, JPY +18%);
+       - AU jobs as bottleneck vs supplementary tasks (no AU-specific evidence yet; say so).
+     - **A1 诚实的一页:** SITU-AWARE v2 result (no profitable timing signal after costs).
+     - **A2 worked example:** as above (fixed 0–10% 信念仓位, risk-control triggers, staged entry, offset note, licensed adviser).
+     - **Ending:** the 三问 + 「样板，不是个人建议」.
+     - **Sources:** every number from repo data / engine, or a cited dated fact (NBER WP 34423; Grid Strategies; PJM auctions; SITU-AWARE reports; ABS / RBA / BIS for AU debt and rates). Verify the peer's quoted figures against the data before using them; if one doesn't match, use the data and note it.
 1. **EA:**
    - fix the COVID shock the GBR way (shockMult 1, slackVsCapEff, furlough);
    - EA initial values (household 0.46 / private 1.12 / gov 0.70);
