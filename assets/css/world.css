@@ -202,6 +202,13 @@
   .wm-enter { min-height: 44px; }
 }
 body[data-map="1"] .toast { z-index: 70; }
+/* phone: the back button and the five layer buttons do not fit on one row at 390: the buttons take a row of their own */
+@media (max-width: 560px) {
+  .wm-top { flex-wrap: wrap; padding-top: 4px; padding-bottom: 4px; }
+  .wm-seg { margin-left: 0; max-width: 100%; }
+  .wm-seg button { min-height: 36px; padding: 0 7px; }
+  .wm-box.cmp .wm-n { font-size: calc(var(--wm-fs) * 1.25); }
+}
 
 /* v3 (DESIGN-v3 「World + FX」): 地下连地下 = USD debt pipes; the mini 3-layer icon in each box; per-country one-liner */
 .wm-sw.debt { border-top-color: #9a7b4f; }
