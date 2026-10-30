@@ -103,6 +103,36 @@
 .wm-sluice:hover .wm-sl-bg, .wm-sluice:focus-visible .wm-sl-bg { stroke-width: 2.2; }
 .has-sel .wm-sluice:not(.sel):not(.nb) { opacity: .5; }
 
+/* mini 吸力尺 under each gate: ▶差 chip (+ tiny bar from 768px), the CNY rope to its 官方价 line. Same marks / colours as 专题：预期
+   (src/ui/exp-gauge.js): ▶ = text colour, band blue = c-pump / red = c-drain, rope = earth brown, 官方价 dashed like the 调度线 */
+.wm-svg { --wm-r-blue: var(--c-pump); --wm-r-red: var(--c-drain); --wm-rope: #8a6a3c; }
+.wm-ruler { cursor: pointer; outline: none; transition: opacity .2s; }
+.wm-ruler text { pointer-events: none; font-variant-numeric: tabular-nums; }
+.wm-ruler .wm-r-bg { fill: var(--surface); stroke: var(--muted); stroke-opacity: .55; stroke-width: 1; }
+.wm-ruler .wm-r-k { font-weight: 800; fill: var(--text); }
+.wm-ruler .wm-r-v { font-weight: 700; fill: var(--text); }
+.wm-ruler .wm-r-ax { stroke: var(--muted); stroke-width: 1; }
+.wm-ruler .wm-r-zero { stroke: var(--text); stroke-width: 1.4; stroke-linecap: round; }
+.wm-ruler .wm-r-band { opacity: .7; }
+.wm-ruler .wm-r-band.blue { fill: var(--wm-r-blue); } .wm-ruler .wm-r-band.red { fill: var(--wm-r-red); }
+.wm-ruler .wm-r-band.p { fill: var(--text); opacity: .55; }
+.wm-ruler .wm-r-off { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 2.5; }
+.wm-ruler .wm-rope { fill: none; stroke: var(--wm-rope); stroke-linecap: round; }
+.wm-ruler .wm-knot { fill: var(--wm-rope); }
+.wm-ruler .wm-peg-t { fill: var(--wm-rope); font-weight: 700; }
+.wm-ruler:hover .wm-r-bg, .wm-ruler:focus-visible .wm-r-bg { stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.8; }
+.wm-ruler.sel .wm-r-bg { stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.6; }
+.has-sel .wm-ruler:not(.sel):not(.nb) { opacity: .5; }
+/* the card: the ruler in words */
+.wm-rc { margin: 6px 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); border-left: 4px solid var(--text); font-size: 13px; line-height: 1.45; }
+.wm-rc p { margin: 2px 0; }
+.wm-rc-h small { display: block; color: var(--muted); font-size: 11.5px; }
+.wm-rc-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wm-rc-v.blue { color: var(--c-pump); } .wm-rc-v.red { color: var(--c-drain); }
+.wm-rc-par { font-weight: 700; }
+.wm-rc-rope b { color: #8a6a3c; }
+.wm-rc-no { color: var(--muted); font-size: 12px; }
+
 /* the world reserve reservoir under the USA box */
 .wm-pool { transition: opacity .2s; pointer-events: none; }
 .wm-pool .wm-prect { fill: var(--surface); stroke: var(--c-bond); stroke-width: 1.8; }
