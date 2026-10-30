@@ -101,9 +101,10 @@ for (const iso of ISOS) {
 // 6. the generated file
 console.log('\n=== generated file ===');
 const res = await runBacktest();
-const want = fileText(res), have = fs.existsSync(OUT_FILE) ? fs.readFileSync(OUT_FILE, 'utf8') : '';
+const lf = s => s.replace(/\r\n/g, '\n');   // a Windows checkout (core.autocrlf) has CRLF; compare content, not line endings
+const want = fileText(res), have = fs.existsSync(OUT_FILE) ? lf(fs.readFileSync(OUT_FILE, 'utf8')) : '';
 assert(want === have, `src/data/real/backtest.js matches what tools/backtest_real.mjs generates (${Buffer.byteLength(have)} bytes; regenerate with --write)`);
-const doc = fs.existsSync(DOC_FILE) ? fs.readFileSync(DOC_FILE, 'utf8') : '';
+const doc = fs.existsSync(DOC_FILE) ? lf(fs.readFileSync(DOC_FILE, 'utf8')) : '';
 assert(docSection(doc) === docTables(res), 'tools/BACKTEST.md: the tables between the markers match the script (regenerate with --write)');
 for (const w of ['同比', '环比']) assert(!doc.includes(w) && !want.includes(w), `BACKTEST.md / backtest.js never write ${w}`);
 for (const iso of ISOS) {
