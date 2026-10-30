@@ -1,0 +1,108 @@
+/* 「第 9 课：现在在哪」 panels (src/ui/now-panel.js). Tokens only (app.css), light theme. Loaded on demand by ensureNowCss().
+   Phone first: two country columns side by side down to 320px; nothing wider than the host. Builds on exp-gauge.css (.exg). */
+:root {
+  --nowp-hot: var(--c-drain);
+  --nowp-warm: #c98a1b;
+  --nowp-calm: #3f9a5b;
+  --nowp-water: var(--c-pump);
+}
+.ls-pnl-dia[data-kind="now"] { padding: 10px 12px 18px; }
+.nowp { font-size: 13px; }
+.nowp-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 8px; }
+.nowp-h b { font-size: 14.5px; }
+.nowp-h small { color: var(--muted); font-size: 11.5px; }
+.nowp-note { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; }
+.nowp-res { border-top: 1px dashed var(--border); padding-top: 5px; }
+.nowp-truth { margin: 8px 0 0; padding: 6px 9px; border-radius: 9px; background: var(--surface-2); font-size: 13px; }
+
+/* two country columns */
+.nowp-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.nowp-c { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 6px 7px 7px; background: var(--surface); }
+.nowp-ct { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; margin: 0 0 2px; }
+.nowp-ct b { font-size: 13.5px; } .nowp-ct small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nowp svg.nowp-sec, .nowp svg.nowp-gw { width: 100%; height: auto; display: block; }
+.nowp svg text { font-variant-numeric: tabular-nums; }
+.nowp-ro { margin: 3px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.nowp-ro b { font-size: 13px; margin-left: 3px; }
+.nowp-ro small { display: block; color: var(--muted); font-size: 10.5px; }
+.nowp-ro.sm { font-size: 11.5px; }
+.nowp-est { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 4px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+
+/* the map (five places × two countries) */
+.nowp-map { display: flex; flex-direction: column; gap: 4px; }
+.nowp-mr { display: grid; grid-template-columns: minmax(64px, .8fr) minmax(0, 1.2fr) minmax(0, 1.2fr); gap: 4px; align-items: stretch; }
+.nowp-mh > div { display: flex; flex-direction: column; font-size: 12.5px; }
+.nowp-mh small { color: var(--muted); font-size: 10.5px; }
+.nowp-mp { display: flex; flex-direction: column; justify-content: center; }
+.nowp-mp b { font-size: 13.5px; } .nowp-mp small { color: var(--muted); font-size: 10.5px; }
+.nowp-mc { min-width: 0; border-radius: 9px; padding: 5px 7px; border: 1.5px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 1px; }
+.nowp-mc span { font-size: 12.5px; font-weight: 600; }
+.nowp-mc small { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+.nowp-mc.hot { border-color: var(--nowp-hot); background: color-mix(in srgb, var(--nowp-hot) 9%, var(--surface)); }
+.nowp-mc.warm { border-color: var(--nowp-warm); background: color-mix(in srgb, var(--nowp-warm) 10%, var(--surface)); }
+.nowp-mc.calm { border-color: var(--nowp-calm); background: color-mix(in srgb, var(--nowp-calm) 8%, var(--surface)); }
+.nowp-mc.blue { border-color: var(--exg-blue); background: color-mix(in srgb, var(--exg-blue) 9%, var(--surface)); }
+.nowp-mc.red { border-color: var(--exg-red); background: color-mix(in srgb, var(--exg-red) 9%, var(--surface)); }
+.nowp-mc.na { border-style: dashed; }
+.nowp-leg { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.nowp-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 3px; vertical-align: -1px; }
+.nowp-leg i.hot { background: var(--nowp-hot); } .nowp-leg i.warm { background: var(--nowp-warm); } .nowp-leg i.calm { background: var(--nowp-calm); }
+.nowp-leg i.blue { background: var(--exg-blue); opacity: .6; } .nowp-leg i.red { background: var(--exg-red); opacity: .6; }
+
+/* 河 */
+.nowp-bank { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; }
+.nowp-water { fill: var(--nowp-water); opacity: .28; }
+.nowp-tgt { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 5 3; }
+.nowp-tl { fill: var(--muted); font-size: 10px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.nowp-wl { fill: var(--text); font-size: 11.5px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.nowp-bars { margin: 4px 0 0; }
+.nowp-bh { font-size: 11.5px; font-weight: 600; }
+.nowp-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 6px; column-gap: 4px; font-size: 10.5px; margin: 2px 0 0; }
+.nowp-bar span { color: var(--muted); grid-column: 1; grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nowp-bar b { grid-column: 2; grid-row: 1; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.nowp-bar i { grid-column: 1 / 3; grid-row: 2; height: 6px; border-radius: 3px; background: var(--muted); opacity: .45; }
+.nowp-bar.now i { background: var(--accent); opacity: .8; }
+
+/* 地下 */
+.nowp-soil { fill: #b08a5a; opacity: .14; }
+.nowp-gwater { fill: var(--nowp-water); opacity: .16; }
+.nowp-tab { fill: none; stroke: var(--nowp-water); stroke-width: 1.8; stroke-linejoin: round; }
+.nowp-avg { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; }
+.nowp-dot { fill: var(--nowp-water); stroke: var(--surface); stroke-width: 1.5; }
+.nowp-lift { margin: 5px 0 0; padding: 4px 6px; border-radius: 8px; border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 1px; }
+.nowp-lift b { font-size: 12px; } .nowp-lift span { font-size: 12px; font-weight: 600; }
+.nowp-lift small { font-size: 11px; color: var(--text); }
+.nowp-lift small.nowp-b2h { color: var(--muted); font-size: 10.5px; }
+.nowp-lift.hot { border-color: var(--nowp-hot); } .nowp-lift.warm { border-color: var(--nowp-warm); } .nowp-lift.calm { border-color: var(--nowp-calm); }
+
+/* 湖 */
+.nowp-pool { margin: 5px 0 0; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--border); }
+.nowp-pool.hot { border-color: var(--nowp-hot); } .nowp-pool.warm { border-color: var(--nowp-warm); } .nowp-pool.calm { border-color: var(--nowp-calm); }
+.nowp-pool.na { border-style: dashed; }
+.nowp-pn { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 6px; }
+.nowp-pn b { font-size: 12.5px; } .nowp-pn span { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nowp-pool > small { display: block; font-size: 10.5px; color: var(--muted); }
+.nowp-meter { position: relative; height: 10px; margin: 3px 0 2px; border-radius: 5px; overflow: visible; background: var(--surface-2); }
+.nowp-meter > i { position: absolute; top: 0; height: 10px; opacity: .45; }
+.nowp-meter > i:first-child { border-radius: 5px 0 0 5px; } .nowp-meter > i:last-of-type { border-radius: 0 5px 5px 0; }
+.nowp-meter > i.hot { background: var(--nowp-hot); } .nowp-meter > i.warm { background: var(--nowp-warm); } .nowp-meter > i.calm { background: var(--nowp-calm); }
+.nowp-mk { position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--text); }
+.nowp-mk.off-r { margin-left: -4px; } .nowp-mk.off-l { margin-left: 0; }
+.nowp-one { position: absolute; top: 0; height: 10px; border-left: 1.5px dashed var(--text); opacity: .6; }
+
+/* 吸力尺 */
+.nowp .exg-row.two { gap: 6px; }
+.nowp-rc .exg-ro { text-align: center; }
+
+/* 闸 */
+.nowp-gate { display: flex; flex-direction: column; gap: 4px; }
+.nowp-gr { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 6px; padding: 5px 7px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); font-size: 12.5px; }
+.nowp-gr > b { font-size: 12.5px; }
+.nowp-gr span b.up { color: var(--nowp-calm); } .nowp-gr span b.dn { color: var(--nowp-hot); }
+.nowp-fxr { margin: 6px 0 0; min-width: 0; }
+
+@media (max-width: 360px) {
+  .nowp-two { gap: 5px; }
+  .nowp-c { padding: 5px; }
+  .nowp-mr { grid-template-columns: minmax(52px, .7fr) minmax(0, 1.2fr) minmax(0, 1.2fr); }
+}
