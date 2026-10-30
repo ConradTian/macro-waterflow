@@ -33,7 +33,7 @@ import { createSim } from '../engine/sim.js';
 import * as RULES from '../engine/rules.js';
 import { VALVES } from '../engine/valves.js';
 import { TOWN_DATA } from '../engine/town.js';
-import { LESSONS, COURSE } from '../data/lessons.js';
+import { LESSONS, COURSE, expGet, b1 } from '../data/lessons.js';
 import { linkify, roleCardHtml } from './concepts.js';
 import { CONCEPTS as CONC } from '../data/concepts.js';
 import { flash, clearFlash, ROLE_ORDER, ROLE_NAME, setAvailableRoles, isRoleLearned, markRoleLearned } from './links.js';
@@ -574,6 +574,10 @@ function continueEnter(i) {
     const a = ss.tbl.raw[d.a], b = ss.tbl.raw[d.b];
     ss.tbl.raw[d.key] = typeof a === 'number' && typeof b === 'number' ? a - b : null; ss.tbl.fmt[d.key] = d.fmt;
   }
+  if (!town && st.expVals && panelLib.exp) {                // step field expVals:[{key, get}]: what the exp panels compute from their replay (L3 m2)
+    ss.tbl ||= { raw: {}, fmt: {} };
+    for (const x of st.expVals) { let v = null; try { v = expGet(panelLib.exp, x.get); } catch (e) { console.error(e); } ss.tbl.raw[x.key] = v; ss.tbl.fmt[x.key] = x.fmt || 'str'; }
+  }
   setHl(st.hl);
   if (st.glow) setTimeout(() => { if (cur && cur.i === i) flash(st.glow, 3500); }, 450);
   if (st.strip) setTimeout(() => { if (cur && cur.i === i) pulseHeadline(false); }, 700);   // point at the 本季看点 strip
@@ -969,7 +973,8 @@ function drillsHtml(st) {
   if (d) {
     const back = d.back || (st.panel && st.panel.id === 'fx-reactor' ? '回到汇率闸' : '回到上一张图');
     const others = st.drillCta ? '' : ds.map((x, k) => (k === ss.drill ? '' : `<button type="button" class="ls-drill" data-act="drill" data-k="${k}">${esc(x.label)} ›</button>`)).join('');
-    return `<div class="ls-drill-txt"><div class="ls-drill-h"><b>${esc(d.label)}</b></div>${arr(d.text).map(t => `<p>${rich(t)}</p>`).join('')}</div>` +
+    const dt = ss.tbl ? fillStep({ text: arr(d.text) }, ss.tbl).text : arr(d.text);   // {placeholders} from the step's live table, like the step text
+    return `<div class="ls-drill-txt"><div class="ls-drill-h"><b>${esc(d.label)}</b></div>${dt.map(t => `<p>${rich(t)}</p>`).join('')}</div>` +
       `<button type="button" class="btn ${st.drillCta ? 'primary ls-run' : 'ls-drill-back'}" data-act="drill" data-k="-1">‹ ${esc(back)}</button>` +
       (others ? `<div class="ls-drills"><span>再看一股</span>${others}</div>` : '');
   }
@@ -1069,6 +1074,7 @@ function draw() {
         (st.insight ? `<p class="ls-insight">${rich(st.insight)}</p>` : '');
     }
   } else if (st.type === 'predict') {
+    body += paras;                                           // a predict step may set the scene first (step field text), then asks
     body += `<p class="ls-q">${rich(st.q)}</p><div class="ls-opts">` +
       st.options.map((o, k) => {
         const cls = ss.picked == null ? '' : o.ok ? ' ok' : k === ss.picked ? ' bad' : ' dim';
@@ -1186,12 +1192,36 @@ function blockHtml(name, snap) {
       '<p class="ls-note">判断 B2，按顺序问四句。前三句回答「B2 有没有可能来」，第四句才确认：</p>' +
       '<ol class="ls-b2q"><li>借钱买的资产跌了吗？</li><li>负资产多不多？</li><li>银行伤了吗？</li><li><b>降息推不推得动？</b>（推不动，才是 B2）</li></ol>';
   }
+  if (name === 'b1story') return b1Chart();
   if (name === 'valves') {
     const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
     return `<div class="ls-two"><div><h4>能拧的：阀门</h4><ul>${li(VALVES.map(v => v.label.replace(/^.*：/, '') + '（' + (v.label.split('：')[0]) + '）'))}</ul></div>` +
       `<div><h4>只能看的：水位</h4><ul>${li(['房价（房产水位）', '股价（股票水位）', '国债价格', '金价', '物价（商品河道水位）', '失业率', '房贷利率（平均）'])}</ul></div></div>`;
   }
   return '';
+}
+
+// block 'b1story' (L4 m3 「另一条岔路 B1」, 故事读法): US 1964–1984 from FRED (src/data/b1-story.js via b1 of src/data/lessons.js). ▼ = 物价比一年前,
+// ▶ = 政策利率; red shading = quarters where 到手 ▶ − ▼ < 0; dots = the wave highs / lows the text quotes. Static SVG, light theme colours of
+// the exp gauge (--c-repay ▼, --text ▶, --c-drain red).
+function b1Chart() {
+  const R = b1.win(['1964Q1', '1984Q4']), n = R.length, W = 340, H = 178, L = 30, Rt = 8, T = 10, B = H - 34, hi = 0.20;
+  const X = k => L + k * (W - L - Rt) / (n - 1), Y = v => T + (hi - Math.max(0, Math.min(hi, v))) / hi * (B - T), f1 = v => v.toFixed(1);
+  const idx = r => R.findIndex(x => x.d === r.d), pc = v => (v * 100).toFixed(1) + '%';   // as the card text (one decimal)
+  const s = [];
+  R.forEach((r, k) => { if (r.real < 0) s.push(`<rect x="${f1(X(k) - (W - L - Rt) / (n - 1) / 2)}" y="${T}" width="${f1((W - L - Rt) / (n - 1))}" height="${B - T}" style="fill:var(--c-drain);opacity:.13"/>`); });
+  for (const v of [0, 0.05, 0.10, 0.15, 0.20]) s.push(`<line x1="${L}" x2="${W - Rt}" y1="${f1(Y(v))}" y2="${f1(Y(v))}" style="stroke:var(--line,#ccc);stroke-width:${v ? 0.5 : 1}"/><text x="${L - 4}" y="${f1(Y(v) + 3.5)}" text-anchor="end" style="font-size:9px;fill:var(--muted)">${Math.round(v * 100)}%</text>`);
+  R.forEach((r, k) => { if (/Q1$/.test(r.d) && +r.d.slice(0, 4) % 4 === 0) s.push(`<text x="${f1(X(k))}" y="${B + 12}" text-anchor="middle" style="font-size:9px;fill:var(--muted)">${r.d.slice(0, 4)}</text>`); });
+  const line = (k, st) => s.push(`<polyline points="${R.map((r, i) => `${f1(X(i))},${f1(Y(r[k]))}`).join(' ')}" style="fill:none;${st}"/>`);
+  line('ff', 'stroke:var(--text);stroke-width:1.3');
+  line('cpi', 'stroke:var(--c-repay);stroke-width:2.4');
+  const dot = (r, up) => { const k = idx(r); if (k < 0) return; s.push(`<circle cx="${f1(X(k))}" cy="${f1(Y(r.cpi))}" r="3" style="fill:var(--c-repay)"/><text x="${f1(X(k))}" y="${f1(Y(r.cpi) + (up ? -6 : 13))}" text-anchor="middle" style="font-size:9px;font-weight:700;fill:var(--c-repay)">${pc(r.cpi)}</text>`); };
+  b1.peaks.forEach(r => dot(r, true)); b1.lows.forEach(r => dot(r, false));
+  const vk = idx(b1.ffPk); if (vk >= 0) s.push(`<text x="${f1(X(vk) - 5)}" y="${f1(Y(b1.ffPk.ff) + 3)}" text-anchor="end" style="font-size:9px;fill:var(--text)">沃尔克 ▶ ${pc(b1.ffPk.ff)}</text>`);
+  const lg = `<g transform="translate(${L},${H - 10})" style="font-size:9.5px;fill:var(--muted)"><rect x="0" y="-7" width="14" height="3" style="fill:var(--c-repay)"/><text x="18" y="-3">▼ 物价比一年前</text>` +
+    `<rect x="106" y="-6.5" width="14" height="1.5" style="fill:var(--text)"/><text x="124" y="-3">▶ 政策利率</text><rect x="190" y="-9" width="10" height="8" style="fill:var(--c-drain);opacity:.25"/><text x="204" y="-3">到手 ▶ − ▼ &lt; 0</text></g>`;
+  return `<div class="ls-b1" style="margin:8px 0 4px"><div class="ls-note" style="margin-bottom:2px">故事读法 · 美国 1964–1984（FRED，季度）</div>` +
+    `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:520px;display:block" role="img" aria-label="美国 1964–1984 年物价比一年前和政策利率">${s.join('')}${lg}</svg></div>`;
 }
 
 // before -> now table for the numbers a step is about (st.metrics: [{label, get:'path', fmt}])

@@ -70,11 +70,68 @@ import { LESSON_FX } from './lesson-fx.js';
 import { LESSON_INVESTOR } from './lesson-investor.js';
 import { LESSON_SHOCKS } from './lesson-shocks.js';
 import { COUNTRY_PARAMS } from './country-params.js';
+import { LESSON_EXP } from './lesson-exp.js';
+import { B1_STORY } from './b1-story.js';
 // rule params quoted in the texts: the USA's live values (RULE_DEFS defaults + the USA overrides in country-params.js). The town lesson 0
 // quotes none of the overridden rules, so this is also right there.
 const R = (id, k) => COUNTRY_PARAMS.USA.rules?.[id]?.[k] ?? RULE_BY_ID[id].params[k];
 const p0 = x => Math.round(x * 100) + '%';
 const p1 = x => (Math.round(x * 1000) / 10) + '%';
+const s1 = x => (x * 100).toFixed(1) + '%';                   // always one decimal (the B1 story): 12.0%
+const sp1 = x => (x < 0 ? '−' : '+') + s1(Math.abs(x));      // signed, one decimal: −4.8%
+export const qText = d => `${d.slice(0, 4)} 年第${'一二三四'[+d[5] - 1]}季度`;   // 2022Q4 -> 2022 年第四季度 (as the exp panels)
+
+// 吸力 everywhere (user-approved 2026-10-30): 「开阀看 ▽，结账看 ▼」. 吸力 = the band ▶ − ▽ (rates.policy − macro.inflationExp): borrowing,
+// investing, pricing. 到手实际利率（结账）= ▶ − ▼ (rates.realPolicy = policy − macro.inflation): savers, ⑦, the 政策灯.
+// L3 (m2) carries the core of 「专题：预期」 on the exp panels (src/ui/exp-gauge.js, ids exp-hist / exp-five / exp-loop; src/ui/lessons.js panelKind).
+// Step fields used there besides vals:
+//   derive  [{ key, a, b, fmt }]   raw[key] = raw[a] − raw[b] (src/ui/lessons.js continueEnter; tools/check_lessons.mjs does the same)
+//   expVals [{ key, get }]         numbers the exp panels compute from their own engine replay (exp-gauge.js fiveTurns / loopInfo), so the card
+//                                  and the panel can never disagree: expGet(G, get) with G = the exp-gauge module (the runner passes the loaded
+//                                  panel module, the checker imports it). get: five.blue | five.order | five.lag.river | loop.firstHike | loop.firstCut
+export function expGet(G, get) {
+  const F = G.fiveTurns(), Lp = G.loopInfo();
+  const q = d => (d ? qText(d) : null);
+  switch (get) {
+    case 'five.blue': return q(F.blue);
+    case 'five.order': return F.orderText || null;
+    case 'five.lag.river': return F.lag.river;
+    case 'loop.firstHike': return q(Lp.firstHike);
+    case 'loop.firstCut': return q(Lp.firstCut);
+    default: return null;
+  }
+}
+
+// L4 (m3) story step 「另一条岔路 B1」: US 1964–1984 from FRED (src/data/b1-story.js, built by tools/build_b1_story.py). 故事读法, not a model
+// replay. Every number of the text is computed here from that module; the windows below are the story frame (which quarters count as one
+// wave), the values and their quarters come from the data. tools/check_lessons.mjs recomputes the module from the CSVs and checks the facts.
+export const B1_WAVES = {
+  before: ['1964Q1', '1965Q4'],                                          // ▼ before the story starts
+  peaks: [['1968Q1', '1971Q4'], ['1973Q1', '1975Q4'], ['1978Q1', '1981Q4']],
+  lows: [['1971Q1', '1973Q2'], ['1975Q1', '1977Q4'], ['1982Q1', '1984Q4']],   // the last low = after Volcker
+  neg: ['1974Q1', '1980Q4'],                                             // quarters with 到手 ▶ − ▼ < 0
+  debt: ['1966Q1', '1981Q4'],                                            // federal debt / GDP: from the first quarter to the lowest
+  volcker: ['1979Q3', '1984Q4'],                                         // ▶ peak and the 河干 (unemployment peak)
+  from: '1960Q1', until: '1985Q4',
+};
+export const b1 = (() => {
+  const S = B1_STORY, rows = S.dates.map((d, i) => ({ d, cpi: S.cpi[i], ff: S.ff[i], u: S.u[i], gd: S.gd[i], real: S.ff[i] - S.cpi[i] }));
+  const win = ([a, b]) => rows.filter(r => r.d >= a && r.d <= b);
+  const ext = (w, k, hi) => win(w).filter(r => r[k] != null).reduce((m, r) => (m == null || (hi ? r[k] > m[k] : r[k] < m[k]) ? r : m), null);
+  const W = B1_WAVES;
+  const peaks = W.peaks.map(w => ext(w, 'cpi', true)), lows = W.lows.map(w => ext(w, 'cpi', false));
+  const neg = win(W.neg).filter(r => r.real < 0), worst = ext(W.neg, 'real', false);
+  const d0 = win(W.debt).find(r => r.gd != null), dMin = ext(W.debt, 'gd', false);
+  const ffPk = ext(W.volcker, 'ff', true), uPk = ext(W.volcker, 'u', true);
+  return { rows, win, ext, before: ext(W.before, 'cpi', true), peaks, lows, neg, negN: neg.length, negAll: win(W.neg).length, worst, d0, dMin, ffPk, uPk };
+})();
+const yr = r => r.d.slice(0, 4);
+const qd = r => qText(r.d);
+// the rope step of 「专题：预期」 (?lesson=exp&step=N): found by its panel id, so a re-ordered topic lesson still links to the right step
+const EXP_ROPE_STEP = Math.max(0, LESSON_EXP.steps.findIndex(s => s.panel && s.panel.id === 'exp-rope'));
+// the vals window of the exp-panel steps of L3: the panels replay the US model 2020–2024 (EXP_HIST / EXP_FIVE of lesson-exp.js)
+const XW = { from: '2019Q4', until: '2024Q4' };
+const xat = (d, path, key, fmt = 'pct') => ({ key, get: `at:${d}:${path}`, fmt, ...XW });
 
 export const LESSONS = [
   {
@@ -519,18 +576,17 @@ export const LESSONS = [
   {
     id: 'm2', kind: 'main', label: '第 3 课',
     title: '央行怎么让河涨落？',
-    oneLine: '央行手里只有一个旋钮：吸力（实际利率）。拧大：存湖更划算、抽水更贵，河落；拧小，河涨。可房子这个圈（房价涨 → 抵押品值钱 → 银行多抽水 → 房价再涨）会顶着旋钮转，所以加息要等大约两年才见效。',
+    oneLine: '央行手里只有一个旋钮：吸力 = ▶ − ▽（政策利率减掉大家心里的涨价速度）。拧大：存湖更划算、抽水更贵，几处依次跟着动，最后河落；拧小，河涨。开阀看 ▽，结账看 ▼。可房子这个圈（房价涨 → 抵押品值钱 → 银行多抽水 → 房价再涨）会顶着旋钮转，所以加息要等大约两年才见效。',
     rulesOn: 'all',
     startDate: '1997Q1', endDate: '2008Q1', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：央行让河涨落，靠一个旋钮：吸力（实际利率）。它有两支箭头：存湖划不划算、抽水贵不贵。拧大吸力，水回湖里、少抽水，河落；拧小，河涨。可房子这个圈会顶着旋钮转，加息要等大约两年才见效。**',
-          '人对未来的预期没有单独的零件：它就藏在吸力里（觉得还会加息，抽水就更犹豫）。',
-          '下面分 3 步：抵押品回路 → 拧大吸力 → 为什么两年才见效。',
-          '时间：1997Q1 → 2008Q1（真实季度）。',
+          '**结论：央行让河涨落，靠一个旋钮：吸力 = ▶ − ▽（政策利率减掉大家心里的涨价速度）。拧大吸力，存湖划算、抽水贵，几处依次跟着动，最后河落；拧小，河涨。开阀看 ▽，结账看 ▼。可房子这个圈会顶着旋钮转，加息要等大约两年才见效。**',
+          '下面分 7 步：抵押品回路 → 吸力尺 → 吸力色带 → 开阀和结账 → 拧大吸力 → 五处跟着动 → 为什么两年才见效。',
+          '时间：1997Q1 → 2008Q1（真实季度）；第 2、3、4、6 步看模型里的美国 2020–2024 年（2022 年起是保留样本，只作示意）。',
         ],
-        hl: ['bankApproval', 'newLoans', 'assetReservoir'], concept: ['lvr'] },
+        hl: ['bankApproval', 'newLoans', 'assetReservoir'], concept: ['lvr', 'realRate'] },
 
       { type: 'watch', until: '2001Q2', title: '第 1 步：抵押品回路',
         glow: { parts: ['bank', 'poolHousing'], pipes: ['collateral'] },
@@ -557,18 +613,92 @@ export const LESSONS = [
         ],
         hl: ['bankApproval', 'newLoans', 'assetReservoir'], concept: ['lvr', 'bankApproval', 'dsr'] },
 
-      { type: 'watch', from: '2004Q2', until: '2006Q2', title: '第 2 步：拧大吸力：央行加息', glow: { parts: ['suction', 'centralBank'] },
+      // steps 2–4 and 6: the core of 「专题：预期」 on its panels (src/ui/exp-gauge.js), the US model 2020–2024. Every number in the text is a
+      // vals / derive / expVals placeholder from the same engine run the panel replays (tools/check_lessons.mjs section 16 compares them).
+      { type: 'reveal', title: '第 2 步：吸力尺：▶、▼、▽', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], date: '2022Q1' },
         text: [
-          '**真实例子：2004–06 年加息。** 跳到 2004 年年中。物价抬头，央行连续加息，把吸力旋钮一格一格拧大：存湖更划算，抽水更贵。',
+          '**结论：旋钮的读数画在一把竖着的尺子上。▶ 是央行拧的，▼ 是量出来的，▽ 在人心里；▽ 跟得慢。**',
+          '先看图：左边是尺子，右边是同一把尺子的时间带：模型里的美国 2020–2023 年。拖动下面的滑块，看每一季。',
+          '尺上三个记号：**▶ = 政策利率**，央行手里唯一拧得动的数。实心 **▼ = 物价比一年前**，量出来的。空心 **▽ = 大家心里的涨价速度**，写进工资和合同的那个数。',
+          '▼ 从 {m21}（2021 年第一季度）冲到 {mMax}；同一段时间 ▽ 只从 {e21} 挪到 {eMax}。▽ 被一根绳拴在**调度线**（目标 ' + p0(COUNTRY_PARAMS.USA.piTarget) + '）上，所以跟得慢。（2022 年起是保留样本，只作示意。）',
+        ],
+        vals: [
+          xat('2021Q1', 'macro.inflation', 'm21'), { key: 'mMax', get: 'max:macro.inflation', fmt: 'pct', from: '2019Q4', until: '2023Q4' },
+          xat('2021Q1', 'macro.inflationExp', 'e21'), { key: 'eMax', get: 'max:macro.inflationExp', fmt: 'pct', from: '2019Q4', until: '2023Q4' },
+        ],
+        claims: [
+          { get: 'max:macro.inflation', from: '2019Q4', until: '2023Q4', vs: { get: 'at:2021Q1:macro.inflation' }, gt: 0.03, note: '▼ 冲上去 3 个点以上' },
+          { get: 'max:macro.inflationExp', from: '2019Q4', until: '2023Q4', vs: { get: 'at:2021Q1:macro.inflationExp' }, lt: 0.01, note: '▽ 只挪了不到 1 个点（跟得慢）' },
+        ],
+        hl: ['policyRate', 'cpi'], concept: ['policyRate', 'cpi', 'inflationExp'] },
+
+      { type: 'reveal', title: '第 3 步：吸力色带：2021 红，2023 蓝', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], band: 'open', date: '2021Q4', chips: ['2021Q4', '2023Q4'] },
+        text: [
+          '**结论：吸力 = ▶ − ▽，画成 ▶ 和 ▽ 之间的一条色带。蓝 = 存湖划算、抽水贵；红 = 反过来：存湖不划算、抽水（借钱）便宜。**',
+          '点上面的两个季度看：2021 年第四季度 ▶ {p21}，▽ {e21}，吸力 {o21}，红的，借钱划算。2023 年第四季度 ▶ {p23}，▽ {e23}，吸力 {o23}，蓝的。',
+          '这就是旋钮的两支箭头：存湖划不划算、抽水贵不贵。大家对以后的看法，就是尺子上的 ▽：吸力的下面那一头。',
+        ],
+        vals: [xat('2021Q4', 'rates.policy', 'p21'), xat('2021Q4', 'macro.inflationExp', 'e21'), xat('2023Q4', 'rates.policy', 'p23'), xat('2023Q4', 'macro.inflationExp', 'e23')],
+        derive: [{ key: 'o21', a: 'p21', b: 'e21', fmt: 'chg1' }, { key: 'o23', a: 'p23', b: 'e23', fmt: 'chg1' }],
+        claims: [
+          { get: 'at:2021Q4:rates.policy', from: '2019Q4', until: '2024Q4', vs: { get: 'at:2021Q4:macro.inflationExp' }, lt: 0, note: '2021Q4 色带红（▶ < ▽）' },
+          { get: 'at:2023Q4:rates.policy', from: '2019Q4', until: '2024Q4', vs: { get: 'at:2023Q4:macro.inflationExp' }, gt: 0, note: '2023Q4 色带蓝（▶ > ▽）' },
+        ],
+        hl: ['policyRate', 'realRate'], concept: ['realRate', 'inflationExp'] },
+
+      { type: 'reveal', title: '第 4 步：开阀看 ▽，结账看 ▼', panel: { id: 'exp-hist', marks: ['p', 'm', 'e'], band: 'split', date: '2022Q4' },
+        text: [
+          '**结论：借钱、投资、给资产定价，看吸力 ▶ − ▽（开阀）；存钱的人到手多少、⑦ 和政策灯，看到手实际利率 ▶ − ▼（结账）。**',
+          '2022 年第四季度（模型）：▶ {p22}，▼ {m22}，▽ {e22}。',
+          '开阀：▶ − ▽ = {open22}，色带已经蓝了，借钱开始变贵。结账：▶ − ▼ = {real22}，存钱的人还在亏。',
+          '中间差的那一截 ▼ − ▽ = {sur22}，叫**意外**：合同按 ▽ 写，物价按 ▼ 涨。意外让钱从存钱的人那里，悄悄挪到欠债的人那里。',
+        ],
+        vals: [xat('2022Q4', 'rates.policy', 'p22'), xat('2022Q4', 'macro.inflation', 'm22'), xat('2022Q4', 'macro.inflationExp', 'e22'), xat('2022Q4', 'rates.realPolicy', 'real22', 'chg1')],
+        derive: [{ key: 'open22', a: 'p22', b: 'e22', fmt: 'chg1' }, { key: 'sur22', a: 'm22', b: 'e22', fmt: 'pp' }],
+        claims: [
+          { get: 'at:2022Q4:rates.policy', from: '2019Q4', until: '2024Q4', vs: { get: 'at:2022Q4:macro.inflationExp' }, gt: 0, note: '2022Q4 开阀蓝（▶ > ▽）' },
+          { get: 'at:2022Q4:rates.realPolicy', from: '2019Q4', until: '2024Q4', lt: 0, note: '2022Q4 到手红（▶ − ▼ < 0）' },
+          { get: 'at:2022Q4:macro.inflation', from: '2019Q4', until: '2024Q4', vs: { get: 'at:2022Q4:macro.inflationExp' }, gt: 0, note: '2022Q4 有意外（▼ > ▽）' },
+        ],
+        hl: ['policyRate', 'realRate'], concept: ['realRate', 'lampPolicy'] },
+
+      { type: 'watch', from: '2004Q2', until: '2006Q2', title: '第 5 步：拧大吸力：2004–06 年加息', glow: { parts: ['suction', 'centralBank'] },
+        text: [
+          '**真实例子：2004–06 年加息。** 跳回 2004 年年中，回到水流图。物价抬头，央行连续加息，把吸力一格一格拧大：吸力（▶ − ▽）从 {s04}（红）拧到 {s06}（蓝）。',
           '先变贵的是**新抽的水**（新贷款）。可大部分家庭背的是旧房贷，要等到重定价那天，利率才跟着上去。',
           '看这两年：政策利率涨了 {pol}，家庭实付的平均房贷利率却几乎没动（变化 {eff}）；房价还涨了 {hc}。',
         ],
-        vals: [{ key: 'pol', get: 'dpp:rates.policy', fmt: 'pp' }, { key: 'eff', get: 'dpp:rates.mortgageEff', fmt: 'pp' }, { key: 'hc', get: 'chg:assets.housing.price', fmt: 'chg' }],
-        metrics: [{ label: '政策利率', get: 'rates.policy', fmt: 'pct' }, { label: '平均房贷利率（家庭实付）', get: 'rates.mortgageEff', fmt: 'pct' }, { label: '房价指数', get: 'assets.housing.price', fmt: 'idx' }],
-        claims: [{ get: 'dpp:rates.policy', gt: 0.03, note: '连续加息' }, { get: 'dpp:rates.mortgageEff', gt: -0.01, lt: 0.01, note: '实付利率几乎没动（变化不到 1 个点）' }, { get: 'chg:assets.housing.price', gt: 0.02, note: '房价还在涨' }],
+        vals: [
+          { key: 'pol', get: 'dpp:rates.policy', fmt: 'pp' }, { key: 'eff', get: 'dpp:rates.mortgageEff', fmt: 'pp' }, { key: 'hc', get: 'chg:assets.housing.price', fmt: 'chg' },
+          { key: 'p04', get: 'at:2004Q2:rates.policy', fmt: 'pct' }, { key: 'e04', get: 'at:2004Q2:macro.inflationExp', fmt: 'pct' },
+          { key: 'p06', get: 'at:2006Q2:rates.policy', fmt: 'pct' }, { key: 'e06', get: 'at:2006Q2:macro.inflationExp', fmt: 'pct' },
+        ],
+        derive: [{ key: 's04', a: 'p04', b: 'e04', fmt: 'chg1' }, { key: 's06', a: 'p06', b: 'e06', fmt: 'chg1' }],
+        metrics: [{ label: '政策利率 ▶', get: 'rates.policy', fmt: 'pct' }, { label: '心里的涨价速度 ▽', get: 'macro.inflationExp', fmt: 'pct' }, { label: '平均房贷利率（家庭实付）', get: 'rates.mortgageEff', fmt: 'pct' }, { label: '房价指数', get: 'assets.housing.price', fmt: 'idx' }],
+        claims: [
+          { get: 'dpp:rates.policy', gt: 0.03, note: '连续加息' }, { get: 'dpp:rates.mortgageEff', gt: -0.01, lt: 0.01, note: '实付利率几乎没动（变化不到 1 个点）' }, { get: 'chg:assets.housing.price', gt: 0.02, note: '房价还在涨' },
+          { get: 'at:2004Q2:rates.policy', vs: { get: 'at:2004Q2:macro.inflationExp' }, lt: 0, note: '2004Q2 吸力红（▶ < ▽）' },
+          { get: 'at:2006Q2:rates.policy', vs: { get: 'at:2006Q2:macro.inflationExp' }, gt: 0.01, note: '2006Q2 吸力蓝（▶ − ▽ > 1 个点）' },
+        ],
         hl: ['policyRate', 'interestPaid'], concept: ['policyRate', 'mortgageEff'] },
 
-      { type: 'predict', until: '2008Q1', title: '第 3 步：为什么两年才见效',
+      { type: 'reveal', title: '第 6 步：五处跟着动，绕一圈 = 短周期', panel: { id: 'exp-five', date: '2023Q2' },
+        text: [
+          '**结论：色带转蓝、变宽以后，几处依次跟着动：先是窄的池子和湖，再是银行泵，最后才轮到河。河一落，▼ 往下走，央行再松手：绕一圈回来，就是一个短周期。**',
+          '图上是模型里的美国 2021–2024 年（2022 年起是保留样本，只作示意），色带在 {blue}转蓝。每处「动了」= 比一年前变化超过它下面写的门槛；顺序是模型自己跑出来的：{order}。色带转蓝以后，河要等 {lagR} 个季度才动。',
+          '这一圈：▼ → 央行（看 ▼，慢半拍）→ ▶ → 吸力（▶ − ▽）→ 几处 → 河 → ▼。模型里央行 {hike}开始加息，{cut}开始往下拧 ▶。点「小步：绕一圈」看它怎么转。',
+          '**地下的洞**（第五处）：▼ 比 ▽ 高的那几年，意外让政府的债变轻：第 5 课的 ⑦ 化债就靠它。',
+        ],
+        expVals: [{ key: 'blue', get: 'five.blue' }, { key: 'order', get: 'five.order' }, { key: 'lagR', get: 'five.lag.river' }, { key: 'hike', get: 'loop.firstHike' }, { key: 'cut', get: 'loop.firstCut' }],
+        drills: [{ label: '小步：绕一圈', back: '回到五处', panel: { id: 'exp-loop', date: '2022Q2' },
+          text: [
+            '**绕一圈回来 = 短周期。** 拖动滑块（模型里的美国）：2021 年河溢，▼ 上去；{hike}央行开始加息；{blue}色带转蓝；几处依次动，▼ 往下走；{cut} ▶ 开始往下拧。',
+            '亮的箭头 = 这一季正在传的那一环。中间的 ▽ 拴在绳上，追着 ▼ 走：绳紧，▽ 不跟涨，▶ 加一点就有吸力；绳松，▽ 跟着涨，▶ 要加很多。',
+          ] }],
+        hl: ['policyRate', 'realRate'], concept: ['realRate', 'shortCycle'] },
+
+      { type: 'predict', until: '2008Q1', title: '第 7 步：为什么两年才见效',
+        text: ['回到水流图，接着第 5 步：加息已经两年，吸力早就蓝了，房子这个圈却还在往前转。'],
         q: '2006Q2，政策利率已升到约 {pol0}，房价还在涨。接下来两年，房价会？',
         options: [
           { t: '立刻暴跌（半年跌一成以上）', ok: false, when: [{ get: 'chg:assets.housing.price', from: '2006Q2', until: '2006Q4', lt: -0.1 }] },
@@ -587,7 +717,7 @@ export const LESSONS = [
         explain: [
           '旧房贷分批重定价，每个季度只有一小批人的付息变多，压力是慢慢攒起来的。等 DSR 升到够高、房价比一年前转弱，银行才收闸。',
           '从 2004 年年中开始加息，到 {pk} 房价见顶，隔了大约两年；之后到 2008Q1 房价 {fall}（从高点算最大回撤 {dd}）。头半年只跌了 {h6}，之后一季比一季跌得多：是慢慢滑下去，不是一夜暴跌。',
-          '拧大吸力像在长长的水管里加了一道阻力，水要过一阵才到下游。下一课：圈倒着转的时候，把吸力拧小（降息）还推得动吗？',
+          '拧大吸力像在长长的水管里加了一道阻力，水要过一阵才到下游：和第 6 步一样，先动的是湖和池子，河最后才动。下一课：圈倒着转的时候，把吸力拧小（降息）还推得动吗？',
         ],
         claims: [
           { get: 'argmax:assets.housing.price', from: '2003Q1', until: '2008Q1', dateBetween: ['2005Q4', '2006Q4'], note: '房价在 2006 年前后见顶' },
@@ -609,7 +739,7 @@ export const LESSONS = [
   {
     id: 'm3', kind: 'main', label: '第 4 课',
     title: '为什么有时降息也没用？',
-    oneLine: '每抽一次水，地下水位就降一点。水位还在吸程线上面，把吸力拧小（降息）就抽得上来（B1，推得动）；跌破吸程线，降息也抽不上来（B2）。美国 2008 跌破了，澳洲 2008 没有。',
+    oneLine: '每抽一次水，地下水位就降一点。水位还在吸程线上面，把吸力拧小（降息）就抽得上来（推得动）；抽上来的水太多、一轮轮灌进河，是另一条岔路 B1（美国 1966–82）；跌破吸程线，降息也抽不上来（B2）。美国 2008 跌破了，澳洲 2008 没有。',
     rulesOn: 'all',
     startDate: '2000Q1', endDate: '2009Q2', mode: 'history', available: true,
     steps: [
@@ -617,7 +747,7 @@ export const LESSONS = [
         text: [
           '**结论：抽水抽的是未来的收入（地下水）。每一轮小周期多抽一点、少回灌一点，地下水位就一年年往下掉。水位还在吸程线上面，降息就抽得上来（推得动）；地下水位跌破吸程线，降息也抽不上来：这就是 B2。**',
           '像井里的泵：小周期是每年开泵、关泵；大周期是地下水位本身。水位跌到泵够不着的深度，开关怎么拧都没用。',
-          '下面分 4 步：2001 和 2008 并排看 → 差别在哪 → 负资产不等于 B2 → 推不动之后。',
+          '下面分 5 步：2001 和 2008 并排看 → 差别在哪 → 负资产不等于 B2 → 另一条岔路 B1 → 推不动之后。',
           '每一步看两个地方：「周期」页的两个圆环，和左边切到「曲线」的走势图。',
         ],
         hl: ['policyRate', 'newLoans'], concept: ['shortCycle', 'longCycle'] },
@@ -693,7 +823,33 @@ export const LESSONS = [
         relation: '负资产是 B2 的燃料，不是 B2 本身：负资产要多、并且伤到银行，降息才会推不动。',
         hl: ['bankApproval', 'newLoans', 'policyRate'], concept: ['B2', 'lvr', 'badLoans'] },
 
-      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 4 步：推不动之后：B2 → ⑤', view: 'flow', tab: 'cycle',
+      // 故事读法 (not a model replay): US 1964–1984 from FRED (src/data/b1-story.js). Every number below is computed from that module by b1
+      // (top of this file); block 'b1story' draws the same quarters in the card (src/ui/lessons.js); tools/check_lessons.mjs section 17
+      // recomputes the module from the CSVs and checks b1Facts. lessonLink = the rope toy of 「专题：预期」.
+      { type: 'reveal', title: '第 4 步：另一条岔路 B1：抽上来的水灌进河', view: 'flow', tab: 'cycle', block: 'b1story',
+        glow: { parts: ['channel', 'ring', 'suction'] },
+        text: [
+          '**故事读法，不是模型回放（美国真实数据，FRED）。结论：岔路口还有另一边，叫 B1：泵还抽得上来，可抽上来的水灌进了河，河溢一轮比一轮高。B2 是抽不上来；B1 是抽得太多，水进了河。**',
+          `先看卡片下面的图（美国 1964–1984 年，每季一个点）：实线 ▼ = 物价比一年前，细线 ▶ = 政策利率。1964–65 年 ▼ 最高才 ${s1(b1.before.cpi)}。之后三轮：▼ 的高点 ${b1.peaks.map(r => `${s1(r.cpi)}（${yr(r)}）`).join(' → ')}；每轮退下去的低点也一轮比一轮高：${b1.lows.slice(0, 2).map(r => `${s1(r.cpi)}（${yr(r)}）`).join(' → ')}。`,
+          `**绳被磨松了。** 每轮河溢都拖得太久，▽（心里的涨价速度）跟着 ▼ 往上走，回不到调度线。央行每轮都加息，可 ▶ 总追不上 ▼：${B1_WAVES.neg[0].slice(0, 4)}–${B1_WAVES.neg[1].slice(0, 4)} 年的 ${b1.negAll} 个季度里，有 ${b1.negN} 个季度到手实际利率（▶ − ▼）是负的，最低 ${sp1(b1.worst.real)}（${qd(b1.worst)}）。`,
+          `一次性的河溢，拖成了 **⑦ + B1**：存钱的人在亏，政府欠的钱占 GDP 却从 ${s1(b1.d0.gd)}（${yr(b1.d0)}）降到 ${s1(b1.dMin.gd)}（${yr(b1.dMin)}），是涨价替它还的。`,
+          `**收尾靠沃尔克：**${qd(b1.ffPk)} ▶ 拉到 ${s1(b1.ffPk.ff)}（季度平均），到手实际利率 ${sp1(b1.ffPk.real)}，抽水极贵。代价是河干：失业率冲到 ${s1(b1.uPk.u)}（${qd(b1.uPk)}）。到 ${qd(b1.lows[2])}，▼ 回到 ${s1(b1.lows[2].cpi)}。`,
+        ],
+        // never shown; tools/check_lessons.mjs evaluates each f(b1) (section 17)
+        b1Facts: [
+          { f: B => B.peaks.every((r, k) => !k || r.cpi > B.peaks[k - 1].cpi), note: '▼ 的高点一轮比一轮高' },
+          { f: B => B.lows[1].cpi > B.lows[0].cpi && B.lows[0].cpi > B.before.cpi, note: '▼ 的低点一轮比一轮高（也比 1964–65 年高）' },
+          { f: B => B.peaks.every((r, k) => r.d < B.lows[k].d) && B.lows.slice(0, 2).every((r, k) => r.d < B.peaks[k + 1].d), note: '高点和低点交替（每个窗口的极值真的是一轮一轮）' },
+          { f: B => B.negN >= B.negAll / 2, note: '1974–80 年过半季度到手实际利率为负' },
+          { f: B => B.d0.d === '1966Q1' && B.dMin.gd < B.d0.gd - 0.05, note: '政府债务/GDP 降了 5 个点以上' },
+          { f: B => B.ffPk.real > 0.05 && B.ffPk.d >= '1980Q1' && B.ffPk.d <= '1981Q4', note: '沃尔克：▶ 的高点在 1980–81 年，到手实际利率 > +5%' },
+          { f: B => B.uPk.u > 0.10 && B.uPk.d > B.ffPk.d, note: '代价：失业率 > 10%，在 ▶ 的高点之后' },
+          { f: B => B.lows[2].cpi < B.lows[0].cpi && B.lows[2].d > B.ffPk.d, note: '沃尔克以后 ▼ 回到比 1972 年还低' },
+        ],
+        lessonLink: { id: 'exp', step: EXP_ROPE_STEP, label: '自己拧一拧：绳怎么被磨松（专题：预期 · 绳子玩具，选「多年过热」）→' },
+        hl: ['cpi', 'policyRate'], concept: ['B1', 'realRate', 'inflationExp'] },
+
+      { type: 'watch', from: '2007Q3', until: '2009Q2', title: '第 5 步：推不动之后：B2 → ⑤', view: 'flow', tab: 'cycle',
         glow: { parts: ['groundwater', 'liftLine', 'bank'], pipes: ['principalRepay', 'newLoans'] },
         text: [
           '回到 2007 年，把推不动的那一次慢慢放一遍。',
@@ -736,15 +892,15 @@ export const LESSONS = [
   {
     id: 'm4', kind: 'main', label: '第 5 课',
     title: '私人抽不动了，谁来抽？',
-    oneLine: '私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。再把吸力拧到负（实际利率 < 0），河长得比债快，政府的坑不再变深（⑦）。',
+    oneLine: '私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。再让到手实际利率（▶ − ▼，结账）变负，河长得比债快，政府的坑不再变深（⑦）。',
     rulesOn: 'all', pace: 800,
     startDate: '2008Q3', endDate: '2025Q4', mode: 'history', available: true,
     steps: [
       { type: 'intro', title: '先说结论',
         text: [
-          '**结论：私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。补完水，把吸力拧到负（实际利率 < 0）：河长得比债快，债不用还也一年年变轻（⑦）。私人和政府的账都修好了，才算走出这一圈（⑧）。**',
-          '吸力旋钮的读数就是**实际利率 = 政策利率 − 物价比一年前涨多少**：扣掉涨价以后，抽水真正的价格。',
-          '下面分 5 步：⑥ 政府深井泵补水 → QE 只灌湖 → 吸力为负，债务变轻（⑦）→ 化债四个出口，谁被砍 → ⑧ 出圈。',
+          '**结论：私人抽不动了，政府开深井泵往河里补水（⑥）；央行的泵只往湖里灌（QE），不直接进河。补完水，让到手实际利率（▶ − ▼）变负：河长得比债快，债不用还也一年年变轻（⑦）。私人和政府的账都修好了，才算走出这一圈（⑧）。**',
+          '这一课看的是第 3 课的「结账」那一头：**到手实际利率 = ▶ − ▼**（政策利率减掉物价比一年前涨了多少），存钱的人真正到手的那个数。⑦、政策灯、存钱的人都看它；借钱、投资看的是吸力 ▶ − ▽（开阀）。',
+          '下面分 5 步：⑥ 政府深井泵补水 → QE 只灌湖 → 到手为负，债务变轻（⑦）→ 化债四个出口，谁被砍 → ⑧ 出圈。',
           '时间：2008Q3 → 2025Q4（真实季度）。',
         ],
         hl: ['fiscalInjection', 'qe', 'realRate'], concept: ['fiscalInjection', 'qe', 'realRate'] },
@@ -781,7 +937,7 @@ export const LESSONS = [
 
       { type: 'reveal', until: '2010Q4', title: '第 2 步：QE 只灌湖，不进河',
         text: [
-          `利率已经贴地（≤ ${p1(R('cb_qe', 'floorRate'))}），失业还高（> ${p1(R('cb_qe', 'uOn'))}），通胀也不高。吸力旋钮拧到头了，央行改开自己的泵：**QE**。`,
+          `利率已经贴地（≤ ${p1(R('cb_qe', 'floorRate'))}），失业还高（> ${p1(R('cb_qe', 'uOn'))}），通胀也不高。▶ 已经拧到底了，央行改开自己的泵：**QE**。`,
           `央行直接买长期国债，规模每年约 GDP 的 ${p0(R('cb_qe', 'sizeGdp'))}。看图：QE 的管亮了，总水量往上走。`,
         ],
         question: '央行买的是长期国债，为什么房价、股价也会被托起来？',
@@ -796,9 +952,9 @@ export const LESSONS = [
         glow: { pipes: ['qe'], parts: ['centralBank', 'pool'] },
         hl: ['qe', 'assetReservoir'], concept: ['qe', 'assetReservoir'] },
 
-      { type: 'predict', from: '2013Q1', until: '2017Q1', title: '第 3 步：吸力为负，债务自己变轻（⑦）', tab: 'cycle',
+      { type: 'predict', from: '2013Q1', until: '2017Q1', title: '第 3 步：到手实际利率为负，债务自己变轻（⑦）', tab: 'cycle',
         glow: { parts: ['centralBank', 'government'] },
-        q: '跳到 2013Q1：政策利率 {pol}，物价比一年前涨 {pi}，吸力（实际利率）{rr}，是负的。政府没有还债，每年还在借（赤字），债务本身还在涨。到 2017Q1，政府债务占 GDP 的比例会？',
+        q: '跳到 2013Q1：政策利率 ▶ {pol}，物价比一年前 ▼ 涨 {pi}，到手实际利率（▶ − ▼，结账）{rr}，是负的。政府没有还债，每年还在借（赤字），债务本身还在涨。到 2017Q1，政府债务占 GDP 的比例会？',
         options: [
           { t: '更高：债还在涨', ok: false, when: [{ get: 'dpp:gov.debtGdp', gt: 0.01 }] },
           { t: '差不多', ok: false, when: [{ get: 'dpp:gov.debtGdp', gte: -0.01, lte: 0.01 }] },
@@ -813,8 +969,8 @@ export const LESSONS = [
         ],
         explain: [
           '更低：政府债务/GDP 从 {r0} 降到 {r1}。可政府一分钱也没还：债务本身从 {b0} 涨到 {b1}。变轻，是因为分母长得更快：这四年名义 GDP 涨了 {gg}，债务只涨了 {bg}。',
-          '实际利率为负，就是让时间替欠债的人还钱：存钱的人每年亏一点，欠债的人每年轻一点。这叫**金融压制**。',
-          '大周期盘看的是结果：名义增长跑赢 10 年国债利率（g − r > 0），政府债务/GDP 比一年前不再升，连续 6 季。{s7}，大周期盘进入 **⑦ 金融压制·增长化债**。实际利率为负是它常见的帮手（加分项），不是门槛。',
+          '到手实际利率为负，就是让时间替欠债的人还钱：存钱的人每年亏一点，欠债的人每年轻一点。这叫**金融压制**。',
+          '大周期盘看的是结果：名义增长跑赢 10 年国债利率（g − r > 0），政府债务/GDP 比一年前不再升，连续 6 季。{s7}，大周期盘进入 **⑦ 金融压制·增长化债**。到手实际利率为负是它常见的帮手（加分项），不是门槛。',
         ],
         claims: [
           { get: 'start:rates.realPolicy', lt: -0.01, note: '2013Q1 实际利率为负' },
@@ -832,15 +988,15 @@ export const LESSONS = [
           '**结论：债太重，只有四个出口，每个出口都有人买单。**',
           '① **增长**：GDP 长得比债快 → 没人被砍（最好，也最难）。',
           '② **通胀**：物价涨，同样的债变轻 → 被砍的是拿现金、国债的人。',
-          '③ **金融压制**：把利率压在通胀下面（实际利率 < 0）→ 被砍的是存钱的人。',
+          '③ **金融压制**：把利率压在通胀下面（到手实际利率 ▶ − ▼ < 0）→ 被砍的是存钱的人。',
           '④ **违约**：不还了 → 被砍的是债主。',
         ],
         question: '上一步的 2013–2017 年（⑦），美国走的是哪几个出口？谁被砍了？',
         answerHint: [
-          '主要是**金融压制 + 增长**。实际利率四年一直为负（最高也只有 {rmax}，平均 {ravg}）；名义 GDP 涨了 {gg}，债只涨了 {bg}，政府债务/GDP 从 {r0} 降到 {r1}。',
-          '通胀温和（平均 {pia}），通胀这个出口用得不多；也没有违约。**被砍的是存钱的人**：实际利率平均 {ravg}，存在银行的钱每年实际亏掉这么多。',
+          '主要是**金融压制 + 增长**。到手实际利率四年一直为负（最高也只有 {rmax}，平均 {ravg}）；名义 GDP 涨了 {gg}，债只涨了 {bg}，政府债务/GDP 从 {r0} 降到 {r1}。',
+          '通胀温和（平均 {pia}），通胀这个出口用得不多；也没有违约。**被砍的是存钱的人**：到手实际利率平均 {ravg}，存在银行的钱每年实际亏掉这么多。',
         ],
-        relation: '⑦ 就是出口 ① + ③：让时间替欠债的人还钱。看到实际利率长期为负，就要问：谁在买单？',
+        relation: '⑦ 就是出口 ① + ③：让时间替欠债的人还钱。看到到手实际利率（▶ − ▼）长期为负，就要问：谁在买单？',
         vals: [
           { key: 'rmax', get: 'max:rates.realPolicy', fmt: 'pct', from: '2013Q1', until: '2017Q1' }, { key: 'ravg', get: 'avg:rates.realPolicy', fmt: 'pct', from: '2013Q1', until: '2017Q1' },
           { key: 'gg', get: 'chg:macro.gdpNominal', fmt: 'chg', from: '2013Q1', until: '2017Q1' }, { key: 'bg', get: 'chg:debt.government', fmt: 'chg', from: '2013Q1', until: '2017Q1' },
@@ -860,11 +1016,11 @@ export const LESSONS = [
       { type: 'reveal', from: '2025Q4', title: '第 5 步：⑧ 出圈', tab: 'cycle',
         text: [
           '⑧ 是这一圈的出口：私人的账修好了，政府的债也稳住了，下一轮借钱才是健康的新开始（回到 ①）。',
-          '五个条件要同时成立：家庭偿债（DSR）比起点低、坏账少、实际利率回到 −1% 以上（压制结束）、政府债务/GDP 不再升、政府利息/税收不太高。',
+          '五个条件要同时成立：家庭偿债（DSR）比起点低、坏账少、到手实际利率（▶ − ▼）回到 −1% 以上（压制结束）、政府债务/GDP 不再升、政府利息/税收不太高。',
         ],
         question: '跳到 2025 年底。美国走出这一圈了吗？',
         answerHint: [
-          '**还没有，大周期还停在 {l}。** 四个条件已经满足：DSR 比起点低 {e0}，坏账率 {e1}，实际利率 {e2}，政府利息/税收 {e4}。',
+          '**还没有，大周期还停在 {l}。** 四个条件已经满足：DSR 比起点低 {e0}，坏账率 {e1}，到手实际利率 {e2}，政府利息/税收 {e4}。',
           '只差一条：政府债务/GDP 三年里又升了 {e3}（要求不超过 1 个点）。2020 年疫情和 2023–25 年的赤字，又灌了一轮水：2019 年底到 2021 年底，政府债务/GDP 升了 {c20}。',
         ],
         relation: '⑥ 补的水要靠 ⑦ 慢慢化掉；一边化一边又灌（2021–23 年疫情后又开了一轮深井泵），就出不了圈。下一课出国境：水过闸，被什么推着走。',
@@ -891,9 +1047,9 @@ export const LESSONS = [
         ],
         // the fixed 三问 (tools/COURSE-V3.md), answered for this lesson's example: the US 2008–2025, ⑥ → ⑦, still in ⑦
         ending: {
-          q1: '水的问题还是河道的问题？水的问题：私人抽不上来，政府深井泵补河、央行泵灌湖（⑥），再用负的吸力慢慢化债（⑦）；河道没坏。',
+          q1: '水的问题还是河道的问题？水的问题：私人抽不上来，政府深井泵补河、央行泵灌湖（⑥），再用负的到手实际利率（▶ − ▼）慢慢化债（⑦）；河道没坏。',
           q2: '环上哪一步？⑥ → ⑦；2025 年底还停在 {l}：出圈只差「政府债务/GDP 不再升」这一条。',
-          q3: '谁赢谁输、钱放哪？欠债的人（政府）赢，存钱的人输：实际利率为负，存款每年实际亏一点。⑦ 里少放现金和长期国债，多放股票和实物（判断）。',
+          q3: '谁赢谁输、钱放哪？欠债的人（政府）赢，存钱的人输：到手实际利率为负，存款每年实际亏一点。⑦ 里少放现金和长期国债，多放股票和实物（判断）。',
         },
         hl: ['realRate'], concept: ['longCycle', 'govDebtGdp', 'interestToTax'], next: 'fx' },
     ],
@@ -919,7 +1075,7 @@ export const LESSONS = [
         glow: { parts: ['centralBank', 'suction', 'bank', 'groundwater'], pipes: ['qe', 'newLoans'] },
         text: [
           '**央行把吸力拧小了，银行却把抽水泵关了：水再便宜，也抽不上来。这就是「降息推不动」。**',
-          '**央行**　阀：吸力旋钮（政策利率）+ QE 泵。盯着断面水位（物价比一年前涨 {pi}）和河空了多少（失业率 {u}，模型里比真实的 {ur} 偏高）。拧了：政策利率从上一季的 {p0} 降到 {p1}，吸力（实际利率）已经是 {rr}。',
+          '**央行**　阀：吸力旋钮（政策利率）+ QE 泵。盯着断面水位（物价比一年前涨 {pi}）和河空了多少（失业率 {u}，模型里比真实的 {ur} 偏高）。拧了：政策利率 ▶ 从上一季的 {p0} 降到 {p1}；心里的涨价速度 ▽ 是 {e1}，吸力（▶ − ▽）已经是 {sx}，色带红了：借钱不贵。存钱的人到手（▶ − ▼，结账）{rr}，在亏。',
           `**银行**　阀：抽水泵（审批倍数 + 首付线 LVR）。盯着地下水位和房子池：房价比一年前 {hy}，坏账率 {bad}（规则线 ${p1(R('bank_tighten_losses', 'bad'))}）。拧了：触发「坏账多 → 收紧审批」，审批倍数从 {a0} 关到 {a1}。`,
           '**结果**：抽水（新贷款）只有 {nl}，回灌（还本）有 {rep}（十亿美元/季）：抽上来的比回灌的少，信贷在缩。',
           '**冲突**：一家银行少借是自保；所有银行一起收，河就被抽干。旋钮只改抽水的价格，泵关着，价格再低也没用。',
@@ -927,12 +1083,14 @@ export const LESSONS = [
         vals: [
           { key: 'pi', get: 'start:macro.inflation', fmt: 'pct' }, { key: 'u', get: 'start:macro.unemployment', fmt: 'pct' }, { key: 'ur', get: 'real:start:unemployment', fmt: 'pct' },
           { key: 'p0', get: 'at:2008Q2:rates.policy', fmt: 'pct2', from: '2008Q2', until: '2008Q3' }, { key: 'p1', get: 'start:rates.policy', fmt: 'pct2' },
-          { key: 'rr', get: 'start:rates.realPolicy', fmt: 'pct' },
+          { key: 'rr', get: 'start:rates.realPolicy', fmt: 'chg1' }, { key: 'e1', get: 'start:macro.inflationExp', fmt: 'pct' },
           { key: 'hy', get: 'start:extra.houseYoY', fmt: 'pct' }, { key: 'bad', get: 'start:bank.badLoanRate', fmt: 'pct' },
           { key: 'a0', get: 'at:2008Q2:bank.approval', fmt: 'x2', from: '2008Q2', until: '2008Q3' }, { key: 'a1', get: 'start:bank.approval', fmt: 'x2' },
           { key: 'nl', get: 'start:flows.newLoans', fmt: 'num' }, { key: 'rep', get: 'start:flows.principalRepay', fmt: 'num' },
         ],
+        derive: [{ key: 'sx', a: 'p1', b: 'e1', fmt: 'chg1' }],   // 吸力 = ▶ − ▽ (the band of 第 3 课)
         claims: [
+          { get: 'start:rates.policy', vs: { get: 'start:macro.inflationExp' }, lt: 0, note: '吸力（▶ − ▽）为负：色带红' },
           { get: 'start:macro.unemployment', vs: { get: 'real:start:unemployment' }, gt: 0.01, note: '模型失业率比真实偏高' },
           { get: 'start:extra.creditImpulse', lt: 0, note: '信贷在缩' },
           { get: 'start:rates.policy', vs: { get: 'at:2008Q2:rates.policy', from: '2008Q2', until: '2008Q3' }, lt: 0, note: '比上一季降息' },

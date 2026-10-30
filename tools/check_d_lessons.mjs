@@ -14,6 +14,9 @@
 //               three blind links, exit → the US root page in simple mode, mw:lesson-active { id: null }
 //  4. fx        ‹ 上一步 swaps panels back (calc → AUD reactor → map), exit from a panel step unmounts it and returns to simple
 //  5. no JS errors anywhere.
+//  6. 吸力 (2026-10-30): L3 m2 mounts the exp panels (src/ui/exp-gauge.js .exg[data-panel=exp-*]) over the diagram on its ruler steps; the
+//               「小步：绕一圈」 drill swaps exp-five for exp-loop and back; L4 m3 「另一条岔路 B1」 draws the b1story chart in the card and links to
+//               ?lesson=exp at the rope step.
 // --shots writes tools/shots/d-<name>-<pad|phone>.png: menu, ending (L5), l5-exits, l6-reactor, l6-aud, l7-aus, inv-gauges / inv-assets / inv-blind.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -78,7 +81,7 @@ const scrollCard = sel => ev(`(()=>{const b=document.querySelector('#ls-card .ls
 // state of the lesson screen: lesson / step on the card, panels in the document, where they sit, diagram hidden or not, the 三问 ending
 const state = () => ev(`(()=>{
   const c = document.querySelector('#ls-card'), dia = document.querySelector('#diagram'), fw = dia && dia.querySelector('.flow-wrap');
-  const p = [...document.querySelectorAll('.fxp, .ivl, .skp, .fxr-panel')];
+  const p = [...document.querySelectorAll('.fxp, .ivl, .skp, .fxr-panel, .exg')];
   return JSON.stringify({
     on: document.body.classList.contains('lesson-on'), lesson: c && c.dataset.lesson, step: c ? +c.dataset.step : -1,
     panels: p.map(e => ({ cls: e.classList[0], id: e.classList.contains('fxr-panel') ? 'fx-reactor' : e.dataset.panel, date: e.dataset.date || '',
@@ -97,7 +100,7 @@ const course = async () => JSON.parse(await ev(`import('./src/data/lessons.js').
   L: Object.fromEntries(m.COURSE.main.map(id => { const l = m.LESSONS.find(x => String(x.id) === String(id)); return [id, { id: l.id, kind: l.kind, title: l.title, label: l.label, country: l.country || 'USA',
     steps: l.steps.map(s => ({ type: s.type, title: s.title, panel: s.panel || null, map: s.map || null, drills: (s.drills || []).map(d => ({ label: d.label, panel: d.panel })), drillCta: !!s.drillCta, ending: !!s.ending, next: s.next ?? null, question: !!s.question })) }]; })) }))`));
 // the module / class of a panel spec (src/ui/lessons.js panelKind) and its host (panelWhere: 投资者 assetTable in the card, everything else over the diagram)
-const clsOf = (L, sp) => (sp.id === 'fx-reactor' ? 'fxr-panel' : /^shk-/.test(sp.id) ? 'skp' : /^fx-/.test(sp.id) ? 'fxp' : L.kind === 'fx' ? 'fxp' : L.kind === 'shocks' ? 'skp' : 'ivl');
+const clsOf = (L, sp) => (sp.id === 'fx-reactor' ? 'fxr-panel' : /^exp-/.test(sp.id) ? 'exg' : /^shk-/.test(sp.id) ? 'skp' : /^fx-/.test(sp.id) ? 'fxp' : L.kind === 'fx' ? 'fxp' : L.kind === 'shocks' ? 'skp' : 'ivl');
 const whereOf = (L, sp) => (L.kind === 'capstone' && sp.id === 'assetTable' ? 'card' : 'diagram');
 // a step whose 下一步 is gated (town action, predict) or whose answer is hidden (reveal question): tap the gate
 const resolveGate = () => ev(`(()=>{const c=document.querySelector('#ls-card'); const b=c.querySelector('[data-act=do]')||c.querySelector('[data-act=reveal]')||c.querySelector('.ls-opt[data-act=pick]:not([disabled])'); if(b){b.click(); return b.dataset.act} return ''})()`);
@@ -201,6 +204,22 @@ try {
           await click('#ls-panel .ls-fxr-d[data-date="2008Q4"]', 1300);
           s = await state();
           ok(s.panels.length === 1 && s.panels[0].date === '2008Q4' && /变弱 24%/.test(s.panels[0].text), `${w}: chip 2008Q4 (澳元比一年前变弱 24%)`);
+        }
+        if (L.id === 'm2' && st.panel && st.panel.id === 'exp-five') {   // 6. the loop drill over the diagram, and back
+          ok(/吸力一变/.test(s.panels[0]?.text || '') && /第 1 批/.test(s.panels[0]?.text || ''), `${w}: exp-five lists the places in the engine's order`);
+          await click('#ls-card [data-act=drill][data-k="0"]', 1300);
+          s = await state();
+          checkPanel(L, st, s, `${w} drill 绕一圈`, st.drills[0].panel);
+          ok(s.drill && !/[{}]/.test(await ev(`document.querySelector('#ls-card .ls-drill-txt').textContent`)), `${w}: drill text filled (no placeholders)`);
+          await click('#ls-card [data-act=drill][data-k="-1"]', 1300);
+          s = await state();
+          ok(!s.drill && s.panels.length === 1 && s.panels[0].id === 'exp-five', `${w}: 回到五处 → exp-five again`);
+        }
+        if (L.id === 'm2' && st.panel && /^exp-/.test(st.panel.id)) ok(!/[{}]|undefined|NaN|—/.test(await ev(`document.querySelector('#ls-card .ls-body').textContent`)), `${w}: card numbers filled`);
+        if (L.id === 'm3' && /另一条岔路 B1/.test(st.title)) {
+          const b = JSON.parse(await ev(`JSON.stringify({ lines: document.querySelectorAll('#ls-card .ls-b1 svg polyline').length, w: Math.round(document.querySelector('#ls-card .ls-b1 svg')?.getBoundingClientRect().width || 0), href: document.querySelector('#ls-card .ls-lessonlink')?.getAttribute('href') || '', t: document.querySelector('#ls-card .ls-body').textContent })`));
+          ok(b.lines === 2 && b.w >= 240 && /故事读法/.test(b.t), `${w}: the b1story chart (▼ and ▶, ${b.w}px) and 故事读法`);
+          ok(/lesson=exp/.test(b.href) && /step=\d+/.test(b.href), `${w}: link to the rope step of 专题：预期 (${b.href})`);
         }
         if (L.id === 'm5' && st.drillCta) {
           ok(s.panels.length === 0 && s.country === 'USA', `${w}: 外国人 card on the US diagram`);

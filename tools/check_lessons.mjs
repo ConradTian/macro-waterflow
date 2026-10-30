@@ -30,6 +30,12 @@
 //                of the main lessons are declared vals and fill without gaps
 // 15. drills     step.drills [{ label, panel, text, nums, facts }] of the main lessons (m5 外国人 -> the AUS FX reactor): panel ids exist, every
 //                number typed in a drill text is listed in nums and recomputes from the repo's quarterly data / the FX reactor (D.q, D.fxr)
+// 16. 吸力 (2026-10-30, 「开阀看 ▽，结账看 ▼」): L3 m2 carries the core of 「专题：预期」 on the exp panels (src/ui/exp-gauge.js): its panel ids
+//                exist in the panel module, every at: val of a panel step equals the panel's own engine replay (same quarter, same path), derive
+//                (▶ − ▽ ...) and expVals (five order / blue / loop dates: expGet of src/data/lessons.js) fill, the replay = createSim, the old
+//                「预期藏在吸力里」 line is gone; L5 m4 / L7 m5 name ▶ − ▼ 到手实际利率 (no 「吸力（实际利率）」 left in the main line)
+// 17. B1 story  L4 m3 「另一条岔路 B1」: src/data/b1-story.js is recomputed from the FRED CSVs (data_src/real/fred), the step's b1Facts hold, the
+//                text says 故事读法 and links to the rope step of ?lesson=exp (lessonLink.step = the exp-rope panel step)
 // Claims may test strings: eq:'red' / ne:'green' (getters 'lamp.<id>', 'lamps.lit', 'out.C', 'gdp.<flow>', '<a>/<b>': see src/ui/lessons-town.js).
 // Concept cards that another agent is still writing (PENDING_CONCEPTS) are reported as WARN while missing; once a card exists it is checked like any other.
 import { readFileSync } from 'node:fs';
@@ -37,7 +43,10 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { US_Q } from '../src/data/us-quarterly.js';
 import { WAVES } from '../src/data/waves.js';
-import { LESSONS, COURSE } from '../src/data/lessons.js';
+import { LESSONS, COURSE, expGet, b1, B1_WAVES } from '../src/data/lessons.js';
+import * as G from '../src/ui/exp-gauge.js';
+import { LESSON_EXP } from '../src/data/lesson-exp.js';
+import { B1_STORY } from '../src/data/b1-story.js';
 import { ROLE_CARD_ORDER, ROLE_META } from '../src/data/role-cards.js';
 import { ROLE_LESSONS } from '../src/data/role-lessons.js';
 import { CONCEPTS } from '../src/data/concepts.js';
@@ -74,7 +83,14 @@ const TABS = ['ledger', 'cycle', 'assets', 'takeover'];
 const TYPES = ['intro', 'watch', 'predict', 'reveal', 'experiment', 'chain', 'recap'];
 const MAIN_TYPES = [...TYPES, 'action', 'zoom'];      // m1: two town action steps, then the zoom to the US
 const MARKS = ['loop', 'outlets', 'objective'];       // step field mark (src/ui/lessons.js MARKS)
-const BLOCKS = ['alloc', 'budget', 'sources', 'b2cases'];
+const BLOCKS = ['alloc', 'budget', 'sources', 'b2cases', 'b1story'];
+// the step's live table as the UI builds it (src/ui/lessons.js continueEnter): vals, then derive (raw[a] − raw[b]), then expVals (exp panels)
+function fullTable(D, L, st, win, you) {
+  const tbl = buildTable(D, L, st, win, you);
+  for (const d of arr(st.derive)) { const a = tbl.raw[d.a], b = tbl.raw[d.b]; tbl.raw[d.key] = typeof a === 'number' && typeof b === 'number' ? a - b : null; tbl.fmt[d.key] = d.fmt; }
+  for (const x of arr(st.expVals)) { tbl.raw[x.key] = expGet(G, x.get); tbl.fmt[x.key] = x.fmt || 'str'; }
+  return tbl;
+}
 const FMTS = ['lamp', 'pct', 'pct0', 'pct2', 'pp', 'chg', 'chg1', 'x2', 'idx', 'n1', 'n2', 'n3', 'rate', 'tn', 'bn', 'aud', 'ppa', 'apct0', 'apct1', 'num', 'str'];
 const AGGS = ['end', 'first', 'start', 'max', 'min', 'sum', 'avg', 'chg', 'dpp', 'dd', 'argmax', 'argmin', 'when', 'at', 'count', 'qcount'];
 const CYC = LESSONS.filter(l => l.id >= 1 || l.kind === 'cycle');
@@ -261,16 +277,18 @@ for (const L of [...ROUTINE, ...MAIN, ...SHK, ...CYC, ...WORLDL]) {
     }
     // ---- 2. templates
     const you = st.slider ? st.slider.def : null;
-    const tbl = buildTable(D, L, st, win, you);
+    const tbl = fullTable(D, L, st, win, you);
     const miss = [];
     const filled = fillStep(st, tbl, miss);
+    for (const d of arr(st.drills)) fillStep({ text: arr(d.text) }, tbl, miss);   // drill texts are filled from the same table (src/ui/lessons.js drillsHtml)
     ok(miss.length === 0, w + 'all placeholders filled' + (miss.length ? ' (missing ' + miss.join(' ') + ')' : ''));
     const flat = [filled.text, filled.q, filled.explain, filled.answerHint, filled.relation, filled.insight, filled.question].flatMap(x => arr(x)).concat((filled.options || []).map(o => o.t), (filled.links || []).map(l => l.text)).join(' | ');
     ok(!/NaN|undefined|null|Infinity/.test(flat), w + 'filled text has no NaN/undefined/null');
     ok(!/[{}]/.test(flat), w + 'no leftover braces');
     // placeholders must point at a declared key
-    const keys = new Set([...(st.vals || []).map(v => v.key), ...(st.metrics || []).filter(m => m.key).map(m => m.key)]);
-    for (const m of JSON.stringify([st.text, st.q, st.explain, st.answerHint, st.relation, st.insight, st.question, st.options, st.links, st.ending]).matchAll(/\{(\w+)(?:\.\w+(?:-\w+)?)?\}/g)) ok(keys.has(m[1]), w + 'placeholder {' + m[1] + '} has a declared key');
+    const keys = new Set([...(st.vals || []).map(v => v.key), ...(st.metrics || []).filter(m => m.key).map(m => m.key), ...arr(st.derive).map(d => d.key), ...arr(st.expVals).map(x => x.key)]);
+    for (const d of arr(st.derive)) ok((st.vals || []).some(v => v.key === d.a) && (st.vals || []).some(v => v.key === d.b), w + `derive ${d.key} = ${d.a} − ${d.b} (both are vals)`);
+    for (const m of JSON.stringify([st.text, st.q, st.explain, st.answerHint, st.relation, st.insight, st.question, st.options, st.links, st.ending, arr(st.drills).map(d => d.text)]).matchAll(/\{(\w+)(?:\.\w+(?:-\w+)?)?\}/g)) ok(keys.has(m[1]), w + 'placeholder {' + m[1] + '} has a declared key');
     // ---- 14. the 三问 ending: filled like the text (src/ui/lessons.js endingHtml)
     if (st.ending) {
       const em = [], ef = fillStep({ text: [st.ending.q1, st.ending.q2, st.ending.q3] }, tbl, em).text.join(' | ');
@@ -377,6 +395,7 @@ ok(!/同比|环比/.test(JSON.stringify(CL)), 'no 同比/环比 in the 8 course 
   const src = f => readFileSync(new URL('../src/ui/' + f, import.meta.url), 'utf8');
   for (const L of MAIN) L.steps.forEach((st, i) => arr(st.drills).forEach((d, j) => {
     const w = `L${L.id} step ${i + 1} drill ${j + 1} `;
+    if (d.panel && /^exp-/.test(d.panel.id)) { ok(d.label && Array.isArray(d.text) && d.text.length >= 1, w + 'exp drill shape (label, text; numbers = placeholders, checked in section 16)'); return; }
     ok(d.label && d.panel && d.panel.id === 'fx-reactor' && Array.isArray(d.text) && d.text.length >= 2, w + 'shape (label, reactor panel, text)');
     ok(/export async function mountFxReactor/.test(src('fx-reactor.js')), w + 'mountFxReactor exists');
     for (const dt of arr(d.panel.dates).concat(d.panel.date || [])) ok(CDATA.AUS.dates.includes(dt) && DD.fxr(dt).ok, w + 'reactor date ' + dt);
@@ -440,6 +459,77 @@ ok(L7.steps.some(s => s.freeLink) && L7.mode === 'free', 'lesson 7 runs the free
 ok(LESSONS[0].id === 0 && LESSONS[0].available, 'lesson 0 still there');
 // the rule thresholds quoted via R() exist
 for (const [r, k] of [['bank_loosen', 'hp'], ['bank_tighten_collateral', 'lvr'], ['cb_qe', 'floorRate'], ['cb_qe', 'uOn'], ['cb_qe', 'sizeGdp'], ['inv_riskoff', 'rp'], ['hh_chase', 'up']]) ok(RULE_BY_ID[r].params[k] !== undefined, `rule param ${r}.${k}`);
+
+/* ---------- 16. 吸力: L3 m2 on the exp panels; 开阀看 ▽，结账看 ▼ in m4 / m5 ---------- */
+{
+  console.log('\n--- 16. 吸力: L3 exp panels (engine replay), ▶ − ▽ / ▶ − ▼ wording ---');
+  const m2 = MAIN.find(l => l.id === 'm2'), m3 = MAIN.find(l => l.id === 'm3'), m4 = MAIN.find(l => l.id === 'm4'), m5 = MAIN.find(l => l.id === 'm5');
+  const gsrc = readFileSync(new URL('../src/ui/exp-gauge.js', import.meta.url), 'utf8');
+  const EXP_IDS = [...gsrc.matchAll(/id === '(exp-[\w-]+)'\) html =/g)].map(m => m[1]);
+  ok(EXP_IDS.length >= 5, 'exp-gauge.js render dispatch lists the panel ids: ' + EXP_IDS.join(' '));
+  const rows = G.replay(), rowAt = d => rows.find(r => r.date === d);
+  // the panel's replay = createSim (as tools/check_lesson_exp.mjs), so a val read from createSim is the number the panel draws
+  const us = createSim({ data: US_Q, country: 'USA' }); while (!us.done) us.step();
+  const H = us.history(), same = rows.every(r => { const h = H.find(x => x.date === r.date); return h && ['rates.policy', 'macro.inflation', 'macro.inflationExp', 'rates.realPolicy'].every(p => Math.abs(getPath(h, p) - getPath(r.snap, p)) < 1e-12); });
+  ok(same, 'exp panel replay = createSim (▶ ▼ ▽ and ▶ − ▼, every quarter)');
+  const pos = lessonPositions(m2), panelSteps = m2.steps.filter(s => s.panel);
+  ok(m2.steps.length <= 8 && m2.steps.length - 1 <= 7, `m2: ≤ 7 steps after the intro (${m2.steps.length - 1})`);
+  ok(panelSteps.length >= 4 && panelSteps.every(s => /^exp-/.test(s.panel.id)), 'm2: the ruler steps use exp panels: ' + panelSteps.map(s => s.panel.id).join(' '));
+  for (const s of m2.steps) for (const sp of [s.panel, ...arr(s.drills).map(d => d.panel)].filter(Boolean)) ok(EXP_IDS.includes(sp.id), `m2 「${s.title}」 panel id ${sp.id} exists in exp-gauge.js`);
+  ok(['exp-hist', 'exp-five'].every(id => m2.steps.some(s => s.panel && s.panel.id === id)) && m2.steps.some(s => arr(s.drills).some(d => d.panel.id === 'exp-loop')), 'm2: ruler (exp-hist), five places (exp-five), loop (exp-loop drill)');
+  m2.steps.forEach((st, i) => {
+    const w = `m2 step ${i + 1} `;
+    if (st.panel) for (const v of arr(st.vals)) {
+      const m = /^at:(\d{4}Q\d):(.+)$/.exec(v.get); if (!m) continue;
+      const card = buildTable(US_Q, m2, { vals: [v] }, pos[i]).raw[v.key], mine = getPath(rowAt(m[1]).snap, m[2]);
+      ok(typeof card === 'number' && Math.abs(card - mine) < 1e-12, w + `val ${v.key} ${m[1]} ${m[2]}: card ${fmtV(card, v.fmt)} = panel replay ${fmtV(mine, v.fmt)}`);
+    }
+    const tbl = fullTable(US_Q, m2, st, pos[i]);
+    for (const x of arr(st.expVals)) ok(tbl.raw[x.key] != null && tbl.raw[x.key] !== '', w + `expVal ${x.key} (${x.get}) = ${tbl.raw[x.key]}`);
+  });
+  { const F = G.fiveTurns(rows), Lp = G.loopInfo(rows);
+    ok(expGet(G, 'five.order') === F.orderText && expGet(G, 'five.lag.river') === F.lag.river && /^\d{4} 年第[一二三四]季度$/.test(expGet(G, 'five.blue')) && F.blue && Lp.firstHike && Lp.firstCut,
+      `m2 step 6: 转蓝 ${F.blue}, order ${F.orderText}, river lag ${F.lag.river}, hike ${Lp.firstHike}, cut ${Lp.firstCut} (the panel's own computation)`);
+    ok(F.places.every(p => p.turn && p.turn >= F.blue), 'm2 step 6: every place moves after the band turns blue'); }
+  const T = l => JSON.stringify(l.steps.map(s => [s.text, s.q, s.explain, s.answerHint, s.relation, s.ending, arr(s.drills).map(d => d.text)])) + l.oneLine;
+  ok(!/藏在吸力里|没有单独的零件/.test(T(m2)), 'm2: the old line 「预期没有单独的零件：藏在吸力里」 is gone');
+  ok(/吸力 = ▶ − ▽/.test(T(m2)) && /开阀看 ▽，结账看 ▼/.test(T(m2)), 'm2: 吸力 = ▶ − ▽ and 开阀看 ▽，结账看 ▼');
+  ok(!MAIN.some(l => /吸力（实际利率）|吸力为负|负的吸力|吸力拧到负/.test(T(l))), 'main line: no 「吸力（实际利率）」 / 「吸力为负」 left (吸力 = ▶ − ▽; ▶ − ▼ = 到手实际利率)');
+  ok(/到手实际利率（▶ − ▼/.test(T(m4)) && /到手实际利率 = ▶ − ▼/.test(T(m4)), 'm4: ⑦ / savers / 政策灯 read 到手实际利率 ▶ − ▼ (结账)');
+  const m5s1 = m5.steps[1];
+  ok(/吸力（▶ − ▽）已经是 \{sx\}/.test(m5s1.text.join('')) && arr(m5s1.derive).some(d => d.key === 'sx' && m5s1.vals.find(v => v.key === d.a).get === 'start:rates.policy' && m5s1.vals.find(v => v.key === d.b).get === 'start:macro.inflationExp'), 'm5 step 2: 吸力 {sx} = ▶ − ▽ (rates.policy − macro.inflationExp, derive)');
+  ok(/到手（▶ − ▼，结账）\{rr\}/.test(m5s1.text.join('')) && m5s1.vals.find(v => v.key === 'rr').get === 'start:rates.realPolicy', 'm5 step 2: savers = 到手 ▶ − ▼ (rates.realPolicy)');
+  ok(m3.steps.length <= 7, `m3: ≤ 7 steps incl. the intro (${m3.steps.length})`);
+}
+/* ---------- 17. L4 m3 B1 story: data module = FRED CSVs, facts, link to the rope ---------- */
+{
+  console.log('\n--- 17. L4 B1 story (FRED 1960–1985) ---');
+  const csv = n => readFileSync(new URL(`../data_src/real/fred/${n}.csv`, import.meta.url), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split(',')).map(([d, v]) => [d, +v]).filter(([d, v]) => /^\d{4}-\d\d-01$/.test(d) && Number.isFinite(v));
+  const qm = n => { const o = {}; for (const [d, v] of csv(n)) { const k = `${d.slice(0, 4)}Q${Math.floor((+d.slice(5, 7) - 1) / 3) + 1}`; (o[k] ||= []).push(v); } return Object.fromEntries(Object.entries(o).filter(([, a]) => a.length === 3).map(([k, a]) => [k, a.reduce((x, y) => x + y, 0) / 3])); };
+  const cpi = qm('CPIAUCSL'), ff = qm('FEDFUNDS'), u = qm('UNRATE'), gd = Object.fromEntries(csv('GFDEGDQ188S').map(([d, v]) => [`${d.slice(0, 4)}Q${Math.floor((+d.slice(5, 7) - 1) / 3) + 1}`, v]));
+  const prev = d => `${+d.slice(0, 4) - 1}${d.slice(4)}`, r5 = x => Math.round(x * 1e5) / 1e5;
+  let bad = 0;
+  B1_STORY.dates.forEach((d, i) => {
+    const want = { cpi: r5(cpi[d] / cpi[prev(d)] - 1), ff: r5(ff[d] / 100), u: r5(u[d] / 100), gd: gd[d] == null ? null : r5(gd[d] / 100) };
+    for (const k of ['cpi', 'ff', 'u', 'gd']) if (!(want[k] === B1_STORY[k][i] || (want[k] != null && Math.abs(want[k] - B1_STORY[k][i]) < 1.1e-5))) { bad++; if (bad < 5) console.log(`   ${d} ${k}: module ${B1_STORY[k][i]} vs CSV ${want[k]}`); }
+  });
+  ok(bad === 0 && B1_STORY.dates[0] === B1_WAVES.from && B1_STORY.dates[B1_STORY.dates.length - 1] === B1_WAVES.until, `b1-story.js = FRED CSVs recomputed (${B1_STORY.dates.length} quarters, ${bad} mismatches)`);
+  const m3 = MAIN.find(l => l.id === 'm3'), k = m3.steps.findIndex(s => /另一条岔路 B1/.test(s.title || '')), st = m3.steps[k] || {};
+  ok(k > 0 && k < m3.steps.length - 1 && st.block === 'b1story', `m3: 「另一条岔路 B1」 is a middle step (${k + 1} of ${m3.steps.length}) with the b1story chart`);
+  ok(/^\*\*故事读法/.test(arr(st.text)[0] || ''), 'm3 B1: labelled 故事读法 first');
+  ok(/⑦ \+ B1/.test(arr(st.text).join('')) && /沃尔克/.test(arr(st.text).join('')) && /绳/.test(arr(st.text).join('')), 'm3 B1: rope wore loose → ⑦ + B1 → ended with Volcker');
+  for (const f of arr(st.b1Facts)) { let r = false; try { r = !!f.f(b1); } catch (e) { r = false; } ok(r, 'm3 B1 fact: ' + f.note); }
+  ok(arr(st.b1Facts).length >= 5, 'm3 B1: the story claims are listed (b1Facts)');
+  const ll = st.lessonLink || {}, rope = LESSON_EXP.steps.findIndex(s => s.panel && s.panel.id === 'exp-rope');
+  ok(ll.id === 'exp' && rope >= 0 && ll.step === rope, `m3 B1: lessonLink → ?lesson=exp&step=${ll.step} = the rope step (${rope})`);
+  if (showText) console.log('   ' + arr(st.text).join('\n   '));
+  // every number in the B1 text is one of the computed story numbers (no typed number)
+  const pct = x => (x * 100).toFixed(1) + '%';
+  const allowed = new Set([b1.before.cpi, ...b1.peaks.map(r => r.cpi), ...b1.lows.map(r => r.cpi), b1.worst.real, b1.d0.gd, b1.dMin.gd, b1.ffPk.ff, b1.ffPk.real, b1.uPk.u].map(v => pct(Math.abs(v))));
+  const nums = arr(st.text).join(' ').replace(/\*\*/g, '').replace(/(19|20)\d\d( 年第[一二三四]季度)?/g, ' ').match(/\d+(\.\d+)?%/g) || [];
+  ok(nums.every(n => allowed.has(n)), 'm3 B1: every % in the text is a computed story number: ' + nums.join(' '));
+  ok(arr(st.text).join('').includes(`${b1.negAll} 个季度里，有 ${b1.negN} 个季度`), `m3 B1: ${b1.negN} of ${b1.negAll} quarters with 到手 < 0 (computed)`);
+}
 
 console.log(`\n${fails ? 'FAILED' : 'OK'}: ${fails} failure(s), ${warns} warning(s)`);
 process.exit(fails ? 1 : 0);
